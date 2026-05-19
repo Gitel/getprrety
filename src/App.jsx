@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from "react";
+import SignUpScreen from "./screens/SignUpScreen";
+import SkinTimingScreen from "./screens/SkinTimingScreen";
 
 // ─── PALETTE ──────────────────────────────────────────────────────────────────
 const C = {
@@ -1178,19 +1180,22 @@ function IPhone({ children }) {
 
 // ─── ROOT APP ─────────────────────────────────────────────────────────────────
 const NAV = [
-  {key:"splash",   label:"Splash"},
-  {key:"quiz",     label:"Quiz"},
-  {key:"loading",  label:"Analysing", locked:true},
-  {key:"profile",  label:"My Era",    locked:true},
-  {key:"notif",    label:"Reminders", locked:true},
-  {key:"home",     label:"Routine",   locked:true},
-  {key:"settings", label:"Settings",  locked:true},
+  {key:"splash",     label:"Splash"},
+  {key:"quiz",       label:"Quiz"},
+  {key:"loading",    label:"Analysing", locked:true},
+  {key:"profile",    label:"My Era",    locked:true},
+  {key:"signup",     label:"Sign Up",   locked:true},
+  {key:"skintiming", label:"Timing",    locked:true},
+  {key:"notif",      label:"Reminders", locked:true},
+  {key:"home",       label:"Routine",   locked:true},
+  {key:"settings",   label:"Settings",  locked:true},
 ];
 
 export default function App() {
   const [screen,   setScreen]   = useState("splash");
   const [analysis, setAnalysis] = useState(null);
   const [answers,  setAnswers]  = useState(null);
+  const [user,     setUser]     = useState(null);
 
   function handleQuizDone(a)      { setAnswers(a); setScreen("loading"); }
   function handleAnalysisDone(r)  { setAnalysis(r); setScreen("profile"); }
@@ -1224,7 +1229,9 @@ export default function App() {
         {screen==="splash"   && <SplashScreen onStart={()=>setScreen("quiz")}/>}
         {screen==="quiz"     && <QuizScreen onComplete={handleQuizDone}/>}
         {screen==="loading"  && (answers ? <LoadingScreen answers={answers} onDone={handleAnalysisDone}/> : <NeedsQuiz/>)}
-        {screen==="profile"  && (analysis ? <ProfileScreen analysis={analysis} onContinue={()=>setScreen("notif")}/> : <NeedsQuiz/>)}
+        {screen==="profile"    && (analysis ? <ProfileScreen analysis={analysis} onContinue={()=>setScreen("signup")}/> : <NeedsQuiz/>)}
+        {screen==="signup"     && (analysis ? <SignUpScreen era={analysis.era} onSuccess={u=>{ setUser(u); setScreen("skintiming"); }}/> : <NeedsQuiz/>)}
+        {screen==="skintiming" && (analysis ? <SkinTimingScreen userId={user?.id} onDone={()=>setScreen("notif")}/> : <NeedsQuiz/>)}
         {screen==="notif"    && (analysis ? <NotificationSetupScreen era={analysis.era} onDone={()=>setScreen("home")}/> : <NeedsQuiz/>)}
         {screen==="home"     && (analysis ? <HomeScreen analysis={analysis} onSettings={()=>setScreen("settings")}/> : <NeedsQuiz/>)}
         {screen==="settings" && (analysis ? <SettingsScreen era={analysis.era} onBack={()=>setScreen("home")} onRetake={handleRetake}/> : <NeedsQuiz/>)}
