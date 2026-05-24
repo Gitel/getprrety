@@ -1,0 +1,37 @@
+{
+  "expo": {
+    "name": "Get Pretty",
+    "slug": "getprrety",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.getprrety.app"
+    },
+    "android": {
+      "package": "com.getprrety.app"
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Get Pretty needs camera access to analyze your skin and scan your products."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Get Pretty needs photo library access to upload your skin photos."
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Get Pretty needs photo library access to save your skin photos."
+        }
+      ],
+      "expo-status-bar"
+    ]
+  }
+}

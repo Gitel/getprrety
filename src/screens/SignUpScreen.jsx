@@ -1,34 +1,35 @@
-import { useState } from "react";
-import { supabase } from "../lib/supabase";
-
-const C = {
-  bg: "#FAF7F4",
-  text: "#2C2C2C",
-  muted: "#9B8E85",
-  border: "#E8DDD8",
-  accent: "#C9897A",
-  accentLight: "#FBF6EE",
-};
+import React, { useState } from 'react';
+import {
+  View, Text, TextInput, Pressable, StyleSheet,
+  KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { supabase } from '../lib/supabase';
+import { C } from '../constants';
+import { useApp } from '../context/AppContext';
 
 function isValidEmail(v) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 }
 
-export default function SignUpScreen({ era, onSuccess }) {
-  const [firstName, setFirstName] = useState("");
-  const [email,     setEmail]     = useState("");
-  const [password,  setPassword]  = useState("");
+export default function SignUpScreen({ navigation }) {
+  const { analysis, setUser } = useApp();
+  const era = analysis?.era;
+
+  const [firstName, setFirstName] = useState('');
+  const [email,     setEmail]     = useState('');
+  const [password,  setPassword]  = useState('');
   const [showPw,    setShowPw]    = useState(false);
   const [loading,   setLoading]   = useState(false);
   const [errors,    setErrors]    = useState({});
 
   function validate() {
     const e = {};
-    if (!firstName.trim())          e.firstName = "First name is required.";
-    if (!email.trim())              e.email = "Email is required.";
-    else if (!isValidEmail(email))  e.email = "Enter a valid email address.";
-    if (!password)                  e.password = "Password is required.";
-    else if (password.length < 8)   e.password = "Password must be at least 8 characters.";
+    if (!firstName.trim())         e.firstName = 'First name is required.';
+    if (!email.trim())             e.email = 'Email is required.';
+    else if (!isValidEmail(email)) e.email = 'Enter a valid email address.';
+    if (!password)                 e.password = 'Password is required.';
+    else if (password.length < 8)  e.password = 'Password must be at least 8 characters.';
     return e;
   }
 
@@ -42,176 +43,128 @@ export default function SignUpScreen({ era, onSuccess }) {
       if (error) throw error;
       const userId = data.user?.id;
       if (userId) {
-        await supabase.from("profiles").upsert({
+        await supabase.from('profiles').upsert({
           id: userId,
           first_name: firstName.trim(),
           skin_era: era?.id || null,
         });
       }
-      onSuccess(data.user);
+      setUser(data.user);
+      navigation.navigate('SkinTiming');
     } catch (err) {
-      setErrors({ submit: err.message || "Sign up failed. Please try again." });
+      setErrors({ submit: err.message || 'Sign up failed. Please try again.' });
     } finally {
       setLoading(false);
     }
   }
 
-  const eraName = era?.name || "Your Era";
+  const eraName = era?.name || 'Your Era';
 
   return (
-    <div style={{
-      height: "100%",
-      background: C.bg,
-      display: "flex",
-      flexDirection: "column",
-      overflowY: "auto",
-    }}>
-      <div style={{ flex: 1, padding: "36px 24px 40px", display: "flex", flexDirection: "column" }}>
+    <SafeAreaView style={s.safe}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled">
 
-        {/* Era headline */}
-        <div style={{ marginBottom: 36 }}>
-          <p style={{
-            fontFamily: "'Cormorant Garamond', Georgia, serif",
-            fontSize: 26,
-            fontWeight: 500,
-            color: C.text,
-            lineHeight: 1.4,
-            margin: "0 0 10px",
-          }}>
-            Your <span style={{ color: C.accent }}>{eraName}</span> routine is ready.
-          </p>
-          <p style={{
-            fontFamily: "'DM Sans', system-ui, sans-serif",
-            fontSize: 14,
-            color: C.muted,
-            lineHeight: 1.65,
-            margin: 0,
-          }}>
-            Create your account to unlock it — and track your skin journey.
-          </p>
-        </div>
-
-        {/* Form */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 16, flex: 1 }}>
+          {/* Era headline */}
+          <View style={s.headlineBlock}>
+            <Text style={s.headline}>
+              Your <Text style={{ color: C.accent }}>{eraName}</Text> routine is ready.
+            </Text>
+            <Text style={s.sub}>Create your account to unlock it — and track your skin journey.</Text>
+          </View>
 
           {/* First Name */}
-          <div>
-            <input
-              type="text"
+          <View style={s.fieldWrap}>
+            <TextInput
               placeholder="First name"
+              placeholderTextColor={C.muted}
               value={firstName}
-              onChange={e => { setFirstName(e.target.value); setErrors(v => ({...v, firstName: undefined})); }}
-              style={inputStyle(!!errors.firstName)}
+              onChangeText={t => { setFirstName(t); setErrors(v => ({ ...v, firstName: undefined })); }}
+              style={[s.input, errors.firstName && s.inputError]}
+              autoCapitalize="words"
+              returnKeyType="next"
             />
-            {errors.firstName && <p style={errorStyle}>{errors.firstName}</p>}
-          </div>
+            {errors.firstName && <Text style={s.error}>{errors.firstName}</Text>}
+          </View>
 
           {/* Email */}
-          <div>
-            <input
-              type="email"
+          <View style={s.fieldWrap}>
+            <TextInput
               placeholder="Email address"
+              placeholderTextColor={C.muted}
               value={email}
-              onChange={e => { setEmail(e.target.value); setErrors(v => ({...v, email: undefined})); }}
-              style={inputStyle(!!errors.email)}
+              onChangeText={t => { setEmail(t); setErrors(v => ({ ...v, email: undefined })); }}
+              style={[s.input, errors.email && s.inputError]}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              returnKeyType="next"
             />
-            {errors.email && <p style={errorStyle}>{errors.email}</p>}
-          </div>
+            {errors.email && <Text style={s.error}>{errors.email}</Text>}
+          </View>
 
           {/* Password */}
-          <div>
-            <div style={{ position: "relative" }}>
-              <input
-                type={showPw ? "text" : "password"}
+          <View style={s.fieldWrap}>
+            <View style={s.passwordRow}>
+              <TextInput
                 placeholder="Password (min. 8 characters)"
+                placeholderTextColor={C.muted}
                 value={password}
-                onChange={e => { setPassword(e.target.value); setErrors(v => ({...v, password: undefined})); }}
-                style={{ ...inputStyle(!!errors.password), paddingRight: 44 }}
+                onChangeText={t => { setPassword(t); setErrors(v => ({ ...v, password: undefined })); }}
+                style={[s.input, s.passwordInput, errors.password && s.inputError]}
+                secureTextEntry={!showPw}
+                returnKeyType="done"
+                onSubmitEditing={handleSubmit}
               />
-              <button
-                type="button"
-                onClick={() => setShowPw(s => !s)}
-                style={{
-                  position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)",
-                  background: "none", border: "none", cursor: "pointer",
-                  fontSize: 16, color: C.muted, padding: 0, lineHeight: 1,
-                }}
-              >
-                {showPw ? "🙈" : "👁"}
-              </button>
-            </div>
-            {errors.password && <p style={errorStyle}>{errors.password}</p>}
-          </div>
+              <Pressable style={s.eyeBtn} onPress={() => setShowPw(v => !v)}>
+                <Text style={s.eyeIcon}>{showPw ? '🙈' : '👁'}</Text>
+              </Pressable>
+            </View>
+            {errors.password && <Text style={s.error}>{errors.password}</Text>}
+          </View>
 
           {errors.submit && (
-            <p style={{ ...errorStyle, textAlign: "center", marginTop: 4 }}>{errors.submit}</p>
+            <Text style={[s.error, { textAlign: 'center', marginBottom: 8 }]}>{errors.submit}</Text>
           )}
 
-          <div style={{ flex: 1 }} />
-
-          {/* CTA */}
-          <button
-            onClick={handleSubmit}
+          <Pressable
+            onPress={handleSubmit}
             disabled={loading}
-            style={{
-              width: "100%",
-              padding: "15px 0",
-              borderRadius: 13,
-              border: "none",
-              background: loading ? "#D4C5BF" : C.accent,
-              color: C.bg,
-              fontSize: 15,
-              fontWeight: 500,
-              fontFamily: "'DM Sans', system-ui, sans-serif",
-              letterSpacing: 0.4,
-              cursor: loading ? "not-allowed" : "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 8,
-              transition: "background 0.2s",
-            }}
+            style={[s.cta, loading && s.ctaDisabled]}
           >
-            {loading ? <Spinner /> : "Enter my Era →"}
-          </button>
-        </div>
-      </div>
-    </div>
+            {loading
+              ? <ActivityIndicator color={C.bg} size="small" />
+              : <Text style={s.ctaText}>Enter my Era →</Text>
+            }
+          </Pressable>
+
+          <View style={{ height: 40 }} />
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
-function inputStyle(hasError) {
-  return {
-    width: "100%",
-    padding: "13px 14px",
-    borderRadius: 12,
-    border: `1.5px solid ${hasError ? "#C9897A" : "#E8DDD8"}`,
-    background: "#FFFFFF",
-    fontSize: 14,
-    fontFamily: "'DM Sans', system-ui, sans-serif",
-    color: "#2C2C2C",
-    outline: "none",
-    boxSizing: "border-box",
-    transition: "border-color 0.15s",
-  };
-}
+const s = StyleSheet.create({
+  safe:        { flex: 1, backgroundColor: '#FAF7F4' },
+  content:     { flexGrow: 1, padding: 24, paddingTop: 36 },
 
-const errorStyle = {
-  fontSize: 12,
-  color: "#C9897A",
-  margin: "5px 0 0 4px",
-  fontFamily: "'DM Sans', system-ui, sans-serif",
-};
+  headlineBlock:{ marginBottom: 36 },
+  headline:    { fontFamily: 'CormorantGaramond_500Medium', fontSize: 26, color: '#2C2C2C', lineHeight: 36, marginBottom: 10 },
+  sub:         { fontFamily: 'DMSans_400Regular', fontSize: 14, color: C.muted, lineHeight: 23 },
 
-function Spinner() {
-  return (
-    <span style={{
-      width: 16, height: 16,
-      border: "2px solid rgba(250,247,244,0.4)",
-      borderTopColor: "#FAF7F4",
-      borderRadius: "50%",
-      display: "inline-block",
-      animation: "spin 0.7s linear infinite",
-    }}/>
-  );
-}
+  fieldWrap:   { marginBottom: 16 },
+  input:       { backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: '#E8DDD8', borderRadius: 12, paddingVertical: 13, paddingHorizontal: 14, fontFamily: 'DMSans_400Regular', fontSize: 14, color: '#2C2C2C' },
+  inputError:  { borderColor: '#C9897A' },
+  passwordRow: { position: 'relative' },
+  passwordInput:{ paddingRight: 48 },
+  eyeBtn:      { position: 'absolute', right: 14, top: 0, bottom: 0, justifyContent: 'center' },
+  eyeIcon:     { fontSize: 16 },
+  error:       { fontFamily: 'DMSans_400Regular', fontSize: 12, color: '#C9897A', marginTop: 5, marginLeft: 4 },
+
+  cta:         { backgroundColor: '#C9897A', borderRadius: 13, paddingVertical: 15, alignItems: 'center', marginTop: 8 },
+  ctaDisabled: { backgroundColor: '#D4C5BF' },
+  ctaText:     { fontFamily: 'DMSans_500Medium', fontSize: 15, color: '#FAF7F4', letterSpacing: 0.4 },
+});
