@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { supabase } from '../lib/supabase';
+import { api } from '../lib/api';
 import { C } from '../constants';
 import { useApp } from '../context/AppContext';
 
@@ -22,13 +22,7 @@ export default function SkinTimingScreen({ navigation }) {
     setLoading(true);
     setError(null);
     try {
-      if (user?.id) {
-        const { error: dbErr } = await supabase
-          .from('profiles')
-          .update({ skincare_timing: selected })
-          .eq('id', user.id);
-        if (dbErr) throw dbErr;
-      }
+      await api.patch('/api/profile', { skincareTiming: selected });
       navigation.navigate('SkinSelfie');
     } catch (err) {
       setError(err.message || 'Something went wrong. Please try again.');

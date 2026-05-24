@@ -4,7 +4,10 @@ import {
   KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { supabase } from '../lib/supabase';
+import { api } from '../lib/api';
+import { storeToken } from '../lib/auth';
+import { uploadAll } from '../lib/uploadImage';
+import { logActivity } from '../lib/logActivity';
 import { C } from '../constants';
 import { useApp } from '../context/AppContext';
 
@@ -12,8 +15,32 @@ function isValidEmail(v) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 }
 
+async function saveQuizData(analysis, answers) {
+  if (!analysis) return;
+  const photoUris = [
+    answers?.photo_right,
+    answers?.photo_left,
+    answers?.photo_front,
+    ...(answers?.shelf_photos || []),
+  ].filter(Boolean);
+
+  const quizPhotoIds = await uploadAll(photoUris);
+
+  await api.post('/api/analysis', {
+    eraId:        analysis.era?.id,
+    era:          analysis.era,
+    skinAnalysis: analysis.skinAnalysis,
+    keyInsights:  analysis.keyInsights,
+    productAudit: analysis.productAudit,
+    routine:      analysis.routine,
+    affirmation:  analysis.affirmation,
+    quizAnswers:  answers,
+    quizPhotoIds,
+  });
+}
+
 export default function SignUpScreen({ navigation }) {
-  const { analysis, setUser } = useApp();
+  const { analysis, answers, setUser } = useApp();
   const era = analysis?.era;
 
   const [firstName, setFirstName] = useState('');
@@ -39,17 +66,17 @@ export default function SignUpScreen({ navigation }) {
     setErrors({});
     setLoading(true);
     try {
-      const { data, error } = await supabase.auth.signUp({ email, password });
-      if (error) throw error;
-      const userId = data.user?.id;
-      if (userId) {
-        await supabase.from('profiles').upsert({
-          id: userId,
-          first_name: firstName.trim(),
-          skin_era: era?.id || null,
-        });
-      }
-      setUser(data.user);
+      const { token, user: u } = await api.post('/api/auth/signup', {
+        firstName: firstName.trim(),
+        email,
+        password,
+      });
+      await storeToken(token);
+      setUser(u);
+
+      logActivity('signup');
+      saveQuizData(analysis, answers).catch(() => {});
+
       navigation.navigate('SkinTiming');
     } catch (err) {
       setErrors({ submit: err.message || 'Sign up failed. Please try again.' });

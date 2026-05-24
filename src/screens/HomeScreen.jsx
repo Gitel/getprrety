@@ -5,6 +5,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { C, MOODS, DONE_MSGS } from '../constants';
 import { useApp } from '../context/AppContext';
+import { api } from '../lib/api';
+import { logActivity } from '../lib/logActivity';
 
 export default function HomeScreen({ navigation }) {
   const { analysis } = useApp();
@@ -160,7 +162,14 @@ export default function HomeScreen({ navigation }) {
               ))}
             </View>
             <Pressable
-              onPress={() => { setCheckedIn(mood); setCiOpen(false); setMood(null); }}
+              onPress={() => {
+                if (!mood) return;
+                api.post('/api/checkins', { mood }).catch(() => {});
+                logActivity('checkin');
+                setCheckedIn(mood);
+                setCiOpen(false);
+                setMood(null);
+              }}
               disabled={!mood}
               style={[s.moodCta, { backgroundColor: mood ? era.color : '#D4CBC4' }]}
             >

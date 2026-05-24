@@ -23,6 +23,7 @@ import SignUpScreen from './src/screens/SignUpScreen';
 import SkinTimingScreen from './src/screens/SkinTimingScreen';
 import SkinSelfieScreen from './src/screens/SkinSelfieScreen';
 import NotificationSetupScreen from './src/screens/NotificationSetupScreen';
+import LoginScreen from './src/screens/LoginScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import ProductCameraScreen from './src/screens/ProductCameraScreen';
@@ -55,6 +56,7 @@ export default function App() {
             initialRouteName="Splash"
           >
             <Stack.Screen name="Splash" component={SplashScreen} />
+            <Stack.Screen name="Login" component={LoginScreen} />
             <Stack.Screen name="Quiz" component={QuizScreen} />
             <Stack.Screen name="Loading" component={LoadingScreen} />
             <Stack.Screen name="Profile" component={ProfileScreen} />

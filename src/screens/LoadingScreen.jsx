@@ -3,6 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { C, analyzeWithAI, buildFallback } from '../constants';
 import { useApp } from '../context/AppContext';
+import { api } from '../lib/api';
 
 const STEPS = [
   { label: 'Reading your skin signals...',          icon: '🔍' },
@@ -25,26 +26,31 @@ export default function LoadingScreen({ navigation }) {
     const minWait = STEPS.length * 900 + 500;
 
     analyzeWithAI(answers || {})
-      .then(result => {
-        setTimeout(() => {
-          setComplete(true);
-          setTimeout(() => {
-            setAnalysis(result);
-            navigation.navigate('Profile');
-          }, 700);
-        }, minWait);
-      })
+      .then(result => saveAndNavigate(result))
       .catch(err => {
         console.warn('AI fallback:', err.message);
-        const fb = buildFallback(answers || {});
-        setTimeout(() => {
-          setComplete(true);
-          setTimeout(() => {
-            setAnalysis(fb);
-            navigation.navigate('Profile');
-          }, 700);
-        }, minWait);
+        saveAndNavigate(buildFallback(answers || {}));
       });
+
+    function saveAndNavigate(result) {
+      api.post('/api/analysis', {
+        eraId:       result.era?.id,
+        era:         result.era,
+        skinAnalysis:result.skinAnalysis,
+        keyInsights: result.keyInsights,
+        productAudit:result.productAudit,
+        routine:     result.routine,
+        affirmation: result.affirmation,
+        quizAnswers: answers,
+      }).catch(() => {});
+      setTimeout(() => {
+        setComplete(true);
+        setTimeout(() => {
+          setAnalysis(result);
+          navigation.navigate('Profile');
+        }, 700);
+      }, minWait);
+    }
   }, []);
 
   return (

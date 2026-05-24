@@ -6,6 +6,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { CameraView } from 'expo-camera';
 import { useCameraPermission } from '../hooks/useCameraPermission';
 import { C } from '../constants';
+import { api } from '../lib/api';
+import { uploadAll } from '../lib/uploadImage';
 
 // ─── Intro screen shown before camera opens ───────────────────────────────────
 function IntroScreen({ onReady }) {
@@ -88,8 +90,16 @@ export default function SkinSelfieScreen({ navigation }) {
       setCurrent(next.key);
       setPhase('camera');
     } else {
+      saveSelfies(photos);
       navigation.navigate('Notifications');
     }
+  }
+
+  function saveSelfies(capturedPhotos) {
+    const uris = ANGLES.map(a => capturedPhotos[a.key]).filter(Boolean);
+    uploadAll(uris)
+      .then(selfiePhotoIds => api.patch('/api/profile', { selfiePhotoIds }))
+      .catch(() => {});
   }
 
   // ── Intro ──
@@ -144,7 +154,7 @@ export default function SkinSelfieScreen({ navigation }) {
               <View style={s.captureBtnInner} />
             </Pressable>
             {capturedCount > 0 && (
-              <Pressable onPress={() => navigation.navigate('Notifications')} style={s.skipBtn}>
+              <Pressable onPress={() => { saveSelfies(photos); navigation.navigate('Notifications'); }} style={s.skipBtn}>
                 <Text style={s.skipText}>Skip remaining →</Text>
               </Pressable>
             )}

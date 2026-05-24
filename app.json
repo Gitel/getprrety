@@ -31,7 +31,13 @@
           "photosPermission": "Get Pretty needs photo library access to save your skin photos."
         }
       ],
-      "expo-status-bar"
+      "expo-status-bar",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Get Pretty uses your location to personalise your experience and track where you're caring for your skin."
+        }
+      ]
     ]
   }
 }

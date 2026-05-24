@@ -5,6 +5,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { C } from '../constants';
 import { useApp } from '../context/AppContext';
+import { logActivity } from '../lib/logActivity';
 
 const DAYS     = ['S','M','T','W','T','F','S'];
 const DAY_FULL = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
@@ -24,7 +25,7 @@ function formatTime(time) {
 }
 
 export default function SettingsScreen({ navigation }) {
-  const { analysis, setAnalysis, setAnswers } = useApp();
+  const { analysis, setAnalysis, setAnswers, logout } = useApp();
   const era = analysis?.era;
 
   const [showPrompt, setShowPrompt] = useState(false);
@@ -52,6 +53,12 @@ export default function SettingsScreen({ navigation }) {
     setAnalysis(null);
     setAnswers(null);
     navigation.navigate('Quiz');
+  }
+
+  async function handleLogout() {
+    await logActivity('logout');
+    await logout();
+    navigation.reset({ index: 0, routes: [{ name: 'Splash' }] });
   }
 
   return (
@@ -114,6 +121,10 @@ export default function SettingsScreen({ navigation }) {
         <Text style={s.reassessDesc}>Skin changes. Retake monthly to update your era and routine.</Text>
         <Pressable style={s.retakeBtn} onPress={retake}>
           <Text style={s.retakeBtnText}>Retake Skin Era Quiz</Text>
+        </Pressable>
+
+        <Pressable style={s.logoutBtn} onPress={handleLogout}>
+          <Text style={s.logoutBtnText}>Log out</Text>
         </Pressable>
 
         <View style={s.footer}>
@@ -212,8 +223,10 @@ const s = StyleSheet.create({
   saveBtnText:{ fontFamily: 'DMSans_500Medium', fontSize: 15, color: '#FAF8F5' },
   divider:   { height: 1, backgroundColor: C.border, marginBottom: 28 },
   reassessDesc:{ fontFamily: 'DMSans_400Regular', fontSize: 12, color: C.muted, lineHeight: 19, marginBottom: 14 },
-  retakeBtn: { borderWidth: 1.5, borderColor: C.border, borderRadius: 13, paddingVertical: 14, alignItems: 'center' },
+  retakeBtn:    { borderWidth: 1.5, borderColor: C.border, borderRadius: 13, paddingVertical: 14, alignItems: 'center' },
   retakeBtnText:{ fontFamily: 'DMSans_400Regular', fontSize: 14, color: '#6B5E57' },
+  logoutBtn:    { marginTop: 28, borderWidth: 1.5, borderColor: '#E8DDD8', borderRadius: 13, paddingVertical: 14, alignItems: 'center' },
+  logoutBtnText:{ fontFamily: 'DMSans_400Regular', fontSize: 14, color: C.muted },
   footer:    { marginTop: 40, alignItems: 'center' },
   footerLogo:{ fontFamily: 'CormorantGaramond_500Medium', fontSize: 17, color: '#D4CBC4', letterSpacing: 2 },
   footerSub: { fontFamily: 'DMSans_400Regular', fontSize: 11, color: '#D4CBC4', fontStyle: 'italic', marginTop: 4 },
