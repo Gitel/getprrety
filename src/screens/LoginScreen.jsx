@@ -106,10 +106,18 @@ export default function LoginScreen({ navigation }) {
             }
           </Pressable>
 
-          <Pressable onPress={() => navigation.navigate('Quiz')} style={s.signupLink}>
-            <Text style={s.signupLinkText}>
-              New here? <Text style={s.signupLinkBold}>Take the quiz →</Text>
-            </Text>
+          <View style={s.dividerRow}>
+            <View style={s.dividerLine} />
+            <Text style={s.dividerText}>or</Text>
+            <View style={s.dividerLine} />
+          </View>
+
+          <Pressable onPress={() => navigation.navigate('QuizIntro')} style={s.assessBtn}>
+            <Text style={s.assessBtnText}>✦ Begin your skin assessment</Text>
+          </Pressable>
+
+          <Pressable onPress={() => navigation.navigate('Quiz')} style={s.createBtn}>
+            <Text style={s.createBtnText}>Create Account</Text>
           </Pressable>
 
         </ScrollView>
@@ -136,7 +144,11 @@ const s = StyleSheet.create({
   cta:            { backgroundColor: '#C9897A', borderRadius: 13, paddingVertical: 15, alignItems: 'center', marginTop: 4 },
   ctaDisabled:    { backgroundColor: '#D4C5BF' },
   ctaText:        { fontFamily: 'DMSans_500Medium', fontSize: 15, color: '#FAF7F4', letterSpacing: 0.4 },
-  signupLink:     { marginTop: 28, alignItems: 'center' },
-  signupLinkText: { fontFamily: 'DMSans_400Regular', fontSize: 13, color: C.muted },
-  signupLinkBold: { fontFamily: 'DMSans_500Medium', color: C.accent },
+  dividerRow:    { flexDirection: 'row', alignItems: 'center', marginVertical: 20, gap: 12 },
+  dividerLine:   { flex: 1, height: 1, backgroundColor: C.border },
+  dividerText:   { fontFamily: 'DMSans_400Regular', fontSize: 12, color: C.muted },
+  assessBtn:     { backgroundColor: C.accent, borderRadius: 26, paddingVertical: 14, alignItems: 'center', marginBottom: 12 },
+  assessBtnText: { fontFamily: 'DMSans_500Medium', fontSize: 15, color: '#FAF7F4', letterSpacing: 0.3 },
+  createBtn:     { borderWidth: 1, borderColor: C.border, borderRadius: 26, paddingVertical: 13, alignItems: 'center' },
+  createBtnText: { fontFamily: 'DMSans_400Regular', fontSize: 13, color: C.muted, letterSpacing: 1 },
 });
