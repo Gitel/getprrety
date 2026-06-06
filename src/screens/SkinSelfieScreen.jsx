@@ -91,7 +91,7 @@ export default function SkinSelfieScreen({ navigation }) {
       setPhase('camera');
     } else {
       saveSelfies(photos);
-      navigation.navigate('Notifications');
+      navigation.navigate('ShelfPhotos');
     }
   }
 
@@ -111,7 +111,7 @@ export default function SkinSelfieScreen({ navigation }) {
   if (phase === 'denied') {
     return (
       <PermissionDenied
-        onUploadInstead={() => navigation.navigate('Notifications')}
+        onUploadInstead={() => navigation.navigate('ShelfPhotos')}
       />
     );
   }
@@ -154,7 +154,7 @@ export default function SkinSelfieScreen({ navigation }) {
               <View style={s.captureBtnInner} />
             </Pressable>
             {capturedCount > 0 && (
-              <Pressable onPress={() => { saveSelfies(photos); navigation.navigate('Notifications'); }} style={s.skipBtn}>
+              <Pressable onPress={() => { saveSelfies(photos); navigation.navigate('ShelfPhotos'); }} style={s.skipBtn}>
                 <Text style={s.skipText}>Skip remaining →</Text>
               </Pressable>
             )}

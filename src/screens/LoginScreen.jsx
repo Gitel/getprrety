@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, Pressable, StyleSheet,
   KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator,
@@ -11,13 +11,25 @@ import { C } from '../constants';
 import { useApp } from '../context/AppContext';
 
 export default function LoginScreen({ navigation }) {
-  const { setUser } = useApp();
-
+  const { setUser, authReady, user } = useApp();
   const [email,    setEmail]    = useState('');
   const [password, setPassword] = useState('');
   const [showPw,   setShowPw]   = useState(false);
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState(null);
+  const [agreed,   setAgreed]   = useState(false);
+
+  useEffect(() => {
+    if (authReady && user) navigation.replace('Home');
+  }, [authReady, user]);
+
+  if (!authReady) {
+    return (
+      <View style={{ flex: 1, backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator color={C.accent} size="large" />
+      </View>
+    );
+  }
 
   async function handleLogin() {
     if (!email.trim() || !password) {
@@ -48,15 +60,12 @@ export default function LoginScreen({ navigation }) {
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
-          <Pressable onPress={() => navigation.goBack()} style={s.back}>
-            <Text style={s.backText}>← Back</Text>
-          </Pressable>
-
-          <View style={s.headlineBlock}>
-            <Text style={s.headline}>Welcome back.</Text>
-            <Text style={s.sub}>Log in to continue your skin journey.</Text>
+          <View style={s.headBlock}>
+            <Text style={s.leaf}>🌿</Text>
+            <Text style={s.logo}>Get Pretty</Text>
+            <Text style={s.tagline}>SKIN INTELLIGENCE</Text>
           </View>
 
           <View style={s.fieldWrap}>
@@ -91,9 +100,11 @@ export default function LoginScreen({ navigation }) {
             </View>
           </View>
 
-          {error && (
-            <Text style={s.errorText}>{error}</Text>
-          )}
+          <Pressable style={s.forgotRow}>
+            <Text style={s.forgotText}>Forgot Password?</Text>
+          </Pressable>
+
+          {error && <Text style={s.errorText}>{error}</Text>}
 
           <Pressable
             onPress={handleLogin}
@@ -102,7 +113,7 @@ export default function LoginScreen({ navigation }) {
           >
             {loading
               ? <ActivityIndicator color={C.bg} size="small" />
-              : <Text style={s.ctaText}>Log in →</Text>
+              : <Text style={s.ctaText}>LOG IN</Text>
             }
           </Pressable>
 
@@ -112,12 +123,19 @@ export default function LoginScreen({ navigation }) {
             <View style={s.dividerLine} />
           </View>
 
-          <Pressable onPress={() => navigation.navigate('QuizIntro')} style={s.assessBtn}>
-            <Text style={s.assessBtnText}>✦ Begin your skin assessment</Text>
+          <Pressable onPress={() => navigation.navigate('Quiz')} style={s.greenBtn}>
+            <Text style={s.greenBtnText}>✦ Begin your skin assessment</Text>
           </Pressable>
 
-          <Pressable onPress={() => navigation.navigate('Quiz')} style={s.createBtn}>
-            <Text style={s.createBtnText}>Create Account</Text>
+          <Pressable style={s.termsRow} onPress={() => setAgreed(v => !v)}>
+            <View style={[s.checkbox, agreed && s.checkboxChecked]}>
+              {agreed && <Text style={s.checkmark}>✓</Text>}
+            </View>
+            <Text style={s.termsText}>
+              I confirm that I have read and agreed to the{' '}
+              <Text style={s.termsLink}>Terms of Use</Text> and{' '}
+              <Text style={s.termsLink}>Privacy Policy</Text>
+            </Text>
           </Pressable>
 
         </ScrollView>
@@ -127,28 +145,41 @@ export default function LoginScreen({ navigation }) {
 }
 
 const s = StyleSheet.create({
-  safe:           { flex: 1, backgroundColor: '#FAF7F4' },
-  content:        { flexGrow: 1, padding: 24, paddingTop: 24 },
-  back:           { marginBottom: 28 },
-  backText:       { fontFamily: 'DMSans_400Regular', fontSize: 14, color: C.accent },
-  headlineBlock:  { marginBottom: 36 },
-  headline:       { fontFamily: 'CormorantGaramond_500Medium', fontSize: 28, color: '#2C2C2C', lineHeight: 38, marginBottom: 8 },
-  sub:            { fontFamily: 'DMSans_400Regular', fontSize: 14, color: C.muted, lineHeight: 23 },
-  fieldWrap:      { marginBottom: 16 },
-  input:          { backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: '#E8DDD8', borderRadius: 12, paddingVertical: 13, paddingHorizontal: 14, fontFamily: 'DMSans_400Regular', fontSize: 14, color: '#2C2C2C' },
+  safe:           { flex: 1, backgroundColor: C.bg },
+  content:        { flexGrow: 1, paddingHorizontal: 28, paddingTop: 44, paddingBottom: 40 },
+
+  headBlock:      { alignItems: 'center', marginBottom: 36 },
+  leaf:           { fontSize: 52, marginBottom: 16 },
+  logo:           { fontFamily: 'CormorantGaramond_500Medium', fontSize: 36, color: C.text, letterSpacing: 2, marginBottom: 6 },
+  tagline:        { fontFamily: 'DMSans_400Regular', fontSize: 11, color: C.muted, letterSpacing: 3 },
+
+  fieldWrap:      { marginBottom: 12 },
+  input:          { backgroundColor: C.card, borderWidth: 1.5, borderColor: C.border, borderRadius: 13, paddingVertical: 14, paddingHorizontal: 16, fontFamily: 'DMSans_400Regular', fontSize: 14, color: C.text },
   passwordRow:    { position: 'relative' },
   passwordInput:  { paddingRight: 48 },
   eyeBtn:         { position: 'absolute', right: 14, top: 0, bottom: 0, justifyContent: 'center' },
   eyeIcon:        { fontSize: 16 },
+
+  forgotRow:      { alignItems: 'center', marginBottom: 20 },
+  forgotText:     { fontFamily: 'DMSans_400Regular', fontSize: 12, color: C.muted },
+
   errorText:      { fontFamily: 'DMSans_400Regular', fontSize: 12, color: '#C9897A', marginBottom: 12, textAlign: 'center' },
-  cta:            { backgroundColor: '#C9897A', borderRadius: 13, paddingVertical: 15, alignItems: 'center', marginTop: 4 },
-  ctaDisabled:    { backgroundColor: '#D4C5BF' },
-  ctaText:        { fontFamily: 'DMSans_500Medium', fontSize: 15, color: '#FAF7F4', letterSpacing: 0.4 },
-  dividerRow:    { flexDirection: 'row', alignItems: 'center', marginVertical: 20, gap: 12 },
-  dividerLine:   { flex: 1, height: 1, backgroundColor: C.border },
-  dividerText:   { fontFamily: 'DMSans_400Regular', fontSize: 12, color: C.muted },
-  assessBtn:     { backgroundColor: C.accent, borderRadius: 26, paddingVertical: 14, alignItems: 'center', marginBottom: 12 },
-  assessBtnText: { fontFamily: 'DMSans_500Medium', fontSize: 15, color: '#FAF7F4', letterSpacing: 0.3 },
-  createBtn:     { borderWidth: 1, borderColor: C.border, borderRadius: 26, paddingVertical: 13, alignItems: 'center' },
-  createBtnText: { fontFamily: 'DMSans_400Regular', fontSize: 13, color: C.muted, letterSpacing: 1 },
+
+  cta:            { backgroundColor: '#2C2C2C', borderRadius: 13, paddingVertical: 15, alignItems: 'center', marginBottom: 20 },
+  ctaDisabled:    { backgroundColor: '#D4CBC4' },
+  ctaText:        { fontFamily: 'DMSans_500Medium', fontSize: 15, color: C.bg, letterSpacing: 1.5 },
+
+  dividerRow:     { flexDirection: 'row', alignItems: 'center', marginBottom: 16, gap: 12 },
+  dividerLine:    { flex: 1, height: 1, backgroundColor: C.border },
+  dividerText:    { fontFamily: 'DMSans_400Regular', fontSize: 12, color: C.muted },
+
+  greenBtn:       { backgroundColor: '#3D6B35', borderRadius: 26, paddingVertical: 15, alignItems: 'center', marginBottom: 12 },
+  greenBtnText:   { fontFamily: 'DMSans_500Medium', fontSize: 15, color: '#FFF', letterSpacing: 0.4 },
+
+  termsRow:       { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 20 },
+  checkbox:       { width: 18, height: 18, borderRadius: 4, borderWidth: 1.5, borderColor: C.border, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
+  checkboxChecked:{ backgroundColor: C.accent, borderColor: C.accent },
+  checkmark:      { fontSize: 11, color: '#FFF', fontWeight: '700' },
+  termsText:      { flex: 1, fontFamily: 'DMSans_400Regular', fontSize: 11, color: C.muted, lineHeight: 17 },
+  termsLink:      { fontFamily: 'DMSans_500Medium', color: C.accent },
 });

@@ -43,16 +43,14 @@ export default function SignUpScreen({ navigation }) {
   const { analysis, answers, setUser } = useApp();
   const era = analysis?.era;
 
-  const [firstName, setFirstName] = useState('');
-  const [email,     setEmail]     = useState('');
-  const [password,  setPassword]  = useState('');
-  const [showPw,    setShowPw]    = useState(false);
-  const [loading,   setLoading]   = useState(false);
-  const [errors,    setErrors]    = useState({});
+  const [email,    setEmail]    = useState('');
+  const [password, setPassword] = useState('');
+  const [showPw,   setShowPw]   = useState(false);
+  const [loading,  setLoading]  = useState(false);
+  const [errors,   setErrors]   = useState({});
 
   function validate() {
     const e = {};
-    if (!firstName.trim())         e.firstName = 'First name is required.';
     if (!email.trim())             e.email = 'Email is required.';
     else if (!isValidEmail(email)) e.email = 'Enter a valid email address.';
     if (!password)                 e.password = 'Password is required.';
@@ -67,7 +65,6 @@ export default function SignUpScreen({ navigation }) {
     setLoading(true);
     try {
       const { token, user: u } = await api.post('/api/auth/signup', {
-        firstName: firstName.trim(),
         email,
         password,
       });
@@ -101,20 +98,6 @@ export default function SignUpScreen({ navigation }) {
               Your <Text style={{ color: C.accent }}>{eraName}</Text> routine is ready.
             </Text>
             <Text style={s.sub}>Create your account to unlock it — and track your skin journey.</Text>
-          </View>
-
-          {/* First Name */}
-          <View style={s.fieldWrap}>
-            <TextInput
-              placeholder="First name"
-              placeholderTextColor={C.muted}
-              value={firstName}
-              onChangeText={t => { setFirstName(t); setErrors(v => ({ ...v, firstName: undefined })); }}
-              style={[s.input, errors.firstName && s.inputError]}
-              autoCapitalize="words"
-              returnKeyType="next"
-            />
-            {errors.firstName && <Text style={s.error}>{errors.firstName}</Text>}
           </View>
 
           {/* Email */}

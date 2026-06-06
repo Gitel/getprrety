@@ -18,7 +18,7 @@ import SkinSelfieScreen from './src/screens/SkinSelfieScreen';
 import NotificationSetupScreen from './src/screens/NotificationSetupScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import QuizIntroScreen from './src/screens/QuizIntroScreen';
-import QuizNewScreen from './src/screens/QuizNewScreen';
+import ShelfPhotosScreen from './src/screens/ShelfPhotosScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import ProductCameraScreen from './src/screens/ProductCameraScreen';
@@ -64,17 +64,17 @@ export default function App() {
       <SafeAreaProvider>
         <AppProvider>
           <NavigationContainer theme={{ ...DefaultTheme, colors: { ...DefaultTheme.colors, background: '#FAF8F5' } }}>
-            <Stack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right' }} initialRouteName="Splash">
+            <Stack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right' }} initialRouteName="Login">
               <Stack.Screen name="Splash" component={SplashScreen} />
               <Stack.Screen name="Login" component={LoginScreen} />
               <Stack.Screen name="QuizIntro" component={QuizIntroScreen} />
-              <Stack.Screen name="QuizNew" component={QuizNewScreen} />
               <Stack.Screen name="Quiz" component={QuizScreen} />
               <Stack.Screen name="Loading" component={LoadingScreen} />
               <Stack.Screen name="Profile" component={ProfileScreen} />
               <Stack.Screen name="SignUp" component={SignUpScreen} />
               <Stack.Screen name="SkinTiming" component={SkinTimingScreen} />
               <Stack.Screen name="SkinSelfie" component={SkinSelfieScreen} />
+              <Stack.Screen name="ShelfPhotos" component={ShelfPhotosScreen} />
               <Stack.Screen name="Notifications" component={NotificationSetupScreen} />
               <Stack.Screen name="Home" component={HomeScreen} />
               <Stack.Screen name="Settings" component={SettingsScreen} />

@@ -10,6 +10,108 @@ import { useApp } from '../context/AppContext';
 
 const TOTAL = QUESTIONS.length;
 
+// ─── Drum Date Picker ────────────────────────────────────────────────────────
+const ITEM_H     = 52;
+const VISIBLE    = 5;
+const MONTHS_LIST = ['January','February','March','April','May','June',
+                     'July','August','September','October','November','December'];
+const DAYS_LIST   = Array.from({ length: 31 }, (_, i) => String(i + 1));
+
+function WheelColumn({ data, defaultIdx = 0, onSelect, flex = 1 }) {
+  const ref         = useRef(null);
+  const [si, setSi] = useState(defaultIdx);
+
+  useEffect(() => {
+    setTimeout(() => ref.current?.scrollTo({ y: defaultIdx * ITEM_H, animated: false }), 100);
+  }, []);
+
+  function snap(rawY) {
+    const i = Math.max(0, Math.min(Math.round(rawY / ITEM_H), data.length - 1));
+    ref.current?.scrollTo({ y: i * ITEM_H, animated: true });
+    setSi(i);
+    onSelect(i);
+  }
+
+  return (
+    <ScrollView
+      ref={ref}
+      style={{ flex, height: ITEM_H * VISIBLE }}
+      contentContainerStyle={{ paddingVertical: ITEM_H * 2 }}
+      showsVerticalScrollIndicator={false}
+      snapToInterval={ITEM_H}
+      decelerationRate={0.85}
+      scrollEventThrottle={16}
+      onScroll={e => setSi(e.nativeEvent.contentOffset.y / ITEM_H)}
+      onMomentumScrollEnd={e => snap(e.nativeEvent.contentOffset.y)}
+      onScrollEndDrag={e => snap(e.nativeEvent.contentOffset.y)}
+    >
+      {data.map((label, i) => {
+        const dist    = Math.abs(i - si);
+        const opacity = Math.max(0.12, 1 - dist * 0.38);
+        const bold    = dist < 0.6;
+        return (
+          <Pressable key={i} onPress={() => snap(i * ITEM_H)}
+            style={{ height: ITEM_H, justifyContent: 'center', alignItems: 'center' }}>
+            <Text style={{
+              fontFamily: bold ? 'DMSans_500Medium' : 'DMSans_400Regular',
+              fontSize: bold ? 21 : 18,
+              color: C.text,
+              opacity,
+            }}>{label}</Text>
+          </Pressable>
+        );
+      })}
+    </ScrollView>
+  );
+}
+
+function DrumDatePicker({ value, onChange, yearsFrom = 1924, yearsTo = 2006 }) {
+  const YEARS_LIST = Array.from({ length: yearsTo - yearsFrom + 1 }, (_, i) => String(yearsFrom + i));
+
+  const parseVal = () => {
+    if (value && value.includes('/')) {
+      const [d, m, y] = value.split('/');
+      return {
+        dayIdx:   Math.max(0, parseInt(d, 10) - 1),
+        monthIdx: Math.max(0, parseInt(m, 10) - 1),
+        yearIdx:  Math.max(0, YEARS_LIST.indexOf(y?.trim())),
+      };
+    }
+    const midYear  = String(yearsFrom + Math.floor((yearsTo - yearsFrom) / 2));
+    return { dayIdx: 0, monthIdx: 0, yearIdx: Math.max(0, YEARS_LIST.indexOf(midYear)) };
+  };
+
+  const init    = parseVal();
+  const idxRef  = useRef({ ...init });
+
+  function emit(di, mi, yi) {
+    const day   = DAYS_LIST[di]  || '1';
+    const month = String(mi + 1).padStart(2, '0');
+    const year  = YEARS_LIST[yi] || String(yearsFrom);
+    onChange(`${day}/${month}/${year}`);
+  }
+
+  useEffect(() => { emit(init.dayIdx, init.monthIdx, init.yearIdx); }, []);
+
+  return (
+    <View style={dp.wrap}>
+      <View style={dp.band} pointerEvents="none" />
+      <WheelColumn data={DAYS_LIST}   defaultIdx={init.dayIdx}
+        onSelect={i => { idxRef.current.dayIdx = i;   emit(i, idxRef.current.monthIdx, idxRef.current.yearIdx); }} flex={1} />
+      <WheelColumn data={MONTHS_LIST} defaultIdx={init.monthIdx}
+        onSelect={i => { idxRef.current.monthIdx = i; emit(idxRef.current.dayIdx, i, idxRef.current.yearIdx); }} flex={2} />
+      <WheelColumn data={YEARS_LIST}  defaultIdx={init.yearIdx}
+        onSelect={i => { idxRef.current.yearIdx = i;  emit(idxRef.current.dayIdx, idxRef.current.monthIdx, i); }} flex={1.5} />
+    </View>
+  );
+}
+
+const dp = StyleSheet.create({
+  wrap: { flexDirection: 'row', backgroundColor: C.card, borderRadius: 16, overflow: 'hidden', marginBottom: 20 },
+  band: { position: 'absolute', top: ITEM_H * 2, left: 10, right: 10, height: ITEM_H, backgroundColor: '#EDEBE6', borderRadius: 10 },
+});
+// ─────────────────────────────────────────────────────────────────────────────
+
 export default function QuizScreen({ navigation }) {
   const { setAnswers: saveAnswers } = useApp();
   const [idx, setIdx]       = useState(0);
@@ -21,29 +123,32 @@ export default function QuizScreen({ navigation }) {
   const isLast              = idx === TOTAL - 1;
 
   useEffect(() => {
-    if (q.type === 'multi') setMulti(answers[q.id] || []);
+    if (q.type === 'multi' || q.type === 'interests') setMulti(answers[q.id] || []);
     else setSel(answers[q.id] || null);
   }, [idx]);
 
-  const canNext = q.type === 'multi'
+  const canNext = (q.type === 'multi' || q.type === 'interests')
     ? multi.length > 0
-    : (q.type === 'photos' || q.type === 'textarea') ? true : !!sel;
+    : (q.type === 'photos' || q.type === 'shelf' || q.type === 'textarea' || q.type === 'birthday' ||
+       q.type === 'name' || q.type === 'completion' || q.type === 'event_date') ? true : !!sel;
 
   function next() {
     const a = { ...answers };
-    if (q.type === 'multi') a[q.id] = multi;
-    else if (q.type !== 'photos' && q.type !== 'textarea') a[q.id] = sel;
+    if (q.type === 'multi' || q.type === 'interests') a[q.id] = multi;
+    else if (q.type === 'single' || q.type === 'tone' || q.type === 'event') a[q.id] = sel;
     setAns(a);
     if (isLast) {
-      saveAnswers(a);
+      saveAnswers(prev => ({ ...(prev || {}), ...a }));
       navigation.navigate('Loading');
       return;
     }
+    const nextQ = QUESTIONS[idx + 1];
+    const skip = nextQ?.type === 'event_date' && a.event === 'no_event';
     Animated.sequence([
       Animated.timing(fadeAnim, { toValue: 0, duration: 120, useNativeDriver: true }),
       Animated.timing(fadeAnim, { toValue: 1, duration: 120, useNativeDriver: true }),
     ]).start();
-    setTimeout(() => { setIdx(i => i + 1); }, 120);
+    setTimeout(() => { setIdx(i => i + (skip ? 2 : 1)); }, 120);
   }
 
   const toggleMulti = v =>
@@ -212,6 +317,55 @@ export default function QuizScreen({ navigation }) {
           </>
         )}
 
+        {/* SHELF PHOTOS */}
+        {q.type === 'shelf' && (
+          <>
+            <View style={s.shelfGrid}>
+              {Array.from({ length: 5 }).map((_, i) => {
+                const shelf = answers.shelf_photos || [];
+                const filled = i < shelf.length;
+                const isNext = i === shelf.length && shelf.length < 5;
+                if (filled) return (
+                  <View key={i} style={[s.shelfSlot, s.shelfSlotFilled]}>
+                    <Text style={{ fontSize: 22 }}>🧴</Text>
+                    <Text style={s.shelfAdded}>Added</Text>
+                    <Pressable
+                      style={s.shelfRemove}
+                      onPress={() => setAns(a => ({ ...a, shelf_photos: (a.shelf_photos || []).filter((_, j) => j !== i) }))}
+                    >
+                      <Text style={{ fontSize: 13, color: C.muted }}>✕</Text>
+                    </Pressable>
+                  </View>
+                );
+                if (isNext) return (
+                  <View key={i} style={s.shelfSlotNext}>
+                    <Pressable
+                      style={s.shelfAdd}
+                      onPress={async () => {
+                        const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
+                        if (!result.canceled) setAns(a => ({ ...a, shelf_photos: [...(a.shelf_photos || []), result.assets[0].uri] }));
+                      }}
+                    >
+                      <Text style={s.shelfAddText}>📷</Text>
+                    </Pressable>
+                    <Pressable
+                      style={s.shelfAdd}
+                      onPress={async () => {
+                        const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.7 });
+                        if (!result.canceled) setAns(a => ({ ...a, shelf_photos: [...(a.shelf_photos || []), result.assets[0].uri] }));
+                      }}
+                    >
+                      <Text style={s.shelfAddText}>🖼</Text>
+                    </Pressable>
+                  </View>
+                );
+                return <View key={i} style={s.shelfSlotEmpty} />;
+              })}
+            </View>
+            <Btn onPress={next} accent label={(answers.shelf_photos || []).length > 0 ? 'Continue →' : 'Skip for now →'} />
+          </>
+        )}
+
         {/* TEXTAREA */}
         {q.type === 'textarea' && (
           <>
@@ -270,6 +424,113 @@ export default function QuizScreen({ navigation }) {
             </View>
             <Btn onPress={next} accent label="Create My Skin Profile →" />
           </>
+        )}
+
+        {/* BIRTHDAY */}
+        {q.type === 'birthday' && (
+          <>
+            <DrumDatePicker
+              value={answers[q.id]}
+              onChange={v => setAns(a => ({ ...a, [q.id]: v }))}
+              yearsFrom={1924}
+              yearsTo={new Date().getFullYear() - 10}
+            />
+            <Btn onPress={next} label="Continue →" />
+          </>
+        )}
+
+        {/* NAME */}
+        {q.type === 'name' && (
+          <>
+            <TextInput
+              style={s.input}
+              placeholder={q.placeholder}
+              placeholderTextColor={C.muted}
+              autoCapitalize="words"
+              value={answers[q.id] || ''}
+              onChangeText={t => setAns(a => ({ ...a, [q.id]: t }))}
+            />
+            <Btn onPress={next} label="Continue →" />
+          </>
+        )}
+
+        {/* INTERESTS */}
+        {q.type === 'interests' && (
+          <>
+            <View style={s.chipRow}>
+              {q.options.map(v => {
+                const active = multi.includes(v);
+                return (
+                  <Pressable
+                    key={v}
+                    onPress={() => setMulti(p => p.includes(v) ? p.filter(x => x !== v) : [...p, v])}
+                    style={[s.chip, active && s.chipActive]}
+                  >
+                    <Text style={[s.chipText, active && s.chipTextActive]}>{v}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <Btn onPress={next} disabled={multi.length === 0} label="Continue →" />
+          </>
+        )}
+
+        {/* EVENT */}
+        {q.type === 'event' && (
+          <>
+            {q.options.map(o => (
+              <Pressable
+                key={o.value}
+                onPress={() => setSel(o.value)}
+                style={[s.optionCard, sel === o.value && s.optionCardSelected]}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <View style={s.optionIconCircle}>
+                    <Text style={{ fontSize: 16 }}>{o.icon}</Text>
+                  </View>
+                  <Text style={[s.optionLabel, sel === o.value && s.optionLabelSelected]}>{o.label}</Text>
+                </View>
+                {sel === o.value && <Text style={s.check}>✓</Text>}
+              </Pressable>
+            ))}
+            <Btn onPress={next} disabled={!sel} label="Continue →" />
+          </>
+        )}
+
+        {/* EVENT DATE */}
+        {q.type === 'event_date' && (
+          <>
+            <DrumDatePicker
+              value={answers[q.id]}
+              onChange={v => setAns(a => ({ ...a, [q.id]: v }))}
+              yearsFrom={new Date().getFullYear()}
+              yearsTo={new Date().getFullYear() + 3}
+            />
+            <Btn onPress={next} label="Continue →" />
+            <Pressable
+              onPress={() => {
+                setAns(a => ({ ...a, event_date: null }));
+                Animated.sequence([
+                  Animated.timing(fadeAnim, { toValue: 0, duration: 120, useNativeDriver: true }),
+                  Animated.timing(fadeAnim, { toValue: 1, duration: 120, useNativeDriver: true }),
+                ]).start();
+                setTimeout(() => setIdx(i => i + 1), 120);
+              }}
+              style={s.ghostBtn}
+            >
+              <Text style={s.ghostText}>Skip this question</Text>
+            </Pressable>
+          </>
+        )}
+
+        {/* COMPLETION */}
+        {q.type === 'completion' && (
+          <View style={s.completionBlock}>
+            <Text style={s.completionEmoji}>🌿</Text>
+            <Text style={s.completionHeading}>Your Skin Era is ready</Text>
+            <Text style={s.completionSub}>We're analyzing your answers to build your personalized routine.</Text>
+            <Btn onPress={next} accent label="See my Skin Era →" />
+          </View>
         )}
 
         <View style={{ height: 40 }} />
@@ -361,4 +622,13 @@ const s = StyleSheet.create({
   btnDisabled: { backgroundColor: '#D4CBC4' },
   btnText:     { fontFamily: 'DMSans_500Medium', fontSize: 15, color: C.bg, letterSpacing: 0.4 },
   footnote:    { fontFamily: 'DMSans_400Regular', fontSize: 11, color: C.muted, textAlign: 'center', fontStyle: 'italic' },
+
+  input:             { backgroundColor: C.card, borderWidth: 1.5, borderColor: C.border, borderRadius: 13, padding: 14, fontFamily: 'DMSans_400Regular', fontSize: 15, color: C.text, marginBottom: 16 },
+  optionIconCircle:  { width: 32, height: 32, borderRadius: 16, backgroundColor: '#F0EBE5', alignItems: 'center', justifyContent: 'center' },
+  ghostBtn:          { borderWidth: 1, borderColor: C.border, borderRadius: 26, paddingVertical: 13, alignItems: 'center', marginBottom: 16 },
+  ghostText:         { fontFamily: 'DMSans_400Regular', fontSize: 13, color: C.muted },
+  completionBlock:   { alignItems: 'center', paddingTop: 20, paddingBottom: 20, width: '100%' },
+  completionEmoji:   { fontSize: 56, marginBottom: 24 },
+  completionHeading: { fontFamily: 'CormorantGaramond_500Medium', fontSize: 28, color: C.text, textAlign: 'center', marginBottom: 12 },
+  completionSub:     { fontFamily: 'DMSans_400Regular', fontSize: 14, color: C.muted, textAlign: 'center', lineHeight: 22, marginBottom: 32 },
 });

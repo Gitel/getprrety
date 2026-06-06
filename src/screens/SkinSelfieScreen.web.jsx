@@ -12,7 +12,7 @@ export default function SkinSelfieScreen({ navigation }) {
         <Text style={s.desc}>
           {'Camera access works best in the mobile app.\n\nYou can skip this step for now and complete it on your phone.'}
         </Text>
-        <Pressable style={s.btn} onPress={() => navigation.navigate('Notifications')}>
+        <Pressable style={s.btn} onPress={() => navigation.navigate('ShelfPhotos')}>
           <Text style={s.btnText}>Continue →</Text>
         </Pressable>
       </View>

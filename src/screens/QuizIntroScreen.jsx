@@ -33,7 +33,7 @@ export default function QuizIntroScreen({ navigation }) {
         <View style={s.actions}>
           <Pressable
             style={({ pressed }) => [s.cta, pressed && { opacity: 0.88 }]}
-            onPress={() => navigation.navigate('QuizNew')}
+            onPress={() => navigation.navigate('Quiz')}
           >
             <Text style={s.ctaText}>Start my skin assessment →</Text>
           </Pressable>

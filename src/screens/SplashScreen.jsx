@@ -31,7 +31,7 @@ export default function SplashScreen({ navigation }) {
 
         <Pressable
           style={({ pressed }) => [s.btn, pressed && s.btnPressed]}
-          onPress={() => navigation.navigate('Quiz')}
+          onPress={() => navigation.navigate('QuizIntro')}
         >
           <Text style={s.btnText}>Begin Your Skin Assessment →</Text>
         </Pressable>

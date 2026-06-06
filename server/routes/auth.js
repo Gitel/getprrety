@@ -15,9 +15,9 @@ function signToken(user) {
 // POST /api/auth/signup
 router.post('/signup', async (req, res) => {
   try {
-    const { firstName, email, password } = req.body;
-    if (!firstName || !email || !password)
-      return res.status(400).json({ error: 'firstName, email and password are required' });
+    const { email, password } = req.body;
+    if (!email || !password)
+      return res.status(400).json({ error: 'Email and password are required' });
     if (password.length < 8)
       return res.status(400).json({ error: 'Password must be at least 8 characters' });
 
@@ -25,8 +25,8 @@ router.post('/signup', async (req, res) => {
     if (exists) return res.status(409).json({ error: 'Email already registered' });
 
     const passwordHash = await bcrypt.hash(password, 12);
-    const user = await User.create({ firstName, email, passwordHash });
-    res.status(201).json({ token: signToken(user), user: { id: user._id, firstName, email } });
+    const user = await User.create({ email, passwordHash });
+    res.status(201).json({ token: signToken(user), user: { id: user._id, email } });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
