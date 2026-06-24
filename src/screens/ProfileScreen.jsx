@@ -18,8 +18,8 @@ async function detectCountry() {
 }
 
 export default function ProfileScreen({ navigation }) {
-  const { analysis } = useApp();
-  const era           = analysis?.era;
+  const { analysis, srProducts } = useApp();
+  const era = analysis?.era;
   const audit         = analysis?.productAudit || {};
 
   const replaceItems = audit.replace || [];
@@ -33,6 +33,7 @@ export default function ProfileScreen({ navigation }) {
   ].filter(t => t.items.length > 0);
 
   const [auditTab,    setAuditTab]    = useState(auditTabs[0]?.key || 'add');
+  const [srTab,       setSrTab]       = useState('am');
   const [productRecs, setProductRecs] = useState(null);
   const [country,     setCountry]     = useState(null);
   const [loadingRecs, setLoadingRecs] = useState(false);
@@ -162,6 +163,73 @@ export default function ProfileScreen({ navigation }) {
           </View>
         )}
 
+        {/* SR Ritual */}
+        {srProducts && (
+          <View style={s.srSection}>
+            <Text style={s.sectionLabel}>🧴 Your SR Ritual</Text>
+            {srProducts.bundle_note && (
+              <Text style={s.srBundleNote}>{srProducts.bundle_note}</Text>
+            )}
+
+            {/* Hero product */}
+            {srProducts.era_hero_product?.sr_product_name && (
+              <View style={[s.srHeroCard, { borderColor: era.color + '40', backgroundColor: era.color + '0C' }]}>
+                <View style={s.srHeroBadge}>
+                  <Text style={[s.srHeroBadgeText, { color: era.color }]}>ERA HERO</Text>
+                </View>
+                <Text style={[s.srHeroName, { color: era.color }]}>{srProducts.era_hero_product.sr_product_name}</Text>
+                <Text style={s.srHeroReason}>{srProducts.era_hero_product.hero_reason}</Text>
+              </View>
+            )}
+
+            {/* AM / PM tabs */}
+            <View style={s.srTabRow}>
+              {['am', 'pm'].map(t => (
+                <Pressable
+                  key={t}
+                  onPress={() => setSrTab(t)}
+                  style={[s.srTabBtn, srTab === t && { borderColor: era.color, backgroundColor: era.color + '18' }]}
+                >
+                  <Text style={[s.srTabText, srTab === t && { color: era.color, fontFamily: 'DMSans_500Medium' }]}>
+                    {t === 'am' ? '☀️ Morning' : '🌙 Evening'}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <View style={s.srSteps}>
+              {(srProducts[srTab] || []).map((step, i) => (
+                <View key={i} style={[s.srStepCard, { borderColor: era.color + '20' }]}>
+                  <View style={s.srStepHeader}>
+                    <View style={[s.srStepNum, { backgroundColor: era.color + '20' }]}>
+                      <Text style={[s.srStepNumText, { color: era.color }]}>{step.step}</Text>
+                    </View>
+                    <Text style={s.srStepCategory}>{step.routine_category}</Text>
+                  </View>
+                  {step.sr_product_id ? (
+                    <>
+                      <Text style={[s.srProductName, { color: era.color }]}>{step.sr_product_name}</Text>
+                      {step.key_actives_matched?.length > 0 && (
+                        <View style={s.srActives}>
+                          {step.key_actives_matched.slice(0, 3).map((a, j) => (
+                            <View key={j} style={[s.srActivePill, { backgroundColor: era.color + '15' }]}>
+                              <Text style={[s.srActivePillText, { color: era.color }]}>{a.replace(/_/g, ' ')}</Text>
+                            </View>
+                          ))}
+                        </View>
+                      )}
+                      <Text style={s.srUseInstruction}>{step.use_instruction}</Text>
+                      <Text style={s.srMatchReason}>{step.match_reason}</Text>
+                    </>
+                  ) : (
+                    <Text style={s.srNoMatch}>{step.no_match_note || 'Source externally for this step.'}</Text>
+                  )}
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+
         {/* Affirmation */}
         <View style={[s.affirmation, { borderColor: era.color + '50' }]}>
           <Text style={s.affirmLabel}>YOUR AFFIRMATION</Text>
@@ -270,6 +338,30 @@ const s = StyleSheet.create({
   skeleton:    { flexDirection: 'row', alignItems: 'center', gap: 11, backgroundColor: C.bg, borderRadius: 12, padding: 11, borderWidth: 1, borderColor: C.border, marginTop: 8 },
   skeletonImg: { width: 52, height: 52, borderRadius: 10, backgroundColor: C.border },
   skeletonLine:{ backgroundColor: C.border, borderRadius: 4 },
+
+  srSection:        { marginBottom: 20 },
+  srBundleNote:     { fontFamily: 'DMSans_400Regular', fontSize: 12, color: C.muted, lineHeight: 19, marginBottom: 14, fontStyle: 'italic' },
+  srHeroCard:       { borderWidth: 1.5, borderRadius: 14, padding: 16, marginBottom: 14 },
+  srHeroBadge:      { alignSelf: 'flex-start', borderRadius: 8, paddingVertical: 2, paddingHorizontal: 8, marginBottom: 8 },
+  srHeroBadgeText:  { fontFamily: 'DMSans_500Medium', fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase' },
+  srHeroName:       { fontFamily: 'CormorantGaramond_500Medium', fontSize: 18, marginBottom: 6 },
+  srHeroReason:     { fontFamily: 'DMSans_400Regular', fontSize: 12, color: '#4A4039', lineHeight: 20 },
+  srTabRow:         { flexDirection: 'row', gap: 8, marginBottom: 12 },
+  srTabBtn:         { paddingVertical: 6, paddingHorizontal: 16, borderRadius: 18, borderWidth: 1.5, borderColor: C.border },
+  srTabText:        { fontFamily: 'DMSans_400Regular', fontSize: 12, color: C.muted },
+  srSteps:          { gap: 10 },
+  srStepCard:       { backgroundColor: C.card, borderRadius: 13, padding: 13, borderWidth: 1 },
+  srStepHeader:     { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  srStepNum:        { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+  srStepNumText:    { fontFamily: 'DMSans_500Medium', fontSize: 11, fontWeight: '700' },
+  srStepCategory:   { fontFamily: 'DMSans_400Regular', fontSize: 11, color: C.muted, textTransform: 'uppercase', letterSpacing: 1 },
+  srProductName:    { fontFamily: 'DMSans_500Medium', fontSize: 14, marginBottom: 7 },
+  srActives:        { flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginBottom: 8 },
+  srActivePill:     { borderRadius: 8, paddingVertical: 2, paddingHorizontal: 8 },
+  srActivePillText: { fontFamily: 'DMSans_400Regular', fontSize: 10 },
+  srUseInstruction: { fontFamily: 'DMSans_400Regular', fontSize: 13, color: '#4A4039', lineHeight: 20, marginBottom: 5 },
+  srMatchReason:    { fontFamily: 'DMSans_400Regular', fontSize: 11, color: C.muted, lineHeight: 18, fontStyle: 'italic' },
+  srNoMatch:        { fontFamily: 'DMSans_400Regular', fontSize: 12, color: C.muted, fontStyle: 'italic' },
 
   affirmation: { borderWidth: 1.5, borderRadius: 16, padding: 18, marginBottom: 24, alignItems: 'center' },
   affirmLabel: { fontFamily: 'DMSans_400Regular', fontSize: 10, color: C.muted, letterSpacing: 2.5, marginBottom: 8 },

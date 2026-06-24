@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { C, analyzeWithAI, buildFallback } from '../constants';
+import { C, buildFallback } from '../constants';
+import { analyzeWithRailway } from '../lib/analyzeWithRailway';
 import { useApp } from '../context/AppContext';
 import { api } from '../lib/api';
 
@@ -14,7 +15,7 @@ const STEPS = [
 ];
 
 export default function LoadingScreen({ navigation }) {
-  const { answers, setAnalysis } = useApp();
+  const { answers, setAnalysis, setSrProducts } = useApp();
   const [step, setStep]         = useState(0);
   const [complete, setComplete] = useState(false);
   const called                  = useRef(false);
@@ -25,14 +26,14 @@ export default function LoadingScreen({ navigation }) {
     STEPS.forEach((_, i) => setTimeout(() => setStep(i), i * 900));
     const minWait = STEPS.length * 900 + 500;
 
-    analyzeWithAI(answers || {})
-      .then(result => saveAndNavigate(result))
+    analyzeWithRailway(answers || {})
+      .then(({ analysis, srProducts }) => saveAndNavigate(analysis, srProducts))
       .catch(err => {
-        console.warn('AI fallback:', err.message);
-        saveAndNavigate(buildFallback(answers || {}));
+        console.warn('Railway fallback:', err.message);
+        saveAndNavigate(buildFallback(answers || {}), null);
       });
 
-    function saveAndNavigate(result) {
+    function saveAndNavigate(result, srProducts) {
       api.post('/api/analysis', {
         eraId:       result.era?.id,
         era:         result.era,
@@ -47,6 +48,7 @@ export default function LoadingScreen({ navigation }) {
         setComplete(true);
         setTimeout(() => {
           setAnalysis(result);
+          if (srProducts) setSrProducts(srProducts);
           navigation.navigate('Profile');
         }, 700);
       }, minWait);
