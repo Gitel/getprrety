@@ -43,6 +43,7 @@ export default function SignUpScreen({ navigation }) {
   const { analysis, answers, setUser } = useApp();
   const era = analysis?.era;
 
+  const [firstName, setFirstName] = useState(answers?.name || '');
   const [email,    setEmail]    = useState('');
   const [password, setPassword] = useState('');
   const [showPw,   setShowPw]   = useState(false);
@@ -65,6 +66,7 @@ export default function SignUpScreen({ navigation }) {
     setLoading(true);
     try {
       const { token, user: u } = await api.post('/api/auth/signup', {
+        firstName: firstName.trim() || undefined,
         email,
         password,
       });
@@ -98,6 +100,19 @@ export default function SignUpScreen({ navigation }) {
               Your <Text style={{ color: C.accent }}>{eraName}</Text> routine is ready.
             </Text>
             <Text style={s.sub}>Create your account to unlock it — and track your skin journey.</Text>
+          </View>
+
+          {/* First name (optional) */}
+          <View style={s.fieldWrap}>
+            <TextInput
+              placeholder="First name (optional)"
+              placeholderTextColor={C.muted}
+              value={firstName}
+              onChangeText={setFirstName}
+              style={s.input}
+              autoCapitalize="words"
+              returnKeyType="next"
+            />
           </View>
 
           {/* Email */}

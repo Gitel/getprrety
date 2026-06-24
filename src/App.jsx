@@ -274,10 +274,13 @@ function QuizScreen({ onComplete }) {
     const a = {...answers};
     if (q.type==="multi") a[q.id]=multi;
     else if (q.type!=="photos"&&q.type!=="textarea") a[q.id]=sel;
-    setAnswers(a);
     if (isLast) { onComplete(a); return; }
+    const nextIdx = idx + 1;
+    const skipPregnancy = QUESTIONS[nextIdx]?.id === 'pregnant' && a.gender === 'he';
+    if (skipPregnancy) a.pregnant = 'no';
+    setAnswers(a);
     setAnim(false);
-    setTimeout(()=>{ setIdx(i=>i+1); setAnim(true); },150);
+    setTimeout(()=>{ setIdx(skipPregnancy ? nextIdx + 1 : nextIdx); setAnim(true); }, 150);
   }
   const toggleMulti = v => setMulti(p=>p.includes(v)?p.filter(x=>x!==v):[...p,v]);
   const addPhoto    = k => setAnswers(a=>({...a,[k]:"uploaded"}));
