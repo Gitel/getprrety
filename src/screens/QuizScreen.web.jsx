@@ -147,7 +147,10 @@ export default function QuizScreen({ navigation }) {
       return;
     }
     const nextQ = QUESTIONS[idx + 1];
-    const skip = nextQ?.type === 'event_date' && a.event === 'no_event';
+    const skipEvent    = nextQ?.type === 'event_date' && a.event === 'no_event';
+    const skipPregnant = nextQ?.id === 'pregnant' && a.gender === 'he';
+    if (skipPregnant) { a.pregnant = 'no'; setAns({ ...a }); }
+    const skip = skipEvent || skipPregnant;
     Animated.sequence([
       Animated.timing(fadeAnim, { toValue: 0, duration: 120, useNativeDriver: true }),
       Animated.timing(fadeAnim, { toValue: 1, duration: 120, useNativeDriver: true }),
