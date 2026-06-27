@@ -96,13 +96,32 @@ function mapToAppFormat(railwayResponse, answers) {
   };
 }
 
+function extractBase64(dataUrl) {
+  if (!dataUrl || !dataUrl.startsWith('data:')) return null;
+  return dataUrl.split(',')[1] || null;
+}
+
 export async function analyzeWithRailway(answers) {
   const quizPayload = buildQuizPayload(answers);
+
+  // Extract base64 from data URLs (quiz stores photos as data:image/...;base64,...)
+  const skinPhotosBase64 = ['photo_right', 'photo_left', 'photo_front']
+    .map(k => extractBase64(answers[k]))
+    .filter(Boolean);
+
+  const shelfPhotosBase64 = (answers.shelf_photos || [])
+    .map(extractBase64)
+    .filter(Boolean);
 
   const res = await fetch(`${RAILWAY_URL}/analyze-skin`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ quizAnswers: quizPayload, userId: answers.userId || null }),
+    body: JSON.stringify({
+      quizAnswers: quizPayload,
+      userId: answers.userId || null,
+      skinPhotosBase64,
+      shelfPhotosBase64,
+    }),
   });
 
   if (!res.ok) throw new Error(`Railway API ${res.status}`);
