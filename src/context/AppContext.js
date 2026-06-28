@@ -6,11 +6,12 @@ import { logActivity } from '../lib/logActivity';
 const AppContext = createContext(null);
 
 export function AppProvider({ children }) {
-  const [analysis,   setAnalysis]   = useState(null);
-  const [srProducts, setSrProducts] = useState(null);
-  const [answers,    setAnswers]    = useState(null);
-  const [user,       setUser]       = useState(null);
-  const [authReady,  setAuthReady]  = useState(false);
+  const [analysis,      setAnalysis]      = useState(null);
+  const [srProducts,    setSrProducts]    = useState(null);
+  const [shelfAnalysis, setShelfAnalysis] = useState(null);
+  const [answers,       setAnswers]       = useState(null);
+  const [user,          setUser]          = useState(null);
+  const [authReady,     setAuthReady]     = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -33,15 +34,17 @@ export function AppProvider({ children }) {
     setUser(null);
     setAnalysis(null);
     setSrProducts(null);
+    setShelfAnalysis(null);
     setAnswers(null);
   }
 
   return (
     <AppContext.Provider value={{
-      analysis,   setAnalysis,
-      srProducts, setSrProducts,
-      answers,    setAnswers,
-      user,       setUser,
+      analysis,      setAnalysis,
+      srProducts,    setSrProducts,
+      shelfAnalysis, setShelfAnalysis,
+      answers,       setAnswers,
+      user,          setUser,
       authReady,
       logout,
     }}>

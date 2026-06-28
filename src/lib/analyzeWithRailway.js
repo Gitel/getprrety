@@ -96,22 +96,39 @@ function mapToAppFormat(railwayResponse, answers) {
   };
 }
 
-function extractBase64(dataUrl) {
-  if (!dataUrl || !dataUrl.startsWith('data:')) return null;
-  return dataUrl.split(',')[1] || null;
+// Resolve a photo reference to raw base64 (no data: prefix).
+// Handles data: URLs (web + native base64 capture) and, as a safety net,
+// file://content:// URIs (native) via expo-file-system.
+async function toBase64(ref) {
+  if (!ref || typeof ref !== 'string') return null;
+  if (ref.startsWith('data:')) return ref.split(',')[1] || null;
+  if (ref.startsWith('file://') || ref.startsWith('content://')) {
+    try {
+      const FileSystem = require('expo-file-system');
+      return await FileSystem.readAsStringAsync(ref, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+    } catch (e) {
+      console.warn('toBase64: could not read native file', e?.message);
+      return null;
+    }
+  }
+  return null;
 }
 
 export async function analyzeWithRailway(answers) {
   const quizPayload = buildQuizPayload(answers);
 
-  // Extract base64 from data URLs (quiz stores photos as data:image/...;base64,...)
-  const skinPhotosBase64 = ['photo_right', 'photo_left', 'photo_front']
-    .map(k => extractBase64(answers[k]))
-    .filter(Boolean);
+  // Convert photos to base64 (quiz may store them as data: URLs or native file:// URIs)
+  const skinPhotosBase64 = (
+    await Promise.all(['photo_right', 'photo_left', 'photo_front'].map(k => toBase64(answers[k])))
+  ).filter(Boolean);
 
-  const shelfPhotosBase64 = (answers.shelf_photos || [])
-    .map(extractBase64)
-    .filter(Boolean);
+  const shelfPhotosBase64 = (
+    await Promise.all((answers.shelf_photos || []).map(toBase64))
+  ).filter(Boolean);
+
+  console.log(`analyzeWithRailway: sending ${skinPhotosBase64.length} skin photo(s), ${shelfPhotosBase64.length} shelf photo(s)`);
 
   const res = await fetch(`${RAILWAY_URL}/analyze-skin`, {
     method: 'POST',
@@ -128,8 +145,9 @@ export async function analyzeWithRailway(answers) {
 
   const data = await res.json();
 
-  const analysis   = mapToAppFormat(data, answers);
-  const srProducts = data.srProducts || null;
+  const analysis      = mapToAppFormat(data, answers);
+  const srProducts    = data.srProducts || null;
+  const shelfAnalysis = data.shelfAnalysis || null;
 
-  return { analysis, srProducts };
+  return { analysis, srProducts, shelfAnalysis };
 }

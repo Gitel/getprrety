@@ -15,7 +15,7 @@ const STEPS = [
 ];
 
 export default function LoadingScreen({ navigation }) {
-  const { answers, setAnalysis, setSrProducts } = useApp();
+  const { answers, setAnalysis, setSrProducts, setShelfAnalysis } = useApp();
   const [step, setStep]         = useState(0);
   const [complete, setComplete] = useState(false);
   const called                  = useRef(false);
@@ -27,13 +27,13 @@ export default function LoadingScreen({ navigation }) {
     const minWait = STEPS.length * 900 + 500;
 
     analyzeWithRailway(answers || {})
-      .then(({ analysis, srProducts }) => saveAndNavigate(analysis, srProducts))
+      .then(({ analysis, srProducts, shelfAnalysis }) => saveAndNavigate(analysis, srProducts, shelfAnalysis))
       .catch(err => {
         console.warn('Railway fallback:', err.message);
-        saveAndNavigate(buildFallback(answers || {}), null);
+        saveAndNavigate(buildFallback(answers || {}), null, null);
       });
 
-    function saveAndNavigate(result, srProducts) {
+    function saveAndNavigate(result, srProducts, shelfAnalysis) {
       api.post('/api/analysis', {
         eraId:       result.era?.id,
         era:         result.era,
@@ -49,6 +49,7 @@ export default function LoadingScreen({ navigation }) {
         setTimeout(() => {
           setAnalysis(result);
           if (srProducts) setSrProducts(srProducts);
+          if (shelfAnalysis) setShelfAnalysis(shelfAnalysis);
           navigation.navigate('Profile');
         }, 700);
       }, minWait);

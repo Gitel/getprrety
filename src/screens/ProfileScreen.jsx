@@ -18,7 +18,7 @@ async function detectCountry() {
 }
 
 export default function ProfileScreen({ navigation }) {
-  const { analysis, srProducts } = useApp();
+  const { analysis, srProducts, shelfAnalysis } = useApp();
   const era = analysis?.era;
   const audit         = analysis?.productAudit || {};
 
@@ -230,6 +230,43 @@ export default function ProfileScreen({ navigation }) {
           </View>
         )}
 
+        {/* Current Shelf (from product photos) */}
+        {shelfAnalysis?.identified_products?.length > 0 && (
+          <View style={s.srSection}>
+            <Text style={s.sectionLabel}>📸 Your Current Shelf</Text>
+            {shelfAnalysis.shelf_summary?.overall_note && (
+              <Text style={s.srBundleNote}>{shelfAnalysis.shelf_summary.overall_note}</Text>
+            )}
+            <View style={s.srSteps}>
+              {shelfAnalysis.identified_products.map((p, i) => {
+                const statusColor = p.status === 'compatible' ? '#7A9E6E'
+                  : p.status === 'conflicting' ? '#C44B4B'
+                  : p.status === 'borderline' ? '#B8924A' : C.muted;
+                return (
+                  <View key={i} style={[s.srStepCard, { borderColor: statusColor + '30' }]}>
+                    <View style={s.srStepHeader}>
+                      <Text style={s.srStepCategory}>{[p.brand, p.product_name].filter(Boolean).join(' · ') || p.category}</Text>
+                      <View style={[s.shelfStatusPill, { backgroundColor: statusColor + '18' }]}>
+                        <Text style={[s.shelfStatusText, { color: statusColor }]}>{p.status}</Text>
+                      </View>
+                    </View>
+                    {p.status_reason ? <Text style={s.srMatchReason}>{p.status_reason}</Text> : null}
+                    {p.use_instruction ? <Text style={s.srUseInstruction}>{p.use_instruction}</Text> : null}
+                    {p.sr_substitute_name ? (
+                      <Text style={[s.srProductName, { color: era.color }]}>→ Swap with {p.sr_substitute_name}</Text>
+                    ) : null}
+                  </View>
+                );
+              })}
+            </View>
+            {shelfAnalysis.transition_plan?.first_sr_purchase && (
+              <Text style={s.srMatchReason}>
+                Start here: <Text style={{ color: era.color }}>{shelfAnalysis.transition_plan.first_sr_purchase}</Text>
+              </Text>
+            )}
+          </View>
+        )}
+
         {/* Affirmation */}
         <View style={[s.affirmation, { borderColor: era.color + '50' }]}>
           <Text style={s.affirmLabel}>YOUR AFFIRMATION</Text>
@@ -362,6 +399,8 @@ const s = StyleSheet.create({
   srUseInstruction: { fontFamily: 'DMSans_400Regular', fontSize: 13, color: '#4A4039', lineHeight: 20, marginBottom: 5 },
   srMatchReason:    { fontFamily: 'DMSans_400Regular', fontSize: 11, color: C.muted, lineHeight: 18, fontStyle: 'italic' },
   srNoMatch:        { fontFamily: 'DMSans_400Regular', fontSize: 12, color: C.muted, fontStyle: 'italic' },
+  shelfStatusPill:  { marginLeft: 'auto', borderRadius: 8, paddingVertical: 2, paddingHorizontal: 8 },
+  shelfStatusText:  { fontFamily: 'DMSans_500Medium', fontSize: 10, textTransform: 'capitalize' },
 
   affirmation: { borderWidth: 1.5, borderRadius: 16, padding: 18, marginBottom: 24, alignItems: 'center' },
   affirmLabel: { fontFamily: 'DMSans_400Regular', fontSize: 10, color: C.muted, letterSpacing: 2.5, marginBottom: 8 },

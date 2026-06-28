@@ -157,6 +157,16 @@ export default function QuizScreen({ navigation }) {
   const toggleMulti = v =>
     setMulti(p => p.includes(v) ? p.filter(x => x !== v) : [...p, v]);
 
+  // Build a data URL so photos travel as base64 to the API (native uri alone
+  // is a file:// path the backend can't read).
+  function assetToDataUrl(asset) {
+    if (asset.base64) {
+      const mime = asset.mimeType || 'image/jpeg';
+      return `data:${mime};base64,${asset.base64}`;
+    }
+    return asset.uri; // fallback (web already yields a data/blob URL)
+  }
+
   async function pickPhoto(key) {
     const res = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!res.granted) {
@@ -166,9 +176,10 @@ export default function QuizScreen({ navigation }) {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       quality: 0.7,
+      base64: true,
     });
     if (!result.canceled) {
-      setAns(a => ({ ...a, [key]: result.assets[0].uri }));
+      setAns(a => ({ ...a, [key]: assetToDataUrl(result.assets[0]) }));
     }
   }
 
@@ -181,9 +192,10 @@ export default function QuizScreen({ navigation }) {
     const result = await ImagePicker.launchCameraAsync({
       cameraType: ImagePicker.CameraType.front,
       quality: 0.7,
+      base64: true,
     });
     if (!result.canceled) {
-      setAns(a => ({ ...a, [key]: result.assets[0].uri }));
+      setAns(a => ({ ...a, [key]: assetToDataUrl(result.assets[0]) }));
     }
   }
 
@@ -345,8 +357,8 @@ export default function QuizScreen({ navigation }) {
                     <Pressable
                       style={s.shelfAdd}
                       onPress={async () => {
-                        const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
-                        if (!result.canceled) setAns(a => ({ ...a, shelf_photos: [...(a.shelf_photos || []), result.assets[0].uri] }));
+                        const result = await ImagePicker.launchCameraAsync({ quality: 0.7, base64: true });
+                        if (!result.canceled) setAns(a => ({ ...a, shelf_photos: [...(a.shelf_photos || []), assetToDataUrl(result.assets[0])] }));
                       }}
                     >
                       <Text style={s.shelfAddText}>📷</Text>
@@ -354,8 +366,8 @@ export default function QuizScreen({ navigation }) {
                     <Pressable
                       style={s.shelfAdd}
                       onPress={async () => {
-                        const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.7 });
-                        if (!result.canceled) setAns(a => ({ ...a, shelf_photos: [...(a.shelf_photos || []), result.assets[0].uri] }));
+                        const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.7, base64: true });
+                        if (!result.canceled) setAns(a => ({ ...a, shelf_photos: [...(a.shelf_photos || []), assetToDataUrl(result.assets[0])] }));
                       }}
                     >
                       <Text style={s.shelfAddText}>🖼</Text>
@@ -405,8 +417,8 @@ export default function QuizScreen({ navigation }) {
                     <Pressable
                       style={s.shelfAdd}
                       onPress={async () => {
-                        const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
-                        if (!result.canceled) setAns(a => ({ ...a, shelf_photos: [...(a.shelf_photos || []), result.assets[0].uri] }));
+                        const result = await ImagePicker.launchCameraAsync({ quality: 0.7, base64: true });
+                        if (!result.canceled) setAns(a => ({ ...a, shelf_photos: [...(a.shelf_photos || []), assetToDataUrl(result.assets[0])] }));
                       }}
                     >
                       <Text style={s.shelfAddText}>📷</Text>
@@ -414,8 +426,8 @@ export default function QuizScreen({ navigation }) {
                     <Pressable
                       style={s.shelfAdd}
                       onPress={async () => {
-                        const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.7 });
-                        if (!result.canceled) setAns(a => ({ ...a, shelf_photos: [...(a.shelf_photos || []), result.assets[0].uri] }));
+                        const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.7, base64: true });
+                        if (!result.canceled) setAns(a => ({ ...a, shelf_photos: [...(a.shelf_photos || []), assetToDataUrl(result.assets[0])] }));
                       }}
                     >
                       <Text style={s.shelfAddText}>🖼</Text>
