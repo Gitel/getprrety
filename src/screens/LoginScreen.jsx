@@ -23,7 +23,9 @@ export default function LoginScreen({ navigation }) {
     if (authReady && user) navigation.replace('Home');
   }, [authReady, user]);
 
-  if (!authReady) {
+  // Show a spinner while auth resolves AND while a logged-in user is being redirected,
+  // so the login form never flashes for an already-authenticated user on refresh.
+  if (!authReady || user) {
     return (
       <View style={{ flex: 1, backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center' }}>
         <ActivityIndicator color={C.accent} size="large" />
