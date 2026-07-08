@@ -180,24 +180,133 @@ export const SKIN_TONES = [
 ];
 
 export const QUESTIONS = [
-  { id:'gender',           type:'single',     emoji:'👋', section:'The Vibe Check',          question:'How do you identify?',                                              options:[{value:'she',label:'She / Her'},{value:'he',label:'He / Him'}] },
-  { id:'birthday',         type:'birthday',   emoji:'🎂',                                    question:'When is your birthday?',                hint:'We use this to personalise your skin plan' },
-  { id:'name',             type:'name',       emoji:'✨',                                    question:'What do your besties call you?',         placeholder:'Your name' },
-  { id:'interests',        type:'interests',  emoji:'💫',                                    question:'What are you interested in?',            hint:'Pick everything that speaks to you ✨',
-    options:['Personalized skincare routine','Skin analysis + product matching','Tracking progress (before/after)','Building a routine with what I already own','Product ingredient checker','Professional treatments guidance','Seasonal routine updates',"Stop buying products that don't work"] },
-  { id:'tone',             type:'tone',       emoji:'🌈',                                    question:"Let's find your skin tone",              hint:'Every skin tone has its own glow story' },
-  { id:'concerns',         type:'multi',      emoji:'🔍', section:"Your Skin's Current Mood",question:"What's your skin going through rn?",     hint:'Select all that feel true', options:[{value:'acne',label:'🔥 Breakout era',sub:'acne'},{value:'wrinkles',label:'🌙 Fine lines',sub:'aging'},{value:'pigmentation',label:'🎭 Dark spots',sub:'uneven tone'},{value:'sensitive',label:'🧊 Sensitive & reactive'},{value:'dryness',label:'🏜️ Thirsty skin'},{value:'pores',label:'🔍 Pores doing too much'}] },
-  { id:'routine_products', type:'multi',      emoji:'🧴',                                    question:"What's in your current rotation?",       hint:'No judgment — tap all you use', options:[{value:'cleanser',label:'🧴 Cleanser'},{value:'moisturizer',label:'💧 Moisturizer'},{value:'serum',label:'✨ Serum'},{value:'treatments',label:'🎯 Treatments'},{value:'spf',label:'☀️ Sunscreen'},{value:'none',label:'🚫 Honestly? Not much rn'}] },
-  { id:'smoke',            type:'single',     emoji:'💨', section:'The Real Talk', sectionSub:'A few health questions so we can keep you safe 💗', question:'Do you smoke?', options:[{value:'no',label:'No'},{value:'sometimes',label:'Sometimes'},{value:'yes',label:'Yes'}] },
-  { id:'diabetes',         type:'single',     emoji:'🩺',                                    question:'Do you have diabetes?',                                              options:[{value:'no',label:'No'},{value:'yes',label:'Yes'},{value:'unsure',label:'Not sure'}] },
-  { id:'allergies',        type:'multi',      emoji:'⚠️',                                   question:'Any known allergies or sensitivities?',  hint:"Select all that apply — we'll never recommend these", options:[{value:'cosmetics',label:'Cosmetics / skincare'},{value:'iodine',label:'Iodine'},{value:'foods',label:'Certain foods'},{value:'fragrance',label:'Fragrances'},{value:'sunscreen',label:'Sunscreens'},{value:'meds',label:'Medications'},{value:'animals',label:'Animals'},{value:'none',label:'None I know of'}] },
-  { id:'pregnant',         type:'single',     emoji:'🤍',                                    question:'Pregnant or trying to conceive?',        hint:"Some ingredients aren't pregnancy-safe — we want to look out for you", options:[{value:'no',label:'No'},{value:'yes',label:'Yes'},{value:'skip',label:'Prefer not to say'}] },
-  { id:'event',            type:'event',      emoji:'🗓️',                                   question:'Do you want to be ready for an event?',  hint:'A visible deadline helps you glow up faster 💅',
+  { id:'gender', type:'single', emoji:'👋',
+    question:'How do you identify?',
+    options:[{value:'she',label:'She / Her'},{value:'he',label:'He / Him'}] },
+
+  { id:'birthday', type:'birthday', emoji:'🎂',
+    question:'When is your birthday?',
+    hint:'We use this to personalise your skin plan' },
+
+  { id:'location', type:'location', emoji:'📍',
+    question:'Where are you based?',
+    hint:"City and country — helps us understand your skin's environment",
+    fields:[{key:'city',placeholder:'City'},{key:'country',placeholder:'Country'}] },
+
+  { id:'work_environment', type:'single', emoji:'🏢',
+    question:'What is your typical work environment?',
+    options:[{value:'indoors',label:'Indoors'},{value:'outdoors',label:'Outdoors'},{value:'mixed',label:'Mixed'}] },
+
+  { id:'name', type:'name', emoji:'✨',
+    question:'What is your name?',
+    placeholder:'Your name' },
+
+  { id:'interests', type:'interests', emoji:'💫',
+    question:'What are you interested in?',
+    hint:'Pick everything that speaks to you ✨',
+    options:['Personalized skincare routine','Skin analysis + product matching','Tracking progress (before/after)','Building a routine with what I already own','Product ingredient checker','Professional skincare treatments guidance','Seasonal routine updates',"Stop buying products that don't work"] },
+
+  { id:'tone', type:'tone', emoji:'🌈',
+    question:"Let's find your skin tone",
+    hint:'Every skin tone has its own glow story' },
+
+  { id:'post_cleanse_feel', type:'single', emoji:'💧', section:'Your Skin',
+    question:'How does your skin feel 30 minutes after cleansing?',
+    options:[{value:'dry',label:'Dry'},{value:'comfortable',label:'Comfortable'},{value:'oily',label:'Oily'},{value:'oily_tzone',label:'Oily only in T-zone'},{value:'not_sure',label:'Not sure'}] },
+
+  { id:'irritants', type:'multi', emoji:'⚡',
+    question:'What usually irritates your skin?',
+    hint:'Select all that apply',
+    options:[{value:'heat',label:'Heat'},{value:'sun',label:'Sun'},{value:'wind',label:'Wind'},{value:'retinol',label:'Retinol'},{value:'acids',label:'Acids'},{value:'fragrance',label:'Fragrance'},{value:'essential_oils',label:'Essential oils'}] },
+
+  { id:'skin_goals', type:'multi', emoji:'🔍',
+    question:'Your skin goals — what would you like to improve?',
+    hint:'Select all that feel true',
+    options:[
+      {value:'healthy_skin',label:'Healthy skin'},{value:'acne',label:'Acne'},{value:'pigmentation',label:'Pigmentation'},
+      {value:'melasma',label:'Melasma'},{value:'fine_lines',label:'Fine lines'},{value:'wrinkles',label:'Wrinkles'},
+      {value:'firmness',label:'Firmness'},{value:'sensitive',label:'Sensitive skin'},{value:'dryness',label:'Dryness'},
+      {value:'oiliness',label:'Oiliness'},{value:'redness',label:'Redness'},{value:'rosacea',label:'Rosacea'},
+      {value:'large_pores',label:'Large pores'},{value:'glow',label:'Glow'},{value:'even_tone',label:'Even skin tone'},
+      {value:'dark_circles',label:'Dark circles'},{value:'puffy_eyes',label:'Puffy eyes'},{value:'acne_scars',label:'Acne scars'},
+      {value:'neck_aging',label:'Neck aging'},
+    ] },
+
+  { id:'diagnosed_conditions', type:'multi', emoji:'🩺', section:'Your Medical & Skin History',
+    question:'Have you ever been diagnosed with:',
+    options:[{value:'acne',label:'Acne'},{value:'rosacea',label:'Rosacea'},{value:'melasma',label:'Melasma'},{value:'eczema',label:'Eczema'},{value:'psoriasis',label:'Psoriasis'},{value:'seborrheic_dermatitis',label:'Seborrheic dermatitis'},{value:'hyperpigmentation',label:'Hyperpigmentation'},{value:'none',label:'None'}] },
+
+  { id:'health_conditions', type:'multi', emoji:'🩺',
+    question:'Do you have any health conditions that may affect your skin?',
+    options:[{value:'pcos',label:'PCOS'},{value:'diabetes',label:'Diabetes'},{value:'thyroid',label:'Thyroid disorder'},{value:'digestive',label:'Digestive disorder'},{value:'autoimmune',label:'Autoimmune condition'},{value:'none',label:'None'},{value:'prefer_not_to_answer',label:'Prefer not to answer'}] },
+
+  { id:'allergies', type:'multi', emoji:'⚠️',
+    question:'Any known allergies or sensitivities?',
+    hint:"Select all that apply — we'll never recommend these",
+    options:[{value:'cosmetics',label:'Cosmetics / skincare'},{value:'iodine',label:'Iodine'},{value:'foods',label:'Certain foods'},{value:'fragrance',label:'Fragrances'},{value:'sunscreen',label:'Sunscreens'},{value:'meds',label:'Medications'},{value:'animals',label:'Animals'},{value:'none',label:'None I know of'}] },
+
+  { id:'hormones', type:'hormones', emoji:'🤍', section:'Hormones',
+    question:'A few hormone-related questions',
+    hint:'Only shown if you identified as she/her — helps us understand your skin more fully',
+    showIf:(answers)=>answers.gender==='she',
+    fields:[
+      {key:'pregnant',label:'Pregnant?',options:[{value:'yes',label:'Yes'},{value:'no',label:'No'}]},
+      {key:'breastfeeding',label:'Breastfeeding?',options:[{value:'yes',label:'Yes'},{value:'no',label:'No'}]},
+      {key:'trying_to_conceive',label:'Trying to conceive?',options:[{value:'yes',label:'Yes'},{value:'no',label:'No'}]},
+      {key:'regular_cycle',label:'Regular menstrual cycle?',options:[{value:'yes',label:'Yes'},{value:'no',label:'No'},{value:'not_sure',label:'Not sure'}]},
+      {key:'menopause',label:'Menopause?',options:[{value:'yes',label:'Yes'},{value:'no',label:'No'}]},
+      {key:'hormonal_birth_control',label:'Hormonal birth control?',options:[{value:'yes',label:'Yes'},{value:'no',label:'No'}]},
+      {key:'hormone_therapy',label:'Hormone therapy?',options:[{value:'yes',label:'Yes'},{value:'no',label:'No'}]},
+    ] },
+
+  { id:'sleep', type:'single', emoji:'😴', section:'Lifestyle',
+    question:'How many hours do you sleep?',
+    options:[{value:'less_5',label:'Less than 5 hours'},{value:'5_6',label:'5–6 hours'},{value:'7_8',label:'7–8 hours'},{value:'more_8',label:'More than 8 hours'}] },
+
+  { id:'stress', type:'slider', emoji:'🧠',
+    question:'What is your level of stress?',
+    min:1, max:10, hint:'1 = very calm · 10 = very stressed' },
+
+  { id:'water_intake', type:'single', emoji:'💦',
+    question:'What is your daily water intake?',
+    options:[{value:'less_1l',label:'Less than 1L'},{value:'more_2l',label:'More than 2L'}] },
+
+  { id:'alcohol', type:'single', emoji:'🍷',
+    question:'How frequently do you consume alcohol?',
+    options:[{value:'never',label:'Never'},{value:'weekly',label:'Weekly'},{value:'several_week',label:'Several times a week'},{value:'daily',label:'Daily'}] },
+
+  { id:'smoke', type:'single', emoji:'💨',
+    question:'Do you smoke?',
+    options:[{value:'yes',label:'Yes'},{value:'never',label:'Never'},{value:'occasionally',label:'Occasionally'},{value:'daily',label:'Daily'}] },
+
+  { id:'exercise', type:'single', emoji:'🏃',
+    question:'How often do you exercise?',
+    options:[{value:'never',label:'Never'},{value:'1_2_week',label:'1–2x / week'},{value:'3_5_week',label:'3–5x / week'},{value:'daily',label:'Daily'}] },
+
+  { id:'routine_products', type:'multi', emoji:'🧴',
+    question:'Which products do you currently use?',
+    hint:'No judgment — tap all you use',
+    options:[{value:'cleanser',label:'Cleanser'},{value:'toner',label:'Toner'},{value:'serum',label:'Serum'},{value:'moisturizer',label:'Moisturizer'},{value:'eye_cream',label:'Eye cream'},{value:'sunscreen',label:'Sunscreen'},{value:'retinol',label:'Retinol'},{value:'exfoliant',label:'Exfoliant'},{value:'face_oil',label:'Face oil'},{value:'mask',label:'Mask'},{value:'none',label:'None'}] },
+
+  { id:'event', type:'event', emoji:'🗓️',
+    question:'Do you want to be ready for an event?',
+    hint:'A visible deadline helps you glow up faster 💅',
     options:[{value:'trip',icon:'✈️',label:'Trip'},{value:'wedding',icon:'💍',label:'Wedding'},{value:'beach',icon:'🏖️',label:'Beach Vacation'},{value:'family',icon:'🏠',label:'Family Gathering'},{value:'party',icon:'🎉',label:'Party'},{value:'no_event',icon:'—',label:'No special event'}] },
-  { id:'event_date',       type:'event_date', emoji:'📅',                                    question:"When's your event?",                     hint:"We'll build your skin plan to peak right on time ✨" },
-  { id:'photos',           type:'photos',     emoji:'🤳',                                    question:"Let's see your skin",                    hint:'Natural light, no makeup — your skin, honestly ✨' },
-  { id:'shelf',            type:'shelf',      emoji:'🧴',                                    question:"What's on your shelf?",                  hint:"We're curious, not judgy · optional, up to 5" },
-  { id:'completion',       type:'completion', emoji:'🌿',                                    question:'Your Skin Era is ready' },
+
+  { id:'event_date', type:'event_date', emoji:'📅',
+    question:"When's your event?",
+    hint:"We'll build your skin plan to peak right on time ✨" },
+
+  { id:'photos', type:'photos', emoji:'🤳',
+    question:"Let's see your skin",
+    hint:'5 photos: Front, Left, Right, Close-up, Neck · No makeup, natural daylight, hair tied back, no filters, neutral expression' },
+
+  { id:'shelf', type:'shelf', emoji:'🧴',
+    question:"What's on your shelf?",
+    hint:"Product + ingredient list photos · We'll check for ingredient quality, barrier safety, pregnancy safety, irritants, duplicates, compatibility, application order · optional, up to 9" },
+
+  { id:'completion', type:'completion', emoji:'🌿',
+    question:'Your Skin Longevity Plan is ready' },
 ];
 
 export const MOODS = [

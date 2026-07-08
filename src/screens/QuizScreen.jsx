@@ -10,6 +10,14 @@ import { useApp } from '../context/AppContext';
 
 const TOTAL = QUESTIONS.length;
 
+const PHOTO_ANGLES = [
+  { key: 'front',   label: 'Straight on',        hint: 'Face forward, chin slightly down' },
+  { key: 'left',    label: 'Left side of face',  hint: 'Turn your left cheek toward the light' },
+  { key: 'right',   label: 'Right side of face', hint: 'Turn your right cheek toward the light' },
+  { key: 'closeup', label: 'Close-up',           hint: 'Move closer — fill the frame with your skin texture' },
+  { key: 'neck',    label: 'Neck',               hint: 'Tilt your chin up slightly to show your neck' },
+];
+
 // ─── Drum Date Picker ────────────────────────────────────────────────────────
 const ITEM_H     = 52;
 const VISIBLE    = 5;
@@ -144,9 +152,8 @@ export default function QuizScreen({ navigation }) {
     }
     const nextQ = QUESTIONS[idx + 1];
     const skipEvent    = nextQ?.type === 'event_date' && a.event === 'no_event';
-    const skipPregnant = nextQ?.id === 'pregnant' && a.gender === 'he';
-    if (skipPregnant) { a.pregnant = 'no'; setAns({ ...a }); }
-    const skip = skipEvent || skipPregnant;
+    const skipHormones = nextQ?.id === 'hormones' && a.gender !== 'she';
+    const skip = skipEvent || skipHormones;
     Animated.sequence([
       Animated.timing(fadeAnim, { toValue: 0, duration: 120, useNativeDriver: true }),
       Animated.timing(fadeAnim, { toValue: 1, duration: 120, useNativeDriver: true }),
@@ -285,17 +292,78 @@ export default function QuizScreen({ navigation }) {
           </>
         )}
 
+        {/* LOCATION */}
+        {q.type === 'location' && (
+          <>
+            {q.fields.map(f => (
+              <TextInput
+                key={f.key}
+                style={[s.input, { marginBottom: 12 }]}
+                placeholder={f.placeholder}
+                placeholderTextColor={C.muted}
+                autoCapitalize="words"
+                value={answers[f.key] || ''}
+                onChangeText={t => setAns(a => ({ ...a, [f.key]: t }))}
+              />
+            ))}
+            <Btn onPress={next} disabled={!answers.city || !answers.country} label="Continue →" />
+          </>
+        )}
+
+        {/* SLIDER (tap-to-select 1–10 row) */}
+        {q.type === 'slider' && (
+          <>
+            <View style={s.stressRow}>
+              {Array.from({ length: q.max - q.min + 1 }, (_, i) => q.min + i).map(n => {
+                const active = answers[q.id] === n;
+                return (
+                  <Pressable
+                    key={n}
+                    onPress={() => setAns(a => ({ ...a, [q.id]: n }))}
+                    style={[s.stressDot, active && s.stressDotActive]}
+                  >
+                    <Text style={[s.stressDotText, active && s.stressDotTextActive]}>{n}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <Btn onPress={next} disabled={!answers[q.id]} label="Continue →" />
+          </>
+        )}
+
+        {/* HORMONES (conditional, she/her only — local state only, not sent to AI payload) */}
+        {q.type === 'hormones' && (
+          <>
+            {q.fields.map(f => (
+              <View key={f.key} style={{ marginBottom: 18 }}>
+                <Text style={s.hormoneLabel}>{f.label}</Text>
+                <View style={s.chipRow}>
+                  {f.options.map(o => {
+                    const active = (answers.hormones || {})[f.key] === o.value;
+                    return (
+                      <Pressable
+                        key={o.value}
+                        onPress={() => setAns(a => ({ ...a, hormones: { ...(a.hormones || {}), [f.key]: o.value } }))}
+                        style={[s.chip, active && s.chipActive]}
+                      >
+                        <Text style={[s.chipText, active && s.chipTextActive]}>{o.label}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            ))}
+            <Btn onPress={next} label="Continue →" />
+          </>
+        )}
+
         {/* PHOTOS */}
         {q.type === 'photos' && (
           <>
-            {[
-              { label: 'Right side of face', hint: 'Turn your right cheek toward the light', k: 'photo_right' },
-              { label: 'Left side of face',  hint: 'Turn your left cheek toward the light',  k: 'photo_left' },
-              { label: 'Straight on',        hint: 'Face forward, chin slightly down',        k: 'photo_front' },
-            ].map(p => {
-              const done = !!answers[p.k];
+            {PHOTO_ANGLES.map(p => {
+              const done = !!answers[p.key];
               return (
-                <View key={p.k} style={[s.photoCard, done && s.photoCardDone]}>
+                <View key={p.key} style={[s.photoCard, done && s.photoCardDone]}>
                   <View style={s.photoCardInner}>
                     <View style={[s.photoIcon, done && s.photoIconDone]}>
                       <Text style={{ fontSize: done ? 12 : 15, color: done ? '#7A9E6E' : C.muted }}>{done ? '✓' : '🤳'}</Text>
@@ -307,16 +375,16 @@ export default function QuizScreen({ navigation }) {
                   </View>
                   {!done ? (
                     <View style={s.photoActions}>
-                      <Pressable style={s.photoBtn} onPress={() => takePhoto(p.k)}>
+                      <Pressable style={s.photoBtn} onPress={() => takePhoto(p.key)}>
                         <Text style={s.photoBtnText}>📷 Take photo</Text>
                       </Pressable>
                       <View style={s.photoDivider} />
-                      <Pressable style={s.photoBtn} onPress={() => pickPhoto(p.k)}>
+                      <Pressable style={s.photoBtn} onPress={() => pickPhoto(p.key)}>
                         <Text style={s.photoBtnText}>🖼 Upload</Text>
                       </Pressable>
                     </View>
                   ) : (
-                    <Pressable onPress={() => setAns(a => { const n = { ...a }; delete n[p.k]; return n; })}>
+                    <Pressable onPress={() => setAns(a => { const n = { ...a }; delete n[p.key]; return n; })}>
                       <Text style={s.retake}>Remove & retake</Text>
                     </Pressable>
                   )}
@@ -326,7 +394,7 @@ export default function QuizScreen({ navigation }) {
             <Btn
               onPress={next}
               accent
-              label={Object.keys(answers).some(k => k.startsWith('photo_')) ? 'Continue →' : 'Skip for now →'}
+              label={PHOTO_ANGLES.some(p => answers[p.key]) ? 'Continue →' : 'Skip for now →'}
             />
             <Text style={s.footnote}>We see skin texture, not judgment</Text>
           </>
@@ -336,10 +404,10 @@ export default function QuizScreen({ navigation }) {
         {q.type === 'shelf' && (
           <>
             <View style={s.shelfGrid}>
-              {Array.from({ length: 5 }).map((_, i) => {
+              {Array.from({ length: 9 }).map((_, i) => {
                 const shelf = answers.shelf_photos || [];
                 const filled = i < shelf.length;
-                const isNext = i === shelf.length && shelf.length < 5;
+                const isNext = i === shelf.length && shelf.length < 9;
                 if (filled) return (
                   <View key={i} style={[s.shelfSlot, s.shelfSlotFilled]}>
                     <Text style={{ fontSize: 22 }}>🧴</Text>
@@ -393,13 +461,13 @@ export default function QuizScreen({ navigation }) {
               onChangeText={t => setAns(a => ({ ...a, [q.id]: t }))}
               style={s.textarea}
             />
-            <Text style={s.shelfLabel}>Drop pics of your shelf <Text style={{ fontStyle: 'italic' }}>· optional, up to 5</Text></Text>
+            <Text style={s.shelfLabel}>Drop pics of your shelf <Text style={{ fontStyle: 'italic' }}>· optional, up to 9</Text></Text>
             <Text style={s.shelfSub}>We're curious, not judgy</Text>
             <View style={s.shelfGrid}>
-              {Array.from({ length: 5 }).map((_, i) => {
+              {Array.from({ length: 9 }).map((_, i) => {
                 const shelf = answers.shelf_photos || [];
                 const filled = i < shelf.length;
-                const isNext = i === shelf.length && shelf.length < 5;
+                const isNext = i === shelf.length && shelf.length < 9;
                 if (filled) return (
                   <View key={i} style={[s.shelfSlot, s.shelfSlotFilled]}>
                     <Text style={{ fontSize: 22 }}>🧴</Text>
@@ -542,7 +610,7 @@ export default function QuizScreen({ navigation }) {
         {q.type === 'completion' && (
           <View style={s.completionBlock}>
             <Text style={s.completionEmoji}>🌿</Text>
-            <Text style={s.completionHeading}>Your Skin Era is ready</Text>
+            <Text style={s.completionHeading}>{q.question}</Text>
             <Text style={s.completionSub}>We're analyzing your answers to build your personalized routine.</Text>
             <Btn onPress={next} accent label="See my Skin Era →" />
           </View>
@@ -640,6 +708,12 @@ const s = StyleSheet.create({
 
   input:             { backgroundColor: C.card, borderWidth: 1.5, borderColor: C.border, borderRadius: 13, padding: 14, fontFamily: 'DMSans_400Regular', fontSize: 15, color: C.text, marginBottom: 16 },
   optionIconCircle:  { width: 32, height: 32, borderRadius: 16, backgroundColor: '#F0EBE5', alignItems: 'center', justifyContent: 'center' },
+  stressRow:         { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8, marginBottom: 24 },
+  stressDot:         { width: 34, height: 34, borderRadius: 17, borderWidth: 1.5, borderColor: C.border, backgroundColor: C.card, alignItems: 'center', justifyContent: 'center' },
+  stressDotActive:   { backgroundColor: C.accent, borderColor: C.accent },
+  stressDotText:     { fontFamily: 'DMSans_500Medium', fontSize: 13, color: C.text },
+  stressDotTextActive: { color: '#FFF' },
+  hormoneLabel:      { fontFamily: 'DMSans_500Medium', fontSize: 14, color: C.text, marginBottom: 8 },
   ghostBtn:          { borderWidth: 1, borderColor: C.border, borderRadius: 26, paddingVertical: 13, alignItems: 'center', marginBottom: 16 },
   ghostText:         { fontFamily: 'DMSans_400Regular', fontSize: 13, color: C.muted },
   completionBlock:   { alignItems: 'center', paddingTop: 20, paddingBottom: 20, width: '100%' },

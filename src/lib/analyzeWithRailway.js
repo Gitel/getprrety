@@ -2,46 +2,85 @@ import { ERAS, fallbackEra } from '../constants';
 
 const RAILWAY_URL = 'https://getpretty-api-production.up.railway.app';
 
+// Map new expanded skin_goals values down to the legacy 6-bucket concern
+// taxonomy the existing Skin Era decision tree reads. Goals with no legacy
+// equivalent are simply omitted from `concerns` but still sent in full
+// under `skin_goals`.
+const GOAL_TO_LEGACY_CONCERN = {
+  acne:          'breakouts',
+  sensitive:     'sensitive',
+  dryness:       'dryness',
+  fine_lines:    'fine_lines',
+  wrinkles:      'fine_lines',
+  pigmentation:  'dark_spots',
+  melasma:       'dark_spots',
+  large_pores:   'pores',
+};
+
+const SMOKE_TO_LEGACY = {
+  yes:          'yes',
+  daily:        'yes',
+  occasionally: 'sometimes',
+  never:        'no',
+};
+
 // Map app quiz answer fields → Railway API schema
 function buildQuizPayload(answers) {
-  const concernMap = {
-    acne:        'breakouts',
-    wrinkles:    'fine_lines',
-    pigmentation:'dark_spots',
-    sensitive:   'sensitive',
-    dryness:     'dryness',
-    pores:       'pores',
-  };
   const productMap = {
-    cleanser:     'cleanser',
-    moisturizer:  'moisturizer',
-    serum:        'serum',
-    treatments:   'treatments',
-    spf:          'sunscreen',
-    none:         'not_much',
+    cleanser:    'cleanser',
+    toner:       'toner',
+    serum:       'serum',
+    moisturizer: 'moisturizer',
+    eye_cream:   'eye_cream',
+    sunscreen:   'sunscreen',
+    retinol:     'retinol',
+    exfoliant:   'exfoliant',
+    face_oil:    'face_oil',
+    mask:        'mask',
+    none:        'not_much',
   };
 
-  const concerns = (answers.concerns || []).map(c => concernMap[c] || c);
-  const products = (answers.routine_products || []).map(p => productMap[p] || p);
-  const hasPhotos = ['photo_right', 'photo_left', 'photo_front'].some(k => answers[k]);
+  const legacyConcerns = (answers.skin_goals || [])
+    .map(g => GOAL_TO_LEGACY_CONCERN[g])
+    .filter(Boolean);
+
+  const products  = (answers.routine_products || []).map(p => productMap[p] || p);
+  const hasPhotos = ['front', 'left', 'right', 'closeup', 'neck'].some(k => answers[k]);
 
   return {
-    identity:            answers.gender || 'she/her',
-    age_range:           answers.age || '25-34',
-    fitzpatrick:         Number(answers.tone) || 2,
-    concerns,
-    current_products:    products,
-    smokes:              answers.smoke || 'no',
-    has_diabetes:        answers.diabetes || 'no',
-    allergies:           answers.allergies || ['none'],
-    pregnant_or_ttc:     answers.pregnant || 'no',
-    name:                answers.name || null,
-    interests:           answers.interests || [],
-    event_type:          answers.event_type || 'none',
-    event_date:          answers.event_date || null,
-    dream_skin_era:      answers.goals || '',
-    skin_photos_uploaded: hasPhotos,
+    // ── existing fields (unchanged shape, feeds current decision tree) ──
+    identity:             answers.gender || 'she',
+    concerns:             legacyConcerns,
+    current_products:     products,
+    smokes:               SMOKE_TO_LEGACY[answers.smoke] || 'no',
+    has_diabetes:         (answers.health_conditions || []).includes('diabetes') ? 'yes' : 'no',
+    allergies:            answers.allergies || ['none'],
+    pregnant_or_ttc:      answers.gender === 'she'
+                            ? ((answers.hormones?.pregnant === 'yes' || answers.hormones?.trying_to_conceive === 'yes') ? 'yes' : 'no')
+                            : 'no',
+    name:                 answers.name || null,
+    interests:            answers.interests || [],
+    event_type:           answers.event || 'none',
+    event_date:           answers.event_date || null,
+    skin_photos_uploaded:  hasPhotos,
     shelf_photos_uploaded: (answers.shelf_photos || []).length > 0,
+
+    // ── new fields — sent through, not yet consumed by any decision logic ──
+    city:                  answers.city || null,
+    country:               answers.country || null,
+    work_environment:      answers.work_environment || null,
+    post_cleanse_feel:     answers.post_cleanse_feel || null,
+    irritants:             answers.irritants || [],
+    skin_goals:            answers.skin_goals || [],
+    diagnosed_conditions:  answers.diagnosed_conditions || [],
+    health_conditions:     answers.health_conditions || [],
+    sleep:                 answers.sleep || null,
+    stress:                answers.stress || null,
+    water_intake:          answers.water_intake || null,
+    alcohol:               answers.alcohol || null,
+    exercise:              answers.exercise || null,
+
+    // ── intentionally NOT included: hormones (held per scope decision) ──
   };
 }
 
@@ -121,7 +160,7 @@ export async function analyzeWithRailway(answers) {
 
   // Convert photos to base64 (quiz may store them as data: URLs or native file:// URIs)
   const skinPhotosBase64 = (
-    await Promise.all(['photo_right', 'photo_left', 'photo_front'].map(k => toBase64(answers[k])))
+    await Promise.all(['front', 'left', 'right', 'closeup', 'neck'].map(k => toBase64(answers[k])))
   ).filter(Boolean);
 
   const shelfPhotosBase64 = (

@@ -17,7 +17,7 @@ function IntroScreen({ onReady }) {
         <Text style={s.introEmoji}>✨</Text>
         <Text style={s.introTitle}>Time for your skin selfie</Text>
         <Text style={s.introDesc}>
-          {'No filter, no makeup — just you.\nNatural light works best.'}
+          {'No makeup, no filters — just you.\nNatural daylight, hair tied back, neutral expression.'}
         </Text>
         <Pressable style={s.cta} onPress={onReady}>
           <Text style={s.ctaText}>I'm ready →</Text>
@@ -55,12 +55,14 @@ export default function SkinSelfieScreen({ navigation }) {
 
   const [phase,   setPhase]   = useState('intro');   // intro | camera | preview | denied
   const [photos,  setPhotos]  = useState({});         // { right, left, front }
-  const [current, setCurrent] = useState('right');    // which angle we're capturing
+  const [current, setCurrent] = useState('front');    // which angle we're capturing
 
   const ANGLES = [
-    { key: 'right', label: 'Right side of face', hint: 'Turn your right cheek toward the light' },
-    { key: 'left',  label: 'Left side of face',  hint: 'Turn your left cheek toward the light' },
-    { key: 'front', label: 'Straight on',         hint: 'Face forward, chin slightly down' },
+    { key: 'front',   label: 'Straight on',          hint: 'Face forward, chin slightly down' },
+    { key: 'left',    label: 'Left side of face',    hint: 'Turn your left cheek toward the light' },
+    { key: 'right',   label: 'Right side of face',   hint: 'Turn your right cheek toward the light' },
+    { key: 'closeup', label: 'Close-up',             hint: 'Move closer — fill the frame with your skin texture' },
+    { key: 'neck',    label: 'Neck',                 hint: 'Tilt your chin up slightly to show your neck' },
   ];
 
   const currentAngle = ANGLES.find(a => a.key === current);
