@@ -6,19 +6,22 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { C, fetchProductRecs } from '../constants';
 import { useApp } from '../context/AppContext';
+import { pollScan } from '../lib/skinScan';
 
-async function detectCountry() {
-  try {
-    const r = await fetch('https://ipapi.co/json/');
-    const d = await r.json();
-    return d.country_name || 'United States';
-  } catch {
-    return 'United States';
-  }
-}
+const CONCERN_LABELS = {
+  acne: 'Acne', pore: 'Pores', texture: 'Texture', redness: 'Redness',
+  oiliness: 'Oiliness', moisture: 'Moisture', radiance: 'Radiance', wrinkle: 'Fine lines & wrinkles',
+};
+const SEVERITY_META = [
+  { label: 'Strong',     color: '#7A9E6E' },
+  { label: 'Good',       color: '#8FAE7A' },
+  { label: 'Watch',      color: '#B8924A' },
+  { label: 'Needs work', color: '#C4784B' },
+  { label: 'Priority',   color: '#C44B4B' },
+];
 
 export default function ProfileScreen({ navigation }) {
-  const { analysis, srProducts, shelfAnalysis } = useApp();
+  const { analysis, setAnalysis, answers, user, srProducts, shelfAnalysis } = useApp();
   const era = analysis?.era;
   const audit         = analysis?.productAudit || {};
 
@@ -39,18 +42,41 @@ export default function ProfileScreen({ navigation }) {
   const [loadingRecs, setLoadingRecs] = useState(false);
 
   useEffect(() => {
+    if (!user) return;
     if (!addItems.length && !replaceItems.length) return;
     setLoadingRecs(true);
     (async () => {
       try {
-        const c    = await detectCountry();
+        const c    = answers?.country || 'United States';
         setCountry(c);
         const recs = await fetchProductRecs(audit, c, era?.name || '');
         setProductRecs(recs);
       } catch (e) { console.warn('Product recs:', e.message); }
       setLoadingRecs(false);
     })();
-  }, []);
+  }, [user]);
+
+  useEffect(() => {
+    const scanId = analysis?.skinScanId || answers?.skinScanId;
+    const scanToken = answers?.skinScanToken;
+    if (!scanId || analysis?.skinScan) return;
+    let cancelled = false;
+    let attempts = 0;
+
+    async function refreshScan() {
+      const result = await pollScan(scanId, scanToken);
+      if (cancelled) return;
+      if (result?.status === 'complete' && result.skinScan) {
+        setAnalysis(current => current ? { ...current, skinScanId: scanId, skinScan: result.skinScan } : current);
+        return;
+      }
+      if (result?.status === 'failed' || attempts >= 30) return;
+      attempts += 1;
+      setTimeout(refreshScan, 2000);
+    }
+    refreshScan();
+    return () => { cancelled = true; };
+  }, [analysis?.skinScanId, analysis?.skinScan, answers?.skinScanId, answers?.skinScanToken]);
 
   if (!analysis) return null;
 
@@ -87,6 +113,50 @@ export default function ProfileScreen({ navigation }) {
             </View>
           ))}
         </View>
+
+        {/* AI Skin Scan — only present when the PerfectCorp scan landed before this reveal.
+            Purely supplementary: it never changes the Era above, per the quiz-anchored design. */}
+        {analysis.skinScan?.fusion && (
+          <View style={s.card}>
+            <Text style={s.cardLabel}>📷 AI Skin Scan</Text>
+
+            {analysis.skinScan.fusion.skinType?.resolved && (
+              <Text style={s.scanSkinType}>
+                Skin type: {analysis.skinScan.fusion.skinType.observed || analysis.skinScan.fusion.skinType.reported}
+                {analysis.skinScan.fusion.skinType.tZone ? ` · T-zone ${analysis.skinScan.fusion.skinType.tZone}` : ''}
+              </Text>
+            )}
+
+            <View style={s.scanConcernList}>
+              {analysis.skinScan.fusion.concerns.slice(0, 5).map(c => {
+                const meta = SEVERITY_META[c.severity] || SEVERITY_META[0];
+                return (
+                  <View key={c.key} style={s.scanConcernRow}>
+                    <View style={[s.scanDot, { backgroundColor: meta.color }]} />
+                    <Text style={s.scanConcernLabel}>{CONCERN_LABELS[c.key] || c.key}</Text>
+                    <Text style={[s.scanConcernSeverity, { color: meta.color }]}>{meta.label}</Text>
+                  </View>
+                );
+              })}
+            </View>
+
+            {analysis.skinScan.fusion.discoveries?.length > 0 && (
+              <View style={s.scanDiscoveries}>
+                {analysis.skinScan.fusion.discoveries.map(d => (
+                  <Text key={d.key} style={s.scanDiscoveryText}>
+                    ✨ Your photo also shows some {(CONCERN_LABELS[d.key] || d.key).toLowerCase()} — worth
+                    keeping an eye on, though it's not driving your routine right now.
+                  </Text>
+                ))}
+              </View>
+            )}
+
+            <Text style={s.scanDisclaimer}>
+              This is a cosmetic skin assessment, not a medical evaluation. If something on your skin
+              concerns you, please see a dermatologist.
+            </Text>
+          </View>
+        )}
 
         {/* Product Audit */}
         {auditTabs.length > 0 && (
@@ -275,7 +345,7 @@ export default function ProfileScreen({ navigation }) {
 
         <Pressable
           style={[s.cta, { backgroundColor: era.color }]}
-          onPress={() => navigation.navigate('SignUp')}
+          onPress={() => navigation.navigate(user ? 'Home' : 'SignUp')}
         >
           <Text style={s.ctaText}>See My Routine →</Text>
         </Pressable>
@@ -335,6 +405,16 @@ const s = StyleSheet.create({
   card:      { backgroundColor: C.card, borderRadius: 14, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: C.border },
   cardLabel: { fontFamily: 'DMSans_400Regular', fontSize: 10, color: C.muted, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 10 },
   cardBody:  { fontFamily: 'DMSans_400Regular', fontSize: 14, color: '#4A4039', lineHeight: 25 },
+
+  scanSkinType:    { fontFamily: 'DMSans_500Medium', fontSize: 13, color: C.text, marginBottom: 12 },
+  scanConcernList: { gap: 9, marginBottom: 8 },
+  scanConcernRow:  { flexDirection: 'row', alignItems: 'center', gap: 9 },
+  scanDot:         { width: 8, height: 8, borderRadius: 4 },
+  scanConcernLabel:{ fontFamily: 'DMSans_400Regular', fontSize: 13, color: '#4A4039', flex: 1 },
+  scanConcernSeverity:{ fontFamily: 'DMSans_500Medium', fontSize: 11 },
+  scanDiscoveries: { marginTop: 12, gap: 6 },
+  scanDiscoveryText:{ fontFamily: 'DMSans_400Regular', fontSize: 12, color: C.muted, lineHeight: 19, fontStyle: 'italic' },
+  scanDisclaimer:  { fontFamily: 'DMSans_400Regular', fontSize: 10, color: C.muted, lineHeight: 16, marginTop: 14 },
 
   sectionLabel:{ fontFamily: 'DMSans_400Regular', fontSize: 10, color: C.muted, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 12 },
   insightList: { gap: 8, marginBottom: 18 },

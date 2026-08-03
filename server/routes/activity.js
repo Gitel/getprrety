@@ -6,8 +6,7 @@ const requireAuth = require('../middleware/auth');
 router.post('/', requireAuth, async (req, res) => {
   try {
     const { event, location } = req.body;
-    const ip = req.headers['x-forwarded-for']?.split(',')[0].trim()
-            || req.socket.remoteAddress;
+    const ip = req.ip || req.socket.remoteAddress;
 
     const doc = await ActivityLog.create({
       userId: req.user.id,
@@ -17,7 +16,7 @@ router.post('/', requireAuth, async (req, res) => {
     });
     res.status(201).json({ log: doc });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Unable to save activity' });
   }
 });
 
@@ -29,7 +28,7 @@ router.get('/', requireAuth, async (req, res) => {
       .limit(100);
     res.json({ logs: docs });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Unable to load activity' });
   }
 });
 

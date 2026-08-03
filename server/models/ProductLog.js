@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 
 const productLogSchema = new mongoose.Schema({
   userId:      { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  uploadId:    { type: mongoose.Schema.Types.ObjectId, ref: 'Upload' },
   photoUri:    { type: String },
   productName: { type: String },
   category:    { type: String },

@@ -18,10 +18,10 @@ const GOAL_TO_LEGACY_CONCERN = {
 };
 
 const SMOKE_TO_LEGACY = {
-  yes:          'yes',
   daily:        'yes',
   occasionally: 'sometimes',
   never:        'no',
+  // 'yes' key removed — option no longer exists in the quiz (smoke tiers cleaned up in v3)
 };
 
 // Map app quiz answer fields → Railway API schema
@@ -79,6 +79,10 @@ function buildQuizPayload(answers) {
     water_intake:          answers.water_intake || null,
     alcohol:               answers.alcohol || null,
     exercise:              answers.exercise || null,
+    top_concern:           answers.top_concern || null,
+    irritants_other:            answers.irritants_other || null,
+    diagnosed_conditions_other: answers.diagnosed_conditions_other || null,
+    allergies_other:            answers.allergies_other || null,
 
     // ── intentionally NOT included: hormones (held per scope decision) ──
   };

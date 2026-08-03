@@ -1,12 +1,14 @@
 import React, { useState, useRef } from 'react';
 import {
-  View, Text, Pressable, StyleSheet, Image, Linking, Alert,
+  ActivityIndicator, View, Text, Pressable, StyleSheet, Image, Linking, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CameraView } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { useCameraPermission } from '../hooks/useCameraPermission';
 import { C } from '../constants';
+import { uploadImage } from '../lib/uploadImage';
+import { api } from '../lib/api';
 
 // ─── Permission denied fallback ───────────────────────────────────────────────
 function PermissionDenied({ onUpload, onBack }) {
@@ -39,6 +41,7 @@ export default function ProductCameraScreen({ navigation }) {
 
   const [phase,    setPhase]    = useState('camera');  // camera | preview | denied
   const [photoUri, setPhotoUri] = useState(null);
+  const [saving, setSaving] = useState(false);
 
   async function handleMount() {
     const ok = await ensurePermission();
@@ -70,8 +73,19 @@ export default function ProductCameraScreen({ navigation }) {
     setPhase('camera');
   }
 
-  function confirm() {
-    navigation.goBack();
+  async function confirm() {
+    if (!photoUri || saving) return;
+    setSaving(true);
+    try {
+      const uploadId = await uploadImage(photoUri);
+      await api.post('/api/products', { uploadId, category: 'unclassified' });
+      Alert.alert('Product saved', 'The product photo was added to your log.', [
+        { text: 'Done', onPress: () => navigation.goBack() },
+      ]);
+    } catch (err) {
+      Alert.alert('Could not save product', err.message);
+      setSaving(false);
+    }
   }
 
   if (phase === 'denied') {
@@ -88,11 +102,11 @@ export default function ProductCameraScreen({ navigation }) {
       <View style={{ flex: 1, backgroundColor: '#000' }}>
         <Image source={{ uri: photoUri }} style={{ flex: 1 }} resizeMode="contain" />
         <SafeAreaView style={s.previewActions}>
-          <Pressable style={s.retakeBtn} onPress={retake}>
+          <Pressable style={s.retakeBtn} onPress={retake} disabled={saving}>
             <Text style={s.retakeBtnText}>Retake</Text>
           </Pressable>
-          <Pressable style={s.confirmBtn} onPress={confirm}>
-            <Text style={s.confirmBtnText}>Looks good →</Text>
+          <Pressable style={s.confirmBtn} onPress={confirm} disabled={saving}>
+            {saving ? <ActivityIndicator color="#FFF" /> : <Text style={s.confirmBtnText}>Save product →</Text>}
           </Pressable>
         </SafeAreaView>
       </View>

@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
-import { View, Text, Pressable, StyleSheet, Modal, Switch } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, Platform, View, Text, Pressable, StyleSheet, Switch } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { C } from '../constants';
 import { useApp } from '../context/AppContext';
+import { loadReminderSchedule, requestNotificationPermission, saveReminderSchedule } from '../lib/notifications';
 
 const DAYS      = ['S','M','T','W','T','F','S'];
 const DAY_FULL  = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
@@ -26,16 +27,60 @@ export default function NotificationSetupScreen({ navigation }) {
   const era = analysis?.era;
 
   const [granted,    setGranted]    = useState(false);
-  const [showPrompt, setShowPrompt] = useState(false);
   const [amOn,  setAmOn]  = useState(false);
   const [pmOn,  setPmOn]  = useState(false);
   const [amTime,setAmTime]= useState('08:00');
   const [pmTime,setPmTime]= useState('21:00');
   const [amDays,setAmDays]= useState([0,1,2,3,4,5,6]);
   const [pmDays,setPmDays]= useState([0,1,2,3,4,5,6]);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    loadReminderSchedule().then(({ granted: allowed, settings }) => {
+      setGranted(allowed);
+      if (!settings) return;
+      setAmOn(settings.amOn);
+      setPmOn(settings.pmOn);
+      setAmTime(settings.amTime);
+      setPmTime(settings.pmTime);
+      setAmDays(settings.amDays);
+      setPmDays(settings.pmDays);
+    }).catch(() => {});
+  }, []);
 
   const toggleDay = (setter, days, i) =>
     setter(days.includes(i) ? days.filter(d => d !== i) : [...days, i]);
+
+  async function enableNotifications() {
+    if (Platform.OS === 'web') {
+      Alert.alert('Mobile only', 'Ritual reminders are available in the iOS and Android apps.');
+      return;
+    }
+    const allowed = await requestNotificationPermission().catch(() => false);
+    setGranted(allowed);
+    if (allowed) {
+      setAmOn(true);
+      setPmOn(true);
+    } else {
+      Alert.alert('Notifications are off', 'You can enable notifications for Get Pretty in your device Settings.');
+    }
+  }
+
+  async function saveAndContinue() {
+    if (!granted) {
+      navigation.navigate('Home');
+      return;
+    }
+    setSaving(true);
+    try {
+      await saveReminderSchedule({ amOn, pmOn, amTime, pmTime, amDays, pmDays });
+      navigation.navigate('Home');
+    } catch (err) {
+      Alert.alert('Could not save reminders', err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <SafeAreaView style={s.safe}>
@@ -55,7 +100,7 @@ export default function NotificationSetupScreen({ navigation }) {
             <Text style={s.permDesc}>We'll only notify you at the times you choose. No spam, ever.</Text>
             <Pressable
               style={[s.permBtn, { backgroundColor: era?.color || C.accent }]}
-              onPress={() => setShowPrompt(true)}
+              onPress={enableNotifications}
             >
               <Text style={s.permBtnText}>Allow notifications</Text>
             </Pressable>
@@ -83,36 +128,18 @@ export default function NotificationSetupScreen({ navigation }) {
 
         <Pressable
           style={[s.cta, { backgroundColor: granted ? (era?.color || C.accent) : '#2C2C2C' }]}
-          onPress={() => navigation.navigate('Home')}
+          onPress={saveAndContinue}
+          disabled={saving}
         >
-          <Text style={s.ctaText}>{granted ? 'Save & See My Routine →' : 'Set up later →'}</Text>
+          {saving
+            ? <ActivityIndicator color="#FFF" />
+            : <Text style={s.ctaText}>{granted ? 'Save & See My Routine →' : 'Set up later →'}</Text>}
         </Pressable>
         {!granted && <Text style={s.hint}>You can always enable reminders from Settings</Text>}
 
         <View style={{ height: 20 }} />
       </View>
 
-      {/* iOS-style permission dialog */}
-      <Modal visible={showPrompt} transparent animationType="fade">
-        <View style={s.overlay}>
-          <View style={s.dialog}>
-            <View style={s.dialogBody}>
-              <View style={s.dialogIcon}><Text style={{ fontSize: 26 }}>🌿</Text></View>
-              <Text style={s.dialogTitle}>"Get Pretty" Would Like to Send You Notifications</Text>
-              <Text style={s.dialogDesc}>Notifications may include your morning and evening ritual reminders.</Text>
-            </View>
-            <View style={s.dialogBtns}>
-              <Pressable style={s.dialogBtn} onPress={() => setShowPrompt(false)}>
-                <Text style={s.dialogBtnText}>Don't Allow</Text>
-              </Pressable>
-              <View style={s.dialogDivider} />
-              <Pressable style={s.dialogBtn} onPress={() => { setGranted(true); setShowPrompt(false); setAmOn(true); setPmOn(true); }}>
-                <Text style={[s.dialogBtnText, { fontWeight: '600' }]}>Allow</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }

@@ -19,13 +19,13 @@ export function AppProvider({ children }) {
       if (token) {
         try {
           const { user: u } = await api.get('/api/auth/me');
-          setUser(u);
-          logActivity('app_open');
           // Rehydrate the latest saved analysis so a page refresh doesn't blank the app
           try {
             const { analysis: saved } = await api.get('/api/analysis/latest');
             if (saved) setAnalysis(saved);
           } catch { /* no saved analysis yet — fine */ }
+          setUser(u);
+          logActivity('app_open');
         } catch {
           await removeToken();
         }

@@ -31,6 +31,7 @@
           "photosPermission": "Get Pretty needs photo library access to save your skin photos."
         }
       ],
+      "expo-notifications",
       "expo-status-bar",
       [
         "expo-location",

@@ -14,3 +14,25 @@ services:
         sync: false
       - key: JWT_SECRET
         sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: CONSENT_VERSION
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: ANTHROPIC_MODEL
+        sync: false
+      - key: PERFECTCORP_API_KEY
+        sync: false
+      - key: PERFECTCORP_BASE_URL
+        value: https://yce-api-01.makeupar.com/s2s/v2.0
+      - key: PERFECTCORP_DST_ACTIONS
+        value: acne,pore,texture,redness,oiliness,moisture,radiance,wrinkle,skin_type
+      - key: SIDE_PHOTO_ANALYSIS_ENABLED
+        value: "true"
+      - key: SKIN_SCAN_PER_IP_HOURLY_LIMIT
+        value: "3"
+      - key: SKIN_SCAN_GLOBAL_HOURLY_LIMIT
+        value: "100"
+      - key: AI_REQUESTS_PER_USER_HOUR
+        value: "10"

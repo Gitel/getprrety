@@ -1,3 +1,5 @@
+import { api } from './lib/api';
+
 export const C = {
   bg:          '#FAF8F5',
   text:        '#2C2C2C',
@@ -17,86 +19,13 @@ export const ERAS = {
 };
 
 export function fallbackEra(a) {
-  const c = a.concerns || [];
+  const c = a.concerns || a.skin_goals || [];
   if (c.includes('sensitive') || c.includes('dryness')) return ERAS.barrier_healing;
   if (c.includes('acne'))                                return ERAS.acne_reset;
-  if (a.smoke === 'yes' || a.age === '45+')              return ERAS.burnout_recovery;
-  if (c.includes('dullness') || c.includes('pores'))     return ERAS.glow_building;
-  if (c.includes('wrinkles') || a.age === '35-44')       return ERAS.repair_restore;
+  if (a.smoke === 'daily')                               return ERAS.burnout_recovery;
+  if (c.includes('dullness') || c.includes('dull_skin') || c.includes('pores') || c.includes('large_pores')) return ERAS.glow_building;
+  if (c.includes('wrinkles') || c.includes('fine_lines')) return ERAS.repair_restore;
   return ERAS.barrier_healing;
-}
-
-export async function analyzeWithAI(answers) {
-  const PLABELS = { cleanser:'Cleanser', moisturizer:'Moisturizer', serum:'Serum', treatments:'Active treatments (acne/anti-aging)', spf:'Sunscreen', none:'No products currently' };
-  const CLABELS = { acne:'Breakouts & acne', wrinkles:'Fine lines & aging', pigmentation:'Dark spots', sensitive:'Sensitive & reactive', dryness:'Dryness & dehydration', pores:'Enlarged pores' };
-  const ALABELS = { cosmetics:'Cosmetics', iodine:'Iodine', foods:'Foods', fragrance:'Fragrances', sunscreen:'Sunscreens', meds:'Medications', animals:'Animals' };
-
-  const products  = (answers.routine_products || []).map(p => PLABELS[p] || p).join(', ') || 'None';
-  const concerns  = (answers.concerns || []).map(c => CLABELS[c] || c).join(', ')         || 'None specified';
-  const allergies = (answers.allergies || []).filter(a => a !== 'none').map(a => ALABELS[a] || a).join(', ') || 'None';
-  const photos    = ['photo_right','photo_left','photo_front'].filter(k => answers[k]).length;
-  const shelf     = (answers.shelf_photos || []).length;
-
-  const system = `You are a clinical cosmetologist with 20 years of experience in skin analysis and personalized routine building. You analyze a client's complete profile — skin condition, lifestyle, health history, and current products — and return precise, science-backed recommendations.
-
-Rules:
-- Flag products that conflict with the client's skin concerns
-- Consider health flags: smoking accelerates aging; diabetes affects wound healing; pregnancy restricts retinoids, salicylic acid, high-dose Vitamin C, essential oils
-- Build routines that are realistic — not overwhelming
-- Be specific, not generic
-- Return ONLY valid JSON with no extra text, no markdown fences`;
-
-  const user = `Analyze this client and return a complete skin profile:
-
-PROFILE:
-- Gender: ${answers.gender || 'not specified'}
-- Age: ${answers.age || 'not specified'}
-- Skin tone (Fitzpatrick): Type ${answers.tone || 'not specified'}
-- Concerns: ${concerns}
-- Current products: ${products}
-- Smokes: ${answers.smoke || 'no'}
-- Diabetes: ${answers.diabetes || 'no'}
-- Allergies: ${allergies}
-- Pregnant/TTC: ${answers.pregnant || 'no'}
-- Goals: ${answers.goals || 'not stated'}
-- Photos uploaded: ${photos} selfies + ${shelf} shelf photos
-
-RETURN exactly this JSON structure:
-{
-  "eraId": "barrier_healing",
-  "skinAnalysis": "2-3 sentence clinical analysis specific to this client",
-  "keyInsights": ["specific insight 1","specific insight 2","specific insight 3"],
-  "productAudit": {
-    "keep":    [{"product":"...","reason":"..."}],
-    "remove":  [{"product":"...","reason":"..."}],
-    "replace": [{"from":"...","to":"...","reason":"..."}],
-    "add":     [{"product":"...","reason":"...","priority":"essential|recommended"}]
-  },
-  "routine": {
-    "am": [{"name":"...","description":"..."},{"name":"...","description":"..."},{"name":"...","description":"..."},{"name":"...","description":"..."},{"name":"...","description":"..."}],
-    "pm": [{"name":"...","description":"..."},{"name":"...","description":"..."},{"name":"...","description":"..."},{"name":"...","description":"..."}]
-  },
-  "affirmation": "first-person affirmation specific to this era"
-}`;
-
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type':    'application/json',
-      'x-api-key':       process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514', max_tokens: 1000,
-      system, messages: [{ role: 'user', content: user }],
-    }),
-  });
-  if (!res.ok) throw new Error(`API ${res.status}`);
-  const data   = await res.json();
-  const raw    = data.content.find(b => b.type === 'text')?.text || '';
-  const parsed = JSON.parse(raw.replace(/```json|```/g, '').trim());
-  parsed.era   = ERAS[parsed.eraId] || fallbackEra(answers);
-  return parsed;
 }
 
 export function buildFallback(answers) {
@@ -144,30 +73,7 @@ export async function fetchProductRecs(productAudit, country, eraName) {
   const addItems     = productAudit.add     || [];
   if (!replaceItems.length && !addItems.length) return { replace:[], add:[] };
 
-  const system = `You are a professional skincare product specialist. Always recommend reputable brands: La Roche-Posay, CeraVe, Paula's Choice, The Ordinary, Cetaphil, Vichy, Bioderma, COSRX, Avene, SkinCeuticals, Neutrogena, First Aid Beauty, Drunk Elephant, Medik8.
-For the specified country provide realistic local pricing and retailers. Return ONLY valid JSON, no other text.`;
-
-  const needs = [
-    ...addItems.map((i, idx)     => `[add_${idx}] [ADD] ${i.product}`),
-    ...replaceItems.map((i, idx) => `[replace_${idx}] [REPLACE] Replace "${i.from}" with: ${i.to}`),
-  ].join('\n');
-
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type':    'application/json',
-      'x-api-key':       process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514', max_tokens: 1000,
-      system,
-      messages: [{ role: 'user', content: `Country: ${country}\nSkin Era: ${eraName}\n\nRecommend ONE specific product per need:\n${needs}\n\nReturn JSON:\n{\n  "add": [{"index":0,"rec":{"brand":"","name":"","price":"","url":"","retailer":""}}],\n  "replace": [...]\n}` }],
-    }),
-  });
-  const data = await res.json();
-  const raw  = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
-  return JSON.parse(raw.replace(/```json|```/g, '').trim());
+  return api.post('/api/ai/product-recommendations', { productAudit, country, eraName });
 }
 
 export const SKIN_TONES = [
@@ -180,74 +86,162 @@ export const SKIN_TONES = [
 ];
 
 export const QUESTIONS = [
-  { id:'gender', type:'single', emoji:'👋',
-    question:'How do you identify?',
-    options:[{value:'she',label:'She / Her'},{value:'he',label:'He / Him'}] },
+  { id:'welcome', type:'welcome', countsInProgress:false,
+    header:'Imagine waking up knowing exactly what your skin needs.',
+    body:"No guessing. No wasted money. Just healthy, glowing skin — backed by science and built around you.",
+    timeNote:'⏱ Takes about 5 minutes',
+    checklist:['Personalized routine','Product audit','Skin analysis','Lifestyle insights'],
+    footer:'🔒 Your answers stay private and are used only to personalize your plan.',
+    cta:'Create My Skin Longevity Plan →' },
 
-  { id:'birthday', type:'birthday', emoji:'🎂',
-    question:'When is your birthday?',
-    hint:'We use this to personalise your skin plan' },
-
-  { id:'location', type:'location', emoji:'📍',
-    question:'Where are you based?',
-    hint:"City and country — helps us understand your skin's environment",
-    fields:[{key:'city',placeholder:'City'},{key:'country',placeholder:'Country'}] },
-
-  { id:'work_environment', type:'single', emoji:'🏢',
-    question:'What is your typical work environment?',
-    options:[{value:'indoors',label:'Indoors'},{value:'outdoors',label:'Outdoors'},{value:'mixed',label:'Mixed'}] },
-
-  { id:'name', type:'name', emoji:'✨',
-    question:'What is your name?',
+  { id:'name', type:'name', emoji:'✨', chapter:'About You',
+    question:"Let's get acquainted. What's your first name?",
+    why:"We'll personalize your skin journey — and celebrate your progress — by name.",
     placeholder:'Your name' },
 
-  { id:'interests', type:'interests', emoji:'💫',
-    question:'What are you interested in?',
-    hint:'Pick everything that speaks to you ✨',
-    options:['Personalized skincare routine','Skin analysis + product matching','Tracking progress (before/after)','Building a routine with what I already own','Product ingredient checker','Professional skincare treatments guidance','Seasonal routine updates',"Stop buying products that don't work"] },
+  { id:'greeting', type:'greeting', countsInProgress:false,
+    text:(name)=>`👋 Hi, ${name}. So glad you're here. Let's take a quiet moment to focus on you.`,
+    autoAdvanceMs:2000 },
 
-  { id:'tone', type:'tone', emoji:'🌈',
-    question:"Let's find your skin tone",
-    hint:'Every skin tone has its own glow story' },
+  { id:'birthday', type:'birthday', emoji:'🎂', chapter:'About You',
+    question:(name)=>`When's your birthday, ${name}?`,
+    why:"Your skin's needs change with each decade — we calibrate ingredient strength and priorities to where you are now." },
 
-  { id:'post_cleanse_feel', type:'single', emoji:'💧', section:'Your Skin',
-    question:'How does your skin feel 30 minutes after cleansing?',
-    options:[{value:'dry',label:'Dry'},{value:'comfortable',label:'Comfortable'},{value:'oily',label:'Oily'},{value:'oily_tzone',label:'Oily only in T-zone'},{value:'not_sure',label:'Not sure'}] },
-
-  { id:'irritants', type:'multi', emoji:'⚡',
-    question:'What usually irritates your skin?',
-    hint:'Select all that apply',
-    options:[{value:'heat',label:'Heat'},{value:'sun',label:'Sun'},{value:'wind',label:'Wind'},{value:'retinol',label:'Retinol'},{value:'acids',label:'Acids'},{value:'fragrance',label:'Fragrance'},{value:'essential_oils',label:'Essential oils'}] },
-
-  { id:'skin_goals', type:'multi', emoji:'🔍',
-    question:'Your skin goals — what would you like to improve?',
-    hint:'Select all that feel true',
+  { id:'gender', type:'single', emoji:'👋', chapter:'About You',
+    question:'Who are we creating this plan for?',
+    why:"Biology shapes your skin's needs — this helps us calibrate correctly.",
+    cardStyle:true,
     options:[
-      {value:'healthy_skin',label:'Healthy skin'},{value:'acne',label:'Acne'},{value:'pigmentation',label:'Pigmentation'},
-      {value:'melasma',label:'Melasma'},{value:'fine_lines',label:'Fine lines'},{value:'wrinkles',label:'Wrinkles'},
-      {value:'firmness',label:'Firmness'},{value:'sensitive',label:'Sensitive skin'},{value:'dryness',label:'Dryness'},
-      {value:'oiliness',label:'Oiliness'},{value:'redness',label:'Redness'},{value:'rosacea',label:'Rosacea'},
-      {value:'large_pores',label:'Large pores'},{value:'glow',label:'Glow'},{value:'even_tone',label:'Even skin tone'},
-      {value:'dark_circles',label:'Dark circles'},{value:'puffy_eyes',label:'Puffy eyes'},{value:'acne_scars',label:'Acne scars'},
-      {value:'neck_aging',label:'Neck aging'},
+      {value:'she',label:'Woman',icon:'👩',desc:'Tailored to female skin biology and hormonal patterns'},
+      {value:'he',label:'Man',icon:'👨',desc:'Tailored to male skin characteristics'},
     ] },
 
-  { id:'diagnosed_conditions', type:'multi', emoji:'🩺', section:'Your Medical & Skin History',
-    question:'Have you ever been diagnosed with:',
-    options:[{value:'acne',label:'Acne'},{value:'rosacea',label:'Rosacea'},{value:'melasma',label:'Melasma'},{value:'eczema',label:'Eczema'},{value:'psoriasis',label:'Psoriasis'},{value:'seborrheic_dermatitis',label:'Seborrheic dermatitis'},{value:'hyperpigmentation',label:'Hyperpigmentation'},{value:'none',label:'None'}] },
+  { id:'location', type:'location', emoji:'📍', chapter:'About You',
+    question:'Where do you live?',
+    why:"Climate, UV, and humidity all shape what your skin needs. We use your location to personalize your recommendations.",
+    fact:'People in humid climates often need a very different routine than those in dry climates.',
+    fields:[{key:'city',placeholder:'City'},{key:'country',placeholder:'Country'}] },
 
-  { id:'health_conditions', type:'multi', emoji:'🩺',
-    question:'Do you have any health conditions that may affect your skin?',
-    options:[{value:'pcos',label:'PCOS'},{value:'diabetes',label:'Diabetes'},{value:'thyroid',label:'Thyroid disorder'},{value:'digestive',label:'Digestive disorder'},{value:'autoimmune',label:'Autoimmune condition'},{value:'none',label:'None'},{value:'prefer_not_to_answer',label:'Prefer not to answer'}] },
+  { id:'work_environment', type:'single', emoji:'🏢', chapter:'About You',
+    question:'Tell us about your day.',
+    why:'Your skin faces different challenges depending on where you spend your time — UV, air conditioning, pollution, dehydration.',
+    fact:'Air conditioning can increase skin dehydration, while outdoor work raises UV exposure and pigmentation risk.',
+    options:[
+      {value:'office',label:'Office or remote work'},{value:'outdoors',label:'Mostly outdoors'},
+      {value:'driving',label:'Driving most of the day'},{value:'ac_workplace',label:'Air-conditioned workplace'},
+      {value:'polluted',label:'Dusty or polluted environment'},{value:'home_kids',label:'At home with kids'},
+      {value:'travel',label:'I travel frequently'},
+    ] },
 
-  { id:'allergies', type:'multi', emoji:'⚠️',
-    question:'Any known allergies or sensitivities?',
-    hint:"Select all that apply — we'll never recommend these",
-    options:[{value:'cosmetics',label:'Cosmetics / skincare'},{value:'iodine',label:'Iodine'},{value:'foods',label:'Certain foods'},{value:'fragrance',label:'Fragrances'},{value:'sunscreen',label:'Sunscreens'},{value:'meds',label:'Medications'},{value:'animals',label:'Animals'},{value:'none',label:'None I know of'}] },
+  { id:'chapter_2', type:'interstitial', countsInProgress:false, chapterNumber:2, totalChapters:5,
+    chapterName:'Your Skin', headline:"Now let's understand your skin's story." },
 
-  { id:'hormones', type:'hormones', emoji:'🤍', section:'Hormones',
-    question:'A few hormone-related questions',
-    hint:'Only shown if you identified as she/her — helps us understand your skin more fully',
+  { id:'interests', type:'multi', emoji:'💫', chapter:'Your Skin',
+    question:'What would you love to achieve for your skin?',
+    hint:'Choose all that apply.',
+    options:[
+      {value:'routine_that_works',label:'Build a routine that actually works'},
+      {value:'healthier_glow',label:'Get healthier, glowing skin'},
+      {value:'stop_wasting_money',label:"Stop wasting money on products that don't work"},
+      {value:'discover_needs',label:'Discover what my skin really needs'},
+      {value:'use_what_i_own',label:'Make better use of what I already own'},
+      {value:'track_progress',label:'Track my progress over time'},
+      {value:'prevent_concerns',label:'Prevent future skin concerns'},
+    ] },
+
+  { id:'tone', type:'tone', emoji:'🌈', chapter:'Your Skin',
+    question:"Let's find your Fitzpatrick skin type.",
+    why:'This helps us personalize your SPF, pigmentation prevention, and treatment safety.' },
+
+  { id:'post_cleanse_feel', type:'single', emoji:'💧', chapter:'Your Skin',
+    question:'How does your skin feel 30 minutes after cleansing?',
+    why:'This reveals your natural skin type — and tells us which cleanser and moisturizer are right for you.',
+    tip:'For the most accurate answer, cleanse gently and wait 30 minutes without applying anything.',
+    options:[
+      {value:'dry',label:'Feels tight or uncomfortable'},{value:'comfortable',label:'Comfortable and balanced'},
+      {value:'oily',label:'Looks shiny all over'},{value:'oily_tzone',label:'Only my T-zone gets oily'},
+      {value:'tight_then_oily',label:'Starts tight, then becomes oily'},
+      {value:'not_sure',label:'Help me figure it out'},
+    ] },
+
+  { id:'irritants', type:'multi', emoji:'⚡', chapter:'Your Skin',
+    question:'What tends to trigger your skin?',
+    hint:"Choose everything you've noticed.",
+    why:"We'll steer your plan away from ingredients and treatments likely to set your skin off.",
+    fact:"Sensitive skin isn't a skin type — it describes how your skin reacts to triggers.",
+    options:[
+      {value:'sun',label:'Sun'},{value:'heat',label:'Heat'},{value:'wind',label:'Wind'},
+      {value:'cold',label:'Cold weather'},{value:'hot_water',label:'Hot water'},{value:'fragrance',label:'Fragrance'},
+      {value:'essential_oils',label:'Essential oils'},{value:'acids',label:'Exfoliating acids'},{value:'retinoids',label:'Retinoids'},
+      {value:'stress',label:'Stress'},{value:'lack_of_sleep',label:'Lack of sleep'},{value:'hormonal',label:'Hormonal changes'},
+      {value:'hard_water',label:'Hard water'},{value:'nothing',label:"Nothing I've noticed"},{value:'other',label:'Other',freeText:true},
+    ] },
+
+  { id:'skin_goals', type:'multi', emoji:'🔍', chapter:'Your Skin',
+    question:'Which skin concerns do you have right now?',
+    why:"We'll build your plan around these — in the right order, at the right pace.",
+    groups:[
+      { label:'Texture & Aging', options:[
+        {value:'fine_lines',label:'Fine lines'},{value:'wrinkles',label:'Wrinkles'},{value:'neck_aging',label:'Neck aging'},
+        {value:'large_pores',label:'Enlarged pores'},{value:'uneven_texture',label:'Uneven texture'} ]},
+      { label:'Tone', options:[
+        {value:'pigmentation',label:'Pigmentation'},{value:'melasma',label:'Melasma'},{value:'dull_skin',label:'Dull skin'} ]},
+      { label:'Skin Health', options:[
+        {value:'acne',label:'Acne'},{value:'acne_scars',label:'Acne scars'},{value:'sensitive',label:'Sensitive skin'},
+        {value:'redness',label:'Redness'},{value:'rosacea',label:'Rosacea'},{value:'dryness',label:'Dryness'},
+        {value:'dehydration',label:'Dehydration',emoji:'💧'},{value:'oiliness',label:'Oiliness'},{value:'barrier_damage',label:'Barrier damage'} ]},
+      { label:'Eyes', options:[
+        {value:'dark_circles',label:'Under-eye dark circles'},{value:'puffy_eyes',label:'Puffy eyes'} ]},
+    ] },
+
+  { id:'top_concern', type:'priority', emoji:'🎯', chapter:'Your Skin',
+    question:(name)=>`${name}, which one should we focus on first?`,
+    why:'Your plan will target this first — the rest follow in the right sequence.',
+    fact:'Treating concerns in the right order — barrier first — is how results stick.',
+    showIf:(answers)=>(answers.skin_goals||[]).length>=2 },
+
+  { id:'chapter_3', type:'interstitial', countsInProgress:false, chapterNumber:3, totalChapters:5,
+    chapterName:'Health Picture', headline:'A little about your health — this stays private.' },
+
+  { id:'diagnosed_conditions', type:'multi', emoji:'🩺', chapter:'Health Picture',
+    question:'Have you ever been diagnosed with any of these skin conditions?',
+    why:'This helps us recommend safer products and treatments for your skin.',
+    options:[
+      {value:'acne',label:'Acne'},{value:'rosacea',label:'Rosacea'},{value:'melasma',label:'Melasma'},
+      {value:'eczema',label:'Eczema'},{value:'psoriasis',label:'Psoriasis'},
+      {value:'seborrheic_dermatitis',label:'Seborrheic dermatitis'},{value:'hyperpigmentation',label:'Hyperpigmentation'},
+      {value:'none',label:'None'},{value:'not_sure',label:'Not sure',icon:'🤔'},{value:'other',label:'Other',freeText:true},
+    ] },
+
+  { id:'health_conditions', type:'multi', emoji:'🩺', chapter:'Health Picture',
+    question:'Some health conditions can influence your skin. Do any of these apply?',
+    why:'Skin health starts inside the body — this helps us understand internal factors affecting yours.',
+    footer:'🔒 Private, and used only to personalize your recommendations.',
+    options:[
+      {value:'pcos',label:'PCOS'},{value:'diabetes',label:'Diabetes'},{value:'thyroid',label:'Thyroid disorder'},
+      {value:'digestive',label:'Digestive disorder'},{value:'autoimmune',label:'Autoimmune condition'},
+      {value:'none',label:'None'},{value:'prefer_not_to_answer',label:'Prefer not to answer'},
+    ] },
+
+  { id:'allergies', type:'multi', emoji:'⚠️', chapter:'Health Picture',
+    question:'Are there any ingredients or products your skin reacts to?',
+    why:"We'll never recommend these.",
+    groups:[
+      { label:'Allergies', options:[
+        {value:'meds',label:'Medications'},{value:'iodine',label:'Iodine'},
+        {value:'foods',label:'Certain foods'},{value:'latex',label:'Latex'} ]},
+      { label:'Skincare sensitivities', options:[
+        {value:'fragrance',label:'Fragrance'},{value:'essential_oils',label:'Essential oils'},
+        {value:'ahas_bhas',label:'AHAs/BHAs'},{value:'retinoids',label:'Retinoids'},
+        {value:'sulfates',label:'Sulfates'},{value:'lanolin',label:'Lanolin'},
+        {value:'sunscreen',label:'Sunscreens'},{value:'cosmetics',label:'Cosmetics'} ]},
+    ],
+    extraOptions:[{value:'other',label:'Other',freeText:true},{value:'none',label:'No known allergies or sensitivities'}] },
+
+  { id:'hormones', type:'hormones', emoji:'🤍', chapter:'Health Picture',
+    question:(name)=>`${name}, a few hormone questions — this is where skincare gets truly personal.`,
+    why:'Hormones influence oil production, pigmentation, sensitivity, and which ingredients are safe for you.',
+    footer:'🔒 Private, and used only to personalize your plan.',
     showIf:(answers)=>answers.gender==='she',
     fields:[
       {key:'pregnant',label:'Pregnant?',options:[{value:'yes',label:'Yes'},{value:'no',label:'No'}]},
@@ -259,54 +253,101 @@ export const QUESTIONS = [
       {key:'hormone_therapy',label:'Hormone therapy?',options:[{value:'yes',label:'Yes'},{value:'no',label:'No'}]},
     ] },
 
-  { id:'sleep', type:'single', emoji:'😴', section:'Lifestyle',
+  { id:'chapter_4', type:'interstitial', countsInProgress:false, chapterNumber:4, totalChapters:5,
+    chapterName:'Your Lifestyle', headline:"Your skin doesn't exist in a vacuum. Let's look at the whole picture." },
+
+  { id:'sleep', type:'single', emoji:'😴', chapter:'Your Lifestyle',
     question:'How many hours do you sleep?',
-    options:[{value:'less_5',label:'Less than 5 hours'},{value:'5_6',label:'5–6 hours'},{value:'7_8',label:'7–8 hours'},{value:'more_8',label:'More than 8 hours'}] },
+    why:'Sleep drives skin repair, collagen production, and your barrier\'s overnight recovery.',
+    fact:'Most skin repair and collagen production happens while you sleep.',
+    options:[
+      {value:'less_5',label:'Less than 5 hours'},{value:'5_6',label:'5–6 hours'},{value:'6_7',label:'6–7 hours'},
+      {value:'7_8',label:'7–8 hours'},{value:'more_8',label:'More than 8 hours'},
+    ] },
 
-  { id:'stress', type:'slider', emoji:'🧠',
-    question:'What is your level of stress?',
-    min:1, max:10, hint:'1 = very calm · 10 = very stressed' },
+  { id:'stress', type:'slider', emoji:'🧠', chapter:'Your Lifestyle',
+    question:'How stressed have you been lately?',
+    why:'Stress can affect breakouts, redness, healing, and premature aging.',
+    fact:'Stress raises cortisol, which can affect oil production, inflammation, and your skin barrier.',
+    min:1, max:10, anchors:['😌','😫'],
+    labels:{ '1':'Very calm','2':'Very calm','3':'Mostly relaxed','4':'Mostly relaxed',
+             '5':'Moderate','6':'Moderate','7':'High','8':'High','9':'Very high','10':'Very high' } },
 
-  { id:'water_intake', type:'single', emoji:'💦',
-    question:'What is your daily water intake?',
-    options:[{value:'less_1l',label:'Less than 1L'},{value:'more_2l',label:'More than 2L'}] },
+  { id:'water_intake', type:'single', emoji:'💦', chapter:'Your Lifestyle',
+    question:'How much water do you drink daily?',
+    why:'Hydration supports overall health and can influence how your skin feels — especially if it runs dry.',
+    options:[
+      {value:'less_1l',label:'Less than 1L'},{value:'1_1_5l',label:'1–1.5L'},{value:'1_5_2l',label:'1.5–2L'},
+      {value:'more_2l',label:'More than 2L'},{value:'not_sure',label:"I'm not sure",icon:'🤷'},
+    ] },
 
-  { id:'alcohol', type:'single', emoji:'🍷',
-    question:'How frequently do you consume alcohol?',
-    options:[{value:'never',label:'Never'},{value:'weekly',label:'Weekly'},{value:'several_week',label:'Several times a week'},{value:'daily',label:'Daily'}] },
+  { id:'alcohol', type:'single', emoji:'🍷', chapter:'Your Lifestyle',
+    question:'How often do you drink alcohol?',
+    why:'Alcohol can affect hydration, inflammation, sleep quality, and skin recovery.',
+    fact:'Alcohol can worsen dehydration and redness in some people — especially with rosacea or sensitive skin.',
+    options:[
+      {value:'never',label:'Never'},{value:'few_year',label:'A few times a year'},{value:'1_3_month',label:'1–3 times a month'},
+      {value:'1_2_week',label:'1–2 times a week'},{value:'3_5_week',label:'3–5 times a week'},{value:'daily',label:'Daily'},
+    ] },
 
-  { id:'smoke', type:'single', emoji:'💨',
+  { id:'smoke', type:'single', emoji:'💨', chapter:'Your Lifestyle',
     question:'Do you smoke?',
-    options:[{value:'yes',label:'Yes'},{value:'never',label:'Never'},{value:'occasionally',label:'Occasionally'},{value:'daily',label:'Daily'}] },
+    why:'Smoking affects collagen, healing speed, and skin oxygen supply — it changes what your routine should prioritize.',
+    options:[{value:'never',label:'Never'},{value:'occasionally',label:'Occasionally'},{value:'daily',label:'Daily'}] },
 
-  { id:'exercise', type:'single', emoji:'🏃',
-    question:'How often do you exercise?',
-    options:[{value:'never',label:'Never'},{value:'1_2_week',label:'1–2x / week'},{value:'3_5_week',label:'3–5x / week'},{value:'daily',label:'Daily'}] },
+  { id:'exercise', type:'single', emoji:'🏃', chapter:'Your Lifestyle',
+    question:'How often do you move your body?',
+    why:'Exercise boosts circulation and skin oxygenation — and tells us how sweat fits into your routine.',
+    options:[
+      {value:'never',label:'Never'},{value:'1_2_week',label:'1–2x a week'},
+      {value:'3_5_week',label:'3–5x a week'},{value:'daily',label:'Daily'},
+    ] },
 
-  { id:'routine_products', type:'multi', emoji:'🧴',
-    question:'Which products do you currently use?',
-    hint:'No judgment — tap all you use',
-    options:[{value:'cleanser',label:'Cleanser'},{value:'toner',label:'Toner'},{value:'serum',label:'Serum'},{value:'moisturizer',label:'Moisturizer'},{value:'eye_cream',label:'Eye cream'},{value:'sunscreen',label:'Sunscreen'},{value:'retinol',label:'Retinol'},{value:'exfoliant',label:'Exfoliant'},{value:'face_oil',label:'Face oil'},{value:'mask',label:'Mask'},{value:'none',label:'None'}] },
+  { id:'chapter_5', type:'interstitial', countsInProgress:false, chapterNumber:5, totalChapters:5,
+    chapterName:'Your Routine', headline:"Last step — let's see what you're working with." },
 
-  { id:'event', type:'event', emoji:'🗓️',
-    question:'Do you want to be ready for an event?',
-    hint:'A visible deadline helps you glow up faster 💅',
-    options:[{value:'trip',icon:'✈️',label:'Trip'},{value:'wedding',icon:'💍',label:'Wedding'},{value:'beach',icon:'🏖️',label:'Beach Vacation'},{value:'family',icon:'🏠',label:'Family Gathering'},{value:'party',icon:'🎉',label:'Party'},{value:'no_event',icon:'—',label:'No special event'}] },
+  { id:'routine_products', type:'multi', emoji:'🧴', chapter:'Your Routine',
+    question:"What's in your routine right now?",
+    hint:'No judgment — tap everything you use.',
+    why:"We'll tell you what to keep, replace, or retire.",
+    options:[
+      {value:'cleanser',label:'Cleanser'},{value:'toner',label:'Toner'},{value:'serum',label:'Serum'},
+      {value:'moisturizer',label:'Moisturizer'},{value:'eye_cream',label:'Eye cream'},{value:'sunscreen',label:'Sunscreen'},
+      {value:'retinol',label:'Retinol'},{value:'exfoliant',label:'Exfoliant'},{value:'face_oil',label:'Face oil'},
+      {value:'mask',label:'Mask'},{value:'none',label:'None'},
+    ] },
 
-  { id:'event_date', type:'event_date', emoji:'📅',
-    question:"When's your event?",
-    hint:"We'll build your skin plan to peak right on time ✨" },
+  { id:'event', type:'event', emoji:'🗓️', chapter:'Your Routine',
+    question:'Getting ready for something special?',
+    why:'A real deadline lets us pace your plan to peak exactly on time.',
+    options:[
+      {value:'trip',icon:'✈️',label:'Trip'},{value:'wedding',icon:'💍',label:'Wedding'},
+      {value:'beach',icon:'🏖️',label:'Beach Vacation'},{value:'family',icon:'🏠',label:'Family Gathering'},
+      {value:'party',icon:'🎉',label:'Party'},{value:'no_event',icon:'—',label:'No special event'},
+    ] },
 
-  { id:'photos', type:'photos', emoji:'🤳',
-    question:"Let's see your skin",
-    hint:'5 photos: Front, Left, Right, Close-up, Neck · No makeup, natural daylight, hair tied back, no filters, neutral expression' },
+  { id:'event_date', type:'event_date', emoji:'📅', chapter:'Your Routine',
+    question:"When's the big day?",
+    why:"We'll build your plan to peak right on time.",
+    showIf:(answers)=>answers.event && answers.event!=='no_event' },
 
-  { id:'shelf', type:'shelf', emoji:'🧴',
-    question:"What's on your shelf?",
-    hint:"Product + ingredient list photos · We'll check for ingredient quality, barrier safety, pregnancy safety, irritants, duplicates, compatibility, application order · optional, up to 9" },
+  { id:'photos', type:'photos', emoji:'🤳', chapter:'Your Routine',
+    question:(name)=>`${name}, let's see your skin.`,
+    why:"Your photos become your baseline — the starting point we'll measure every week of progress against.",
+    checklist:['No makeup','Natural daylight','Hair tied back','No filters, neutral expression'],
+    footer:'🔒 Photos are private and only used for your analysis.',
+    cta:'Start My Skin Scan →' },
 
-  { id:'completion', type:'completion', emoji:'🌿',
-    question:'Your Skin Longevity Plan is ready' },
+  { id:'shelf', type:'shelf', emoji:'🧴', chapter:'Your Routine',
+    question:'Now, show us your shelf.',
+    why:"We'll audit every product — ingredient quality, compatibility, duplicates, correct order — and flag anything working against your skin.",
+    hint:'Optional, up to 9 photos.' },
+
+  // countsInProgress:false — this is the reveal screen, not a numbered step;
+  // keeps "Step N of 26" accurate (26 = 33 entries minus welcome/greeting/4 interstitials/completion).
+  { id:'completion', type:'completion', countsInProgress:false,
+    stages:['Reading your skin profile','Cross-checking 10 safety rules…','Auditing your products','Building your personalized plan'],
+    headline:(name)=>`${name}, your Skin Longevity Plan is ready.` },
 ];
 
 export const MOODS = [

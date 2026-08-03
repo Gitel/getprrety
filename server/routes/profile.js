@@ -9,14 +9,14 @@ router.get('/', requireAuth, async (req, res) => {
     if (!user) return res.status(404).json({ error: 'User not found' });
     res.json({ user });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Unable to load profile' });
   }
 });
 
 // PATCH /api/profile
 router.patch('/', requireAuth, async (req, res) => {
   try {
-    const allowed = ['firstName', 'skinEra', 'skincareTiming', 'selfiePhotoIds'];
+    const allowed = ['firstName', 'skinEra', 'skincareTiming', 'selfiePhotoIds', 'shelfPhotoIds'];
     const updates = Object.fromEntries(
       Object.entries(req.body).filter(([k]) => allowed.includes(k))
     );
@@ -27,7 +27,7 @@ router.patch('/', requireAuth, async (req, res) => {
     ).select('-passwordHash');
     res.json({ user });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Unable to update profile' });
   }
 });
 

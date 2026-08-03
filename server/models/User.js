@@ -7,6 +7,10 @@ const userSchema = new mongoose.Schema({
   skinEra:        { type: String, default: null },
   skincareTiming:  { type: String, enum: ['morning', 'night', 'both', null], default: null },
   selfiePhotoIds:  { type: [String], default: [] },
+  shelfPhotoIds:   { type: [String], default: [] },
+  termsAcceptedAt: { type: Date, default: null },
+  privacyAcceptedAt: { type: Date, default: null },
+  consentVersion: { type: String, default: null },
 }, { timestamps: true });
 
 module.exports = mongoose.model('User', userSchema);

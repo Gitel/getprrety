@@ -7,6 +7,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { api } from '../lib/api';
 import { storeToken } from '../lib/auth';
 import { uploadAll } from '../lib/uploadImage';
+import { claimScan } from '../lib/skinScan';
+import { sanitizeQuizAnswers } from '../lib/sanitizeQuizAnswers';
 import { logActivity } from '../lib/logActivity';
 import { C } from '../constants';
 import { useApp } from '../context/AppContext';
@@ -17,12 +19,21 @@ function isValidEmail(v) {
 
 async function saveQuizData(analysis, answers) {
   if (!analysis) return;
+  // NOTE: these keys used to be photo_right/photo_left/photo_front, which the quiz stopped writing
+  // when it was rebuilt to capture front/left/right/closeup/neck — that mismatch meant quizPhotoIds
+  // was always empty. Fixed here to the current keys (src/screens/QuizScreen.jsx PHOTO_ANGLES).
   const photoUris = [
-    answers?.photo_right,
-    answers?.photo_left,
-    answers?.photo_front,
+    answers?.front,
+    answers?.left,
+    answers?.right,
+    answers?.closeup,
+    answers?.neck,
     ...(answers?.shelf_photos || []),
   ].filter(Boolean);
+
+  const scanClaimed = answers?.skinScanId && answers?.skinScanToken
+    ? await claimScan(answers.skinScanId, answers.skinScanToken)
+    : false;
 
   const quizPhotoIds = await uploadAll(photoUris);
 
@@ -34,8 +45,9 @@ async function saveQuizData(analysis, answers) {
     productAudit: analysis.productAudit,
     routine:      analysis.routine,
     affirmation:  analysis.affirmation,
-    quizAnswers:  answers,
+    quizAnswers:  sanitizeQuizAnswers(answers),
     quizPhotoIds,
+    skinScanId:   scanClaimed ? answers.skinScanId : null,
   });
 }
 
@@ -69,6 +81,8 @@ export default function SignUpScreen({ navigation }) {
         firstName: firstName.trim() || undefined,
         email,
         password,
+        consentAcceptedAt: answers?.consentAcceptedAt,
+        consentVersion: answers?.consentVersion,
       });
       await storeToken(token);
       setUser(u);

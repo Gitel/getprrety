@@ -11,17 +11,16 @@ import { C } from '../constants';
 import { useApp } from '../context/AppContext';
 
 export default function LoginScreen({ navigation }) {
-  const { setUser, authReady, user } = useApp();
+  const { analysis, setAnalysis, setUser, authReady, user } = useApp();
   const [email,    setEmail]    = useState('');
   const [password, setPassword] = useState('');
   const [showPw,   setShowPw]   = useState(false);
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState(null);
-  const [agreed,   setAgreed]   = useState(false);
 
   useEffect(() => {
-    if (authReady && user) navigation.replace('Home');
-  }, [authReady, user]);
+    if (authReady && user) navigation.replace(analysis ? 'Home' : 'QuizIntro');
+  }, [authReady, user, analysis]);
 
   // Show a spinner while auth resolves AND while a logged-in user is being redirected,
   // so the login form never flashes for an already-authenticated user on refresh.
@@ -46,9 +45,15 @@ export default function LoginScreen({ navigation }) {
         password,
       });
       await storeToken(token);
+      let saved = null;
+      try {
+        const response = await api.get('/api/analysis/latest');
+        saved = response.analysis || null;
+      } catch { /* users without an assessment continue to onboarding */ }
+      setAnalysis(saved);
       setUser(user);
       logActivity('login');
-      navigation.replace('Home');
+      navigation.replace(saved ? 'Home' : 'QuizIntro');
     } catch (err) {
       setError(err.message || 'Login failed. Please try again.');
     } finally {
@@ -102,10 +107,6 @@ export default function LoginScreen({ navigation }) {
             </View>
           </View>
 
-          <Pressable style={s.forgotRow}>
-            <Text style={s.forgotText}>Forgot Password?</Text>
-          </Pressable>
-
           {error && <Text style={s.errorText}>{error}</Text>}
 
           <Pressable
@@ -125,19 +126,8 @@ export default function LoginScreen({ navigation }) {
             <View style={s.dividerLine} />
           </View>
 
-          <Pressable onPress={() => navigation.navigate('Quiz')} style={s.greenBtn}>
+          <Pressable onPress={() => navigation.navigate('QuizIntro')} style={s.greenBtn}>
             <Text style={s.greenBtnText}>✦ Begin your skin assessment</Text>
-          </Pressable>
-
-          <Pressable style={s.termsRow} onPress={() => setAgreed(v => !v)}>
-            <View style={[s.checkbox, agreed && s.checkboxChecked]}>
-              {agreed && <Text style={s.checkmark}>✓</Text>}
-            </View>
-            <Text style={s.termsText}>
-              I confirm that I have read and agreed to the{' '}
-              <Text style={s.termsLink}>Terms of Use</Text> and{' '}
-              <Text style={s.termsLink}>Privacy Policy</Text>
-            </Text>
           </Pressable>
 
         </ScrollView>

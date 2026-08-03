@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 
 const skinAnalysisSchema = new mongoose.Schema({
   userId:      { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  skinScanId:  { type: mongoose.Schema.Types.ObjectId, ref: 'SkinScan', default: null },
   eraId:       { type: String, required: true },
   era:         { type: mongoose.Schema.Types.Mixed },
   skinAnalysis:{ type: String },

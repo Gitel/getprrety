@@ -10,7 +10,7 @@ router.post('/', requireAuth, async (req, res) => {
     const doc = await CheckIn.create({ userId: req.user.id, mood });
     res.status(201).json({ checkIn: doc });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Unable to save check-in' });
   }
 });
 
@@ -22,7 +22,7 @@ router.get('/', requireAuth, async (req, res) => {
       .limit(30);
     res.json({ checkIns: docs });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Unable to load check-ins' });
   }
 });
 

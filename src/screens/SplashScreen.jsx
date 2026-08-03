@@ -5,13 +5,13 @@ import { C } from '../constants';
 import { useApp } from '../context/AppContext';
 
 export default function SplashScreen({ navigation }) {
-  const { authReady, user } = useApp();
+  const { authReady, user, analysis } = useApp();
 
   useEffect(() => {
     if (authReady && user) {
-      navigation.replace('Home');
+      navigation.replace(analysis ? 'Home' : 'QuizIntro');
     }
-  }, [authReady, user]);
+  }, [authReady, user, analysis]);
 
   if (!authReady) {
     return (

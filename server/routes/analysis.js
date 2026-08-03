@@ -1,55 +1,85 @@
-const router       = require('express').Router();
+const mongoose = require('mongoose');
+const router = require('express').Router();
 const SkinAnalysis = require('../models/SkinAnalysis');
-const requireAuth  = require('../middleware/auth');
+const SkinScan = require('../models/SkinScan');
+const requireAuth = require('../middleware/auth');
+const { sanitizeQuizAnswers } = require('../services/sanitizeQuizAnswers');
 
-// POST /api/analysis  — save a new analysis
+async function withSkinScan(doc, userId) {
+  if (!doc) return null;
+  const analysis = doc.toObject ? doc.toObject() : { ...doc };
+  if (!analysis.skinScanId) return analysis;
+  const scan = await SkinScan.findOne({ _id: analysis.skinScanId, userId, status: 'complete' })
+    .select('merged fusion');
+  if (scan) analysis.skinScan = { merged: scan.merged, fusion: scan.fusion };
+  return analysis;
+}
+
 router.post('/', requireAuth, async (req, res) => {
   try {
-    const { eraId, era, skinAnalysis, keyInsights, productAudit, routine, affirmation, quizAnswers } = req.body;
+    const {
+      eraId, era, skinAnalysis, keyInsights, productAudit, routine, affirmation, quizAnswers, quizPhotoIds, skinScanId,
+    } = req.body;
+    if (!eraId) return res.status(400).json({ error: 'eraId is required' });
+
+    let ownedScanId = null;
+    if (skinScanId) {
+      if (!mongoose.isValidObjectId(skinScanId)) return res.status(400).json({ error: 'Invalid skinScanId' });
+      const owned = await SkinScan.exists({ _id: skinScanId, userId: req.user.id });
+      if (!owned) return res.status(403).json({ error: 'Skin scan is not owned by this user' });
+      ownedScanId = skinScanId;
+    }
+
     const doc = await SkinAnalysis.create({
       userId: req.user.id,
-      eraId, era, skinAnalysis, keyInsights, productAudit, routine, affirmation, quizAnswers,
+      skinScanId: ownedScanId,
+      eraId,
+      era,
+      skinAnalysis,
+      keyInsights,
+      productAudit,
+      routine,
+      affirmation,
+      quizAnswers: sanitizeQuizAnswers(quizAnswers),
+      quizPhotoIds: Array.isArray(quizPhotoIds) ? quizPhotoIds.slice(0, 20) : [],
     });
-    res.status(201).json({ analysis: doc });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(201).json({ analysis: await withSkinScan(doc, req.user.id) });
+  } catch {
+    res.status(500).json({ error: 'Unable to save analysis' });
   }
 });
 
-// PATCH /api/analysis/latest/photos  — attach uploaded photo IDs to the most recent analysis
 router.patch('/latest/photos', requireAuth, async (req, res) => {
   try {
-    const { quizPhotoIds } = req.body;
+    const quizPhotoIds = Array.isArray(req.body.quizPhotoIds) ? req.body.quizPhotoIds.slice(0, 20) : [];
     const doc = await SkinAnalysis.findOneAndUpdate(
       { userId: req.user.id },
-      { $push: { quizPhotoIds: { $each: quizPhotoIds || [] } } },
+      { $push: { quizPhotoIds: { $each: quizPhotoIds } } },
       { new: true, sort: { createdAt: -1 } }
     );
     if (!doc) return res.status(404).json({ error: 'No analysis found' });
-    res.json({ analysis: doc });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.json({ analysis: await withSkinScan(doc, req.user.id) });
+  } catch {
+    res.status(500).json({ error: 'Unable to attach photos' });
   }
 });
 
-// GET /api/analysis/latest  — most recent analysis for this user
 router.get('/latest', requireAuth, async (req, res) => {
   try {
     const doc = await SkinAnalysis.findOne({ userId: req.user.id }).sort({ createdAt: -1 });
     if (!doc) return res.status(404).json({ error: 'No analysis found' });
-    res.json({ analysis: doc });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.json({ analysis: await withSkinScan(doc, req.user.id) });
+  } catch {
+    res.status(500).json({ error: 'Unable to load analysis' });
   }
 });
 
-// GET /api/analysis  — all analyses (history)
 router.get('/', requireAuth, async (req, res) => {
   try {
     const docs = await SkinAnalysis.find({ userId: req.user.id }).sort({ createdAt: -1 }).limit(10);
     res.json({ analyses: docs });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+  } catch {
+    res.status(500).json({ error: 'Unable to load analyses' });
   }
 });
 

@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  View, Text, Pressable, ScrollView, Modal, Switch, StyleSheet,
+  ActivityIndicator, Alert, Platform, View, Text, Pressable, ScrollView, Switch, StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { C } from '../constants';
 import { useApp } from '../context/AppContext';
 import { logActivity } from '../lib/logActivity';
+import { loadReminderSchedule, requestNotificationPermission, saveReminderSchedule } from '../lib/notifications';
 
 const DAYS     = ['S','M','T','W','T','F','S'];
 const DAY_FULL = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
@@ -25,10 +26,9 @@ function formatTime(time) {
 }
 
 export default function SettingsScreen({ navigation }) {
-  const { analysis, setAnalysis, setAnswers, logout } = useApp();
+  const { analysis, setAnalysis, setAnswers, user, logout } = useApp();
   const era = analysis?.era;
 
-  const [showPrompt, setShowPrompt] = useState(false);
   const [granted,    setGranted]    = useState(false);
   const [amOn,  setAmOn]  = useState(false);
   const [pmOn,  setPmOn]  = useState(false);
@@ -37,22 +37,65 @@ export default function SettingsScreen({ navigation }) {
   const [amDays,setAmDays]= useState([0,1,2,3,4,5,6]);
   const [pmDays,setPmDays]= useState([0,1,2,3,4,5,6]);
   const [saved,  setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    loadReminderSchedule().then(({ granted: allowed, settings }) => {
+      setGranted(allowed);
+      if (!settings) return;
+      setAmOn(settings.amOn);
+      setPmOn(settings.pmOn);
+      setAmTime(settings.amTime);
+      setPmTime(settings.pmTime);
+      setAmDays(settings.amDays);
+      setPmDays(settings.pmDays);
+    }).catch(() => {});
+  }, []);
 
   const toggleDay = (setter, days, i) =>
     setter(days.includes(i) ? days.filter(d => d !== i) : [...days, i]);
 
-  function handleToggle(which) {
-    if (!granted) { setShowPrompt(true); return; }
+  async function enableNotifications() {
+    if (Platform.OS === 'web') {
+      Alert.alert('Mobile only', 'Ritual reminders are available in the iOS and Android apps.');
+      return false;
+    }
+    const allowed = await requestNotificationPermission().catch(() => false);
+    setGranted(allowed);
+    if (!allowed) Alert.alert('Notifications are off', 'Enable notifications for Get Pretty in your device Settings.');
+    return allowed;
+  }
+
+  async function handleToggle(which) {
+    if (!granted && !(await enableNotifications())) return;
     if (which === 'am') setAmOn(v => !v);
     else setPmOn(v => !v);
   }
 
-  function save() { setSaved(true); setTimeout(() => setSaved(false), 2500); }
+  async function save() {
+    setSaving(true);
+    try {
+      await saveReminderSchedule({ amOn, pmOn, amTime, pmTime, amDays, pmDays });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (err) {
+      Alert.alert('Could not save reminders', err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
 
   function retake() {
     setAnalysis(null);
     setAnswers(null);
-    navigation.navigate('Quiz');
+    if (user?.termsAcceptedAt && user?.consentVersion) {
+      navigation.navigate('Quiz', {
+        consentAcceptedAt: user.termsAcceptedAt,
+        consentVersion: user.consentVersion,
+      });
+    } else {
+      navigation.navigate('QuizIntro');
+    }
   }
 
   async function handleLogout() {
@@ -85,7 +128,7 @@ export default function SettingsScreen({ navigation }) {
         <Text style={s.section}>Ritual Reminders</Text>
 
         {!granted ? (
-          <Pressable style={s.enableCard} onPress={() => setShowPrompt(true)}>
+          <Pressable style={s.enableCard} onPress={enableNotifications}>
             <Text style={s.enableText}>Enable notifications to set reminders</Text>
             <Text style={[s.enableAction, { color: era?.color || C.accent }]}>Enable →</Text>
           </Pressable>
@@ -108,8 +151,11 @@ export default function SettingsScreen({ navigation }) {
             <Pressable
               style={[s.saveBtn, saved && s.saveBtnDone]}
               onPress={save}
+              disabled={saving}
             >
-              <Text style={s.saveBtnText}>{saved ? '✓ Saved!' : 'Save Reminders'}</Text>
+              {saving
+                ? <ActivityIndicator color="#FAF8F5" />
+                : <Text style={s.saveBtnText}>{saved ? '✓ Saved!' : 'Save Reminders'}</Text>}
             </Pressable>
           </>
         )}
@@ -135,27 +181,6 @@ export default function SettingsScreen({ navigation }) {
         <View style={{ height: 40 }} />
       </ScrollView>
 
-      {/* Permission modal */}
-      <Modal visible={showPrompt} transparent animationType="fade">
-        <View style={s.overlay}>
-          <View style={s.dialog}>
-            <View style={s.dialogBody}>
-              <View style={s.dialogIcon}><Text style={{ fontSize: 26 }}>🌿</Text></View>
-              <Text style={s.dialogTitle}>"Get Pretty" Would Like to Send You Notifications</Text>
-              <Text style={s.dialogDesc}>Notifications may include your morning and evening ritual reminders.</Text>
-            </View>
-            <View style={s.dialogBtns}>
-              <Pressable style={s.dialogBtn} onPress={() => setShowPrompt(false)}>
-                <Text style={s.dialogBtnText}>Don't Allow</Text>
-              </Pressable>
-              <View style={s.dialogDivider} />
-              <Pressable style={s.dialogBtn} onPress={() => { setGranted(true); setShowPrompt(false); setAmOn(true); setPmOn(true); }}>
-                <Text style={[s.dialogBtnText, { fontWeight: '600' }]}>Allow</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }

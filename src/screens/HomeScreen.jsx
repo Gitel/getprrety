@@ -26,7 +26,20 @@ export default function HomeScreen({ navigation }) {
   const hour      = new Date().getHours();
   const greeting  = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 
-  if (!analysis) return null;
+  if (!analysis) {
+    return (
+      <SafeAreaView style={[s.safe, { backgroundColor: C.bg }]}>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28 }}>
+          <Text style={{ fontSize: 42, marginBottom: 16 }}>🌿</Text>
+          <Text style={[s.doneTitleText, { color: C.text, marginBottom: 10 }]}>Your routine is not ready yet</Text>
+          <Text style={[s.doneMsg, { marginBottom: 22 }]}>Complete the skin assessment to build your personalized routine.</Text>
+          <Pressable style={[s.productCta, { borderColor: C.accent }]} onPress={() => navigation.navigate('QuizIntro')}>
+            <Text style={s.productCtaTitle}>Start assessment →</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={[s.safe, { backgroundColor: era.bg }]}>
@@ -130,7 +143,7 @@ export default function HomeScreen({ navigation }) {
           <Text style={{ fontSize: 20 }}>📦</Text>
           <View style={{ flex: 1, marginLeft: 12 }}>
             <Text style={s.productCtaTitle}>Log your products</Text>
-            <Text style={s.productCtaSub}>Scan a product label to track what you're using</Text>
+            <Text style={s.productCtaSub}>Save a product photo to track what you're using</Text>
           </View>
           <Text style={[s.checkInArrow, { color: era.color }]}>→</Text>
         </Pressable>
