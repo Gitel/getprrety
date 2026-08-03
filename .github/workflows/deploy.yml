@@ -43,9 +43,13 @@ jobs:
           username: ${{ secrets.DO_USER }}
           key: ${{ secrets.DO_SSH_KEY }}
           script: |
+            set -euo pipefail
             cd /var/www/getprrety/server
-            git pull origin main
+            git fetch origin main
+            git reset --hard origin/main
             npm install
             pm2 restart server --update-env
             pm2 save
             systemctl reload nginx
+            echo "Deployed commit: $(git rev-parse HEAD)"
+            curl -sf https://getpretty.app/health
