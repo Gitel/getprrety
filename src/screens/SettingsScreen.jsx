@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator, Alert, Platform, View, Text, Pressable, ScrollView, Switch, StyleSheet,
+  ActivityIndicator, Alert, Linking, Platform, View, Text, Pressable, ScrollView, Switch, StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { C } from '../constants';
@@ -176,6 +176,12 @@ export default function SettingsScreen({ navigation }) {
         <View style={s.footer}>
           <Text style={s.footerLogo}>Get Pretty</Text>
           <Text style={s.footerSub}>Intelligent skincare — for the era you're in.</Text>
+          <Pressable
+            onPress={() => Linking.openURL('https://www.geonames.org/')}
+            accessibilityRole="link"
+          >
+            <Text style={s.dataCredit}>City data © GeoNames, CC BY 4.0</Text>
+          </Pressable>
         </View>
 
         <View style={{ height: 40 }} />
@@ -255,6 +261,7 @@ const s = StyleSheet.create({
   footer:    { marginTop: 40, alignItems: 'center' },
   footerLogo:{ fontFamily: 'CormorantGaramond_500Medium', fontSize: 17, color: '#D4CBC4', letterSpacing: 2 },
   footerSub: { fontFamily: 'DMSans_400Regular', fontSize: 11, color: '#D4CBC4', fontStyle: 'italic', marginTop: 4 },
+  dataCredit:{ fontFamily: 'DMSans_400Regular', fontSize: 10, color: C.muted, marginTop: 12, textDecorationLine: 'underline' },
   overlay:   { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center', padding: 28 },
   dialog:    { backgroundColor: '#F2F2F7', borderRadius: 14, overflow: 'hidden', width: '100%', maxWidth: 320 },
   dialogBody:{ padding: 24, alignItems: 'center', borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.12)' },

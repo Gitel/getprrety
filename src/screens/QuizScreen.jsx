@@ -8,6 +8,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { C, QUESTIONS, SKIN_TONES } from '../constants';
 import { useApp } from '../context/AppContext';
 import { initAndStartScan } from '../lib/skinScan';
+import LocationQuestion from '../components/LocationQuestion';
 
 const START_IDX = QUESTIONS.findIndex(q => q.id === 'name');
 const PROGRESS_QUESTIONS = QUESTIONS.filter(q => q.countsInProgress !== false);
@@ -481,18 +482,11 @@ export default function QuizScreen({ navigation, route }) {
         {/* LOCATION */}
         {q.type === 'location' && (
           <>
-            {q.fields.map(f => (
-              <TextInput
-                key={f.key}
-                style={[s.input, { marginBottom: 12 }]}
-                placeholder={f.placeholder}
-                placeholderTextColor={C.muted}
-                autoCapitalize="words"
-                value={answers[f.key] || ''}
-                onChangeText={t => setAns(a => ({ ...a, [f.key]: t }))}
-              />
-            ))}
-            <Btn onPress={next} disabled={!answers.city || !answers.country} label="Continue →" />
+            <LocationQuestion
+              value={answers}
+              onChange={location => setAns(a => ({ ...a, ...location }))}
+            />
+            <Btn onPress={next} disabled={!answers.city?.trim()} label="Continue →" />
           </>
         )}
 

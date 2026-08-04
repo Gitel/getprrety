@@ -2,8 +2,29 @@ const mongoose = require('mongoose');
 const router = require('express').Router();
 const SkinAnalysis = require('../models/SkinAnalysis');
 const SkinScan = require('../models/SkinScan');
+const User = require('../models/User');
 const requireAuth = require('../middleware/auth');
 const { sanitizeQuizAnswers } = require('../services/sanitizeQuizAnswers');
+
+function locationFromQuizAnswers(answers) {
+  const city = typeof answers?.city === 'string' ? answers.city.trim().slice(0, 160) : '';
+  if (!city) return null;
+
+  const country = typeof answers.country === 'string' && /^[A-Za-z]{2}$/.test(answers.country.trim())
+    ? answers.country.trim().toUpperCase()
+    : null;
+  const lat = typeof answers.lat === 'number' && Number.isFinite(answers.lat) && answers.lat >= -90 && answers.lat <= 90
+    ? answers.lat
+    : null;
+  const lng = typeof answers.lng === 'number' && Number.isFinite(answers.lng) && answers.lng >= -180 && answers.lng <= 180
+    ? answers.lng
+    : null;
+  const timezone = typeof answers.timezone === 'string' && answers.timezone.trim()
+    ? answers.timezone.trim().slice(0, 100)
+    : null;
+
+  return { city, country, lat, lng, timezone };
+}
 
 async function withSkinScan(doc, userId) {
   if (!doc) return null;
@@ -30,6 +51,7 @@ router.post('/', requireAuth, async (req, res) => {
       ownedScanId = skinScanId;
     }
 
+    const cleanQuizAnswers = sanitizeQuizAnswers(quizAnswers);
     const doc = await SkinAnalysis.create({
       userId: req.user.id,
       skinScanId: ownedScanId,
@@ -40,9 +62,11 @@ router.post('/', requireAuth, async (req, res) => {
       productAudit,
       routine,
       affirmation,
-      quizAnswers: sanitizeQuizAnswers(quizAnswers),
+      quizAnswers: cleanQuizAnswers,
       quizPhotoIds: Array.isArray(quizPhotoIds) ? quizPhotoIds.slice(0, 20) : [],
     });
+    const location = locationFromQuizAnswers(cleanQuizAnswers);
+    if (location) await User.findByIdAndUpdate(req.user.id, location, { runValidators: true });
     res.status(201).json({ analysis: await withSkinScan(doc, req.user.id) });
   } catch {
     res.status(500).json({ error: 'Unable to save analysis' });
@@ -84,3 +108,4 @@ router.get('/', requireAuth, async (req, res) => {
 });
 
 module.exports = router;
+module.exports.locationFromQuizAnswers = locationFromQuizAnswers;

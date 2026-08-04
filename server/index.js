@@ -13,6 +13,7 @@ const uploadRoutes   = require('./routes/uploads');
 const activityRoutes = require('./routes/activity');
 const skinScanRoutes = require('./routes/skinScan');
 const aiRoutes       = require('./routes/ai');
+const cityRoutes     = require('./routes/cities');
 const skinScanPoller = require('./jobs/skinScanPoller');
 
 const app = express();
@@ -48,6 +49,7 @@ app.use('/api/products',  productRoutes);
 app.use('/api/uploads',   uploadRoutes);
 app.use('/api/activity',  activityRoutes);
 app.use('/api/ai',        aiRoutes);
+app.use('/api/cities',    cityRoutes);
 
 // Global error handler
 app.use((err, req, res, next) => {
