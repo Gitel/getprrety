@@ -64,7 +64,7 @@ export default function App() {
       <SafeAreaProvider>
         <AppProvider>
           <NavigationContainer theme={{ ...DefaultTheme, colors: { ...DefaultTheme.colors, background: '#FAF8F5' } }}>
-            <Stack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right' }} initialRouteName="Login">
+            <Stack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right' }} initialRouteName="QuizIntro">
               <Stack.Screen name="Splash" component={SplashScreen} />
               <Stack.Screen name="Login" component={LoginScreen} />
               <Stack.Screen name="QuizIntro" component={QuizIntroScreen} />
