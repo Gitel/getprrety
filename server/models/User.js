@@ -3,7 +3,8 @@ const mongoose = require('mongoose');
 const userSchema = new mongoose.Schema({
   firstName:      { type: String, trim: true },
   email:          { type: String, required: true, unique: true, lowercase: true, trim: true },
-  passwordHash:   { type: String, required: true },
+  passwordHash:   { type: String, required: function () { return !this.googleId; } },
+  googleId:       { type: String, unique: true, sparse: true, default: null },
   skinEra:        { type: String, default: null },
   skincareTiming:  { type: String, enum: ['morning', 'night', 'both', null], default: null },
   selfiePhotoIds:  { type: [String], default: [] },

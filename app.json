@@ -3,6 +3,7 @@
     "name": "Get Pretty",
     "slug": "getprrety",
     "version": "1.0.0",
+    "scheme": "getprrety",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "ios": {
@@ -38,7 +39,8 @@
         {
           "locationWhenInUsePermission": "Get Pretty uses your location to personalise your experience and track where you're caring for your skin."
         }
-      ]
+      ],
+      "expo-web-browser"
     ]
   }
 }

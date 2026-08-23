@@ -9,6 +9,7 @@ import { storeToken } from '../lib/auth';
 import { logActivity } from '../lib/logActivity';
 import { C } from '../constants';
 import { useApp } from '../context/AppContext';
+import GoogleSignInButton from '../components/GoogleSignInButton';
 
 export default function LoginScreen({ navigation }) {
   const { analysis, setAnalysis, setUser, authReady, user } = useApp();
@@ -17,6 +18,7 @@ export default function LoginScreen({ navigation }) {
   const [showPw,   setShowPw]   = useState(false);
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState(null);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   useEffect(() => {
     if (authReady && user) navigation.replace(analysis ? 'Home' : 'QuizIntro');
@@ -58,6 +60,28 @@ export default function LoginScreen({ navigation }) {
       setError(err.message || 'Login failed. Please try again.');
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleGoogleToken(idToken) {
+    setError(null);
+    setGoogleLoading(true);
+    try {
+      const { token, user } = await api.post('/api/auth/google', { idToken });
+      await storeToken(token);
+      let saved = null;
+      try {
+        const response = await api.get('/api/analysis/latest');
+        saved = response.analysis || null;
+      } catch { /* users without an assessment continue to onboarding */ }
+      setAnalysis(saved);
+      setUser(user);
+      logActivity('login');
+      navigation.replace(saved ? 'Home' : 'QuizIntro');
+    } catch (err) {
+      setError(err.message || 'Google sign-in failed. Please try again.');
+    } finally {
+      setGoogleLoading(false);
     }
   }
 
@@ -125,6 +149,8 @@ export default function LoginScreen({ navigation }) {
             <Text style={s.dividerText}>or</Text>
             <View style={s.dividerLine} />
           </View>
+
+          <GoogleSignInButton onToken={handleGoogleToken} onError={setError} loading={googleLoading} />
 
           <Pressable onPress={() => navigation.navigate('QuizIntro')} style={s.greenBtn}>
             <Text style={s.greenBtnText}>✦ Begin your skin assessment</Text>

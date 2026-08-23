@@ -12,6 +12,7 @@ import { sanitizeQuizAnswers } from '../lib/sanitizeQuizAnswers';
 import { logActivity } from '../lib/logActivity';
 import { C } from '../constants';
 import { useApp } from '../context/AppContext';
+import GoogleSignInButton from '../components/GoogleSignInButton';
 
 function isValidEmail(v) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
@@ -61,6 +62,7 @@ export default function SignUpScreen({ navigation }) {
   const [showPw,   setShowPw]   = useState(false);
   const [loading,  setLoading]  = useState(false);
   const [errors,   setErrors]   = useState({});
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   function validate() {
     const e = {};
@@ -98,6 +100,25 @@ export default function SignUpScreen({ navigation }) {
     }
   }
 
+  async function handleGoogleToken(idToken) {
+    setErrors({});
+    setGoogleLoading(true);
+    try {
+      const { token, user: u } = await api.post('/api/auth/google', { idToken });
+      await storeToken(token);
+      setUser(u);
+
+      logActivity('signup');
+      saveQuizData(analysis, answers).catch(() => {});
+
+      navigation.navigate('SkinTiming');
+    } catch (err) {
+      setErrors({ submit: err.message || 'Google sign-in failed. Please try again.' });
+    } finally {
+      setGoogleLoading(false);
+    }
+  }
+
   const eraName = era?.name || 'Your Era';
 
   return (
@@ -121,6 +142,14 @@ export default function SignUpScreen({ navigation }) {
               Your <Text style={{ color: C.accent }}>{eraName}</Text> routine is ready.
             </Text>
             <Text style={s.sub}>Create your account to unlock it — and track your skin journey.</Text>
+          </View>
+
+          <GoogleSignInButton onToken={handleGoogleToken} onError={msg => setErrors({ submit: msg })} loading={googleLoading} />
+
+          <View style={s.dividerRow}>
+            <View style={s.dividerLine} />
+            <Text style={s.dividerText}>or continue with email</Text>
+            <View style={s.dividerLine} />
           </View>
 
           {/* First name (optional) */}
@@ -203,6 +232,10 @@ const s = StyleSheet.create({
   headlineBlock:{ marginBottom: 36 },
   headline:    { fontFamily: 'CormorantGaramond_500Medium', fontSize: 26, color: '#2C2C2C', lineHeight: 36, marginBottom: 10 },
   sub:         { fontFamily: 'DMSans_400Regular', fontSize: 14, color: C.muted, lineHeight: 23 },
+
+  dividerRow:  { flexDirection: 'row', alignItems: 'center', marginBottom: 20, gap: 12 },
+  dividerLine: { flex: 1, height: 1, backgroundColor: '#E8DDD8' },
+  dividerText: { fontFamily: 'DMSans_400Regular', fontSize: 12, color: C.muted },
 
   fieldWrap:   { marginBottom: 16 },
   input:       { backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: '#E8DDD8', borderRadius: 12, paddingVertical: 13, paddingHorizontal: 14, fontFamily: 'DMSans_400Regular', fontSize: 14, color: '#2C2C2C' },
