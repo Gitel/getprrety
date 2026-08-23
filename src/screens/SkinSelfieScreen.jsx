@@ -10,9 +10,14 @@ import { api } from '../lib/api';
 import { uploadAll } from '../lib/uploadImage';
 
 // ─── Intro screen shown before camera opens ───────────────────────────────────
-function IntroScreen({ onReady }) {
+function IntroScreen({ onReady, onBack }) {
   return (
     <SafeAreaView style={s.safe}>
+      {onBack && (
+        <Pressable onPress={onBack} style={s.backBtn} hitSlop={10}>
+          <Text style={s.backText}>← Back</Text>
+        </Pressable>
+      )}
       <View style={s.introContainer}>
         <Text style={s.introEmoji}>✨</Text>
         <Text style={s.introTitle}>Time for your skin selfie</Text>
@@ -106,7 +111,12 @@ export default function SkinSelfieScreen({ navigation }) {
 
   // ── Intro ──
   if (phase === 'intro') {
-    return <IntroScreen onReady={openCamera} />;
+    return (
+      <IntroScreen
+        onReady={openCamera}
+        onBack={navigation.canGoBack() ? () => navigation.goBack() : null}
+      />
+    );
   }
 
   // ── Permission denied ──
@@ -191,6 +201,8 @@ export default function SkinSelfieScreen({ navigation }) {
 
 const s = StyleSheet.create({
   safe:            { flex: 1, backgroundColor: '#FAF7F4' },
+  backBtn:         { position: 'absolute', top: 8, left: 20, zIndex: 10, paddingVertical: 8, paddingHorizontal: 4 },
+  backText:        { fontFamily: 'DMSans_400Regular', fontSize: 14, color: '#C9897A' },
   introContainer:  { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
   introEmoji:      { fontSize: 52, marginBottom: 20 },
   introTitle:      { fontFamily: 'CormorantGaramond_500Medium', fontSize: 26, color: '#2C2C2C', textAlign: 'center', marginBottom: 14 },

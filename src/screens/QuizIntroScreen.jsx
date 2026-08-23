@@ -19,6 +19,11 @@ export default function QuizIntroScreen({ navigation }) {
 
   return (
     <SafeAreaView style={s.safe}>
+      {navigation.canGoBack() && (
+        <Pressable onPress={() => navigation.goBack()} style={s.backBtn} hitSlop={10}>
+          <Text style={s.backText}>← Back</Text>
+        </Pressable>
+      )}
       <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
         <Text style={s.moon}>🌙</Text>
         <View style={s.heroBlock}>
@@ -45,6 +50,8 @@ export default function QuizIntroScreen({ navigation }) {
 
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: C.bg },
+  backBtn: { position: 'absolute', top: 8, left: 20, zIndex: 10, paddingVertical: 8, paddingHorizontal: 4 },
+  backText: { fontFamily: 'DMSans_400Regular', fontSize: 14, color: C.accent },
   content: { flexGrow: 1, paddingHorizontal: 32, paddingTop: 40, paddingBottom: 40, alignItems: 'center', justifyContent: 'center' },
   moon: { fontSize: 44, marginBottom: 22 },
   heroBlock: { alignItems: 'center', marginBottom: 24 },

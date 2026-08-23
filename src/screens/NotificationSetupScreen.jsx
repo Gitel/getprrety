@@ -86,6 +86,12 @@ export default function NotificationSetupScreen({ navigation }) {
     <SafeAreaView style={s.safe}>
       <View style={s.container}>
 
+        {navigation.canGoBack() && (
+          <Pressable onPress={() => navigation.goBack()} style={s.backBtn} hitSlop={10}>
+            <Text style={s.backText}>← Back</Text>
+          </Pressable>
+        )}
+
         <View style={s.header}>
           <Text style={s.emoji}>🔔</Text>
           <Text style={s.title}>Stay on track</Text>
@@ -192,6 +198,8 @@ function TimeRow({ label, icon, on, time, days, color, onToggle, onNudge, onDayT
 const s = StyleSheet.create({
   safe:      { flex: 1, backgroundColor: C.bg },
   container: { flex: 1, padding: 24, paddingTop: 28 },
+  backBtn:   { marginBottom: 16 },
+  backText:  { fontFamily: 'DMSans_400Regular', fontSize: 14, color: C.accent },
   header:    { alignItems: 'center', marginBottom: 28 },
   emoji:     { fontSize: 48, marginBottom: 14 },
   title:     { fontFamily: 'CormorantGaramond_500Medium', fontSize: 22, color: C.text, marginBottom: 8 },

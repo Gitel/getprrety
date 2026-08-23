@@ -43,6 +43,11 @@ export default function ShelfPhotosScreen({ navigation }) {
 
   return (
     <SafeAreaView style={s.safe}>
+      {navigation.canGoBack() && (
+        <Pressable onPress={() => navigation.goBack()} style={s.backBtn} hitSlop={10}>
+          <Text style={s.backText}>← Back</Text>
+        </Pressable>
+      )}
       <View style={s.container}>
         <Text style={s.emoji}>🧴</Text>
         <Text style={s.title}>Your product shelf</Text>
@@ -92,6 +97,8 @@ export default function ShelfPhotosScreen({ navigation }) {
 
 const s = StyleSheet.create({
   safe:       { flex: 1, backgroundColor: C.bg },
+  backBtn:    { position: 'absolute', top: 8, left: 20, zIndex: 10, paddingVertical: 8, paddingHorizontal: 4 },
+  backText:   { fontFamily: 'DMSans_400Regular', fontSize: 14, color: C.accent },
   container:  { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28 },
   emoji:      { fontSize: 48, marginBottom: 16 },
   title:      { fontFamily: 'CormorantGaramond_500Medium', fontSize: 26, color: C.text, textAlign: 'center', marginBottom: 8 },

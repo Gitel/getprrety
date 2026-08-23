@@ -108,6 +108,13 @@ export default function SignUpScreen({ navigation }) {
       >
         <ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled">
 
+          {/* Back */}
+          {navigation.canGoBack() && (
+            <Pressable onPress={() => navigation.goBack()} style={s.backBtn} hitSlop={10}>
+              <Text style={s.backText}>← Back</Text>
+            </Pressable>
+          )}
+
           {/* Era headline */}
           <View style={s.headlineBlock}>
             <Text style={s.headline}>
@@ -189,6 +196,9 @@ export default function SignUpScreen({ navigation }) {
 const s = StyleSheet.create({
   safe:        { flex: 1, backgroundColor: '#FAF7F4' },
   content:     { flexGrow: 1, padding: 24, paddingTop: 36 },
+
+  backBtn:     { marginBottom: 20 },
+  backText:    { fontFamily: 'DMSans_400Regular', fontSize: 14, color: '#C9897A' },
 
   headlineBlock:{ marginBottom: 36 },
   headline:    { fontFamily: 'CormorantGaramond_500Medium', fontSize: 26, color: '#2C2C2C', lineHeight: 36, marginBottom: 10 },

@@ -35,6 +35,12 @@ export default function SkinTimingScreen({ navigation }) {
     <SafeAreaView style={s.safe}>
       <View style={s.container}>
 
+        {navigation.canGoBack() && (
+          <Pressable onPress={() => navigation.goBack()} style={s.backBtn} hitSlop={10}>
+            <Text style={s.backText}>← Back</Text>
+          </Pressable>
+        )}
+
         <View style={s.headlineBlock}>
           <Text style={s.headline}>One last thing —</Text>
           <Text style={s.sub}>when do you usually do your skincare?</Text>
@@ -88,6 +94,8 @@ function TimingCard({ emoji, label, selected, onSelect }) {
 const s = StyleSheet.create({
   safe:        { flex: 1, backgroundColor: '#FAF7F4' },
   container:   { flex: 1, padding: 24, paddingTop: 40 },
+  backBtn:     { marginBottom: 20 },
+  backText:    { fontFamily: 'DMSans_400Regular', fontSize: 14, color: '#C9897A' },
   headlineBlock:{ marginBottom: 36 },
   headline:    { fontFamily: 'CormorantGaramond_500Medium', fontSize: 26, color: '#2C2C2C', lineHeight: 36, marginBottom: 6 },
   sub:         { fontFamily: 'DMSans_400Regular', fontSize: 15, color: C.muted, lineHeight: 24 },

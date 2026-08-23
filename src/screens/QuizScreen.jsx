@@ -30,6 +30,18 @@ function advance(fromIdx, answers) {
   return i;
 }
 
+// Mirror of advance(), but backward — also skips auto-advancing greeting/interstitial
+// screens so "back" always lands on an actual question, never a moment that just replays forward.
+function retreat(fromIdx, answers) {
+  let i = fromIdx - 1;
+  while (i >= START_IDX && QUESTIONS[i] && (
+    (QUESTIONS[i].showIf && !QUESTIONS[i].showIf(answers)) ||
+    QUESTIONS[i].type === 'greeting' ||
+    QUESTIONS[i].type === 'interstitial'
+  )) i--;
+  return i;
+}
+
 // ─── Greeting (auto-advance micro-moment, right after Name) ─────────────────
 function GreetingScreen({ text: greetText, onDone, autoAdvanceMs }) {
   useEffect(() => {
@@ -195,6 +207,12 @@ export default function QuizScreen({ navigation, route }) {
     setTimeout(() => setIdx(nextIdx), 120);
   }
 
+  function back() {
+    const prevIdx = retreat(idx, answers);
+    if (prevIdx < START_IDX) navigation.goBack();
+    else goTo(prevIdx);
+  }
+
   async function next() {
     let a = { ...answers };
     if (q.type === 'multi') a[q.id] = multi;
@@ -299,7 +317,12 @@ export default function QuizScreen({ navigation, route }) {
     <SafeAreaView style={s.safe}>
       {/* Header */}
       <View style={s.header}>
-        <Text style={s.logo}>Get Pretty</Text>
+        <View style={s.headerLeft}>
+          <Pressable onPress={back} style={s.backBtn} hitSlop={10}>
+            <Text style={s.backIcon}>←</Text>
+          </Pressable>
+          <Text style={s.logo}>Get Pretty</Text>
+        </View>
         {progressIdx > 0 && <Text style={s.counter}>Step {progressIdx} of {totalProgressSteps}</Text>}
       </View>
       {progressIdx > 0 && (
@@ -748,6 +771,9 @@ function Btn({ onPress, disabled, label, accent }) {
 const s = StyleSheet.create({
   safe:        { flex: 1, backgroundColor: C.bg },
   header:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingVertical: 14 },
+  headerLeft:  { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  backBtn:     { paddingVertical: 4, paddingRight: 2 },
+  backIcon:    { fontSize: 18, color: C.text },
   logo:        { fontFamily: 'CormorantGaramond_500Medium', fontSize: 20, color: C.text, letterSpacing: 2 },
   counter:     { fontFamily: 'DMSans_400Regular', fontSize: 11, color: C.muted },
   progressTrack: { height: 2, backgroundColor: C.border, marginHorizontal: 24 },
