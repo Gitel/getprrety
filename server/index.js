@@ -1,8 +1,10 @@
 require('dotenv').config();
+const path     = require('path');
 const express  = require('express');
 const mongoose = require('mongoose');
 const cors     = require('cors');
 const helmet   = require('helmet');
+const cookieParser = require('cookie-parser');
 
 const authRoutes     = require('./routes/auth');
 const profileRoutes  = require('./routes/profile');
@@ -14,12 +16,16 @@ const activityRoutes = require('./routes/activity');
 const skinScanRoutes = require('./routes/skinScan');
 const aiRoutes       = require('./routes/ai');
 const cityRoutes     = require('./routes/cities');
+const adminRoutes    = require('./routes/admin');
 const skinScanPoller = require('./jobs/skinScanPoller');
 
 const app = express();
 app.set('trust proxy', 1);
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'views'));
 
 app.use(helmet());
+app.use(cookieParser());
 const configuredOrigins = (process.env.CORS_ORIGINS || '').split(',').map(value => value.trim()).filter(Boolean);
 const developmentOrigins = ['http://localhost:19006', 'http://localhost:8081', 'http://localhost:5173'];
 const allowedOrigins = process.env.NODE_ENV === 'production' ? configuredOrigins : [...configuredOrigins, ...developmentOrigins];
@@ -50,6 +56,9 @@ app.use('/api/uploads',   uploadRoutes);
 app.use('/api/activity',  activityRoutes);
 app.use('/api/ai',        aiRoutes);
 app.use('/api/cities',    cityRoutes);
+
+// Server-rendered clinic admin dashboard (Google sign-in + email allow-list)
+app.use('/admin',         adminRoutes);
 
 // Global error handler
 app.use((err, req, res, next) => {

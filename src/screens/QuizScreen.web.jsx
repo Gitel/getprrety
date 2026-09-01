@@ -169,6 +169,7 @@ export default function QuizScreen({ navigation, route }) {
   const [answers, setAns] = useState(() => ({
     consentAcceptedAt: route?.params?.consentAcceptedAt || null,
     consentVersion: route?.params?.consentVersion || null,
+    referralSource: route?.params?.referralSource || null,
   }));
   const [sel, setSel]     = useState(null);
   const [multi, setMulti] = useState([]);

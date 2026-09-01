@@ -1,0 +1,102 @@
+<%
+  var qa = analysis.quizAnswers || {};
+  var clientName = qa.name || (user && user.firstName) || 'Client';
+  var allergies = (Array.isArray(qa.allergies) ? qa.allergies : [])
+    .filter(function (a) { return a && String(a).toLowerCase() !== 'none'; });
+  if (qa.allergies_other) allergies.push(String(qa.allergies_other));
+  var SKIP = { consentAcceptedAt: 1, consentVersion: 1, skinScanId: 1, skinScanToken: 1, userId: 1, referralSource: 1 };
+  function humanize(k) { return k.replace(/_/g, ' ').replace(/\b\w/g, function (c) { return c.toUpperCase(); }); }
+  function fmtVal(v) {
+    if (v === null || v === undefined || v === '') return '—';
+    if (Array.isArray(v)) return v.length ? v.join(', ') : '—';
+    if (typeof v === 'object') {
+      return Object.keys(v).map(function (k) { return humanize(k) + ': ' + fmtVal(v[k]); }).join('  ·  ');
+    }
+    return String(v);
+  }
+  function stamp(d) { return d ? new Date(d).toISOString().slice(0, 16).replace('T', ' ') : null; }
+%>
+<%- include('_head', { title: clientName }) %>
+<header class="top">
+  <h1><a href="/admin">&larr; Clients</a></h1>
+  <span class="who"><%= admin.email %> &middot; <a href="/admin/logout">Log out</a></span>
+</header>
+<main>
+  <% if (resent) { %>
+    <div class="card" style="background: #eef4ea; color: #3f6b34;">Clinic notification re-sent.</div>
+  <% } %>
+
+  <% if (allergies.length) { %>
+    <div class="allergy">&#9888; Allergies: <%= allergies.join(', ') %></div>
+  <% } else { %>
+    <div class="allergy none">&#9888; No allergies reported</div>
+  <% } %>
+
+  <div class="card">
+    <h2>Client</h2>
+    <dl class="kv">
+      <dt>Name</dt><dd><%= clientName %></dd>
+      <dt>Email</dt><dd><%= (user && user.email) || '—' %></dd>
+      <dt>Phone</dt><dd><%= qa.phone || '—' %></dd>
+      <dt>Completed</dt><dd><%= stamp(analysis.createdAt) || '—' %></dd>
+      <dt>Referral source</dt><dd><%= analysis.referralSource || '—' %></dd>
+      <dt>Clinic notified</dt><dd><%= stamp(analysis.clinicNotifiedAt) || 'not sent' %></dd>
+    </dl>
+    <form method="post" action="/admin/customer/<%= analysis._id %>/resend" style="margin-top: 14px;">
+      <button type="submit">Resend to clinic</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Skin Era</h2>
+    <dl class="kv">
+      <dt>Era</dt><dd><%= (analysis.era && analysis.era.name) || analysis.eraId || '—' %></dd>
+      <% if (analysis.era && analysis.era.tagline) { %><dt>Tagline</dt><dd><%= analysis.era.tagline %></dd><% } %>
+      <% if (analysis.affirmation) { %><dt>Affirmation</dt><dd><%= analysis.affirmation %></dd><% } %>
+    </dl>
+    <% if (analysis.skinAnalysis) { %><p style="margin-top: 10px;"><%= analysis.skinAnalysis %></p><% } %>
+    <% if (Array.isArray(analysis.keyInsights) && analysis.keyInsights.length) { %>
+      <ul><% analysis.keyInsights.forEach(function (i) { %><li><%= i %></li><% }); %></ul>
+    <% } %>
+  </div>
+
+  <div class="card">
+    <h2>Routine</h2>
+    <% var routine = analysis.routine || {}; var hasRoutine = false; %>
+    <% ['am', 'pm'].forEach(function (side) {
+         var steps = routine[side];
+         if (!Array.isArray(steps) || !steps.length) return;
+         hasRoutine = true; %>
+      <p style="font-weight: 600; margin: 8px 0 4px;"><%= side.toUpperCase() %></p>
+      <ol>
+        <% steps.forEach(function (s) { %>
+          <li><strong><%= s.name || s %></strong><% if (s && s.description) { %> — <%= s.description %><% } %></li>
+        <% }); %>
+      </ol>
+    <% }); %>
+    <% if (!hasRoutine) { %><p>—</p><% } %>
+  </div>
+
+  <div class="card">
+    <h2>Quiz answers</h2>
+    <dl class="kv">
+      <% Object.keys(qa).forEach(function (k) { if (SKIP[k]) return; %>
+        <dt><%= humanize(k) %></dt><dd><%= fmtVal(qa[k]) %></dd>
+      <% }); %>
+    </dl>
+  </div>
+
+  <div class="card">
+    <h2>Uploaded photos (<%= imageIds.length %>)</h2>
+    <% if (!imageIds.length) { %>
+      <p>None uploaded.</p>
+    <% } else { %>
+      <div class="imgs">
+        <% imageIds.forEach(function (uid) { %>
+          <img src="/admin/customer/<%= analysis._id %>/image/<%= uid %>" alt="client upload" loading="lazy">
+        <% }); %>
+      </div>
+    <% } %>
+  </div>
+</main>
+<%- include('_foot') %>

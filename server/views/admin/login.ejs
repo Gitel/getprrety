@@ -1,0 +1,40 @@
+<%- include('_head', { title: 'Sign in' }) %>
+<main style="max-width: 420px; text-align: center; padding-top: 72px;">
+  <h1 style="font-size: 20px; margin-bottom: 6px;">GetPretty Admin</h1>
+  <p style="color: #8a7a63;">Sign in with an authorized Google account.</p>
+
+  <% if (error) { %>
+    <p style="color: #9b3b30;"><%= error %></p>
+  <% } %>
+
+  <% if (!googleClientId) { %>
+    <p style="color: #9b3b30;">Google sign-in is not configured. Set <code>ADMIN_GOOGLE_CLIENT_ID</code> (or <code>GOOGLE_CLIENT_IDS</code>) in the server environment.</p>
+  <% } else { %>
+    <div id="g_id_onload"
+         data-client_id="<%= googleClientId %>"
+         data-callback="onGoogleCredential"
+         data-auto_prompt="false"></div>
+    <div class="g_id_signin" data-type="standard" data-size="large" data-text="signin_with"
+         style="display: flex; justify-content: center; margin-top: 18px;"></div>
+    <p id="err" style="color: #9b3b30; margin-top: 14px;"></p>
+
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script>
+      function onGoogleCredential(resp) {
+        fetch('/admin/auth/google', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ credential: resp.credential })
+        }).then(function (r) {
+          if (r.ok) { window.location = '/admin'; return; }
+          return r.json().then(function (j) {
+            document.getElementById('err').textContent = (j && j.error) || 'Sign-in failed';
+          });
+        }).catch(function () {
+          document.getElementById('err').textContent = 'Sign-in failed';
+        });
+      }
+    </script>
+  <% } %>
+</main>
+<%- include('_foot') %>
