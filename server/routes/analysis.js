@@ -5,6 +5,7 @@ const SkinScan = require('../models/SkinScan');
 const User = require('../models/User');
 const requireAuth = require('../middleware/auth');
 const { sanitizeQuizAnswers } = require('../services/sanitizeQuizAnswers');
+const { notifyClinic } = require('../services/clinicNotify');
 
 function locationFromQuizAnswers(answers) {
   const city = typeof answers?.city === 'string' ? answers.city.trim().slice(0, 160) : '';
@@ -52,6 +53,9 @@ router.post('/', requireAuth, async (req, res) => {
     }
 
     const cleanQuizAnswers = sanitizeQuizAnswers(quizAnswers);
+    const referralSource = typeof cleanQuizAnswers.referralSource === 'string' && cleanQuizAnswers.referralSource.trim()
+      ? cleanQuizAnswers.referralSource.trim().slice(0, 60)
+      : null;
     const doc = await SkinAnalysis.create({
       userId: req.user.id,
       skinScanId: ownedScanId,
@@ -64,10 +68,17 @@ router.post('/', requireAuth, async (req, res) => {
       affirmation,
       quizAnswers: cleanQuizAnswers,
       quizPhotoIds: Array.isArray(quizPhotoIds) ? quizPhotoIds.slice(0, 20) : [],
+      referralSource,
     });
     const location = locationFromQuizAnswers(cleanQuizAnswers);
     if (location) await User.findByIdAndUpdate(req.user.id, location, { runValidators: true });
     res.status(201).json({ analysis: await withSkinScan(doc, req.user.id) });
+
+    // Notify the clinic that a new client finished their skin reading. Fire-and-forget:
+    // a mail failure must never break analysis save. Idempotency guard lives in notifyClinic.
+    // Assumption: fires for every quiz completion, since the clinic is currently the only
+    // acquisition channel. When a second channel exists, gate on referralSource === 'lu_clinic'.
+    notifyClinic(doc).catch(err => console.error('Clinic notification failed:', err));
   } catch {
     res.status(500).json({ error: 'Unable to save analysis' });
   }

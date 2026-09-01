@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title><%= typeof title !== 'undefined' && title ? title : 'Admin' %> · GetPretty</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #2b2b2b; background: #faf8f5; }
+  a { color: #8a6d3b; }
+  header.top { display: flex; justify-content: space-between; align-items: center; padding: 14px 22px; background: #fff; border-bottom: 1px solid #eadfce; }
+  header.top h1 { font-size: 16px; margin: 0; font-weight: 600; }
+  header.top h1 a { text-decoration: none; }
+  header.top .who { font-size: 13px; color: #8a7a63; }
+  main { padding: 22px; max-width: 1100px; margin: 0 auto; }
+  table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #eadfce; border-radius: 8px; overflow: hidden; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid #f0e8db; font-size: 14px; vertical-align: top; }
+  th { background: #f6efe3; font-weight: 600; }
+  tr:last-child td { border-bottom: 0; }
+  tbody tr:hover td { background: #fcf8f1; }
+  .pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; white-space: nowrap; }
+  .pill.yes { background: #e4f0e0; color: #3f6b34; }
+  .pill.no { background: #f3e2e0; color: #9b3b30; }
+  .card { background: #fff; border: 1px solid #eadfce; border-radius: 8px; padding: 18px; margin-bottom: 18px; }
+  .card h2 { font-size: 15px; margin: 0 0 12px; border-bottom: 1px solid #f0e8db; padding-bottom: 6px; }
+  .allergy { border-left: 4px solid #b3261e; background: #fdeceb; color: #7f1d17; padding: 12px 14px; border-radius: 6px; font-weight: 600; margin-bottom: 18px; }
+  .allergy.none { border-left-color: #9ec78c; background: #eef4ea; color: #3f6b34; }
+  .kv { display: grid; grid-template-columns: 210px 1fr; gap: 6px 16px; font-size: 14px; margin: 0; }
+  .kv dt { color: #8a7a63; }
+  .kv dd { margin: 0; word-break: break-word; }
+  .imgs { display: flex; flex-direction: column; gap: 14px; }
+  .imgs img { width: 100%; max-width: 520px; border-radius: 8px; border: 1px solid #eadfce; }
+  button, .btn { font: inherit; padding: 8px 14px; border-radius: 6px; border: 1px solid #cdb98f; background: #8a6d3b; color: #fff; cursor: pointer; text-decoration: none; display: inline-block; }
+  .btn.secondary { background: #fff; color: #8a6d3b; }
+</style>
+</head>
+<body>

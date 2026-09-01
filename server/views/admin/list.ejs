@@ -1,0 +1,43 @@
+<%- include('_head', { title: 'Clients' }) %>
+<header class="top">
+  <h1><a href="/admin">GetPretty · Clients</a></h1>
+  <span class="who"><%= admin.email %> &middot; <a href="/admin/logout">Log out</a></span>
+</header>
+<main>
+  <p style="color: #8a7a63;"><%= rows.length %> completed skin reading<%= rows.length === 1 ? '' : 's' %></p>
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th><th>Email</th><th>Phone</th><th>Completed</th><th>Skin Era</th><th>Clinic notified</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% rows.forEach(function (r) {
+           var qa = r.quizAnswers || {};
+           var name = qa.name || (r.userId && r.userId.firstName) || '—';
+           var email = (r.userId && r.userId.email) || '—';
+           var era = (r.era && r.era.name) || r.eraId || '—';
+           function stamp(d) { return d ? new Date(d).toISOString().slice(0, 16).replace('T', ' ') : null; }
+      %>
+        <tr>
+          <td><a href="/admin/customer/<%= r._id %>"><%= name %></a></td>
+          <td><%= email %></td>
+          <td><%= qa.phone || '—' %></td>
+          <td><%= stamp(r.createdAt) || '—' %></td>
+          <td><%= era %></td>
+          <td>
+            <% if (r.clinicNotifiedAt) { %>
+              <span class="pill yes"><%= stamp(r.clinicNotifiedAt) %></span>
+            <% } else { %>
+              <span class="pill no">not sent</span>
+            <% } %>
+          </td>
+        </tr>
+      <% }); %>
+      <% if (!rows.length) { %>
+        <tr><td colspan="6" style="color: #8a7a63;">No skin readings yet.</td></tr>
+      <% } %>
+    </tbody>
+  </table>
+</main>
+<%- include('_foot') %>

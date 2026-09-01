@@ -8,6 +8,8 @@ import { useFonts } from 'expo-font';
 import { CormorantGaramond_400Regular, CormorantGaramond_500Medium, CormorantGaramond_600SemiBold } from '@expo-google-fonts/cormorant-garamond';
 import { DMSans_400Regular, DMSans_500Medium } from '@expo-google-fonts/dm-sans';
 import { AppProvider } from './src/context/AppContext';
+import { getWelcomeRef } from './src/lib/welcomeVariants';
+import WelcomeScreen from './src/screens/WelcomeScreen';
 import SplashScreen from './src/screens/SplashScreen';
 import QuizScreen from './src/screens/QuizScreen';
 import LoadingScreen from './src/screens/LoadingScreen';
@@ -25,6 +27,11 @@ import ProductCameraScreen from './src/screens/ProductCameraScreen';
 
 enableScreens();
 const Stack = createNativeStackNavigator();
+
+// When the app is opened via getpretty.app?ref=lu_clinic (or ?ref=website), start on the
+// Welcome screen; otherwise fall through to the normal QuizIntro entry. Web-only — always
+// null on native.
+const welcomeRef = getWelcomeRef();
 
 class ErrorBoundary extends React.Component {
   state = { error: null };
@@ -64,7 +71,8 @@ export default function App() {
       <SafeAreaProvider>
         <AppProvider>
           <NavigationContainer theme={{ ...DefaultTheme, colors: { ...DefaultTheme.colors, background: '#FAF8F5' } }}>
-            <Stack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right' }} initialRouteName="QuizIntro">
+            <Stack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right' }} initialRouteName={welcomeRef ? 'Welcome' : 'QuizIntro'}>
+              <Stack.Screen name="Welcome" component={WelcomeScreen} initialParams={{ ref: welcomeRef }} />
               <Stack.Screen name="Splash" component={SplashScreen} />
               <Stack.Screen name="Login" component={LoginScreen} />
               <Stack.Screen name="QuizIntro" component={QuizIntroScreen} />

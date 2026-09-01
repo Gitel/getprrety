@@ -9,11 +9,12 @@ const Q = QUESTIONS.find(q => q.id === 'welcome');
 // signup still expects consentAcceptedAt/consentVersion, so re-wire that too if this ships as-is.
 const CONSENT_VERSION = process.env.EXPO_PUBLIC_CONSENT_VERSION;
 
-export default function QuizIntroScreen({ navigation }) {
+export default function QuizIntroScreen({ navigation, route }) {
   function begin() {
     navigation.navigate('Quiz', {
       consentAcceptedAt: new Date().toISOString(),
       consentVersion: CONSENT_VERSION,
+      referralSource: route?.params?.referralSource || null,
     });
   }
 
