@@ -25,6 +25,7 @@ jobs:
       - name: Build Expo web
         env:
           EXPO_PUBLIC_API_URL: ${{ secrets.EXPO_PUBLIC_API_URL }}
+          EXPO_PUBLIC_CONSENT_VERSION: ${{ secrets.EXPO_PUBLIC_CONSENT_VERSION }}
         run: npx expo export --platform web
 
       - name: Upload web build to server
