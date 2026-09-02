@@ -15,8 +15,12 @@ const {
   isAllowed,
 } = require('../services/adminAuth');
 
-// The Google Identity Services button loads a script + iframe from accounts.google.com,
-// which the app-wide strict helmet() CSP would block. Relax it for /admin only.
+// The Google Identity Services button loads a script + iframe from accounts.google.com
+// and opens a sign-in popup. The app-wide strict helmet() defaults break both:
+//  - its CSP blocks the GSI script/frame/connect
+//  - Cross-Origin-Opener-Policy: same-origin severs window.opener, so the popup can't
+//    hand the credential back and just hangs blank
+// Relax both for /admin only.
 router.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -28,6 +32,7 @@ router.use(helmet({
       imgSrc: ["'self'", 'data:', 'https://*.googleusercontent.com'],
     },
   },
+  crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
 }));
 
 function adminGoogleClientId() {
