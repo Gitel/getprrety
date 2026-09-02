@@ -59,7 +59,9 @@ describe('buildClinicEmailHtml', () => {
 describe('notifyClinic', () => {
   const OLD_ENV = process.env;
   beforeEach(() => {
-    process.env = { ...OLD_ENV, POSTMARK_SENDER_ADDRESS: 'hello@getpretty.app', CLINIC_NOTIFY_TO: 'lutreat@gmail.com' };
+    // CLINIC_NOTIFY_TO / MESSAGE_STREAM are read at module load, not per call — the
+    // assertions below expect the built-in defaults.
+    process.env = { ...OLD_ENV, POSTMARK_SENDER_ADDRESS: 'hello@getpretty.app' };
     User.findById.mockResolvedValue({ email: 'ada@example.com', firstName: 'Ada' });
     jest.spyOn(console, 'warn').mockImplementation(() => {});
   });
@@ -86,7 +88,7 @@ describe('notifyClinic', () => {
     expect(client.sendEmail).toHaveBeenCalledTimes(1);
     const arg = client.sendEmail.mock.calls[0][0];
     expect(arg.From).toBe('hello@getpretty.app');
-    expect(arg.To).toBe('lutreat@gmail.com');
+    expect(arg.To).toBe('lutreat@gmail.com,dzaturansky@gmail.com');
     expect(arg.Subject).toBe('New GetPretty client: Ada — Barrier Healing Era');
     expect(arg.MessageStream).toBe('outbound');
     expect(analysis.clinicNotifiedAt).toBeInstanceOf(Date);

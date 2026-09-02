@@ -2,7 +2,8 @@ const postmark = require('postmark');
 const SkinAnalysis = require('../models/SkinAnalysis');
 const User = require('../models/User');
 
-const CLINIC_TO = process.env.CLINIC_NOTIFY_TO || 'lutreat@gmail.com';
+// Comma-separated list is passed straight through to Postmark's `To` field.
+const CLINIC_TO = process.env.CLINIC_NOTIFY_TO || 'lutreat@gmail.com,dzaturansky@gmail.com';
 const MESSAGE_STREAM = process.env.POSTMARK_MESSAGE_STREAM || 'outbound';
 
 let cachedClient = null;
