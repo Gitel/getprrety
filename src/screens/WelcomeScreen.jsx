@@ -4,6 +4,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { C } from '../constants';
 import { WELCOME_VARIANTS, getWelcomeRef } from '../lib/welcomeVariants';
 
+// Mirrors QuizIntroScreen: consent is auto-accepted on entry (T&C gate is currently
+// off for testing — see QuizIntroScreen). ?ref= visitors skip QuizIntro entirely and
+// go straight into the quiz, so that consent stamp has to be set here instead.
+const CONSENT_VERSION = process.env.EXPO_PUBLIC_CONSENT_VERSION;
+
 // Clinic / website entry screen. Shown before QuizIntro only when the app was opened
 // with a recognized ?ref= param (see App.js). Carries the resolved ref forward as
 // `referralSource` so it rides into the quiz answers and lands on the customer record.
@@ -26,7 +31,11 @@ export default function WelcomeScreen({ navigation, route }) {
 
         <Pressable
           style={({ pressed }) => [s.cta, pressed && s.ctaPressed]}
-          onPress={() => navigation.navigate('QuizIntro', { referralSource: ref })}
+          onPress={() => navigation.navigate('Quiz', {
+            consentAcceptedAt: new Date().toISOString(),
+            consentVersion: CONSENT_VERSION,
+            referralSource: ref,
+          })}
         >
           <Text style={s.ctaText}>{variant.cta} →</Text>
         </Pressable>
