@@ -6,7 +6,8 @@
     "start": "node index.js",
     "dev": "nodemon index.js",
     "test": "jest",
-    "import:cities": "node scripts/importCities.js"
+    "import:cities": "node scripts/importCities.js",
+    "backfill:clinic": "node scripts/backfillClinicNotify.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
