@@ -2,6 +2,12 @@ import { ERAS, fallbackEra } from '../constants';
 
 const RAILWAY_URL = 'https://getpretty-api-production.up.railway.app';
 
+// A stalled connection must never trap the user on the loading screen. LoadingScreen
+// deliberately waits on this request before revealing the Era, so without a ceiling a
+// hung socket never reaches the fallback. Abort after this long and let the caller's
+// catch build the offline fallback.
+const ANALYZE_TIMEOUT_MS = 45000;
+
 // Map new expanded skin_goals values down to the legacy 6-bucket concern
 // taxonomy the existing Skin Era decision tree reads. Goals with no legacy
 // equivalent are simply omitted from `concerns` but still sent in full
@@ -173,20 +179,33 @@ export async function analyzeWithRailway(answers) {
 
   console.log(`analyzeWithRailway: sending ${skinPhotosBase64.length} skin photo(s), ${shelfPhotosBase64.length} shelf photo(s)`);
 
-  const res = await fetch(`${RAILWAY_URL}/analyze-skin`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      quizAnswers: quizPayload,
-      userId: answers.userId || null,
-      skinPhotosBase64,
-      shelfPhotosBase64,
-    }),
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), ANALYZE_TIMEOUT_MS);
 
-  if (!res.ok) throw new Error(`Railway API ${res.status}`);
+  let res;
+  let data;
+  try {
+    res = await fetch(`${RAILWAY_URL}/analyze-skin`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        quizAnswers: quizPayload,
+        userId: answers.userId || null,
+        skinPhotosBase64,
+        shelfPhotosBase64,
+      }),
+      signal: controller.signal,
+    });
 
-  const data = await res.json();
+    if (!res.ok) throw new Error(`Railway API ${res.status}`);
+
+    data = await res.json();
+  } catch (err) {
+    if (err.name === 'AbortError') throw new Error(`Railway API timed out after ${ANALYZE_TIMEOUT_MS}ms`);
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
 
   const analysis      = mapToAppFormat(data, answers);
   const srProducts    = data.srProducts || null;
