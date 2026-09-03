@@ -7,7 +7,7 @@ const requireAuth = require('../middleware/auth');
 const client = require('../services/perfectcorp/client');
 const poller = require('../jobs/skinScanPoller');
 const { AnalysisError } = require('../services/perfectcorp/errors');
-const { consumeRateLimit } = require('../services/rateLimit');
+const { enforceAnonymousScanBudget } = require('../services/anonymousScanBudget');
 const { sanitizeQuizAnswers } = require('../services/sanitizeQuizAnswers');
 
 const MAX_BYTES = 8 * 1024 * 1024;
@@ -67,18 +67,8 @@ async function findScanWithSecret(id) {
 }
 
 async function enforceAnonymousBudget(req) {
-  const perIpLimit = Number(process.env.SKIN_SCAN_PER_IP_HOURLY_LIMIT || 3);
-  const globalLimit = Number(process.env.SKIN_SCAN_GLOBAL_HOURLY_LIMIT || 100);
   const hash = ipHash(req);
-  const [perIpAllowed, globalAllowed] = await Promise.all([
-    consumeRateLimit('scan_ip', hash, perIpLimit),
-    consumeRateLimit('scan_global', 'all', globalLimit),
-  ]);
-  if (!perIpAllowed || !globalAllowed) {
-    const err = new Error('Skin scan rate limit exceeded');
-    err.status = 429;
-    throw err;
-  }
+  await enforceAnonymousScanBudget(hash);
   return hash;
 }
 
