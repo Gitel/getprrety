@@ -207,8 +207,8 @@ export default function ProfileScreen({ navigation }) {
                           <>
                             <View style={s.replaceRow}>
                               <Text style={s.replaceFrom}>{item.from}</Text>
-                              <Text style={s.replaceArrow}>→</Text>
-                              <Text style={s.replaceTo}>{item.to}</Text>
+                              {item.to ? <Text style={s.replaceArrow}>→</Text> : null}
+                              {item.to ? <Text style={s.replaceTo}>{item.to}</Text> : null}
                             </View>
                             <Text style={s.auditReason}>{item.reason}</Text>
                           </>
