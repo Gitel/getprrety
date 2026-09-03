@@ -2,6 +2,7 @@ import { api } from './api';
 import { uploadAll } from './uploadImage';
 import { claimScan } from './skinScan';
 import { sanitizeQuizAnswers } from './sanitizeQuizAnswers';
+import { withRetry } from './retry';
 
 // The quiz photo set, in the order the analysis expects. Same list the pre-signup
 // path already uploaded — authenticated completions and retakes go through here too
@@ -29,7 +30,10 @@ export async function persistAnalysis({ analysis, answers }) {
 
   const quizPhotoIds = await uploadAll(quizPhotoUris(answers));
 
-  await api.post('/api/analysis', {
+  // Retry a few times before giving up — a transient upload/API blip used to be
+  // swallowed and the assessment silently lost. Callers treat a thrown error here
+  // as "saved failed" and warn the user rather than pretending it worked.
+  await withRetry(() => api.post('/api/analysis', {
     eraId:        analysis.era?.id ?? analysis.eraId,
     era:          analysis.era,
     skinAnalysis: analysis.skinAnalysis,
@@ -40,5 +44,5 @@ export async function persistAnalysis({ analysis, answers }) {
     quizAnswers:  sanitizeQuizAnswers(answers),
     quizPhotoIds,
     skinScanId:   scanClaimed ? answers.skinScanId : null,
-  });
+  }));
 }

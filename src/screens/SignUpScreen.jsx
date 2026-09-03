@@ -17,7 +17,7 @@ function isValidEmail(v) {
 }
 
 export default function SignUpScreen({ navigation }) {
-  const { analysis, answers, setUser } = useApp();
+  const { analysis, answers, setUser, setAnalysisSaveFailed } = useApp();
   const era = analysis?.era;
 
   const [firstName, setFirstName] = useState(answers?.name || '');
@@ -54,7 +54,10 @@ export default function SignUpScreen({ navigation }) {
       setUser(u);
 
       logActivity('signup');
-      persistAnalysis({ analysis, answers }).catch(() => {});
+      persistAnalysis({ analysis, answers }).catch(err => {
+        console.error('Failed to save analysis after retries:', err?.message || err);
+        setAnalysisSaveFailed(true);
+      });
 
       navigation.navigate('SkinTiming');
     } catch (err) {
@@ -73,7 +76,10 @@ export default function SignUpScreen({ navigation }) {
       setUser(u);
 
       logActivity('signup');
-      persistAnalysis({ analysis, answers }).catch(() => {});
+      persistAnalysis({ analysis, answers }).catch(err => {
+        console.error('Failed to save analysis after retries:', err?.message || err);
+        setAnalysisSaveFailed(true);
+      });
 
       navigation.navigate('SkinTiming');
     } catch (err) {

@@ -21,7 +21,7 @@ const SEVERITY_META = [
 ];
 
 export default function ProfileScreen({ navigation }) {
-  const { analysis, setAnalysis, answers, user, srProducts, shelfAnalysis } = useApp();
+  const { analysis, setAnalysis, answers, user, srProducts, shelfAnalysis, analysisSaveFailed, setAnalysisSaveFailed } = useApp();
   const era = analysis?.era;
   const audit         = analysis?.productAudit || {};
 
@@ -85,6 +85,17 @@ export default function ProfileScreen({ navigation }) {
   return (
     <SafeAreaView style={[s.safe, { backgroundColor: era.bg }]}>
       <ScrollView contentContainerStyle={s.content}>
+
+        {analysisSaveFailed && (
+          <View style={s.saveWarnBanner}>
+            <Text style={s.saveWarnText}>
+              We couldn't save this assessment — it may not appear next time you open the app.
+            </Text>
+            <Pressable onPress={() => setAnalysisSaveFailed(false)} hitSlop={8}>
+              <Text style={s.saveWarnDismiss}>✕</Text>
+            </Pressable>
+          </View>
+        )}
 
         {/* Era hero */}
         <View style={s.eraHero}>
@@ -394,6 +405,9 @@ function ProductSkeleton() {
 const s = StyleSheet.create({
   safe:      { flex: 1 },
   content:   { padding: 24, paddingTop: 28 },
+  saveWarnBanner: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#FBEEE9', borderWidth: 1, borderColor: '#E4B7A6', borderRadius: 12, paddingVertical: 10, paddingHorizontal: 14, marginBottom: 18 },
+  saveWarnText:   { flex: 1, fontFamily: 'DMSans_400Regular', fontSize: 12, color: '#9A5B44', lineHeight: 17 },
+  saveWarnDismiss:{ fontFamily: 'DMSans_500Medium', fontSize: 13, color: '#9A5B44' },
 
   eraHero:   { alignItems: 'center', marginBottom: 22 },
   eraEmoji:  { fontSize: 54, marginBottom: 14 },

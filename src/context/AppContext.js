@@ -12,6 +12,9 @@ export function AppProvider({ children }) {
   const [answers,       setAnswers]       = useState(null);
   const [user,          setUser]          = useState(null);
   const [authReady,     setAuthReady]     = useState(false);
+  // Set when persisting the assessment failed after retries — ProfileScreen shows a
+  // non-blocking banner so the user knows the result may not be there next time.
+  const [analysisSaveFailed, setAnalysisSaveFailed] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -41,6 +44,7 @@ export function AppProvider({ children }) {
     setSrProducts(null);
     setShelfAnalysis(null);
     setAnswers(null);
+    setAnalysisSaveFailed(false);
   }
 
   return (
@@ -51,6 +55,7 @@ export function AppProvider({ children }) {
       answers,       setAnswers,
       user,          setUser,
       authReady,
+      analysisSaveFailed, setAnalysisSaveFailed,
       logout,
     }}>
       {children}
