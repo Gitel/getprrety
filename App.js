@@ -28,9 +28,9 @@ import ProductCameraScreen from './src/screens/ProductCameraScreen';
 enableScreens();
 const Stack = createNativeStackNavigator();
 
-// When the app is opened via getpretty.app?ref=lu_clinic (or ?ref=website), start on the
-// Welcome screen; otherwise fall through to the normal QuizIntro entry. Web-only — always
-// null on native.
+// When the app is opened via getpretty.app?ref=lu_clinic (or ?ref=website), the Splash
+// gate routes on to the Welcome screen instead of QuizIntro. Web-only — always null on
+// native. Kept here for the initialParams below; the routing decision lives in SplashScreen.
 const welcomeRef = getWelcomeRef();
 
 class ErrorBoundary extends React.Component {
@@ -71,7 +71,7 @@ export default function App() {
       <SafeAreaProvider>
         <AppProvider>
           <NavigationContainer theme={{ ...DefaultTheme, colors: { ...DefaultTheme.colors, background: '#FAF8F5' } }}>
-            <Stack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right' }} initialRouteName={welcomeRef ? 'Welcome' : 'QuizIntro'}>
+            <Stack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right' }} initialRouteName="Splash">
               <Stack.Screen name="Welcome" component={WelcomeScreen} initialParams={{ ref: welcomeRef }} />
               <Stack.Screen name="Splash" component={SplashScreen} />
               <Stack.Screen name="Login" component={LoginScreen} />
