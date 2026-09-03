@@ -4,6 +4,9 @@ const jwt     = require('jsonwebtoken');
 const { OAuth2Client } = require('google-auth-library');
 const User    = require('../models/User');
 const requireAuth = require('../middleware/auth');
+const { allowAuthAttempt } = require('../services/authRateLimit');
+
+const TOO_MANY = { error: 'Too many attempts. Please wait a few minutes and try again.' };
 
 const googleClient = new OAuth2Client();
 
@@ -22,6 +25,7 @@ function toPublicUser(user) {
 // POST /api/auth/signup
 router.post('/signup', async (req, res) => {
   try {
+    if (!await allowAuthAttempt(req, 'signup')) return res.status(429).json(TOO_MANY);
     const { email, password, firstName, consentAcceptedAt, consentVersion } = req.body;
     if (typeof email !== 'string' || typeof password !== 'string' || !email.trim() || !password)
       return res.status(400).json({ error: 'Email and password are required' });
@@ -64,6 +68,7 @@ router.post('/signup', async (req, res) => {
 // account — "Sign in with Google" is one button for both cases, never a hard block.
 router.post('/google', async (req, res) => {
   try {
+    if (!await allowAuthAttempt(req, 'google')) return res.status(429).json(TOO_MANY);
     const { idToken } = req.body;
     if (typeof idToken !== 'string' || !idToken)
       return res.status(400).json({ error: 'idToken is required' });
@@ -109,6 +114,7 @@ router.post('/google', async (req, res) => {
 // POST /api/auth/login
 router.post('/login', async (req, res) => {
   try {
+    if (!await allowAuthAttempt(req, 'login')) return res.status(429).json(TOO_MANY);
     const { email, password } = req.body;
     if (typeof email !== 'string' || typeof password !== 'string' || !email.trim() || !password)
       return res.status(400).json({ error: 'Email and password are required' });
