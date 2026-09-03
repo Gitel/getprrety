@@ -6,9 +6,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { api } from '../lib/api';
 import { storeToken } from '../lib/auth';
-import { uploadAll } from '../lib/uploadImage';
-import { claimScan } from '../lib/skinScan';
-import { sanitizeQuizAnswers } from '../lib/sanitizeQuizAnswers';
+import { persistAnalysis } from '../lib/persistAnalysis';
 import { logActivity } from '../lib/logActivity';
 import { C } from '../constants';
 import { useApp } from '../context/AppContext';
@@ -16,40 +14,6 @@ import GoogleSignInButton from '../components/GoogleSignInButton';
 
 function isValidEmail(v) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
-}
-
-async function saveQuizData(analysis, answers) {
-  if (!analysis) return;
-  // NOTE: these keys used to be photo_right/photo_left/photo_front, which the quiz stopped writing
-  // when it was rebuilt to capture front/left/right/closeup/neck — that mismatch meant quizPhotoIds
-  // was always empty. Fixed here to the current keys (src/screens/QuizScreen.jsx PHOTO_ANGLES).
-  const photoUris = [
-    answers?.front,
-    answers?.left,
-    answers?.right,
-    answers?.closeup,
-    answers?.neck,
-    ...(answers?.shelf_photos || []),
-  ].filter(Boolean);
-
-  const scanClaimed = answers?.skinScanId && answers?.skinScanToken
-    ? await claimScan(answers.skinScanId, answers.skinScanToken)
-    : false;
-
-  const quizPhotoIds = await uploadAll(photoUris);
-
-  await api.post('/api/analysis', {
-    eraId:        analysis.era?.id,
-    era:          analysis.era,
-    skinAnalysis: analysis.skinAnalysis,
-    keyInsights:  analysis.keyInsights,
-    productAudit: analysis.productAudit,
-    routine:      analysis.routine,
-    affirmation:  analysis.affirmation,
-    quizAnswers:  sanitizeQuizAnswers(answers),
-    quizPhotoIds,
-    skinScanId:   scanClaimed ? answers.skinScanId : null,
-  });
 }
 
 export default function SignUpScreen({ navigation }) {
@@ -90,7 +54,7 @@ export default function SignUpScreen({ navigation }) {
       setUser(u);
 
       logActivity('signup');
-      saveQuizData(analysis, answers).catch(() => {});
+      persistAnalysis({ analysis, answers }).catch(() => {});
 
       navigation.navigate('SkinTiming');
     } catch (err) {
@@ -109,7 +73,7 @@ export default function SignUpScreen({ navigation }) {
       setUser(u);
 
       logActivity('signup');
-      saveQuizData(analysis, answers).catch(() => {});
+      persistAnalysis({ analysis, answers }).catch(() => {});
 
       navigation.navigate('SkinTiming');
     } catch (err) {
