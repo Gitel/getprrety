@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View, Text, Pressable, TextInput, ScrollView,
   StyleSheet, Animated, Alert,
@@ -248,8 +248,26 @@ export default function QuizScreen({ navigation, route }) {
     goTo(advance(idx, a));
   }
 
+  // Values that can't coexist with any other answer in the same question — "None",
+  // "Prefer not to answer", "Nothing I've noticed", etc. Picking one clears the rest;
+  // picking anything else clears these. Stops contradictions like "None" + diabetes
+  // from reaching the analysis engine.
+  const exclusiveValues = useMemo(() => {
+    if (q.type !== 'multi') return new Set();
+    const all = [
+      ...(q.options || []),
+      ...((q.groups || []).flatMap(g => g.options || [])),
+      ...(q.extraOptions || []),
+    ];
+    return new Set(all.filter(o => o.exclusive).map(o => o.value));
+  }, [q]);
+
   const toggleMulti = v =>
-    setMulti(p => p.includes(v) ? p.filter(x => x !== v) : [...p, v]);
+    setMulti(p => {
+      if (p.includes(v)) return p.filter(x => x !== v);
+      if (exclusiveValues.has(v)) return [v];
+      return [...p.filter(x => !exclusiveValues.has(x)), v];
+    });
 
   // Build a data URL so photos travel as base64 to the API (native uri alone
   // is a file:// path the backend can't read).

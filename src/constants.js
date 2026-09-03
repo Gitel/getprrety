@@ -174,7 +174,7 @@ export const QUESTIONS = [
       {value:'cold',label:'Cold weather'},{value:'hot_water',label:'Hot water'},{value:'fragrance',label:'Fragrance'},
       {value:'essential_oils',label:'Essential oils'},{value:'acids',label:'Exfoliating acids'},{value:'retinoids',label:'Retinoids'},
       {value:'stress',label:'Stress'},{value:'lack_of_sleep',label:'Lack of sleep'},{value:'hormonal',label:'Hormonal changes'},
-      {value:'hard_water',label:'Hard water'},{value:'nothing',label:"Nothing I've noticed"},{value:'other',label:'Other',freeText:true},
+      {value:'hard_water',label:'Hard water'},{value:'nothing',label:"Nothing I've noticed",exclusive:true},{value:'other',label:'Other',freeText:true},
     ] },
 
   { id:'skin_goals', type:'multi', emoji:'🔍', chapter:'Your Skin',
@@ -210,7 +210,7 @@ export const QUESTIONS = [
       {value:'acne',label:'Acne'},{value:'rosacea',label:'Rosacea'},{value:'melasma',label:'Melasma'},
       {value:'eczema',label:'Eczema'},{value:'psoriasis',label:'Psoriasis'},
       {value:'seborrheic_dermatitis',label:'Seborrheic dermatitis'},{value:'hyperpigmentation',label:'Hyperpigmentation'},
-      {value:'none',label:'None'},{value:'not_sure',label:'Not sure',icon:'🤔'},{value:'other',label:'Other',freeText:true},
+      {value:'none',label:'None',exclusive:true},{value:'not_sure',label:'Not sure',icon:'🤔',exclusive:true},{value:'other',label:'Other',freeText:true},
     ] },
 
   { id:'health_conditions', type:'multi', emoji:'🩺', chapter:'Health Picture',
@@ -220,7 +220,7 @@ export const QUESTIONS = [
     options:[
       {value:'pcos',label:'PCOS'},{value:'diabetes',label:'Diabetes'},{value:'thyroid',label:'Thyroid disorder'},
       {value:'digestive',label:'Digestive disorder'},{value:'autoimmune',label:'Autoimmune condition'},
-      {value:'none',label:'None'},{value:'prefer_not_to_answer',label:'Prefer not to answer'},
+      {value:'none',label:'None',exclusive:true},{value:'prefer_not_to_answer',label:'Prefer not to answer',exclusive:true},
     ] },
 
   { id:'allergies', type:'multi', emoji:'⚠️', chapter:'Health Picture',
@@ -236,7 +236,7 @@ export const QUESTIONS = [
         {value:'sulfates',label:'Sulfates'},{value:'lanolin',label:'Lanolin'},
         {value:'sunscreen',label:'Sunscreens'},{value:'cosmetics',label:'Cosmetics'} ]},
     ],
-    extraOptions:[{value:'other',label:'Other',freeText:true},{value:'none',label:'No known allergies or sensitivities'}] },
+    extraOptions:[{value:'other',label:'Other',freeText:true},{value:'none',label:'No known allergies or sensitivities',exclusive:true}] },
 
   { id:'hormones', type:'hormones', emoji:'🤍', chapter:'Health Picture',
     question:(name)=>`${name}, a few hormone questions — this is where skincare gets truly personal.`,
@@ -314,7 +314,7 @@ export const QUESTIONS = [
       {value:'cleanser',label:'Cleanser'},{value:'toner',label:'Toner'},{value:'serum',label:'Serum'},
       {value:'moisturizer',label:'Moisturizer'},{value:'eye_cream',label:'Eye cream'},{value:'sunscreen',label:'Sunscreen'},
       {value:'retinol',label:'Retinol'},{value:'exfoliant',label:'Exfoliant'},{value:'face_oil',label:'Face oil'},
-      {value:'mask',label:'Mask'},{value:'none',label:'None'},
+      {value:'mask',label:'Mask'},{value:'none',label:'None',exclusive:true},
     ] },
 
   { id:'event', type:'event', emoji:'🗓️', chapter:'Your Routine',
