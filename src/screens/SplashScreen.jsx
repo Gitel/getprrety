@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { C } from '../constants';
 import { useApp } from '../context/AppContext';
@@ -16,6 +16,10 @@ const SPLASH_MAX_MS = 10000;
 export default function SplashScreen({ navigation }) {
   const { authReady, user, analysis } = useApp();
   const [gaveUp, setGaveUp] = useState(false);
+  // The redirect effect can fire twice — once when authReady flips, once if the
+  // gaveUp timer wins the race against unmount — and navigation.replace is not
+  // itself idempotent against being called twice in a row.
+  const navigated = useRef(false);
 
   useEffect(() => {
     const timer = setTimeout(() => setGaveUp(true), SPLASH_MAX_MS);
@@ -24,10 +28,16 @@ export default function SplashScreen({ navigation }) {
 
   useEffect(() => {
     if (!authReady && !gaveUp) return;
+    if (navigated.current) return;
     if (user) {
-      navigation.replace(analysis ? 'Home' : 'QuizIntro');
+      navigated.current = true;
+      // A returning client can still arrive on a clinic link, and WelcomeScreen is the
+      // only place referralSource is captured — skipping it writes the retake with no
+      // attribution at all. Someone who already has a result still goes straight Home.
+      navigation.replace(analysis ? 'Home' : (getWelcomeRef() ? 'Welcome' : 'QuizIntro'));
       return;
     }
+    navigated.current = true;
     navigation.replace(getWelcomeRef() ? 'Welcome' : 'QuizIntro');
   }, [authReady, gaveUp, user, analysis]);
 
