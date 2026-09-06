@@ -27,13 +27,18 @@ export function AppProvider({ children }) {
       if (token) {
         try {
           const { user: u } = await api.get('/api/auth/me', { timeoutMs: BOOTSTRAP_TIMEOUT_MS });
-          // Rehydrate the latest saved analysis so a page refresh doesn't blank the app
-          try {
-            const { analysis: saved } = await api.get('/api/analysis/latest', { timeoutMs: BOOTSTRAP_TIMEOUT_MS });
-            if (saved) setAnalysis(saved);
-          } catch { /* no saved analysis yet — fine */ }
+          // Set the user the moment we know who they are. The analysis rehydrate below is a
+          // nice-to-have that must not extend the cold-start critical path — two sequential
+          // 8s ceilings could otherwise outlast SplashScreen's own 10s escape hatch and
+          // bounce a signed-in user into onboarding.
           setUser(u);
           logActivity('app_open');
+
+          // Rehydrate the latest saved analysis so a page refresh doesn't blank the app.
+          // Detached on purpose: authReady must not wait on it.
+          api.get('/api/analysis/latest', { timeoutMs: BOOTSTRAP_TIMEOUT_MS })
+            .then(({ analysis: saved }) => { if (saved) setAnalysis(saved); })
+            .catch(() => { /* no saved analysis yet — fine */ });
         } catch (err) {
           // Only a rejected or orphaned token means "signed out". A timeout or a dead
           // network must not silently log the user out — they keep the token and
