@@ -4,7 +4,7 @@ const jwt     = require('jsonwebtoken');
 const { OAuth2Client } = require('google-auth-library');
 const User    = require('../models/User');
 const requireAuth = require('../middleware/auth');
-const { allowAuthAttempt } = require('../services/authRateLimit');
+const { allowAuthAttempt, releaseAuthAttempt } = require('../services/authRateLimit');
 
 const TOO_MANY = { error: 'Too many attempts. Please wait a few minutes and try again.' };
 
@@ -20,6 +20,12 @@ function signToken(user) {
 
 function toPublicUser(user) {
   return { id: user._id, firstName: user.firstName, email: user.email, termsAcceptedAt: user.termsAcceptedAt, consentVersion: user.consentVersion };
+}
+
+// Fire-and-forget: a refund that fails must never turn a successful signup into a
+// 500. Awaiting it inside the route's try block would do exactly that.
+function releaseQuietly(req, kind) {
+  releaseAuthAttempt(req, kind).catch(err => console.error(`Auth rate-limit refund failed (${kind}):`, err));
 }
 
 // POST /api/auth/signup
@@ -55,6 +61,7 @@ router.post('/signup', async (req, res) => {
       consentVersion: activeConsentVersion,
       ...(typeof firstName === 'string' && firstName.trim() ? { firstName: firstName.trim().slice(0, 100) } : {}),
     });
+    releaseQuietly(req, 'signup');
     res.status(201).json({ token: signToken(user), user: toPublicUser(user) });
   } catch (err) {
     if (err.code === 11000) return res.status(409).json({ error: 'Email already registered' });
@@ -104,6 +111,7 @@ router.post('/google', async (req, res) => {
       });
     }
 
+    releaseQuietly(req, 'google');
     res.json({ token: signToken(user), user: toPublicUser(user) });
   } catch (err) {
     if (err.code === 11000) return res.status(409).json({ error: 'Email already registered' });
@@ -124,6 +132,7 @@ router.post('/login', async (req, res) => {
     const match = await bcrypt.compare(password, user.passwordHash);
     if (!match) return res.status(401).json({ error: 'Invalid email or password' });
 
+    releaseQuietly(req, 'login');
     res.json({ token: signToken(user), user: toPublicUser(user) });
   } catch (err) {
     res.status(500).json({ error: 'Unable to log in' });

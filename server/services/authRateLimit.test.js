@@ -1,7 +1,7 @@
 jest.mock('./rateLimit');
 
 const { consumeRateLimit } = require('./rateLimit');
-const { allowAuthAttempt } = require('./authRateLimit');
+const { allowAuthAttempt, releaseAuthAttempt } = require('./authRateLimit');
 
 const OLD_ENV = process.env;
 
@@ -66,4 +66,31 @@ test('throws when JWT_SECRET is missing', async () => {
 
 test('rejects an unknown kind', async () => {
   await expect(allowAuthAttempt(req(), 'nope')).rejects.toThrow('Unknown auth rate-limit kind');
+});
+
+test('releasing a successful attempt refunds the unit it consumed', async () => {
+  const { refundRateLimit } = require('./rateLimit');
+  await releaseAuthAttempt(req('203.0.113.7'), 'signup');
+
+  expect(refundRateLimit).toHaveBeenCalledTimes(1);
+  const [scope, key, windowMs] = refundRateLimit.mock.calls[0];
+  expect(scope).toBe('auth_signup');
+  expect(windowMs).toBe(60 * 60 * 1000);
+  expect(key).toMatch(/^[a-f0-9]{64}$/);
+});
+
+test('the refund lands on the same bucket the attempt consumed', async () => {
+  const { consumeRateLimit, refundRateLimit } = require('./rateLimit');
+  consumeRateLimit.mockResolvedValue(true);
+
+  await allowAuthAttempt(req('198.51.100.9'), 'login');
+  await releaseAuthAttempt(req('198.51.100.9'), 'login');
+
+  expect(refundRateLimit.mock.calls[0][0]).toBe(consumeRateLimit.mock.calls[0][0]);
+  expect(refundRateLimit.mock.calls[0][1]).toBe(consumeRateLimit.mock.calls[0][1]);
+  expect(refundRateLimit.mock.calls[0][2]).toBe(consumeRateLimit.mock.calls[0][3]);
+});
+
+test('releasing an unknown kind throws', async () => {
+  await expect(releaseAuthAttempt(req(), 'nope')).rejects.toThrow('Unknown auth rate-limit kind');
 });
