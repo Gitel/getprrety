@@ -1,7 +1,7 @@
 import React from 'react';
 import { Text, StyleSheet } from 'react-native';
 import { C } from '../constants';
-import { TERMS_URL, PRIVACY_URL, LEGAL_READY, openLegal } from '../lib/consent';
+import { TERMS_URL, PRIVACY_URL, LEGAL_READY, missingLegalConfig, openLegal } from '../lib/consent';
 
 // Binding consent copy shown above the entry CTA on QuizIntroScreen and WelcomeScreen.
 // Tapping the CTA is the act of acceptance; this text makes that explicit and links
@@ -9,9 +9,12 @@ import { TERMS_URL, PRIVACY_URL, LEGAL_READY, openLegal } from '../lib/consent';
 // we say so instead.
 export default function ConsentNotice({ style }) {
   if (!LEGAL_READY) {
+    // Name the pieces that are actually unset. The old copy blamed the two policy
+    // links even when the real problem was EXPO_PUBLIC_CONSENT_VERSION, sending
+    // whoever debugs a dead CTA to check the wrong secrets.
     return (
       <Text style={[s.error, style]}>
-        Terms and Privacy links are not configured. Onboarding is disabled.
+        Onboarding is disabled — not configured: {missingLegalConfig().join(', ')}.
       </Text>
     );
   }

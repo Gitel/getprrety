@@ -10,10 +10,19 @@ export const CONSENT_VERSION = process.env.EXPO_PUBLIC_CONSENT_VERSION;
 // Onboarding may only stamp a consent record when the legal links and the active
 // policy version are actually configured — otherwise the server rejects signup and
 // the stamp would be meaningless.
-export const LEGAL_READY =
-  /^https:\/\//i.test(TERMS_URL || '') &&
-  /^https:\/\//i.test(PRIVACY_URL || '') &&
-  Boolean(CONSENT_VERSION);
+//
+// Returned as a list rather than a boolean so the disabled-onboarding message can
+// name what is actually unset. LEGAL_READY is derived from it, so the gate and the
+// explanation can never disagree.
+export function missingLegalConfig() {
+  const missing = [];
+  if (!/^https:\/\//i.test(TERMS_URL || '')) missing.push('Terms link');
+  if (!/^https:\/\//i.test(PRIVACY_URL || '')) missing.push('Privacy link');
+  if (!CONSENT_VERSION) missing.push('consent version');
+  return missing;
+}
+
+export const LEGAL_READY = missingLegalConfig().length === 0;
 
 export function openLegal(url) {
   if (!url) {
