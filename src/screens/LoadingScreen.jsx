@@ -39,18 +39,22 @@ export default function LoadingScreen({ navigation }) {
     const apiRef    = { done: false, result: null, srProducts: null, shelfAnalysis: null };
     let finishing = false;
 
-    async function finish(skinScan) {
+    function finish(skinScan) {
       if (finishing) return;
       finishing = true;
       const { result, srProducts, shelfAnalysis } = apiRef;
       if (user) {
-        try {
-          await persistAnalysis({ analysis: result, answers });
-        } catch (err) {
-          console.error('Failed to save analysis after retries:', err?.message || err);
-          logActivity('analysis_save_failed');
-          setAnalysisSaveFailed(true);
-        }
+        // Fire-and-forget, matching the post-signup path in SignUpScreen. The Era
+        // reveal must not wait on six photo uploads plus three POST attempts; the
+        // outcome reaches the user either way, through the ProfileScreen banner.
+        persistAnalysis({ analysis: result, answers }).then(
+          () => setAnalysisSaveFailed(false),
+          err => {
+            console.error('Failed to save analysis after retries:', err?.message || err);
+            logActivity('analysis_save_failed');
+            setAnalysisSaveFailed(true);
+          },
+        );
       }
       setComplete(true);
       setTimeout(() => {

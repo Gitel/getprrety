@@ -54,10 +54,13 @@ export default function SignUpScreen({ navigation }) {
       setUser(u);
 
       logActivity('signup');
-      persistAnalysis({ analysis, answers }).catch(err => {
-        console.error('Failed to save analysis after retries:', err?.message || err);
-        setAnalysisSaveFailed(true);
-      });
+      persistAnalysis({ analysis, answers }).then(
+        () => setAnalysisSaveFailed(false),
+        err => {
+          console.error('Failed to save analysis after retries:', err?.message || err);
+          setAnalysisSaveFailed(true);
+        },
+      );
 
       navigation.navigate('SkinTiming');
     } catch (err) {
@@ -76,10 +79,13 @@ export default function SignUpScreen({ navigation }) {
       setUser(u);
 
       logActivity('signup');
-      persistAnalysis({ analysis, answers }).catch(err => {
-        console.error('Failed to save analysis after retries:', err?.message || err);
-        setAnalysisSaveFailed(true);
-      });
+      persistAnalysis({ analysis, answers }).then(
+        () => setAnalysisSaveFailed(false),
+        err => {
+          console.error('Failed to save analysis after retries:', err?.message || err);
+          setAnalysisSaveFailed(true);
+        },
+      );
 
       navigation.navigate('SkinTiming');
     } catch (err) {
