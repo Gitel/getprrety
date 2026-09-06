@@ -35,7 +35,12 @@ export async function persistAnalysis({ analysis, answers }) {
   // the same key. Without it a lost response after a successful write produced a
   // second analysis record and a second clinic email; the server collapses same-key
   // writes into the original document.
-  const clientRequestId = Crypto.randomUUID();
+  //
+  // Degrades to the previous non-idempotent behavior rather than failing the save
+  // outright: randomUUID is secure-context-only on web, so a plain-http staging or
+  // LAN host has no crypto.randomUUID at all. The server treats null as "older
+  // client" and falls back to a plain create.
+  const clientRequestId = typeof Crypto.randomUUID === 'function' ? Crypto.randomUUID() : null;
 
   // Retry a few times before giving up — a transient upload/API blip used to be
   // swallowed and the assessment silently lost. Callers treat a thrown error here
