@@ -58,6 +58,9 @@ export default function SignUpScreen({ navigation }) {
         () => setAnalysisSaveFailed(false),
         err => {
           console.error('Failed to save analysis after retries:', err?.message || err);
+          // The anonymous funnel saves here, not in LoadingScreen (user is null there),
+          // so this is where most of the telemetry for a lost assessment must be recorded.
+          logActivity('analysis_save_failed');
           setAnalysisSaveFailed(true);
         },
       );
@@ -83,6 +86,9 @@ export default function SignUpScreen({ navigation }) {
         () => setAnalysisSaveFailed(false),
         err => {
           console.error('Failed to save analysis after retries:', err?.message || err);
+          // The anonymous funnel saves here, not in LoadingScreen (user is null there),
+          // so this is where most of the telemetry for a lost assessment must be recorded.
+          logActivity('analysis_save_failed');
           setAnalysisSaveFailed(true);
         },
       );
