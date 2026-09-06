@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View, Text, Pressable, TextInput, ScrollView,
   StyleSheet, Animated, Image,
@@ -234,8 +234,54 @@ export default function QuizScreen({ navigation, route }) {
     goTo(advance(idx, a));
   }
 
-  const toggleMulti = v =>
-    setMulti(p => p.includes(v) ? p.filter(x => x !== v) : [...p, v]);
+  // Every option this question can show, flattened — plain options, grouped options,
+  // and the extras rendered below a group.
+  const allOptions = useMemo(() => {
+    if (q.type !== 'multi') return [];
+    return [
+      ...(q.options || []),
+      ...((q.groups || []).flatMap(g => g.options || [])),
+      ...(q.extraOptions || []),
+    ];
+  }, [q]);
+
+  // Values that can't coexist with any other answer in the same question — "None",
+  // "Prefer not to answer", "Nothing I've noticed", etc. Picking one clears the rest;
+  // picking anything else clears these. Stops contradictions like "None" + diabetes
+  // from reaching the analysis engine.
+  const exclusiveValues = useMemo(
+    () => new Set(allOptions.filter(o => o.exclusive).map(o => o.value)),
+    [allOptions],
+  );
+
+  // Options that reveal a free-text box. What the user typed lives under
+  // `${q.id}_other`, outside the chip array — so clearing the chips is not enough.
+  // Without this, picking "None" still shipped diagnosed_conditions: ['none']
+  // alongside diagnosed_conditions_other: 'eczema on hands'.
+  const freeTextValues = useMemo(
+    () => new Set(allOptions.filter(o => o.freeText).map(o => o.value)),
+    [allOptions],
+  );
+
+  function toggleMulti(v) {
+    const next = multi.includes(v)
+      ? multi.filter(x => x !== v)
+      : exclusiveValues.has(v)
+        ? [v]
+        : [...multi.filter(x => !exclusiveValues.has(x)), v];
+
+    const droppedFreeText = [...freeTextValues].some(fv => multi.includes(fv) && !next.includes(fv));
+    if (droppedFreeText) {
+      setAns(a => {
+        const key = `${q.id}_other`;
+        if (!(key in a)) return a;
+        const rest = { ...a };
+        delete rest[key];
+        return rest;
+      });
+    }
+    setMulti(next);
+  }
 
   // Synchronous click — must NOT be async, user gesture scope must be intact
   function pickPhoto(key) { photoInputRefs[key].current.click(); }

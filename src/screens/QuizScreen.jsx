@@ -248,26 +248,54 @@ export default function QuizScreen({ navigation, route }) {
     goTo(advance(idx, a));
   }
 
-  // Values that can't coexist with any other answer in the same question — "None",
-  // "Prefer not to answer", "Nothing I've noticed", etc. Picking one clears the rest;
-  // picking anything else clears these. Stops contradictions like "None" + diabetes
-  // from reaching the analysis engine.
-  const exclusiveValues = useMemo(() => {
-    if (q.type !== 'multi') return new Set();
-    const all = [
+  // Every option this question can show, flattened — plain options, grouped options,
+  // and the extras rendered below a group.
+  const allOptions = useMemo(() => {
+    if (q.type !== 'multi') return [];
+    return [
       ...(q.options || []),
       ...((q.groups || []).flatMap(g => g.options || [])),
       ...(q.extraOptions || []),
     ];
-    return new Set(all.filter(o => o.exclusive).map(o => o.value));
   }, [q]);
 
-  const toggleMulti = v =>
-    setMulti(p => {
-      if (p.includes(v)) return p.filter(x => x !== v);
-      if (exclusiveValues.has(v)) return [v];
-      return [...p.filter(x => !exclusiveValues.has(x)), v];
-    });
+  // Values that can't coexist with any other answer in the same question — "None",
+  // "Prefer not to answer", "Nothing I've noticed", etc. Picking one clears the rest;
+  // picking anything else clears these. Stops contradictions like "None" + diabetes
+  // from reaching the analysis engine.
+  const exclusiveValues = useMemo(
+    () => new Set(allOptions.filter(o => o.exclusive).map(o => o.value)),
+    [allOptions],
+  );
+
+  // Options that reveal a free-text box. What the user typed lives under
+  // `${q.id}_other`, outside the chip array — so clearing the chips is not enough.
+  // Without this, picking "None" still shipped diagnosed_conditions: ['none']
+  // alongside diagnosed_conditions_other: 'eczema on hands'.
+  const freeTextValues = useMemo(
+    () => new Set(allOptions.filter(o => o.freeText).map(o => o.value)),
+    [allOptions],
+  );
+
+  function toggleMulti(v) {
+    const next = multi.includes(v)
+      ? multi.filter(x => x !== v)
+      : exclusiveValues.has(v)
+        ? [v]
+        : [...multi.filter(x => !exclusiveValues.has(x)), v];
+
+    const droppedFreeText = [...freeTextValues].some(fv => multi.includes(fv) && !next.includes(fv));
+    if (droppedFreeText) {
+      setAns(a => {
+        const key = `${q.id}_other`;
+        if (!(key in a)) return a;
+        const rest = { ...a };
+        delete rest[key];
+        return rest;
+      });
+    }
+    setMulti(next);
+  }
 
   // Build a data URL so photos travel as base64 to the API (native uri alone
   // is a file:// path the backend can't read).
