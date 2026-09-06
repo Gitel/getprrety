@@ -4,6 +4,7 @@ const jwt     = require('jsonwebtoken');
 const { OAuth2Client } = require('google-auth-library');
 const User    = require('../models/User');
 const requireAuth = require('../middleware/auth');
+const { isDuplicateEmail } = require('../services/duplicateKey');
 
 const googleClient = new OAuth2Client();
 
@@ -53,7 +54,11 @@ router.post('/signup', async (req, res) => {
     });
     res.status(201).json({ token: signToken(user), user: toPublicUser(user) });
   } catch (err) {
-    if (err.code === 11000) return res.status(409).json({ error: 'Email already registered' });
+    if (isDuplicateEmail(err)) return res.status(409).json({ error: 'Email already registered' });
+    // A duplicate on some other unique index is our problem, not the caller's email.
+    // Telling them an unused address is taken is what hid a googleId_1 collision for
+    // as long as it did, so log which index it actually was.
+    if (err.code === 11000) console.error('Signup duplicate key on a non-email index:', err.keyPattern || err.message);
     res.status(500).json({ error: 'Unable to create account' });
   }
 });
@@ -101,7 +106,8 @@ router.post('/google', async (req, res) => {
 
     res.json({ token: signToken(user), user: toPublicUser(user) });
   } catch (err) {
-    if (err.code === 11000) return res.status(409).json({ error: 'Email already registered' });
+    if (isDuplicateEmail(err)) return res.status(409).json({ error: 'Email already registered' });
+    if (err.code === 11000) console.error('Google sign-in duplicate key on a non-email index:', err.keyPattern || err.message);
     res.status(500).json({ error: 'Unable to sign in with Google' });
   }
 });
