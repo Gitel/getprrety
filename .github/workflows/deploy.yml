@@ -22,6 +22,36 @@ jobs:
       - name: Install dependencies
         run: npm ci --legacy-peer-deps
 
+      # An unset secret expands to an empty string rather than failing, which turns
+      # LEGAL_READY false and ships a build whose onboarding CTA is dead for every
+      # visitor — with a green checkmark. The first signal today is users who can't
+      # start the quiz. Fail here instead, before anything is built or uploaded.
+      - name: Verify web build secrets
+        env:
+          EXPO_PUBLIC_API_URL: ${{ secrets.EXPO_PUBLIC_API_URL }}
+          EXPO_PUBLIC_CONSENT_VERSION: ${{ secrets.EXPO_PUBLIC_CONSENT_VERSION }}
+          EXPO_PUBLIC_TERMS_URL: ${{ secrets.EXPO_PUBLIC_TERMS_URL }}
+          EXPO_PUBLIC_PRIVACY_URL: ${{ secrets.EXPO_PUBLIC_PRIVACY_URL }}
+        run: |
+          set -euo pipefail
+          missing=()
+          for var in EXPO_PUBLIC_API_URL EXPO_PUBLIC_CONSENT_VERSION EXPO_PUBLIC_TERMS_URL EXPO_PUBLIC_PRIVACY_URL; do
+            [ -n "${!var}" ] || missing+=("$var")
+          done
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "::error::Missing repository secrets: ${missing[*]}"
+            exit 1
+          fi
+          # LEGAL_READY (src/lib/consent.js) requires https:// specifically, not just
+          # a non-empty value.
+          for var in EXPO_PUBLIC_TERMS_URL EXPO_PUBLIC_PRIVACY_URL; do
+            case "${!var}" in
+              https://*) ;;
+              *) echo "::error::$var must start with https:// — LEGAL_READY rejects anything else"; exit 1 ;;
+            esac
+          done
+          echo "All web build secrets present."
+
       - name: Build Expo web
         env:
           EXPO_PUBLIC_API_URL: ${{ secrets.EXPO_PUBLIC_API_URL }}
