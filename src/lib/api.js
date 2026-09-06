@@ -13,8 +13,14 @@ async function request(method, path, body) {
     body: body != null ? JSON.stringify(body) : undefined,
   });
 
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    // Carry the status on the error: withRetry needs it to tell a transient 5xx
+    // from a 400 that will be rejected identically on every attempt.
+    const err = new Error(data.error || `HTTP ${res.status}`);
+    err.status = res.status;
+    throw err;
+  }
   return data;
 }
 

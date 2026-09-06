@@ -28,8 +28,12 @@ export async function uploadImage(uri) {
     body:    formData,
   });
 
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || `Upload failed: HTTP ${res.status}`);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(data.error || `Upload failed: HTTP ${res.status}`);
+    err.status = res.status;
+    throw err;
+  }
   return data.uploadId;
 }
 
