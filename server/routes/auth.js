@@ -61,7 +61,11 @@ router.post('/signup', async (req, res) => {
       consentVersion: activeConsentVersion,
       ...(typeof firstName === 'string' && firstName.trim() ? { firstName: firstName.trim().slice(0, 100) } : {}),
     });
-    releaseQuietly(req, 'signup');
+    // Unlike login and google, a completed signup is not gated on proving a credential —
+    // any script can mint a new email and succeed every time. Refunding here would make
+    // the auth_signup bucket accumulate only failures, turning a shared-IP hourly cap
+    // into unbounded account creation and unbounded bcrypt-cost-12 work. The hourly limit
+    // (raised to 30) absorbs the clinic shared-IP case on its own instead.
     res.status(201).json({ token: signToken(user), user: toPublicUser(user) });
   } catch (err) {
     if (err.code === 11000) return res.status(409).json({ error: 'Email already registered' });
