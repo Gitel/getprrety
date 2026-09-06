@@ -16,6 +16,9 @@ router.post('/', requireAuth, async (req, res) => {
     });
     res.status(201).json({ log: doc });
   } catch (err) {
+    // A rejected enum value is the client's problem, not the server's. Reporting it
+    // as 500 is what let an unknown event go unnoticed in the first place.
+    if (err.name === 'ValidationError') return res.status(400).json({ error: 'Unknown activity event' });
     res.status(500).json({ error: 'Unable to save activity' });
   }
 });
