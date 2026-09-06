@@ -1,3 +1,4 @@
+import * as Crypto from 'expo-crypto';
 import { api } from './api';
 import { uploadAll } from './uploadImage';
 import { claimScan } from './skinScan';
@@ -30,9 +31,15 @@ export async function persistAnalysis({ analysis, answers }) {
 
   const quizPhotoIds = await uploadAll(quizPhotoUris(answers));
 
+  // One id for the whole save, generated outside withRetry so every attempt carries
+  // the same key. Without it a lost response after a successful write produced a
+  // second analysis record and a second clinic email; the server collapses same-key
+  // writes into the original document.
+  const clientRequestId = Crypto.randomUUID();
+
   // Retry a few times before giving up — a transient upload/API blip used to be
   // swallowed and the assessment silently lost. Callers treat a thrown error here
-  // as "saved failed" and warn the user rather than pretending it worked.
+  // as "save failed" and warn the user rather than pretending it worked.
   await withRetry(() => api.post('/api/analysis', {
     eraId:        analysis.era?.id ?? analysis.eraId,
     era:          analysis.era,
@@ -44,5 +51,6 @@ export async function persistAnalysis({ analysis, answers }) {
     quizAnswers:  sanitizeQuizAnswers(answers),
     quizPhotoIds,
     skinScanId:   scanClaimed ? answers.skinScanId : null,
+    clientRequestId,
   }));
 }
