@@ -42,7 +42,8 @@
     "testEnvironment": "node",
     "testMatch": ["<rootDir>/src/lib/**/*.test.js"],
     "moduleNameMapper": {
-      "^react-native$": "<rootDir>/src/lib/testStubs/reactNative.js"
+      "^react-native$": "<rootDir>/src/lib/testStubs/reactNative.js",
+      "^expo/virtual/env$": "<rootDir>/src/lib/testStubs/expoEnv.js"
     }
   }
 }

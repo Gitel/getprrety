@@ -2,6 +2,11 @@ import { getToken } from './auth';
 
 const BASE = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001';
 
+// Photos are larger than a JSON request and go over the same untrusted network, so
+// they get a longer ceiling than api.js — but a ceiling all the same. uploadAll()
+// uses allSettled, so one photo timing out drops that photo, not the whole save.
+const UPLOAD_TIMEOUT_MS = 30000;
+
 export async function uploadImage(uri) {
   const token = await getToken();
   const formData = new FormData();
@@ -22,19 +27,33 @@ export async function uploadImage(uri) {
     formData.append('image', { uri, name: filename, type: mimeType });
   }
 
-  const res = await fetch(`${BASE}/api/uploads`, {
-    method:  'POST',
-    headers: { Authorization: `Bearer ${token}` },
-    body:    formData,
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), UPLOAD_TIMEOUT_MS);
+  try {
+    const res = await fetch(`${BASE}/api/uploads`, {
+      method:  'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body:    formData,
+      signal:  controller.signal,
+    });
 
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const err = new Error(data.error || `Upload failed: HTTP ${res.status}`);
-    err.status = res.status;
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const err = new Error(data.error || `Upload failed: HTTP ${res.status}`);
+      err.status = res.status;
+      throw err;
+    }
+    return data.uploadId;
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      const timeoutErr = new Error(`Upload timed out after ${UPLOAD_TIMEOUT_MS}ms`);
+      timeoutErr.status = 408;
+      throw timeoutErr;
+    }
     throw err;
+  } finally {
+    clearTimeout(timer);
   }
-  return data.uploadId;
 }
 
 export async function uploadAll(uris) {
