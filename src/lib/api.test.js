@@ -1,3 +1,5 @@
+import { api } from './api';
+
 jest.mock('./auth');
 
 const { getToken } = require('./auth');
@@ -8,11 +10,23 @@ const jsonResponse = (status, body) => ({
   json: async () => body,
 });
 
+// fetch never settles on its own — the only thing that ends the request is the
+// AbortController firing, which is exactly what a timeout test needs to exercise.
+const hangingFetch = () =>
+  jest.fn(
+    (url, { signal }) =>
+      new Promise((resolve, reject) => {
+        signal.addEventListener('abort', () => {
+          const err = new Error('The operation was aborted');
+          err.name = 'AbortError';
+          reject(err);
+        });
+      })
+  );
+
 beforeEach(() => {
-  jest.resetModules();
   jest.clearAllMocks();
   getToken.mockResolvedValue('test-token');
-  global.fetch = jest.fn();
 });
 
 afterEach(() => {
@@ -21,20 +35,8 @@ afterEach(() => {
 
 test('a timeout rejects with status 408', async () => {
   jest.useFakeTimers();
-  // fetch never settles — the only thing that ends the request is the AbortController
-  // firing when the timeout elapses, which is what this test proves.
-  global.fetch.mockImplementation(
-    (url, { signal }) =>
-      new Promise((resolve, reject) => {
-        signal.addEventListener('abort', () => {
-          const err = new Error('The operation was aborted');
-          err.name = 'AbortError';
-          reject(err);
-        });
-      })
-  );
+  global.fetch = hangingFetch();
 
-  const { api } = require('./api');
   const pending = api.get('/api/slow');
   const assertion = expect(pending).rejects.toMatchObject({ status: 408 });
   await jest.advanceTimersByTimeAsync(15000);
@@ -42,11 +44,10 @@ test('a timeout rejects with status 408', async () => {
 });
 
 test('a non-ok response rejects with the server error message and its status', async () => {
-  global.fetch.mockResolvedValue(
+  global.fetch = jest.fn().mockResolvedValue(
     jsonResponse(403, { error: 'Skin scan is not owned by this user' })
   );
 
-  const { api } = require('./api');
   await expect(api.get('/api/scans/1')).rejects.toMatchObject({
     message: 'Skin scan is not owned by this user',
     status: 403,
@@ -55,18 +56,8 @@ test('a non-ok response rejects with the server error message and its status', a
 
 test('opts.timeoutMs overrides the default', async () => {
   jest.useFakeTimers();
-  global.fetch.mockImplementation(
-    (url, { signal }) =>
-      new Promise((resolve, reject) => {
-        signal.addEventListener('abort', () => {
-          const err = new Error('The operation was aborted');
-          err.name = 'AbortError';
-          reject(err);
-        });
-      })
-  );
+  global.fetch = hangingFetch();
 
-  const { api } = require('./api');
   const pending = api.get('/api/slow', { timeoutMs: 500 });
   const assertion = expect(pending).rejects.toMatchObject({ status: 408, message: 'Request timed out after 500ms' });
 
@@ -77,8 +68,7 @@ test('opts.timeoutMs overrides the default', async () => {
 });
 
 test('a successful response resolves with the parsed body', async () => {
-  global.fetch.mockResolvedValue(jsonResponse(200, { id: 'abc', name: 'ok' }));
+  global.fetch = jest.fn().mockResolvedValue(jsonResponse(200, { id: 'abc', name: 'ok' }));
 
-  const { api } = require('./api');
   await expect(api.get('/api/thing')).resolves.toEqual({ id: 'abc', name: 'ok' });
 });
