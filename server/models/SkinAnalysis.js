@@ -21,6 +21,18 @@ const skinAnalysisSchema = new mongoose.Schema({
   // Placeholder for a future explicit consent step; every quiz completion is currently
   // assumed to consent to sharing their profile with the clinic.
   consentToShare:   { type: Boolean, default: true },
+
+  // Client-generated idempotency key for one save attempt, shared across all of
+  // that attempt's retries. Null for older clients, which fall back to the
+  // previous non-idempotent behavior.
+  clientRequestId:  { type: String, default: null },
 }, { timestamps: true });
+
+// Partial so the many legacy and older-client rows with clientRequestId: null don't
+// collide with each other — only real string keys are constrained.
+skinAnalysisSchema.index(
+  { userId: 1, clientRequestId: 1 },
+  { unique: true, partialFilterExpression: { clientRequestId: { $type: 'string' } } }
+);
 
 module.exports = mongoose.model('SkinAnalysis', skinAnalysisSchema);
