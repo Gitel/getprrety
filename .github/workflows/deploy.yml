@@ -11,10 +11,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '20'
           cache: 'npm'
@@ -37,7 +37,7 @@ jobs:
           source: dist/
           target: /var/www/getprrety/
 
-      - name: Deploy server and reload nginx
+      - name: Deploy server
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.DO_HOST }}
@@ -45,12 +45,33 @@ jobs:
           key: ${{ secrets.DO_SSH_KEY }}
           script: |
             set -euo pipefail
+            # Name the command that actually failed. Until now a red deploy reported only
+            # an exit code, so which of these steps died had to be inferred from how long
+            # the job ran — which is why this workflow stayed broken for a month.
+            trap 'echo "::error::Deploy failed at line ${LINENO}: ${BASH_COMMAND}"' ERR
+
             cd /var/www/getprrety/server
             git fetch origin main
             git reset --hard origin/main
             npm install
             pm2 restart server --update-env
             pm2 save
-            systemctl reload nginx
+
             echo "Deployed commit: $(git rev-parse HEAD)"
-            curl -sf https://getpretty.app/health
+
+            # Poll the app directly instead of curling the public hostname once.
+            # `pm2 restart` returns before the process is listening and index.js only
+            # calls app.listen() after Mongo connects, so a single immediate request
+            # raced startup. Going through nginx also made a routing problem look
+            # identical to a dead app; 127.0.0.1 answers that question on its own.
+            for attempt in $(seq 1 20); do
+              if curl -sf --max-time 3 http://127.0.0.1:3001/health >/dev/null; then
+                echo "Server healthy after ${attempt}s"
+                exit 0
+              fi
+              sleep 1
+            done
+
+            echo "::error::Server did not answer /health on 127.0.0.1:3001 within 20s"
+            pm2 logs server --lines 50 --nostream || true
+            exit 1
