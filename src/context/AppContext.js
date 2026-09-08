@@ -5,6 +5,11 @@ import { logActivity } from '../lib/logActivity';
 
 const AppContext = createContext(null);
 
+// The Splash spinner is blocked on authReady, so this await is the whole app's
+// cold-start critical path. Shorter than api.js's default: a returning user waiting
+// on a wedged network is better served by onboarding than by a spinner.
+const BOOTSTRAP_TIMEOUT_MS = 8000;
+
 export function AppProvider({ children }) {
   const [analysis,      setAnalysis]      = useState(null);
   const [srProducts,    setSrProducts]    = useState(null);
@@ -12,22 +17,33 @@ export function AppProvider({ children }) {
   const [answers,       setAnswers]       = useState(null);
   const [user,          setUser]          = useState(null);
   const [authReady,     setAuthReady]     = useState(false);
+  // Set when persisting the assessment failed after retries — ProfileScreen shows a
+  // non-blocking banner so the user knows the result may not be there next time.
+  const [analysisSaveFailed, setAnalysisSaveFailed] = useState(false);
 
   useEffect(() => {
     (async () => {
       const token = await getToken();
       if (token) {
         try {
-          const { user: u } = await api.get('/api/auth/me');
-          // Rehydrate the latest saved analysis so a page refresh doesn't blank the app
-          try {
-            const { analysis: saved } = await api.get('/api/analysis/latest');
-            if (saved) setAnalysis(saved);
-          } catch { /* no saved analysis yet — fine */ }
+          const { user: u } = await api.get('/api/auth/me', { timeoutMs: BOOTSTRAP_TIMEOUT_MS });
+          // Set the user the moment we know who they are. The analysis rehydrate below is a
+          // nice-to-have that must not extend the cold-start critical path — two sequential
+          // 8s ceilings could otherwise outlast SplashScreen's own 10s escape hatch and
+          // bounce a signed-in user into onboarding.
           setUser(u);
           logActivity('app_open');
-        } catch {
-          await removeToken();
+
+          // Rehydrate the latest saved analysis so a page refresh doesn't blank the app.
+          // Detached on purpose: authReady must not wait on it.
+          api.get('/api/analysis/latest', { timeoutMs: BOOTSTRAP_TIMEOUT_MS })
+            .then(({ analysis: saved }) => { if (saved) setAnalysis(saved); })
+            .catch(() => { /* no saved analysis yet — fine */ });
+        } catch (err) {
+          // Only a rejected or orphaned token means "signed out". A timeout or a dead
+          // network must not silently log the user out — they keep the token and
+          // simply start this cold boot in onboarding.
+          if (err?.status === 401 || err?.status === 404) await removeToken();
         }
       }
       setAuthReady(true);
@@ -41,6 +57,7 @@ export function AppProvider({ children }) {
     setSrProducts(null);
     setShelfAnalysis(null);
     setAnswers(null);
+    setAnalysisSaveFailed(false);
   }
 
   return (
@@ -51,6 +68,7 @@ export function AppProvider({ children }) {
       answers,       setAnswers,
       user,          setUser,
       authReady,
+      analysisSaveFailed, setAnalysisSaveFailed,
       logout,
     }}>
       {children}

@@ -3,10 +3,10 @@ import { View, Text, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { C, QUESTIONS, buildFallback } from '../constants';
 import { analyzeWithRailway } from '../lib/analyzeWithRailway';
-import { pollScan, claimScan } from '../lib/skinScan';
-import { sanitizeQuizAnswers } from '../lib/sanitizeQuizAnswers';
+import { pollScan } from '../lib/skinScan';
+import { persistAnalysis } from '../lib/persistAnalysis';
+import { logActivity } from '../lib/logActivity';
 import { useApp } from '../context/AppContext';
-import { api } from '../lib/api';
 
 const COMPLETION = QUESTIONS.find(q => q.id === 'completion');
 const STAGES     = COMPLETION.stages;
@@ -25,7 +25,7 @@ const SCAN_WAIT_COPY = [
 ];
 
 export default function LoadingScreen({ navigation }) {
-  const { answers, user, setAnalysis, setSrProducts, setShelfAnalysis } = useApp();
+  const { answers, user, setAnalysis, setSrProducts, setShelfAnalysis, setAnalysisSaveFailed } = useApp();
   const [step, setStep]               = useState(0);
   const [complete, setComplete]       = useState(false);
   const [scanWaitLabel, setScanWaitLabel] = useState(null);
@@ -39,26 +39,22 @@ export default function LoadingScreen({ navigation }) {
     const apiRef    = { done: false, result: null, srProducts: null, shelfAnalysis: null };
     let finishing = false;
 
-    async function finish(skinScan) {
+    function finish(skinScan) {
       if (finishing) return;
       finishing = true;
       const { result, srProducts, shelfAnalysis } = apiRef;
       if (user) {
-        let scanClaimed = false;
-        if (answers?.skinScanId && answers?.skinScanToken) {
-          scanClaimed = await claimScan(answers.skinScanId, answers.skinScanToken).catch(() => false);
-        }
-        await api.post('/api/analysis', {
-          eraId: result.era?.id,
-          era: result.era,
-          skinAnalysis: result.skinAnalysis,
-          keyInsights: result.keyInsights,
-          productAudit: result.productAudit,
-          routine: result.routine,
-          affirmation: result.affirmation,
-          quizAnswers: sanitizeQuizAnswers(answers),
-          skinScanId: scanClaimed ? answers.skinScanId : null,
-        }).catch(() => {});
+        // Fire-and-forget, matching the post-signup path in SignUpScreen. The Era
+        // reveal must not wait on six photo uploads plus three POST attempts; the
+        // outcome reaches the user either way, through the ProfileScreen banner.
+        persistAnalysis({ analysis: result, answers }).then(
+          () => setAnalysisSaveFailed(false),
+          err => {
+            console.error('Failed to save analysis after retries:', err?.message || err);
+            logActivity('analysis_save_failed');
+            setAnalysisSaveFailed(true);
+          },
+        );
       }
       setComplete(true);
       setTimeout(() => {

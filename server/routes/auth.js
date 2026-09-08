@@ -4,7 +4,10 @@ const jwt     = require('jsonwebtoken');
 const { OAuth2Client } = require('google-auth-library');
 const User    = require('../models/User');
 const requireAuth = require('../middleware/auth');
+const { allowAuthAttempt, releaseAuthAttempt } = require('../services/authRateLimit');
 const { isDuplicateEmail } = require('../services/duplicateKey');
+
+const TOO_MANY = { error: 'Too many attempts. Please wait a few minutes and try again.' };
 
 const googleClient = new OAuth2Client();
 
@@ -20,9 +23,16 @@ function toPublicUser(user) {
   return { id: user._id, firstName: user.firstName, email: user.email, termsAcceptedAt: user.termsAcceptedAt, consentVersion: user.consentVersion };
 }
 
+// Fire-and-forget: a refund that fails must never turn a successful signup into a
+// 500. Awaiting it inside the route's try block would do exactly that.
+function releaseQuietly(req, kind) {
+  releaseAuthAttempt(req, kind).catch(err => console.error(`Auth rate-limit refund failed (${kind}):`, err));
+}
+
 // POST /api/auth/signup
 router.post('/signup', async (req, res) => {
   try {
+    if (!await allowAuthAttempt(req, 'signup')) return res.status(429).json(TOO_MANY);
     const { email, password, firstName, consentAcceptedAt, consentVersion } = req.body;
     if (typeof email !== 'string' || typeof password !== 'string' || !email.trim() || !password)
       return res.status(400).json({ error: 'Email and password are required' });
@@ -52,6 +62,11 @@ router.post('/signup', async (req, res) => {
       consentVersion: activeConsentVersion,
       ...(typeof firstName === 'string' && firstName.trim() ? { firstName: firstName.trim().slice(0, 100) } : {}),
     });
+    // Unlike login and google, a completed signup is not gated on proving a credential —
+    // any script can mint a new email and succeed every time. Refunding here would make
+    // the auth_signup bucket accumulate only failures, turning a shared-IP hourly cap
+    // into unbounded account creation and unbounded bcrypt-cost-12 work. The hourly limit
+    // (raised to 30) absorbs the clinic shared-IP case on its own instead.
     res.status(201).json({ token: signToken(user), user: toPublicUser(user) });
   } catch (err) {
     if (isDuplicateEmail(err)) return res.status(409).json({ error: 'Email already registered' });
@@ -69,6 +84,7 @@ router.post('/signup', async (req, res) => {
 // account — "Sign in with Google" is one button for both cases, never a hard block.
 router.post('/google', async (req, res) => {
   try {
+    if (!await allowAuthAttempt(req, 'google')) return res.status(429).json(TOO_MANY);
     const { idToken } = req.body;
     if (typeof idToken !== 'string' || !idToken)
       return res.status(400).json({ error: 'idToken is required' });
@@ -104,6 +120,7 @@ router.post('/google', async (req, res) => {
       });
     }
 
+    releaseQuietly(req, 'google');
     res.json({ token: signToken(user), user: toPublicUser(user) });
   } catch (err) {
     if (isDuplicateEmail(err)) return res.status(409).json({ error: 'Email already registered' });
@@ -115,6 +132,7 @@ router.post('/google', async (req, res) => {
 // POST /api/auth/login
 router.post('/login', async (req, res) => {
   try {
+    if (!await allowAuthAttempt(req, 'login')) return res.status(429).json(TOO_MANY);
     const { email, password } = req.body;
     if (typeof email !== 'string' || typeof password !== 'string' || !email.trim() || !password)
       return res.status(400).json({ error: 'Email and password are required' });
@@ -124,6 +142,7 @@ router.post('/login', async (req, res) => {
     const match = await bcrypt.compare(password, user.passwordHash);
     if (!match) return res.status(401).json({ error: 'Invalid email or password' });
 
+    releaseQuietly(req, 'login');
     res.json({ token: signToken(user), user: toPublicUser(user) });
   } catch (err) {
     res.status(500).json({ error: 'Unable to log in' });

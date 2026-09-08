@@ -2,6 +2,12 @@ import { ERAS, fallbackEra } from '../constants';
 
 const RAILWAY_URL = 'https://getpretty-api-production.up.railway.app';
 
+// A stalled connection must never trap the user on the loading screen. LoadingScreen
+// deliberately waits on this request before revealing the Era, so without a ceiling a
+// hung socket never reaches the fallback. Abort after this long and let the caller's
+// catch build the offline fallback.
+const ANALYZE_TIMEOUT_MS = 45000;
+
 // Map new expanded skin_goals values down to the legacy 6-bucket concern
 // taxonomy the existing Skin Era decision tree reads. Goals with no legacy
 // equivalent are simply omitted from `concerns` but still sent in full
@@ -103,13 +109,22 @@ function mapToAppFormat(railwayResponse, answers) {
     i.title ? `${i.title}: ${i.body || ''}` : String(i)
   );
 
-  // Map current_products_assessment → existing productAudit shape
+  // Map current_products_assessment → existing productAudit shape.
+  // verdict: keep | replace | remove | missing. A `replace` verdict must land in the
+  // `replace` bucket (from → to), NOT `remove` — the old mapping funneled every
+  // replace into remove and always returned replace: [], so the UI told users to
+  // discard products instead of showing the swap.
   const assessment = auditData.current_products_assessment || [];
   const keep    = assessment.filter(p => p.verdict === 'keep')
                             .map(p => ({ product: p.product_type, reason: p.note }));
-  const remove  = assessment.filter(p => p.verdict === 'replace' || p.verdict === 'missing')
-                            .filter(p => p.verdict === 'replace')
+  const remove  = assessment.filter(p => p.verdict === 'remove')
                             .map(p => ({ product: p.product_type, reason: p.note }));
+  const replace = assessment.filter(p => p.verdict === 'replace')
+                            .map(p => ({
+                              from: p.product_type,
+                              to: p.suggested_replacement || p.replacement || p.replace_with || null,
+                              reason: p.note,
+                            }));
   const add = [];
   if (auditData.most_urgent_gap) {
     add.push({ product: auditData.most_urgent_gap, reason: 'Most urgent addition for your era', priority: 'essential' });
@@ -130,7 +145,7 @@ function mapToAppFormat(railwayResponse, answers) {
     era,
     skinAnalysis: skinData.summary || '',
     keyInsights,
-    productAudit: { keep, remove, replace: [], add },
+    productAudit: { keep, remove, replace, add },
     routine,
     affirmation: eraData.affirmation || era.affirmation,
     checkInPrompts: gemini.check_in_prompts || [],
@@ -173,20 +188,33 @@ export async function analyzeWithRailway(answers) {
 
   console.log(`analyzeWithRailway: sending ${skinPhotosBase64.length} skin photo(s), ${shelfPhotosBase64.length} shelf photo(s)`);
 
-  const res = await fetch(`${RAILWAY_URL}/analyze-skin`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      quizAnswers: quizPayload,
-      userId: answers.userId || null,
-      skinPhotosBase64,
-      shelfPhotosBase64,
-    }),
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), ANALYZE_TIMEOUT_MS);
 
-  if (!res.ok) throw new Error(`Railway API ${res.status}`);
+  let res;
+  let data;
+  try {
+    res = await fetch(`${RAILWAY_URL}/analyze-skin`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        quizAnswers: quizPayload,
+        userId: answers.userId || null,
+        skinPhotosBase64,
+        shelfPhotosBase64,
+      }),
+      signal: controller.signal,
+    });
 
-  const data = await res.json();
+    if (!res.ok) throw new Error(`Railway API ${res.status}`);
+
+    data = await res.json();
+  } catch (err) {
+    if (err.name === 'AbortError') throw new Error(`Railway API timed out after ${ANALYZE_TIMEOUT_MS}ms`);
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
 
   const analysis      = mapToAppFormat(data, answers);
   const srProducts    = data.srProducts || null;

@@ -24,4 +24,19 @@ async function consumeRateLimit(scope, key, limit, windowMs = 60 * 60 * 1000) {
   return bucket.count <= numericLimit;
 }
 
-module.exports = { consumeRateLimit };
+// Give back a unit that a pre-flight check consumed for what turned out to be a
+// legitimate, successful request. The auth endpoints have to consume before doing
+// the work — bcrypt at cost 12 must be capped before it runs, not after — so
+// without a refund a shared address (a clinic's Wi-Fi, any CGNAT pool) spends its
+// whole budget on real signups and locks out the very users we want.
+async function refundRateLimit(scope, key, windowMs = 60 * 60 * 1000) {
+  const startMs = Math.floor(Date.now() / windowMs) * windowMs;
+  // count > 0 keeps a refund that straddles a window boundary from pushing a fresh
+  // bucket negative and handing out a free attempt.
+  await RateLimitBucket.updateOne(
+    { scope, key: String(key), windowStart: new Date(startMs), count: { $gt: 0 } },
+    { $inc: { count: -1 } }
+  );
+}
+
+module.exports = { consumeRateLimit, refundRateLimit };
