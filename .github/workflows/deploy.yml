@@ -22,45 +22,46 @@ jobs:
       - name: Install dependencies
         run: npm ci --legacy-peer-deps
 
-      # An unset secret expands to an empty string rather than failing, which turns
-      # LEGAL_READY false and ships a build whose onboarding CTA is dead for every
-      # visitor — with a green checkmark. The first signal today is users who can't
-      # start the quiz. Fail here instead, before anything is built or uploaded.
+      # Vite embeds these values in the browser bundle. Fail before uploading so a
+      # missing value cannot produce a green deployment with disabled onboarding or
+      # Google sign-in. The four existing EXPO_PUBLIC secrets are reused as sources
+      # while the runtime names match the Vite application's configuration.
       - name: Verify web build secrets
         env:
-          EXPO_PUBLIC_API_URL: ${{ secrets.EXPO_PUBLIC_API_URL }}
-          EXPO_PUBLIC_CONSENT_VERSION: ${{ secrets.EXPO_PUBLIC_CONSENT_VERSION }}
-          EXPO_PUBLIC_TERMS_URL: ${{ secrets.EXPO_PUBLIC_TERMS_URL }}
-          EXPO_PUBLIC_PRIVACY_URL: ${{ secrets.EXPO_PUBLIC_PRIVACY_URL }}
+          VITE_API_URL: ${{ secrets.EXPO_PUBLIC_API_URL }}
+          VITE_CONSENT_VERSION: ${{ secrets.EXPO_PUBLIC_CONSENT_VERSION }}
+          VITE_TERMS_URL: ${{ secrets.EXPO_PUBLIC_TERMS_URL }}
+          VITE_PRIVACY_URL: ${{ secrets.EXPO_PUBLIC_PRIVACY_URL }}
+          VITE_GOOGLE_WEB_CLIENT_ID: ${{ secrets.VITE_GOOGLE_WEB_CLIENT_ID }}
         run: |
           set -euo pipefail
           missing=()
-          for var in EXPO_PUBLIC_API_URL EXPO_PUBLIC_CONSENT_VERSION EXPO_PUBLIC_TERMS_URL EXPO_PUBLIC_PRIVACY_URL; do
+          for var in VITE_API_URL VITE_CONSENT_VERSION VITE_TERMS_URL VITE_PRIVACY_URL VITE_GOOGLE_WEB_CLIENT_ID; do
             [ -n "${!var}" ] || missing+=("$var")
           done
           if [ "${#missing[@]}" -gt 0 ]; then
             echo "::error::Missing repository secrets: ${missing[*]}"
             exit 1
           fi
-          # LEGAL_READY (src/lib/consent.js) requires https:// specifically, not just
-          # a non-empty value.
-          for var in EXPO_PUBLIC_TERMS_URL EXPO_PUBLIC_PRIVACY_URL; do
+          # LEGAL_READY (src/lib/consent.js) accepts only HTTPS policy URLs.
+          for var in VITE_TERMS_URL VITE_PRIVACY_URL; do
             case "${!var}" in
               https://*) ;;
               *) echo "::error::$var must start with https:// — LEGAL_READY rejects anything else"; exit 1 ;;
             esac
           done
-          echo "All web build secrets present."
+          echo "All Vite web build values present."
 
-      - name: Build Expo web
+      # `npm run build` is the project's Vite build script and writes the static
+      # site to dist/, which the following SCP step deploys to the droplet.
+      - name: Build Vite web
         env:
-          EXPO_PUBLIC_API_URL: ${{ secrets.EXPO_PUBLIC_API_URL }}
-          EXPO_PUBLIC_CONSENT_VERSION: ${{ secrets.EXPO_PUBLIC_CONSENT_VERSION }}
-          # Required for onboarding: without both policy links the consent gate
-          # (LEGAL_READY) stays closed and the quiz CTA is disabled.
-          EXPO_PUBLIC_TERMS_URL: ${{ secrets.EXPO_PUBLIC_TERMS_URL }}
-          EXPO_PUBLIC_PRIVACY_URL: ${{ secrets.EXPO_PUBLIC_PRIVACY_URL }}
-        run: npx expo export --platform web
+          VITE_API_URL: ${{ secrets.EXPO_PUBLIC_API_URL }}
+          VITE_CONSENT_VERSION: ${{ secrets.EXPO_PUBLIC_CONSENT_VERSION }}
+          VITE_TERMS_URL: ${{ secrets.EXPO_PUBLIC_TERMS_URL }}
+          VITE_PRIVACY_URL: ${{ secrets.EXPO_PUBLIC_PRIVACY_URL }}
+          VITE_GOOGLE_WEB_CLIENT_ID: ${{ secrets.VITE_GOOGLE_WEB_CLIENT_ID }}
+        run: npm run build
 
       - name: Upload web build to server
         uses: appleboy/scp-action@v0.1.7

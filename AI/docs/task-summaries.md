@@ -57,3 +57,25 @@ The web build is now the single bundle copied into both native projects by `npm 
 **Verification:** `npm run cap:sync` completed for Android and iOS, and `npm test --
 --runInBand` passed all 18 client tests. Capacitor Doctor reported Android healthy. iOS
 native compilation remains a macOS/Xcode step.
+
+---
+
+## 2026-09-08 — Restore GitHub deployment after the Vite migration
+
+**Trigger:** the GitHub Actions deployment run for the Capacitor/Vite migration failed
+before reaching the DigitalOcean droplet.
+
+**Finding:** `.github/workflows/deploy.yml` still ran `npx expo export --platform web`,
+but Expo is no longer a project dependency. The current web build is `npm run build`,
+which invokes Vite and reads `VITE_*` configuration values.
+
+**Changes:** retained the successful `npm ci --legacy-peer-deps` dependency install;
+replaced the obsolete Expo export with `npm run build`; mapped the four existing
+`EXPO_PUBLIC_*` repository secrets to Vite runtime variable names; and added a
+fail-fast check for `VITE_GOOGLE_WEB_CLIENT_ID` so the deployed site cannot silently
+hide Google sign-in.
+
+**Verification:** run the Vite production build locally with the existing environment
+configuration; validate the workflow's required variable names and build command before
+pushing. GitHub Actions still requires the repository secret
+`VITE_GOOGLE_WEB_CLIENT_ID` to be configured before its next deployment can succeed.
