@@ -2,7 +2,7 @@ jest.mock('../models/SkinAnalysis');
 jest.mock('../models/User');
 
 const User = require('../models/User');
-const { notifyClinic, buildClinicEmailHtml } = require('./clinicNotify');
+const { notifyClinic, buildClinicEmailHtml, mailConfigError } = require('./clinicNotify');
 
 function makeAnalysis(overrides = {}) {
   return {
@@ -114,5 +114,72 @@ describe('notifyClinic', () => {
 
     expect(result).toEqual({ sent: false, reason: 'no-sender' });
     expect(client.sendEmail).not.toHaveBeenCalled();
+  });
+
+  // The reason has to land on the record, not just in a log line nobody was tailing.
+  // A missing POSTMARK_* used to produce one console.warn at quiz-completion time and
+  // an /admin row that said "not sent" — indistinguishable from never having tried.
+  test('records the reason on the analysis when the sender address is missing', async () => {
+    delete process.env.POSTMARK_SENDER_ADDRESS;
+    const analysis = makeAnalysis();
+
+    await notifyClinic(analysis, { client: { sendEmail: jest.fn() } });
+
+    expect(analysis.clinicNotifyError).toBe('POSTMARK_SENDER_ADDRESS is not set on the server');
+    expect(analysis.save).toHaveBeenCalledTimes(1);
+    expect(analysis.clinicNotifiedAt).toBeNull();
+  });
+
+  test('records the reason and rethrows when Postmark rejects the send', async () => {
+    const client = { sendEmail: jest.fn().mockRejectedValue(new Error('Sender signature not confirmed')) };
+    const analysis = makeAnalysis();
+
+    await expect(notifyClinic(analysis, { client })).rejects.toThrow('Sender signature not confirmed');
+
+    expect(analysis.clinicNotifyError).toBe('Postmark rejected the send: Sender signature not confirmed');
+    // Not stamped as notified — a rejected send must stay retryable.
+    expect(analysis.clinicNotifiedAt).toBeNull();
+  });
+
+  test('clears a previous error once a send succeeds', async () => {
+    const client = { sendEmail: jest.fn().mockResolvedValue({}) };
+    const analysis = makeAnalysis({ clinicNotifyError: 'POSTMARK_API_KEY is not set on the server' });
+
+    const result = await notifyClinic(analysis, { client });
+
+    expect(result).toEqual({ sent: true });
+    expect(analysis.clinicNotifyError).toBeNull();
+    expect(analysis.clinicNotifiedAt).toBeInstanceOf(Date);
+  });
+
+  test('a failure to persist the reason does not mask the original error', async () => {
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+    const client = { sendEmail: jest.fn().mockRejectedValue(new Error('stream not found')) };
+    const analysis = makeAnalysis({ save: jest.fn().mockRejectedValue(new Error('mongo down')) });
+
+    await expect(notifyClinic(analysis, { client })).rejects.toThrow('stream not found');
+  });
+});
+
+describe('mailConfigError', () => {
+  const OLD_ENV = process.env;
+  afterEach(() => { process.env = OLD_ENV; });
+
+  test('names the missing key, api key first', () => {
+    process.env = { ...OLD_ENV };
+    delete process.env.POSTMARK_API_KEY;
+    delete process.env.POSTMARK_SENDER_ADDRESS;
+    expect(mailConfigError()).toBe('POSTMARK_API_KEY is not set');
+  });
+
+  test('names the sender address when only that is missing', () => {
+    process.env = { ...OLD_ENV, POSTMARK_API_KEY: 'token' };
+    delete process.env.POSTMARK_SENDER_ADDRESS;
+    expect(mailConfigError()).toBe('POSTMARK_SENDER_ADDRESS is not set');
+  });
+
+  test('returns null when both are set', () => {
+    process.env = { ...OLD_ENV, POSTMARK_API_KEY: 'token', POSTMARK_SENDER_ADDRESS: 'hello@getpretty.app' };
+    expect(mailConfigError()).toBeNull();
   });
 });
