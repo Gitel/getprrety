@@ -1,12 +1,13 @@
 import React from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { Text, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { C } from '../constants';
 
 export default function SkinSelfieScreen({ navigation }) {
   return (
     <SafeAreaView style={s.safe}>
-      <View style={s.container}>
+      {/* The bounded scroll area keeps the CTA reachable when a compact viewport cannot fit this step. */}
+      <ScrollView style={s.scroll} contentContainerStyle={s.container}>
         <Text style={s.emoji}>📸</Text>
         <Text style={s.title}>Skin selfie</Text>
         <Text style={s.desc}>
@@ -15,14 +16,16 @@ export default function SkinSelfieScreen({ navigation }) {
         <Pressable style={s.btn} onPress={() => navigation.navigate('ShelfPhotos')}>
           <Text style={s.btnText}>Continue →</Text>
         </Pressable>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
 const s = StyleSheet.create({
   safe:      { flex: 1, backgroundColor: C.bg },
-  container: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
+  scroll:    { flex: 1 },
+  // flexGrow preserves the centered layout while allowing overflow on shorter mobile screens.
+  container: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, paddingVertical: 32 },
   emoji:     { fontSize: 52, marginBottom: 20 },
   title:     { fontFamily: 'CormorantGaramond_500Medium', fontSize: 26, color: C.text, marginBottom: 14 },
   desc:      { fontFamily: 'DMSans_400Regular', fontSize: 14, color: C.muted, textAlign: 'center', lineHeight: 24, marginBottom: 40 },

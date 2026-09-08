@@ -79,3 +79,22 @@ hide Google sign-in.
 configuration; validate the workflow's required variable names and build command before
 pushing. GitHub Actions still requires the repository secret
 `VITE_GOOGLE_WEB_CLIENT_ID` to be configured before its next deployment can succeed.
+
+---
+
+## 2026-09-08 — Allow the post-sign-up selfie step to scroll
+
+**Trigger:** the later onboarding selfie screen could not scroll to reveal its content
+on compact viewports.
+
+**Cause:** `SkinSelfieScreen.web.jsx` used a fixed flex `View` for all of its content,
+so it did not create a scrollable region when the safe-area viewport was shorter than
+the page content.
+
+**Changes:** replaced that wrapper with a flexed `ScrollView` and changed the content
+wrapper to `flexGrow: 1`. The screen therefore remains vertically centered when it fits,
+but can overflow and scroll on shorter screens. Added vertical padding so the top and
+Continue button are not flush against the viewport edges.
+
+**Verification:** `npm run build` completed successfully. Git whitespace validation
+also completed without errors.
