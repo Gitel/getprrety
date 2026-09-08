@@ -193,9 +193,10 @@ export default function QuizScreen({ navigation, route }) {
   }, [idx]);
 
   function goTo(nextIdx) {
+    // React Native Web has no native animation driver; use JavaScript for this web fade.
     Animated.sequence([
-      Animated.timing(fadeAnim, { toValue: 0, duration: 120, useNativeDriver: true }),
-      Animated.timing(fadeAnim, { toValue: 1, duration: 120, useNativeDriver: true }),
+      Animated.timing(fadeAnim, { toValue: 0, duration: 120, useNativeDriver: false }),
+      Animated.timing(fadeAnim, { toValue: 1, duration: 120, useNativeDriver: false }),
     ]).start();
     setTimeout(() => setIdx(nextIdx), 120);
   }

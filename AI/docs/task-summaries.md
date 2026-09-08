@@ -119,3 +119,23 @@ bundle has no runtime environment-object dependency.
 **Verification:** built with safe, GitHub-Actions-shaped Vite values; the generated
 bundle included the configured API URL and contained no `import.meta.env` references.
 `npm test -- --runInBand` passed all 3 suites and 18 tests.
+
+---
+
+## 2026-09-08 — Restore React Native Web animation compatibility
+
+**Trigger:** clicking through the web quiz threw `ReferenceError: global is not
+defined` while an animation detached.
+
+**Cause:** React Native Web's animation dependency calls
+`global.cancelAnimationFrame`, a Node-style name which is not defined in browsers.
+The quiz also requested `useNativeDriver: true`, though React Native Web only supports
+the JavaScript driver.
+
+**Changes:** Vite now replaces the dependency's `global` identifier with the browser
+equivalent `globalThis` during the build. The quiz fade explicitly uses the supported
+JavaScript animation driver, removing the native-driver fallback warning.
+
+**Verification:** production build output contains `globalThis.cancelAnimationFrame`
+and no `global.cancelAnimationFrame`; the bundle-level check passed. `npm test
+-- --runInBand` passed all 3 suites and 18 tests.

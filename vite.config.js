@@ -21,6 +21,9 @@ export default defineConfig(({ mode }) => {
     // Legacy web modules read process.env.VITE_*. Inline their public values now so
     // Vite does not emit import.meta.env into the browser bundle at runtime.
     define: {
+      // React Native Web's animation code uses Node's global name for animation frames.
+      // Browsers expose the equivalent object as globalThis, so replace it at build time.
+      global: 'globalThis',
       'process.env.VITE_API_URL': definePublicValue(publicEnv.VITE_API_URL),
       'process.env.VITE_TERMS_URL': definePublicValue(publicEnv.VITE_TERMS_URL),
       'process.env.VITE_PRIVACY_URL': definePublicValue(publicEnv.VITE_PRIVACY_URL),
