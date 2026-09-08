@@ -5,7 +5,7 @@ const router = require('express').Router();
 const SkinAnalysis = require('../models/SkinAnalysis');
 const User = require('../models/User');
 const Upload = require('../models/Upload');
-const { notifyClinic } = require('../services/clinicNotify');
+const { notifyClinic, mailConfigError } = require('../services/clinicNotify');
 const {
   COOKIE_NAME,
   verifyGoogleCredential,
@@ -96,7 +96,9 @@ router.get('/', requireAdmin, async (req, res, next) => {
       .limit(1000)
       .populate('userId', 'firstName email')
       .lean();
-    res.render('admin/list', { rows, admin: req.admin });
+    // mailProblem drives a banner: the clinic's own dashboard is where someone will
+    // notice that no emails are going out, not the server log.
+    res.render('admin/list', { rows, admin: req.admin, mailProblem: mailConfigError() });
   } catch (err) {
     next(err);
   }

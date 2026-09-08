@@ -10,7 +10,7 @@ import { TERMS_URL, PRIVACY_URL, LEGAL_READY, missingLegalConfig, openLegal } fr
 export default function ConsentNotice({ style }) {
   if (!LEGAL_READY) {
     // Name the pieces that are actually unset. The old copy blamed the two policy
-    // links even when the real problem was EXPO_PUBLIC_CONSENT_VERSION, sending
+    // links even when the real problem was the configured consent version, sending
     // whoever debugs a dead CTA to check the wrong secrets.
     return (
       <Text style={[s.error, style]}>

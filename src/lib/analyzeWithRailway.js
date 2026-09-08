@@ -154,23 +154,11 @@ function mapToAppFormat(railwayResponse, answers) {
   };
 }
 
-// Resolve a photo reference to raw base64 (no data: prefix).
-// Handles data: URLs (web + native base64 capture) and, as a safety net,
-// file://content:// URIs (native) via expo-file-system.
+// Resolve a photo reference to raw base64 (no data: prefix). Capacitor Camera
+// returns data URLs, which work on both native shells and the browser.
 async function toBase64(ref) {
   if (!ref || typeof ref !== 'string') return null;
   if (ref.startsWith('data:')) return ref.split(',')[1] || null;
-  if (ref.startsWith('file://') || ref.startsWith('content://')) {
-    try {
-      const FileSystem = require('expo-file-system');
-      return await FileSystem.readAsStringAsync(ref, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-    } catch (e) {
-      console.warn('toBase64: could not read native file', e?.message);
-      return null;
-    }
-  }
   return null;
 }
 

@@ -3,9 +3,9 @@ import { Alert, Linking } from 'react-native';
 // Single source of truth for the pre-quiz Terms/Privacy consent. Both entry points
 // (QuizIntroScreen and the referral WelcomeScreen) show binding "by continuing you
 // agree" copy and stamp the acceptance on CTA tap — there is no separate checkbox.
-export const TERMS_URL = process.env.EXPO_PUBLIC_TERMS_URL;
-export const PRIVACY_URL = process.env.EXPO_PUBLIC_PRIVACY_URL;
-export const CONSENT_VERSION = process.env.EXPO_PUBLIC_CONSENT_VERSION;
+export const TERMS_URL = process.env.VITE_TERMS_URL;
+export const PRIVACY_URL = process.env.VITE_PRIVACY_URL;
+export const CONSENT_VERSION = process.env.VITE_CONSENT_VERSION;
 
 // Onboarding may only stamp a consent record when the legal links and the active
 // policy version are actually configured — otherwise the server rejects signup and

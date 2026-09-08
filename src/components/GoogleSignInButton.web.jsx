@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { View, StyleSheet, ActivityIndicator } from 'react-native';
 import { C } from '../constants';
 
-const CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
+const CLIENT_ID = process.env.VITE_GOOGLE_WEB_CLIENT_ID;
 
 // Web "Sign in with Google": Google Identity Services renders its own button into
 // our div and hands back a signed credential (id_token) via the callback.

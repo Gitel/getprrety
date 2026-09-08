@@ -93,6 +93,16 @@ jobs:
 
             echo "Deployed commit: $(git rev-parse HEAD)"
 
+            # The clinic-notification credentials live only in this .env, which is
+            # gitignored and which nothing in this workflow writes. So the mail feature
+            # could ship green and sit switched off — it did, for a month. Warn rather
+            # than fail: a notification misconfiguration must not block a code deploy.
+            for var in POSTMARK_API_KEY POSTMARK_SENDER_ADDRESS; do
+              if ! grep -qE "^${var}=.+" .env; then
+                echo "::warning::${var} is missing from server/.env — new-client emails are disabled"
+              fi
+            done
+
             # Poll the app directly instead of curling the public hostname once.
             # `pm2 restart` returns before the process is listening and index.js only
             # calls app.listen() after Mongo connects, so a single immediate request

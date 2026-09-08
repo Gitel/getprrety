@@ -4,14 +4,7 @@ server/.env
 server/scripts/data/
 *.local
 
-# Expo
-.expo/
 dist/
-web-build/
-
-# Native builds
-ios/
-android/
 
 # Logs
 *.log

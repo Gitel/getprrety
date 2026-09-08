@@ -1,13 +1,27 @@
-import { useCameraPermissions } from 'expo-camera';
+import { useCallback, useEffect, useState } from 'react';
+import { Camera } from '@capacitor/camera';
 
 export function useCameraPermission() {
-  const [permission, requestPermission] = useCameraPermissions();
+  const [granted, setGranted] = useState(false);
 
-  async function ensurePermission() {
-    if (permission?.granted) return true;
-    const result = await requestPermission();
-    return result.granted;
-  }
+  const checkPermission = useCallback(async () => {
+    const status = await Camera.checkPermissions();
+    const allowed = status.camera === 'granted';
+    setGranted(allowed);
+    return allowed;
+  }, []);
 
-  return { granted: permission?.granted ?? false, ensurePermission };
+  useEffect(() => {
+    checkPermission().catch(() => setGranted(false));
+  }, [checkPermission]);
+
+  const ensurePermission = useCallback(async () => {
+    if (await checkPermission()) return true;
+    const status = await Camera.requestPermissions({ permissions: ['camera'] });
+    const allowed = status.camera === 'granted';
+    setGranted(allowed);
+    return allowed;
+  }, [checkPermission]);
+
+  return { granted, ensurePermission };
 }

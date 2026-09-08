@@ -4,6 +4,12 @@
   <span class="who"><%= admin.email %> &middot; <a href="/admin/logout">Log out</a></span>
 </header>
 <main>
+  <% if (mailProblem) { %>
+    <div class="warn">
+      &#9888; New-client emails are not being sent &mdash; <%= mailProblem %>.
+      Set it in <code>server/.env</code> on the API host and restart the server.
+    </div>
+  <% } %>
   <p style="color: #8a7a63;"><%= rows.length %> completed skin reading<%= rows.length === 1 ? '' : 's' %></p>
   <table>
     <thead>
@@ -28,6 +34,10 @@
           <td>
             <% if (r.clinicNotifiedAt) { %>
               <span class="pill yes"><%= stamp(r.clinicNotifiedAt) %></span>
+            <% } else if (r.clinicNotifyError) { %>
+              <%# Hover shows the reason; "not sent" alone could not distinguish a %>
+              <%# failed attempt from one that was never made. %>
+              <span class="pill no" title="<%= r.clinicNotifyError %>">failed</span>
             <% } else { %>
               <span class="pill no">not sent</span>
             <% } %>

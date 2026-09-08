@@ -17,6 +17,35 @@ function getClient() {
   return cachedClient;
 }
 
+/**
+ * Is outbound clinic mail actually configured?
+ *
+ * These two variables live only in the droplet's server/.env, which is gitignored and
+ * which no deploy step writes or checks. The mail feature therefore shipped with the
+ * code but stayed switched off, and the only trace was one console.warn emitted at
+ * quiz-completion time — long after anyone was watching the log. Callers use this to
+ * say so at boot and on /admin instead.
+ *
+ * @returns {string|null} A human-readable reason, or null when mail is configured.
+ */
+function mailConfigError() {
+  if (!process.env.POSTMARK_API_KEY) return 'POSTMARK_API_KEY is not set';
+  if (!process.env.POSTMARK_SENDER_ADDRESS) return 'POSTMARK_SENDER_ADDRESS is not set';
+  return null;
+}
+
+// Persist why an attempt failed so /admin can show it. Best-effort by design: the
+// caller is already on a failure path, and a write error here must not replace the
+// real reason with a database error.
+async function recordFailure(analysis, reason) {
+  analysis.clinicNotifyError = reason;
+  try {
+    await analysis.save();
+  } catch (err) {
+    console.error('clinicNotify: could not record the failure reason:', err.message);
+  }
+}
+
 function esc(value) {
   return String(value ?? '')
     .replace(/&/g, '&amp;')
@@ -92,11 +121,13 @@ async function notifyClinic(analysisOrId, { force = false, client } = {}) {
   const mail = client || getClient();
   if (!mail) {
     console.warn('clinicNotify: POSTMARK_API_KEY not set — skipping clinic notification');
+    await recordFailure(analysis, 'POSTMARK_API_KEY is not set on the server');
     return { sent: false, reason: 'no-client' };
   }
   const from = process.env.POSTMARK_SENDER_ADDRESS;
   if (!from) {
     console.warn('clinicNotify: POSTMARK_SENDER_ADDRESS not set — skipping clinic notification');
+    await recordFailure(analysis, 'POSTMARK_SENDER_ADDRESS is not set on the server');
     return { sent: false, reason: 'no-sender' };
   }
 
@@ -106,17 +137,26 @@ async function notifyClinic(analysisOrId, { force = false, client } = {}) {
     || 'client';
   const eraName = (analysis.era && analysis.era.name) || analysis.eraId || 'skin reading';
 
-  await mail.sendEmail({
-    From: from,
-    To: CLINIC_TO,
-    Subject: `New GetPretty client: ${name} — ${eraName}`,
-    HtmlBody: buildClinicEmailHtml({ analysis, user }),
-    MessageStream: MESSAGE_STREAM,
-  });
+  // Record a rejected send before rethrowing. The route caller only console.errors
+  // this, so without the stamp a Postmark rejection (unverified sender, account still
+  // pending approval, bad stream) left no trace anywhere an operator would look.
+  try {
+    await mail.sendEmail({
+      From: from,
+      To: CLINIC_TO,
+      Subject: `New GetPretty client: ${name} — ${eraName}`,
+      HtmlBody: buildClinicEmailHtml({ analysis, user }),
+      MessageStream: MESSAGE_STREAM,
+    });
+  } catch (err) {
+    await recordFailure(analysis, `Postmark rejected the send: ${err.message}`);
+    throw err;
+  }
 
   analysis.clinicNotifiedAt = new Date();
+  analysis.clinicNotifyError = null;
   await analysis.save();
   return { sent: true };
 }
 
-module.exports = { notifyClinic, buildClinicEmailHtml };
+module.exports = { notifyClinic, buildClinicEmailHtml, mailConfigError };

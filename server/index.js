@@ -18,6 +18,7 @@ const aiRoutes       = require('./routes/ai');
 const cityRoutes     = require('./routes/cities');
 const adminRoutes    = require('./routes/admin');
 const skinScanPoller = require('./jobs/skinScanPoller');
+const { mailConfigError } = require('./services/clinicNotify');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -70,6 +71,19 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 3001;
+
+// Say at boot whether clinic notification email is switched on. POSTMARK_* live only in
+// the droplet's server/.env, which no deploy step writes or verifies, so the feature can
+// ship and sit silently disabled — which is exactly what happened. Logged on every
+// restart so `pm2 logs server` answers the question without waiting for a quiz
+// completion. Deliberately NOT a process exit: the clinic email is a notification, and
+// killing signup/quiz/analysis over it would turn a notification outage into a full one.
+const mailProblem = mailConfigError();
+console[mailProblem ? 'error' : 'log'](
+  mailProblem
+    ? `⚠️  Clinic notification email DISABLED — ${mailProblem}. New-client emails will not be sent.`
+    : '✉️  Clinic notification email configured'
+);
 
 mongoose
   .connect(process.env.MONGODB_URI)

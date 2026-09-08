@@ -18,6 +18,10 @@ const skinAnalysisSchema = new mongoose.Schema({
   referralSource:   { type: String, default: null },
   // Idempotency guard for the clinic notification email — null until the email has been sent.
   clinicNotifiedAt: { type: Date, default: null },
+  // Why the most recent notification attempt failed. Null when it has never failed or
+  // when the latest attempt succeeded. Purely diagnostic: it is what makes a silent mail
+  // outage visible on /admin instead of only in pm2 logs.
+  clinicNotifyError: { type: String, default: null },
   // Placeholder for a future explicit consent step; every quiz completion is currently
   // assumed to consent to sharing their profile with the clinic.
   consentToShare:   { type: Boolean, default: true },

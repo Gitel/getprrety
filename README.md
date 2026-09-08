@@ -1,4 +1,29 @@
-# React + Vite
+# Get Pretty
+
+Get Pretty is a Vite React app packaged for iOS and Android with Capacitor.
+
+## Development
+
+1. Copy `.env.example` to `.env` and set the required `VITE_*` values.
+2. Run `npm install`.
+3. Start the web app with `npm run dev`.
+
+## Native apps
+
+The `android/` and `ios/` folders are the checked-in Capacitor projects. After changing web code or Capacitor configuration, run:
+
+```sh
+npm run cap:sync
+```
+
+Open the native projects with `npm run cap:android` or `npm run cap:ios`. Building the iOS app requires macOS with Xcode.
+
+Capacitor services replace the previous native runtime integrations:
+
+- Camera and photo-library access use `@capacitor/camera`.
+- Token/reminder preferences use `@capacitor/preferences`.
+- Location uses `@capacitor/geolocation`.
+- Ritual reminders use `@capacitor/local-notifications`.
 
 ## City autocomplete data
 
@@ -9,18 +34,3 @@ The API uses a self-hosted [GeoNames](https://www.geonames.org/) dataset for cit
 3. Set `MONGODB_URI` in `server/.env`, then run `cd server && npm run import:cities`.
 
 The importer replaces the `cities` collection and rebuilds its search indexes each time, so it is safe to rerun when changing GeoNames datasets.
-
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
-
-Currently, two official plugins are available:
-
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.

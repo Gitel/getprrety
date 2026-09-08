@@ -41,6 +41,9 @@
       <dt>Completed</dt><dd><%= stamp(analysis.createdAt) || '—' %></dd>
       <dt>Referral source</dt><dd><%= analysis.referralSource || '—' %></dd>
       <dt>Clinic notified</dt><dd><%= stamp(analysis.clinicNotifiedAt) || 'not sent' %></dd>
+      <% if (!analysis.clinicNotifiedAt && analysis.clinicNotifyError) { %>
+        <dt>Last email error</dt><dd style="color: #9b3b30;"><%= analysis.clinicNotifyError %></dd>
+      <% } %>
     </dl>
     <form method="post" action="/admin/customer/<%= analysis._id %>/resend" style="margin-top: 14px;">
       <button type="submit">Resend to clinic</button>

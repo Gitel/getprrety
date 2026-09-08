@@ -1,6 +1,6 @@
 import { getToken } from './auth';
 
-const BASE = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001';
+const BASE = process.env.VITE_API_URL || 'http://localhost:3001';
 
 // Photos are larger than a JSON request and go over the same untrusted network, so
 // they get a longer ceiling than api.js — but a ceiling all the same. uploadAll()
