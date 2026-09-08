@@ -98,3 +98,24 @@ Continue button are not flush against the viewport edges.
 
 **Verification:** `npm run build` completed successfully. Git whitespace validation
 also completed without errors.
+
+---
+
+## 2026-09-08 — Fix Vite environment values in the browser bundle
+
+**Trigger:** the deployed web app threw `Cannot read properties of undefined
+(reading 'VITE_API_URL')` before it could load.
+
+**Cause:** the Vite `define` mappings rewrote `process.env.VITE_*` reads into
+`import.meta.env.VITE_*` after Vite's normal environment replacement phase. The
+production JavaScript therefore retained `import.meta.env`, which does not exist in a
+browser at runtime.
+
+**Changes:** `vite.config.js` now uses `loadEnv()` to read only `VITE_` values during
+the build and replaces each legacy `process.env.VITE_*` reference with a JSON-safe
+literal. Existing Jest modules can continue to use `process.env`, while the browser
+bundle has no runtime environment-object dependency.
+
+**Verification:** built with safe, GitHub-Actions-shaped Vite values; the generated
+bundle included the configured API URL and contained no `import.meta.env` references.
+`npm test -- --runInBand` passed all 3 suites and 18 tests.
