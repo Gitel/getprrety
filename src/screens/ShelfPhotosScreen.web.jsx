@@ -1,6 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { View, Text, Pressable, StyleSheet, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { C } from '../constants';
 import { api } from '../lib/api';
 import { uploadAll } from '../lib/uploadImage';
@@ -10,16 +11,18 @@ export default function ShelfPhotosScreen({ navigation }) {
   const [saving, setSaving] = useState(false);
 
   // Unconditional refs — no hooks in loops
-  const inputRefs   = [useRef(null), useRef(null), useRef(null), useRef(null), useRef(null)];
-  const captureRefs = [useRef(null), useRef(null), useRef(null), useRef(null), useRef(null)];
-
-  function onFileChange(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-    e.target.value = '';
-    const reader = new FileReader();
-    reader.onload = ev => setPhotos(p => [...p, ev.target.result]);
-    reader.readAsDataURL(file);
+  async function addPhoto(source) {
+    try {
+      const photo = await Camera.getPhoto({
+        source,
+        quality: 70,
+        resultType: CameraResultType.DataUrl,
+        correctOrientation: true,
+      });
+      if (photo.dataUrl) setPhotos(current => [...current, photo.dataUrl]);
+    } catch {
+      // Users may close the Camera dialog without selecting a photo.
+    }
   }
 
   async function handleContinue() {
@@ -59,10 +62,10 @@ export default function ShelfPhotosScreen({ navigation }) {
             );
             if (isNext) return (
               <View key={i} style={s.slotNext}>
-                <Pressable style={s.addBtn} onPress={() => captureRefs[i].current.click()}>
+                <Pressable style={s.addBtn} onPress={() => addPhoto(CameraSource.Camera)}>
                   <Text style={s.addBtnText}>📷</Text>
                 </Pressable>
-                <Pressable style={s.addBtn} onPress={() => inputRefs[i].current.click()}>
+                <Pressable style={s.addBtn} onPress={() => addPhoto(CameraSource.Photos)}>
                   <Text style={s.addBtnText}>🖼</Text>
                 </Pressable>
               </View>
@@ -80,12 +83,6 @@ export default function ShelfPhotosScreen({ navigation }) {
         </Pressable>
       </View>
 
-      {inputRefs.map((ref, i) => (
-        <React.Fragment key={`shelf-${i}`}>
-          <input type="file" accept="image/*" ref={ref} style={{ display: 'none' }} onChange={onFileChange} />
-          <input type="file" accept="image/*" capture="environment" ref={captureRefs[i]} style={{ display: 'none' }} onChange={onFileChange} />
-        </React.Fragment>
-      ))}
     </SafeAreaView>
   );
 }

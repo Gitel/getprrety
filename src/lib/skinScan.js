@@ -1,6 +1,6 @@
 import { getToken } from './auth';
 
-const BASE = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001';
+const BASE = process.env.VITE_API_URL || 'http://localhost:3001';
 
 // Quiz photos are captured before the user has an account, so init/start/poll are unauthenticated —
 // same posture as the existing direct-to-Gemini call in analyzeWithRailway.js. Claiming the scan at

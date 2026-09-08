@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Platform, View, Text, Pressable, StyleSheet, Switch } from 'react-native';
+import { ActivityIndicator, Alert, View, Text, Pressable, StyleSheet, Switch } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { C } from '../constants';
 import { useApp } from '../context/AppContext';
-import { loadReminderSchedule, requestNotificationPermission, saveReminderSchedule } from '../lib/notifications';
+import { loadReminderSchedule, requestNotificationPermission, saveReminderSchedule, supportsNotifications } from '../lib/notifications';
 
 const DAYS      = ['S','M','T','W','T','F','S'];
 const DAY_FULL  = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
@@ -52,7 +52,7 @@ export default function NotificationSetupScreen({ navigation }) {
     setter(days.includes(i) ? days.filter(d => d !== i) : [...days, i]);
 
   async function enableNotifications() {
-    if (Platform.OS === 'web') {
+    if (!supportsNotifications()) {
       Alert.alert('Mobile only', 'Ritual reminders are available in the iOS and Android apps.');
       return;
     }

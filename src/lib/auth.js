@@ -1,15 +1,16 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Preferences } from '@capacitor/preferences';
 
 const TOKEN_KEY = 'gp_token';
 
 export async function storeToken(token) {
-  await AsyncStorage.setItem(TOKEN_KEY, token);
+  await Preferences.set({ key: TOKEN_KEY, value: token });
 }
 
 export async function getToken() {
-  return AsyncStorage.getItem(TOKEN_KEY);
+  const { value } = await Preferences.get({ key: TOKEN_KEY });
+  return value;
 }
 
 export async function removeToken() {
-  await AsyncStorage.removeItem(TOKEN_KEY);
+  await Preferences.remove({ key: TOKEN_KEY });
 }

@@ -1,4 +1,3 @@
-import * as Crypto from 'expo-crypto';
 import { api } from './api';
 import { uploadAll } from './uploadImage';
 import { claimScan } from './skinScan';
@@ -40,7 +39,9 @@ export async function persistAnalysis({ analysis, answers }) {
   // outright: randomUUID is secure-context-only on web, so a plain-http staging or
   // LAN host has no crypto.randomUUID at all. The server treats null as "older
   // client" and falls back to a plain create.
-  const clientRequestId = typeof Crypto.randomUUID === 'function' ? Crypto.randomUUID() : null;
+  const clientRequestId = typeof globalThis.crypto?.randomUUID === 'function'
+    ? globalThis.crypto.randomUUID()
+    : null;
 
   // Retry a few times before giving up — a transient upload/API blip used to be
   // swallowed and the assessment silently lost. Callers treat a thrown error here

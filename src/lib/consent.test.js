@@ -1,18 +1,18 @@
 // The module reads process.env at import time, so each case needs a fresh registry.
 function loadConsent(env) {
   jest.resetModules();
-  process.env.EXPO_PUBLIC_TERMS_URL = env.terms;
-  process.env.EXPO_PUBLIC_PRIVACY_URL = env.privacy;
-  process.env.EXPO_PUBLIC_CONSENT_VERSION = env.version;
+  process.env.VITE_TERMS_URL = env.terms;
+  process.env.VITE_PRIVACY_URL = env.privacy;
+  process.env.VITE_CONSENT_VERSION = env.version;
   return require('./consent');
 }
 
 const FULL = { terms: 'https://x.test/terms', privacy: 'https://x.test/privacy', version: 'v1' };
 
 afterEach(() => {
-  delete process.env.EXPO_PUBLIC_TERMS_URL;
-  delete process.env.EXPO_PUBLIC_PRIVACY_URL;
-  delete process.env.EXPO_PUBLIC_CONSENT_VERSION;
+  delete process.env.VITE_TERMS_URL;
+  delete process.env.VITE_PRIVACY_URL;
+  delete process.env.VITE_CONSENT_VERSION;
 });
 
 test('nothing is missing when all three are configured', () => {

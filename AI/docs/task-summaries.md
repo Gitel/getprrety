@@ -41,3 +41,19 @@ the persist-failure-does-not-mask-original case. EJS templates compile-checked;
 **Left open:** setting the credentials on the droplet; a genuine registration email if
 that is the real requirement; deliverability work (text part / unsubscribe) for the two
 gmail.com recipients.
+
+---
+
+## 2026-09-08 — Replace Expo with Capacitor
+
+**Trigger:** migrate the mobile application away from Expo to Capacitor.
+
+**Changes:** replaced Expo dependencies, configuration, Metro entry points, and native
+service integrations with Vite, Capacitor, and React Native Web. Added the checked-in
+`android/` and `ios/` Capacitor projects, native camera/location/notification permissions,
+and Capacitor Camera, Preferences, Geolocation, Local Notifications, and Browser packages.
+The web build is now the single bundle copied into both native projects by `npm run cap:sync`.
+
+**Verification:** `npm run cap:sync` completed for Android and iOS, and `npm test --
+--runInBand` passed all 18 client tests. Capacitor Doctor reported Android healthy. iOS
+native compilation remains a macOS/Xcode step.

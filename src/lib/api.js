@@ -1,6 +1,6 @@
 import { getToken } from './auth';
 
-const BASE = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001';
+const BASE = process.env.VITE_API_URL || 'http://localhost:3001';
 
 // A stalled socket must never settle "never". Callers await this on paths the user
 // is watching — the app bootstrap behind the Splash spinner, the assessment save
