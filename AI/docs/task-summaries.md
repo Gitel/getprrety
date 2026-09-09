@@ -139,3 +139,58 @@ JavaScript animation driver, removing the native-driver fallback warning.
 **Verification:** production build output contains `globalThis.cancelAnimationFrame`
 and no `global.cancelAnimationFrame`; the bundle-level check passed. `npm test
 -- --runInBand` passed all 3 suites and 18 tests.
+
+---
+
+## 2026-09-09 — Provision the clinic notification credentials from the deploy pipeline
+
+Task file: `AI/tasks/clinic-email-provisioning.md`
+
+**Trigger:** second report that completing a quiz + registering sends no email to
+dzaturansky@gmail.com / lutreat@gmail.com. Follow-up to the 2026-09-08 observability
+task, which left the credential as a manual ops step — that step was attempted and
+silently did not take.
+
+**Finding:** the application path is intact (quiz → signup → `persistAnalysis()` →
+`POST /api/analysis` → `saveAnalysis() created:true` → `notifyClinic()`). The break is
+purely configuration, and two new causes were confirmed by running dotenv's own parser:
+
+- The Postmark values sit in the **repo-root `.env`**, but `server/index.js:1` calls
+  `dotenv.config()` with no path, so it reads `server/.env`. The API never reads the
+  root file.
+- `server/.env` line 13 is a literal `printf 'POSTMARK_API_KEY=...'` shell command that
+  was pasted instead of executed. dotenv drops the line without a word, so neither key
+  parses. The token inside it is 34 chars where Postmark issues 36 — truncated, and it
+  would have been rejected anyway.
+
+`notifyClinic()` **resolves** rather than rejecting on this path, so even the route's
+`.catch()` never ran. The old deploy `::warning::` was firing but unread.
+
+**Changes (`.github/workflows/deploy.yml` only):** a new `Verify server mail secrets`
+pre-flight step that hard-fails when either repository secret is unset; both secrets now
+passed to the droplet via the ssh-action `envs` parameter; a new `upsert_env()` that
+writes each key into `server/.env` **before** `pm2 restart`; and the old warning loop
+replaced by a post-write error assertion that reads the file back.
+
+**Key decision:** the upsert rewrites one key at a time rather than regenerating the
+file. `MONGODB_URI`, `JWT_SECRET` and `PERFECTCORP_*` exist only on the droplet, and a
+whole-file rewrite from CI would destroy the database credentials.
+
+**Deviation from the previous task's reasoning:** that task argued a mail
+misconfiguration must not block a code deploy, so it warned. Now that the pipeline owns
+the value, an unset secret is a pipeline configuration error, so the pre-flight fails
+the run. The in-script check still cannot fail spuriously.
+
+**Verification:** `deploy.yml` parsed with js-yaml; command order asserted from the
+parsed script with comments excluded (upsert at 15, `pm2 restart` at 24); the exact
+`upsert_env` body executed against a stub `.env` reproducing the real corruption — both
+keys parse afterwards and all pre-existing keys survived byte-intact; a second pass left
+exactly one `POSTMARK_API_KEY=` line and rotated the value in place. `npm test` in
+`server/` — 18 suites, 108 tests pass, unchanged.
+
+**Left open (manual, cannot be done from the repo):** rotate the Postmark token (it was
+exposed in terminal output; `git log -S` confirms it was never committed); add the two
+GitHub repository secrets; delete the stray `printf` line from the droplet `.env` and the
+misleading `POSTMARK_*` entries from the root `.env`; confirm the boot log after deploy;
+run `npm run backfill:clinic` for the clients already missed. Status left `in_progress` —
+marking it done needs your say-so.

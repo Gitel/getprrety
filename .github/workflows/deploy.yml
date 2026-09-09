@@ -52,6 +52,27 @@ jobs:
           done
           echo "All Vite web build values present."
 
+      # The clinic-notification credentials are server-side and play no part in the web
+      # build, so they get their own gate rather than being folded into the Vite check
+      # above. Fails the deploy when either secret is unset: the whole point of moving
+      # provisioning into the pipeline is that a missing value can no longer produce a
+      # green run with mail silently switched off, which is what happened for a month.
+      - name: Verify server mail secrets
+        env:
+          POSTMARK_API_KEY: ${{ secrets.POSTMARK_API_KEY }}
+          POSTMARK_SENDER_ADDRESS: ${{ secrets.POSTMARK_SENDER_ADDRESS }}
+        run: |
+          set -euo pipefail
+          missing=()
+          for var in POSTMARK_API_KEY POSTMARK_SENDER_ADDRESS; do
+            [ -n "${!var}" ] || missing+=("$var")
+          done
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "::error::Missing repository secrets: ${missing[*]} — clinic notification email would deploy disabled"
+            exit 1
+          fi
+          echo "Clinic mail secrets present."
+
       # `npm run build` is the project's Vite build script and writes the static
       # site to dist/, which the following SCP step deploys to the droplet.
       - name: Build Vite web
@@ -74,10 +95,16 @@ jobs:
 
       - name: Deploy server
         uses: appleboy/ssh-action@v1
+        env:
+          POSTMARK_API_KEY: ${{ secrets.POSTMARK_API_KEY }}
+          POSTMARK_SENDER_ADDRESS: ${{ secrets.POSTMARK_SENDER_ADDRESS }}
         with:
           host: ${{ secrets.DO_HOST }}
           username: ${{ secrets.DO_USER }}
           key: ${{ secrets.DO_SSH_KEY }}
+          # `envs` is what actually ships these two values into the remote shell; the
+          # `env:` block above only makes them visible to this step on the runner.
+          envs: POSTMARK_API_KEY,POSTMARK_SENDER_ADDRESS
           script: |
             set -euo pipefail
             # Name the command that actually failed. Until now a red deploy reported only
@@ -89,20 +116,51 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
             npm install
+
+            # Write the clinic-notification credentials into server/.env from the
+            # repository secrets. Previously nothing wrote them, so the values existed
+            # only as a manual edit on this box — and the one manual attempt pasted a
+            # literal `printf '...'` command into the file instead of running it, which
+            # dotenv drops without a word. server/index.js re-reads .env on every start,
+            # so this MUST happen before the pm2 restart below.
+            #
+            # Rewrites one key at a time rather than the whole file: MONGODB_URI,
+            # JWT_SECRET and the PERFECTCORP_* values exist ONLY here, and regenerating
+            # .env from the workflow would destroy them.
+            upsert_env() {
+              key="$1"
+              value="$2"
+              tmp="$(mktemp)"
+              # Drop any existing assignment for this key, then append the current value.
+              # `|| true` because grep exits 1 when it filters everything out, which
+              # `set -e` would otherwise treat as a failure.
+              grep -v "^${key}=" .env > "$tmp" || true
+              printf '%s=%s\n' "$key" "$value" >> "$tmp"
+              # mktemp already creates the file 0600; make that explicit before it
+              # becomes .env, so the credentials are never briefly world-readable.
+              chmod 600 "$tmp"
+              # Move into place as one atomic step: a failure part-way through leaves
+              # the previous .env untouched rather than a half-written one.
+              mv "$tmp" .env
+            }
+            upsert_env POSTMARK_API_KEY "$POSTMARK_API_KEY"
+            upsert_env POSTMARK_SENDER_ADDRESS "$POSTMARK_SENDER_ADDRESS"
+
+            # Read the file back. The bug being fixed here was a write that silently did
+            # not take, so "we ran the write" is not evidence the value is in the file.
+            # This cannot fail spuriously — if the upsert worked, it passes.
+            for var in POSTMARK_API_KEY POSTMARK_SENDER_ADDRESS; do
+              if ! grep -qE "^${var}=.+" .env; then
+                echo "::error::${var} still missing from server/.env after provisioning"
+                exit 1
+              fi
+            done
+            echo "Clinic mail credentials provisioned in server/.env"
+
             pm2 restart server --update-env
             pm2 save
 
             echo "Deployed commit: $(git rev-parse HEAD)"
-
-            # The clinic-notification credentials live only in this .env, which is
-            # gitignored and which nothing in this workflow writes. So the mail feature
-            # could ship green and sit switched off — it did, for a month. Warn rather
-            # than fail: a notification misconfiguration must not block a code deploy.
-            for var in POSTMARK_API_KEY POSTMARK_SENDER_ADDRESS; do
-              if ! grep -qE "^${var}=.+" .env; then
-                echo "::warning::${var} is missing from server/.env — new-client emails are disabled"
-              fi
-            done
 
             # Poll the app directly instead of curling the public hostname once.
             # `pm2 restart` returns before the process is listening and index.js only
