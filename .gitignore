@@ -4,6 +4,9 @@ server/.env
 server/scripts/data/
 *.local
 
+# Internal planning/docs - kept local, not published to the repo
+AI/
+
 dist/
 
 # Logs
