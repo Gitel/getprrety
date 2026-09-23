@@ -10,7 +10,13 @@ import { logActivity } from '../lib/logActivity';
 import { C } from '../constants';
 import { useApp } from '../context/AppContext';
 import GoogleSignInButton from '../components/GoogleSignInButton';
+import ConsentNotice from '../components/ConsentNotice';
+import { LEGAL_READY, consentParams } from '../lib/consent';
+import { quizEntryScreen } from '../lib/welcomeVariants';
 
+// Login-first entry screen for signed-out users (SplashScreen routes here). Offers
+// log in, "Create an account" (SignUpScreen), or "Skip for now" into the existing
+// anonymous flow, where an account is still required later to see the routine.
 export default function LoginScreen({ navigation }) {
   const { analysis, setAnalysis, setUser, authReady, user } = useApp();
   const [email,    setEmail]    = useState('');
@@ -21,7 +27,7 @@ export default function LoginScreen({ navigation }) {
   const [googleLoading, setGoogleLoading] = useState(false);
 
   useEffect(() => {
-    if (authReady && user) navigation.replace(analysis ? 'Home' : 'QuizIntro');
+    if (authReady && user) navigation.replace(analysis ? 'Home' : quizEntryScreen());
   }, [authReady, user, analysis]);
 
   // Show a spinner while auth resolves AND while a logged-in user is being redirected,
@@ -55,7 +61,7 @@ export default function LoginScreen({ navigation }) {
       setAnalysis(saved);
       setUser(user);
       logActivity('login');
-      navigation.replace(saved ? 'Home' : 'QuizIntro');
+      navigation.replace(saved ? 'Home' : quizEntryScreen());
     } catch (err) {
       setError(err.message || 'Login failed. Please try again.');
     } finally {
@@ -67,7 +73,9 @@ export default function LoginScreen({ navigation }) {
     setError(null);
     setGoogleLoading(true);
     try {
-      const { token, user } = await api.post('/api/auth/google', { idToken });
+      // Google creates the account if none exists, and the server then requires a fresh
+      // consent stamp (the notice on this screen). Existing users ignore it server-side.
+      const { token, user } = await api.post('/api/auth/google', { idToken, ...(consentParams() || {}) });
       await storeToken(token);
       let saved = null;
       try {
@@ -77,12 +85,21 @@ export default function LoginScreen({ navigation }) {
       setAnalysis(saved);
       setUser(user);
       logActivity('login');
-      navigation.replace(saved ? 'Home' : 'QuizIntro');
+      navigation.replace(saved ? 'Home' : quizEntryScreen());
     } catch (err) {
       setError(err.message || 'Google sign-in failed. Please try again.');
     } finally {
       setGoogleLoading(false);
     }
+  }
+
+  // Tapping "Skip for now" under the consent notice is the act of acceptance, exactly as
+  // the QuizIntro CTA used to be. The stamp rides into the quiz answers; SignUpScreen
+  // stamps its own fresh one when the account is finally created.
+  function skipLogin() {
+    const consent = consentParams();
+    if (!consent) return; // legal links / policy version not configured — onboarding disabled
+    navigation.navigate(quizEntryScreen(), consent);
   }
 
   return (
@@ -152,8 +169,18 @@ export default function LoginScreen({ navigation }) {
 
           <GoogleSignInButton onToken={handleGoogleToken} onError={setError} loading={googleLoading} />
 
-          <Pressable onPress={() => navigation.navigate('QuizIntro')} style={s.greenBtn}>
-            <Text style={s.greenBtnText}>✦ Begin your skin assessment</Text>
+          <Pressable onPress={() => navigation.navigate('SignUp')} style={s.greenBtn}>
+            <Text style={s.greenBtnText}>✦ Create an account</Text>
+          </Pressable>
+
+          {/* Binding Terms/Privacy notice: accepted by Google sign-in (new account) or
+              by "Skip for now". Email sign-up shows its own copy on SignUpScreen. */}
+          <ConsentNotice style={s.consent} />
+
+          {/* Existing anonymous flow: quiz + results without an account. SignUp is still
+              required at ProfileScreen's "See My Routine" before the routine (Home). */}
+          <Pressable disabled={!LEGAL_READY} onPress={skipLogin} style={s.skipBtn} hitSlop={10}>
+            <Text style={[s.skipText, !LEGAL_READY && s.skipTextDisabled]}>Skip for now</Text>
           </Pressable>
 
         </ScrollView>
@@ -193,6 +220,11 @@ const s = StyleSheet.create({
 
   greenBtn:       { backgroundColor: '#3D6B35', borderRadius: 26, paddingVertical: 15, alignItems: 'center', marginBottom: 12 },
   greenBtnText:   { fontFamily: 'DMSans_500Medium', fontSize: 15, color: '#FFF', letterSpacing: 0.4 },
+
+  consent:        { marginTop: 8, marginBottom: 16, paddingHorizontal: 4 },
+  skipBtn:        { alignItems: 'center', paddingVertical: 8 },
+  skipText:       { fontFamily: 'DMSans_500Medium', fontSize: 13, color: C.accent, textDecorationLine: 'underline' },
+  skipTextDisabled:{ color: C.muted },
 
   termsRow:       { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 20 },
   checkbox:       { width: 18, height: 18, borderRadius: 4, borderWidth: 1.5, borderColor: C.border, alignItems: 'center', justifyContent: 'center', marginTop: 1 },

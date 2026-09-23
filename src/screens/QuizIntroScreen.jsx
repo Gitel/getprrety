@@ -2,17 +2,17 @@ import React from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { C, QUESTIONS } from '../constants';
-import ConsentNotice from '../components/ConsentNotice';
-import { LEGAL_READY, consentParams } from '../lib/consent';
 
 const Q = QUESTIONS.find(q => q.id === 'welcome');
 
+// Login-first: the Terms/Privacy consent now lives on LoginScreen / SignUpScreen, so
+// this screen no longer shows or stamps it. It only forwards the stamp that "Skip for
+// now" put in the route params (anonymous users); signed-in users arrive without one.
 export default function QuizIntroScreen({ navigation, route }) {
   function begin() {
-    const consent = consentParams();
-    if (!consent) return; // legal links / policy version not configured — onboarding disabled
     navigation.navigate('Quiz', {
-      ...consent,
+      consentAcceptedAt: route?.params?.consentAcceptedAt || null,
+      consentVersion: route?.params?.consentVersion || null,
       referralSource: route?.params?.referralSource || null,
     });
   }
@@ -33,16 +33,11 @@ export default function QuizIntroScreen({ navigation, route }) {
         </View>
 
         <View style={s.actions}>
-          <ConsentNotice style={s.consent} />
           <Pressable
-            disabled={!LEGAL_READY}
-            style={({ pressed }) => [s.cta, !LEGAL_READY && s.ctaDisabled, pressed && LEGAL_READY && { opacity: 0.88 }]}
+            style={({ pressed }) => [s.cta, pressed && { opacity: 0.88 }]}
             onPress={begin}
           >
             <Text style={s.ctaText}>{Q.cta}</Text>
-          </Pressable>
-          <Pressable onPress={() => navigation.navigate('Login')} style={s.ghostBtn}>
-            <Text style={s.ghostText}>Already have an account? Log in</Text>
           </Pressable>
         </View>
 
@@ -64,12 +59,8 @@ const s = StyleSheet.create({
   sub: { fontFamily: 'DMSans_400Regular', fontSize: 14, color: C.muted, textAlign: 'center', lineHeight: 22, marginBottom: 10 },
   time: { fontFamily: 'DMSans_400Regular', fontSize: 12.5, color: C.muted },
   actions: { width: '100%', gap: 12, marginBottom: 24 },
-  consent: { marginBottom: 4 },
   cta: { backgroundColor: '#2C2C2C', borderRadius: 13, paddingVertical: 15, alignItems: 'center' },
-  ctaDisabled: { backgroundColor: '#D4CBC4' },
   ctaText: { fontFamily: 'DMSans_500Medium', fontSize: 15, color: C.bg, letterSpacing: 0.4 },
-  ghostBtn: { borderWidth: 1, borderColor: C.border, borderRadius: 26, paddingVertical: 13, alignItems: 'center' },
-  ghostText: { fontFamily: 'DMSans_400Regular', fontSize: 13, color: C.muted, letterSpacing: 0.5 },
   checklist: { fontFamily: 'DMSans_400Regular', fontSize: 11.5, color: C.muted, textAlign: 'center', lineHeight: 22, marginBottom: 12 },
   footer: { fontFamily: 'DMSans_400Regular', fontSize: 10.5, color: C.muted, textAlign: 'center' },
 });

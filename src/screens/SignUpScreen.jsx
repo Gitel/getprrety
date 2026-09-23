@@ -11,14 +11,23 @@ import { logActivity } from '../lib/logActivity';
 import { C } from '../constants';
 import { useApp } from '../context/AppContext';
 import GoogleSignInButton from '../components/GoogleSignInButton';
+import ConsentNotice from '../components/ConsentNotice';
+import { LEGAL_READY, consentParams } from '../lib/consent';
+import { quizEntryScreen } from '../lib/welcomeVariants';
 
 function isValidEmail(v) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 }
 
+// Reached two ways (login-first):
+//  - from LoginScreen's "Create an account", BEFORE the quiz: no analysis in context yet;
+//  - from ProfileScreen's "See My Routine" after "Skip for now", AFTER the quiz: the
+//    just-finished analysis is in context and is saved here once the account exists.
+// `analysis` tells the two apart and drives the copy and the next screen.
 export default function SignUpScreen({ navigation }) {
   const { analysis, answers, setUser, setAnalysisSaveFailed } = useApp();
   const era = analysis?.era;
+  const afterQuiz = Boolean(analysis);
 
   const [firstName, setFirstName] = useState(answers?.name || '');
   const [email,    setEmail]    = useState('');
@@ -37,9 +46,36 @@ export default function SignUpScreen({ navigation }) {
     return e;
   }
 
+  // Shared by email and Google sign-up once the account exists.
+  function continueAfterSignup() {
+    logActivity('signup');
+    if (!afterQuiz) {
+      // Login-first: nothing to save yet. Start the quiz as the new root screen so Back
+      // cannot return to the auth screens. LoadingScreen saves the result (user is set).
+      navigation.reset({ index: 0, routes: [{ name: quizEntryScreen() }] });
+      return;
+    }
+    // Skip path: save the anonymous analysis to the new account, then onboarding.
+    persistAnalysis({ analysis, answers }).then(
+      () => setAnalysisSaveFailed(false),
+      err => {
+        console.error('Failed to save analysis after retries:', err?.message || err);
+        // The anonymous funnel saves here, not in LoadingScreen (user is null there),
+        // so this is where most of the telemetry for a lost assessment must be recorded.
+        logActivity('analysis_save_failed');
+        setAnalysisSaveFailed(true);
+      },
+    );
+    navigation.navigate('SkinTiming');
+  }
+
   async function handleSubmit() {
     const e = validate();
     if (Object.keys(e).length) { setErrors(e); return; }
+    // Tapping the button under the consent notice is the acceptance; the server requires
+    // this stamp to be fresh (<= 24 h), so it is taken now rather than from the quiz.
+    const consent = consentParams();
+    if (!consent) return; // legal links / policy version not configured — sign-up disabled
     setErrors({});
     setLoading(true);
     try {
@@ -47,25 +83,11 @@ export default function SignUpScreen({ navigation }) {
         firstName: firstName.trim() || undefined,
         email,
         password,
-        consentAcceptedAt: answers?.consentAcceptedAt,
-        consentVersion: answers?.consentVersion,
+        ...consent,
       });
       await storeToken(token);
       setUser(u);
-
-      logActivity('signup');
-      persistAnalysis({ analysis, answers }).then(
-        () => setAnalysisSaveFailed(false),
-        err => {
-          console.error('Failed to save analysis after retries:', err?.message || err);
-          // The anonymous funnel saves here, not in LoadingScreen (user is null there),
-          // so this is where most of the telemetry for a lost assessment must be recorded.
-          logActivity('analysis_save_failed');
-          setAnalysisSaveFailed(true);
-        },
-      );
-
-      navigation.navigate('SkinTiming');
+      continueAfterSignup();
     } catch (err) {
       setErrors({ submit: err.message || 'Sign up failed. Please try again.' });
     } finally {
@@ -77,23 +99,11 @@ export default function SignUpScreen({ navigation }) {
     setErrors({});
     setGoogleLoading(true);
     try {
-      const { token, user: u } = await api.post('/api/auth/google', { idToken });
+      // A new Google account needs the same fresh consent stamp as email sign-up.
+      const { token, user: u } = await api.post('/api/auth/google', { idToken, ...(consentParams() || {}) });
       await storeToken(token);
       setUser(u);
-
-      logActivity('signup');
-      persistAnalysis({ analysis, answers }).then(
-        () => setAnalysisSaveFailed(false),
-        err => {
-          console.error('Failed to save analysis after retries:', err?.message || err);
-          // The anonymous funnel saves here, not in LoadingScreen (user is null there),
-          // so this is where most of the telemetry for a lost assessment must be recorded.
-          logActivity('analysis_save_failed');
-          setAnalysisSaveFailed(true);
-        },
-      );
-
-      navigation.navigate('SkinTiming');
+      continueAfterSignup();
     } catch (err) {
       setErrors({ submit: err.message || 'Google sign-in failed. Please try again.' });
     } finally {
@@ -118,13 +128,20 @@ export default function SignUpScreen({ navigation }) {
             </Pressable>
           )}
 
-          {/* Era headline */}
-          <View style={s.headlineBlock}>
-            <Text style={s.headline}>
-              Your <Text style={{ color: C.accent }}>{eraName}</Text> routine is ready.
-            </Text>
-            <Text style={s.sub}>Create your account to unlock it — and track your skin journey.</Text>
-          </View>
+          {/* Headline: the era copy after the quiz (skip path), generic copy before it */}
+          {afterQuiz ? (
+            <View style={s.headlineBlock}>
+              <Text style={s.headline}>
+                Your <Text style={{ color: C.accent }}>{eraName}</Text> routine is ready.
+              </Text>
+              <Text style={s.sub}>Create your account to unlock it — and track your skin journey.</Text>
+            </View>
+          ) : (
+            <View style={s.headlineBlock}>
+              <Text style={s.headline}>Create your account</Text>
+              <Text style={s.sub}>Save your skin assessment and track your journey.</Text>
+            </View>
+          )}
 
           <GoogleSignInButton onToken={handleGoogleToken} onError={msg => setErrors({ submit: msg })} loading={googleLoading} />
 
@@ -186,14 +203,17 @@ export default function SignUpScreen({ navigation }) {
             <Text style={[s.error, { textAlign: 'center', marginBottom: 8 }]}>{errors.submit}</Text>
           )}
 
+          {/* Binding Terms/Privacy notice; tapping the button below (or Google) accepts it */}
+          <ConsentNotice style={s.consent} />
+
           <Pressable
             onPress={handleSubmit}
-            disabled={loading}
-            style={[s.cta, loading && s.ctaDisabled]}
+            disabled={loading || !LEGAL_READY}
+            style={[s.cta, (loading || !LEGAL_READY) && s.ctaDisabled]}
           >
             {loading
               ? <ActivityIndicator color={C.bg} size="small" />
-              : <Text style={s.ctaText}>Enter my Era →</Text>
+              : <Text style={s.ctaText}>{afterQuiz ? 'Enter my Era →' : 'Create account'}</Text>
             }
           </Pressable>
 
@@ -228,6 +248,7 @@ const s = StyleSheet.create({
   eyeIcon:     { fontSize: 16 },
   error:       { fontFamily: 'DMSans_400Regular', fontSize: 12, color: '#C9897A', marginTop: 5, marginLeft: 4 },
 
+  consent:     { marginTop: 4, marginBottom: 12, paddingHorizontal: 4 },
   cta:         { backgroundColor: '#C9897A', borderRadius: 13, paddingVertical: 15, alignItems: 'center', marginTop: 8 },
   ctaDisabled: { backgroundColor: '#D4C5BF' },
   ctaText:     { fontFamily: 'DMSans_500Medium', fontSize: 15, color: '#FAF7F4', letterSpacing: 0.4 },
