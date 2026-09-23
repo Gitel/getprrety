@@ -1,10 +1,17 @@
 require('dotenv').config();
 const path     = require('path');
+const dns      = require('dns');
 const express  = require('express');
 const mongoose = require('mongoose');
 const cors     = require('cors');
 const helmet   = require('helmet');
 const cookieParser = require('cookie-parser');
+
+// Node's c-ares DNS resolver can't query link-local IPv6 DNS servers
+// (fe80::... — common on Wi-Fi hotspots), causing mongodb+srv:// SRV
+// lookups to fail with ECONNREFUSED even though the OS resolver works.
+// Point Node at public resolvers so the SRV lookup always succeeds.
+dns.setServers(['8.8.8.8', '1.1.1.1']);
 
 const authRoutes     = require('./routes/auth');
 const profileRoutes  = require('./routes/profile');
