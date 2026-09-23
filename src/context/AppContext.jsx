@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { getToken, removeToken } from '../lib/auth';
-import { api } from '../lib/api';
+import { removeToken } from '../lib/auth';
+import { loadSession } from '../lib/loadSession';
 import { logActivity } from '../lib/logActivity';
 
 const AppContext = createContext(null);
@@ -16,19 +16,14 @@ export function AppProvider({ children }) {
 
   useEffect(() => {
     (async () => {
-      const token = await getToken();
-      if (token) {
-        try {
-          const { user: signedInUser } = await api.get('/api/auth/me', { timeoutMs: BOOTSTRAP_TIMEOUT_MS });
-          setUser(signedInUser);
-          logActivity('app_open');
-
-          api.get('/api/analysis/latest', { timeoutMs: BOOTSTRAP_TIMEOUT_MS })
-            .then(({ analysis: saved }) => { if (saved) setAnalysis(saved); })
-            .catch(() => {});
-        } catch (error) {
-          if (error?.status === 401 || error?.status === 404) await removeToken();
-        }
+      // User AND saved analysis are both loaded before authReady flips, so SplashScreen
+      // can send a returning user straight to Home (see loadSession.js for the race this
+      // fixes). Worst case is one BOOTSTRAP_TIMEOUT_MS, under SplashScreen's 10 s ceiling.
+      const { user: signedInUser, analysis: saved } = await loadSession({ timeoutMs: BOOTSTRAP_TIMEOUT_MS });
+      if (saved) setAnalysis(saved);
+      if (signedInUser) {
+        setUser(signedInUser);
+        logActivity('app_open');
       }
       setAuthReady(true);
     })();
