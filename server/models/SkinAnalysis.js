@@ -30,6 +30,17 @@ const skinAnalysisSchema = new mongoose.Schema({
   // that attempt's retries. Null for older clients, which fall back to the
   // previous non-idempotent behavior.
   clientRequestId:  { type: String, default: null },
+
+  // Where this result came from:
+  //  - 'gemini'   the Railway/Gemini analysis succeeded;
+  //  - 'fallback' it failed, and the client showed the canned buildFallback() template
+  //               from src/constants.js instead (same text and routine for everyone);
+  //  - null       saved by an older client, before this was recorded.
+  // Without this a fallback looked exactly like a real analysis on /admin, in the clinic
+  // email and in the app, which is how a months-long Gemini outage went unnoticed.
+  source:         { type: String, enum: ['gemini', 'fallback', null], default: null },
+  // Why the Gemini analysis failed (e.g. "Railway API 404"). Diagnostic only.
+  fallbackReason: { type: String, default: null },
 }, { timestamps: true });
 
 // Partial so the many legacy and older-client rows with clientRequestId: null don't

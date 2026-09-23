@@ -52,6 +52,14 @@
 
   <div class="card">
     <h2>Skin Era</h2>
+    <%# Gemini failed for this client, so everything in this card and the routine below is %>
+    <%# the canned template every such client receives - not a personalized reading. %>
+    <% if (analysis.source === 'fallback') { %>
+      <div class="warn">
+        &#9888; Generic result: the AI skin analysis was unavailable, so this client got the standard template, not a personalized reading.
+        <% if (analysis.fallbackReason) { %><br><code><%= analysis.fallbackReason %></code><% } %>
+      </div>
+    <% } %>
     <dl class="kv">
       <dt>Era</dt><dd><%= (analysis.era && analysis.era.name) || analysis.eraId || '—' %></dd>
       <% if (analysis.era && analysis.era.tagline) { %><dt>Tagline</dt><dd><%= analysis.era.tagline %></dd><% } %>

@@ -118,7 +118,12 @@ export default function LoadingScreen({ navigation }) {
       })
       .catch(err => {
         console.warn('Railway fallback:', err.message);
-        apiRef.result = buildFallback(answers || {});
+        // Stamp the canned template as a fallback, with the reason, so it is never
+        // mistaken for a personalized result (saved with the analysis; shown as a
+        // banner in the app, a marker on /admin and a label in the clinic email).
+        apiRef.result = { ...buildFallback(answers || {}), source: 'fallback', fallbackReason: err.message || 'unknown error' };
+        // Activity logging needs an account; anonymous users are covered by the saved marker.
+        if (user) logActivity('analysis_fallback');
       })
       .finally(() => {
         apiRef.done = true;

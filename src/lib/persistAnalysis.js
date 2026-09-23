@@ -58,5 +58,8 @@ export async function persistAnalysis({ analysis, answers }) {
     quizPhotoIds,
     skinScanId:   scanClaimed ? answers.skinScanId : null,
     clientRequestId,
+    // 'gemini' | 'fallback' (+ why it failed). Lets the server mark generic results.
+    source:         analysis.source ?? null,
+    fallbackReason: analysis.fallbackReason ?? null,
   }));
 }

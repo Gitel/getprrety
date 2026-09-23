@@ -28,6 +28,18 @@ function locationFromQuizAnswers(answers) {
   return { city, country, lat, lng, timezone };
 }
 
+// Reads the client's claim about where the result came from (see SkinAnalysis.source).
+// Anything unexpected is stored as null ("unknown") rather than rejected: this is
+// diagnostic metadata, and it must never be the reason an assessment fails to save.
+function analysisSourceFromBody(body) {
+  const source = body?.source === 'gemini' || body?.source === 'fallback' ? body.source : null;
+  // A reason only makes sense for a fallback; cap it so a long error cannot bloat the doc.
+  const fallbackReason = source === 'fallback' && typeof body.fallbackReason === 'string' && body.fallbackReason.trim()
+    ? body.fallbackReason.trim().slice(0, 200)
+    : null;
+  return { source, fallbackReason };
+}
+
 async function withSkinScan(doc, userId) {
   if (!doc) return null;
   const analysis = doc.toObject ? doc.toObject() : { ...doc };
@@ -77,6 +89,7 @@ router.post('/', requireAuth, async (req, res) => {
       quizPhotoIds: Array.isArray(quizPhotoIds) ? quizPhotoIds.slice(0, 20) : [],
       referralSource,
       clientRequestId,
+      ...analysisSourceFromBody(req.body),
     });
 
     if (created) {
@@ -134,3 +147,4 @@ router.get('/', requireAuth, async (req, res) => {
 
 module.exports = router;
 module.exports.locationFromQuizAnswers = locationFromQuizAnswers;
+module.exports.analysisSourceFromBody = analysisSourceFromBody;

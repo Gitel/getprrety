@@ -48,6 +48,19 @@ describe('buildClinicEmailHtml', () => {
     expect(html).toContain(`/admin/customer/${analysis._id}`);
   });
 
+  test('labels a fallback (generic template) result, keeping the allergy block first', () => {
+    const html = buildClinicEmailHtml({ analysis: makeAnalysis({ source: 'fallback' }), user: { email: 'a@b.co' } });
+    expect(html).toContain('Generic result');
+    expect(html.indexOf('No allergies reported')).toBeLessThan(html.indexOf('Generic result'));
+  });
+
+  test('does not label a real gemini result or a legacy one without a source', () => {
+    for (const source of ['gemini', undefined]) {
+      const html = buildClinicEmailHtml({ analysis: makeAnalysis({ source }), user: { email: 'a@b.co' } });
+      expect(html).not.toContain('Generic result');
+    }
+  });
+
   test('escapes HTML in quiz answers', () => {
     const analysis = makeAnalysis({ quizAnswers: { name: '<script>x</script>', allergies: [] } });
     const html = buildClinicEmailHtml({ analysis, user: { email: 'a@b.co' } });
@@ -93,6 +106,15 @@ describe('notifyClinic', () => {
     expect(arg.MessageStream).toBe('outbound');
     expect(analysis.clinicNotifiedAt).toBeInstanceOf(Date);
     expect(analysis.save).toHaveBeenCalledTimes(1);
+  });
+
+  test('prefixes the subject for a fallback (generic template) result', async () => {
+    const client = { sendEmail: jest.fn().mockResolvedValue({}) };
+
+    await notifyClinic(makeAnalysis({ source: 'fallback' }), { client });
+
+    expect(client.sendEmail.mock.calls[0][0].Subject)
+      .toBe('[Generic result] New GetPretty client: Ada — Barrier Healing Era');
   });
 
   test('force resends even when clinicNotifiedAt is set', async () => {

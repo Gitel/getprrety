@@ -151,6 +151,9 @@ function mapToAppFormat(railwayResponse, answers) {
     checkInPrompts: gemini.check_in_prompts || [],
     safetyFlags:    gemini.safety_flags || [],
     eventPrep:      gemini.event_prep || null,
+    // Marks this as a real Gemini result. LoadingScreen stamps 'fallback' instead when
+    // the call fails, so the app, /admin and the clinic email can tell the two apart.
+    source:         'gemini',
   };
 }
 
