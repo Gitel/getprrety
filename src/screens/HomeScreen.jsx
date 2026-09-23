@@ -37,6 +37,14 @@ export default function HomeScreen({ navigation }) {
   const saveChain = useRef(Promise.resolve());
   // Once the user taps, a late-arriving server copy must not overwrite their taps.
   const touched   = useRef(false);
+  // Always the latest ticks. toggle() builds on this instead of the `done` captured at
+  // render time, so two taps landing before a re-render cannot drop the first one, while
+  // the network call stays outside the (pure) state update.
+  const doneRef   = useRef({});
+  function applyDone(next) {
+    doneRef.current = next;
+    setDone(next);
+  }
 
   // Restore today's ticks. Ignored if they were saved for a different routine (retake).
   useEffect(() => {
@@ -48,7 +56,7 @@ export default function HomeScreen({ navigation }) {
         const restored = {};
         progress.am.forEach(i => { restored['am' + i] = true; });
         progress.pm.forEach(i => { restored['pm' + i] = true; });
-        setDone(restored);
+        applyDone(restored);
       })
       .catch(() => {}); // offline: start the day unticked, as before
     return () => { cancelled = true; };
@@ -56,8 +64,9 @@ export default function HomeScreen({ navigation }) {
 
   function toggle(i) {
     touched.current = true;
-    const next = { ...done, [tab + i]: !done[tab + i] };
-    setDone(next);
+    const current = doneRef.current;
+    const next = { ...current, [tab + i]: !current[tab + i] };
+    applyDone(next);
     if (!user) return;
     const body = { date: today, routineKey, am: tickedIndices(next, 'am'), pm: tickedIndices(next, 'pm') };
     saveChain.current = saveChain.current
