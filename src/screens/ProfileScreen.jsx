@@ -356,7 +356,11 @@ export default function ProfileScreen({ navigation }) {
 
         <Pressable
           style={[s.cta, { backgroundColor: era.color }]}
-          onPress={() => navigation.navigate(user ? 'Home' : 'SignUp')}
+          // The routine (Home) always needs an account:
+          //  - no user (took "Skip for now")          -> SignUp, which saves this analysis;
+          //  - signed in, SkinTiming never answered    -> first-time onboarding chain;
+          //  - signed in and onboarded (e.g. a retake) -> straight to Home.
+          onPress={() => navigation.navigate(!user ? 'SignUp' : user.skincareTiming ? 'Home' : 'SkinTiming')}
         >
           <Text style={s.ctaText}>See My Routine →</Text>
         </Pressable>
