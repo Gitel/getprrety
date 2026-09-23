@@ -21,8 +21,13 @@ const SEVERITY_META = [
   { label: 'Priority',   color: '#C44B4B' },
 ];
 
-export default function ProfileScreen({ navigation }) {
-  const { analysis, setAnalysis, answers, user, analysisSaveFailed, setAnalysisSaveFailed } = useApp();
+export default function ProfileScreen({ navigation, route }) {
+  const {
+    analysis, setAnalysis, answers, user, analysisSaveFailed, setAnalysisSaveFailed,
+    productRecsCache, setProductRecsCache,
+  } = useApp();
+  // Opened from Home's "View my full analysis" card (not from the quiz reveal).
+  const openedFromHome = Boolean(route?.params?.fromHome);
   const era = analysis?.era;
   // Product routine + shelf audit travel on the analysis itself, so a saved analysis
   // loaded after a reload/login shows them too (null for fallbacks and older records).
@@ -49,13 +54,24 @@ export default function ProfileScreen({ navigation }) {
   useEffect(() => {
     if (!user) return;
     if (!addItems.length && !replaceItems.length) return;
+    // Quiz answers are only in memory in the quiz session; a saved analysis (reopened
+    // after a reload) carries its own copy, so use that before the US default.
+    const c   = answers?.country || analysis?.quizAnswers?.country || 'United States';
+    const key = JSON.stringify([audit, c, era?.name || '']);
+    // Session cache: reopening Profile for the same audit reuses the earlier result
+    // instead of calling the paid, rate-limited recommendations endpoint again.
+    if (productRecsCache?.key === key) {
+      setCountry(productRecsCache.country);
+      setProductRecs(productRecsCache.recs);
+      return;
+    }
     setLoadingRecs(true);
     (async () => {
       try {
-        const c    = answers?.country || 'United States';
         setCountry(c);
         const recs = await fetchProductRecs(audit, c, era?.name || '');
         setProductRecs(recs);
+        setProductRecsCache({ key, recs, country: c });
       } catch (e) { console.warn('Product recs:', e.message); }
       setLoadingRecs(false);
     })();
@@ -368,7 +384,10 @@ export default function ProfileScreen({ navigation }) {
           //  - no user (took "Skip for now")          -> SignUp, which saves this analysis;
           //  - signed in, SkinTiming never answered    -> first-time onboarding chain;
           //  - signed in and onboarded (e.g. a retake) -> straight to Home.
-          onPress={() => navigation.navigate(!user ? 'SignUp' : user.skincareTiming ? 'Home' : 'SkinTiming')}
+          //  - opened from Home's card                 -> back to that Home (no second copy).
+          onPress={() => (openedFromHome
+            ? navigation.goBack()
+            : navigation.navigate(!user ? 'SignUp' : user.skincareTiming ? 'Home' : 'SkinTiming'))}
         >
           <Text style={s.ctaText}>See My Routine →</Text>
         </Pressable>

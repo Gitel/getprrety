@@ -13,6 +13,10 @@ export function AppProvider({ children }) {
   const [user, setUser] = useState(null);
   const [authReady, setAuthReady] = useState(false);
   const [analysisSaveFailed, setAnalysisSaveFailed] = useState(false);
+  // Session cache for Profile's AI product recommendations: { key, recs, country } or null.
+  // Profile can now be reopened from Home, and each open used to call the paid,
+  // rate-limited (10/h) recommendations endpoint again. Memory only: a reload refetches.
+  const [productRecsCache, setProductRecsCache] = useState(null);
 
   useEffect(() => {
     (async () => {
@@ -35,6 +39,7 @@ export function AppProvider({ children }) {
     setAnalysis(null);
     setAnswers(null);
     setAnalysisSaveFailed(false);
+    setProductRecsCache(null);
   }
 
   return (
@@ -44,6 +49,7 @@ export function AppProvider({ children }) {
       user, setUser,
       authReady,
       analysisSaveFailed, setAnalysisSaveFailed,
+      productRecsCache, setProductRecsCache,
       logout,
     }}>
       {children}

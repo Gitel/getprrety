@@ -139,6 +139,20 @@ export default function HomeScreen({ navigation }) {
           <Text style={[s.affirmText, { color: '#6B5E57' }]}>"{analysis.affirmation || era.affirmation}"</Text>
         </View>
 
+        {/* Full analysis: Profile (analysis, insights, product audit, product routine,
+            shelf) used to be reachable only right after the quiz. */}
+        <Pressable
+          style={[s.productCta, { borderColor: era.color + '40', marginBottom: 12 }]}
+          onPress={() => navigation.navigate('Profile', { fromHome: true })}
+        >
+          <Text style={{ fontSize: 20 }}>🔬</Text>
+          <View style={{ flex: 1, marginLeft: 12 }}>
+            <Text style={s.productCtaTitle}>View my full analysis</Text>
+            <Text style={s.productCtaSub}>Your skin analysis, product audit and product routine</Text>
+          </View>
+          <Text style={[s.checkInArrow, { color: era.color }]}>→</Text>
+        </Pressable>
+
         {/* Product camera CTA */}
         <Pressable
           style={[s.productCta, { borderColor: era.color + '40' }]}
