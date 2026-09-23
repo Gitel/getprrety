@@ -31,8 +31,47 @@ const SMOKE_TO_LEGACY = {
   // 'yes' key removed — option no longer exists in the quiz (smoke tiers cleaned up in v3)
 };
 
-// Map app quiz answer fields → Railway API schema
-function buildQuizPayload(answers) {
+// Quiz skin-tone values are Roman numerals (SKIN_TONES in constants.js); the Railway
+// contract's `fitzpatrick` is a number 1-6. The original mapping did Number('III'),
+// which is NaN, so Gemini always received the default 2 - and after the July quiz
+// rebuild it received nothing at all.
+const FITZPATRICK = { I: 1, II: 2, III: 3, IV: 4, V: 5, VI: 6 };
+
+// Whole years from the quiz birthday ('DD/MM/YYYY', from DrumDatePicker). null when the
+// value is missing or malformed.
+export function ageFromBirthday(birthday, today = new Date()) {
+  const match = typeof birthday === 'string' && birthday.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!match) return null;
+  const [, day, month, year] = match.map(Number);
+  let age = today.getFullYear() - year;
+  // Birthday not reached yet this year -> one year younger.
+  if (today.getMonth() + 1 < month || (today.getMonth() + 1 === month && today.getDate() < day)) age -= 1;
+  return age >= 0 && age < 130 ? age : null;
+}
+
+// 10-year buckets in the style of the original contract's '25-34' (owner decision).
+// The quiz allows ages from 10, so younger users get 'under-18' rather than being
+// reported as adults. The exact values Railway expects are unconfirmed (source missing).
+export function ageRange(age) {
+  if (age == null) return null;
+  if (age < 18) return 'under-18';
+  if (age < 25) return '18-24';
+  if (age < 35) return '25-34';
+  if (age < 45) return '35-44';
+  if (age < 55) return '45-54';
+  if (age < 65) return '55-64';
+  return '65+';
+}
+
+// Map app quiz answer fields → Railway API schema.
+// `today` is injectable only so tests can pin the age calculation.
+export function buildQuizPayload(answers, today = new Date()) {
+  const age = ageFromBirthday(answers.birthday, today);
+  // Breastfeeding counts like pregnancy / trying to conceive (owner decision), so Gemini
+  // applies the same cautious ingredient rules (e.g. retinoids).
+  const pregnancyCaution = answers.hormones?.pregnant === 'yes'
+    || answers.hormones?.trying_to_conceive === 'yes'
+    || answers.hormones?.breastfeeding === 'yes';
   const productMap = {
     cleanser:    'cleanser',
     toner:       'toner',
@@ -62,15 +101,20 @@ function buildQuizPayload(answers) {
     smokes:               SMOKE_TO_LEGACY[answers.smoke] || 'no',
     has_diabetes:         (answers.health_conditions || []).includes('diabetes') ? 'yes' : 'no',
     allergies:            answers.allergies || ['none'],
-    pregnant_or_ttc:      answers.gender === 'she'
-                            ? ((answers.hormones?.pregnant === 'yes' || answers.hormones?.trying_to_conceive === 'yes') ? 'yes' : 'no')
-                            : 'no',
+    pregnant_or_ttc:      answers.gender === 'she' && pregnancyCaution ? 'yes' : 'no',
     name:                 answers.name || null,
     interests:            answers.interests || [],
-    event_type:           answers.event || 'none',
+    // The quiz's "No special event" option is 'no_event'; the contract's no-event value
+    // is 'none', so Gemini must not plan for an event called "no_event".
+    event_type:           answers.event && answers.event !== 'no_event' ? answers.event : 'none',
     event_date:           answers.event_date || null,
     skin_photos_uploaded:  hasPhotos,
     shelf_photos_uploaded: (answers.shelf_photos || []).length > 0,
+    // Restored: part of the original contract, dropped by the July quiz rebuild although
+    // birthday and skin tone are still asked. null when not answered (no invented default).
+    fitzpatrick:           FITZPATRICK[answers.tone] ?? null,
+    age_range:             ageRange(age),
+    age,                   // raw years, alongside the bucket (owner decision)
 
     // ── new fields — sent through, not yet consumed by any decision logic ──
     city:                  answers.city || null,
@@ -91,7 +135,8 @@ function buildQuizPayload(answers) {
     diagnosed_conditions_other: answers.diagnosed_conditions_other || null,
     allergies_other:            answers.allergies_other || null,
 
-    // ── intentionally NOT included: hormones (held per scope decision) ──
+    // ── intentionally NOT included: hormones (held per scope decision), except that
+    //    pregnant / trying to conceive / breastfeeding feed pregnant_or_ttc above ──
   };
 }
 
