@@ -1,4 +1,5 @@
 import { ERAS, fallbackEra } from '../constants';
+import { downscaleDataUrl } from './downscaleImage';
 
 const RAILWAY_URL = 'https://getpretty-api-production.up.railway.app';
 
@@ -94,15 +95,27 @@ function buildQuizPayload(answers) {
   };
 }
 
-// Map Railway response → existing app analysis format
-function mapToAppFormat(railwayResponse, answers) {
-  const gemini      = railwayResponse.era || {};
+// Map Railway response → existing app analysis format.
+// Throws when the response is not a usable analysis; LoadingScreen then shows the
+// generic fallback, marked as such, with the error as the reason.
+export function mapToAppFormat(railwayResponse, answers) {
+  const gemini      = railwayResponse?.era || {};
   const eraData     = gemini.era || {};
   const skinData    = gemini.skin_analysis || {};
   const routineData = gemini.routine || {};
   const auditData   = gemini.product_audit || {};
 
-  const eraId = eraData.id || 'barrier_healing';
+  // A 200 response is not proof of an analysis. Before this check, an unexpected shape
+  // (Railway schema change, an error body sent with 200) mapped silently to an empty
+  // routine ("0/0 steps") and a blank analysis - no fallback, no marker, no log.
+  // A routine counts if either the generic steps or the product routine has any.
+  const srProducts = railwayResponse?.srProducts;
+  const hasRoutine = [routineData.am, routineData.pm, srProducts?.am, srProducts?.pm]
+    .some(steps => Array.isArray(steps) && steps.length > 0);
+  if (!eraData.id) throw new Error('Invalid analysis response: no era id');
+  if (!hasRoutine) throw new Error('Invalid analysis response: no routine steps');
+
+  const eraId = eraData.id;
   const era   = ERAS[eraId] || fallbackEra(answers);
 
   const keyInsights = (skinData.key_insights || []).map(i =>
@@ -164,23 +177,31 @@ function mapToAppFormat(railwayResponse, answers) {
 
 // Resolve a photo reference to raw base64 (no data: prefix). Capacitor Camera
 // returns data URLs, which work on both native shells and the browser.
+// The photo is shrunk first (max 1600 px, JPEG 85%) - only this Gemini copy.
 async function toBase64(ref) {
   if (!ref || typeof ref !== 'string') return null;
-  if (ref.startsWith('data:')) return ref.split(',')[1] || null;
-  return null;
+  if (!ref.startsWith('data:')) return null;
+  const small = await downscaleDataUrl(ref);
+  return small.split(',')[1] || null;
+}
+
+// One photo at a time, on purpose: each decoded full-size photo is ~50 MB of pixels,
+// and decoding up to 14 at once (Promise.all) can run a phone out of memory.
+async function toBase64List(refs) {
+  const out = [];
+  for (const ref of refs) {
+    const base64 = await toBase64(ref);
+    if (base64) out.push(base64);
+  }
+  return out;
 }
 
 export async function analyzeWithRailway(answers) {
   const quizPayload = buildQuizPayload(answers);
 
   // Convert photos to base64 (quiz may store them as data: URLs or native file:// URIs)
-  const skinPhotosBase64 = (
-    await Promise.all(['front', 'left', 'right', 'closeup', 'neck'].map(k => toBase64(answers[k])))
-  ).filter(Boolean);
-
-  const shelfPhotosBase64 = (
-    await Promise.all((answers.shelf_photos || []).map(toBase64))
-  ).filter(Boolean);
+  const skinPhotosBase64  = await toBase64List(['front', 'left', 'right', 'closeup', 'neck'].map(k => answers[k]));
+  const shelfPhotosBase64 = await toBase64List(answers.shelf_photos || []);
 
   console.log(`analyzeWithRailway: sending ${skinPhotosBase64.length} skin photo(s), ${shelfPhotosBase64.length} shelf photo(s)`);
 
