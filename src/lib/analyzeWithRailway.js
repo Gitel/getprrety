@@ -154,6 +154,11 @@ function mapToAppFormat(railwayResponse, answers) {
     // Marks this as a real Gemini result. LoadingScreen stamps 'fallback' instead when
     // the call fails, so the app, /admin and the clinic email can tell the two apart.
     source:         'gemini',
+    // Product-matched AM/PM routine and shelf-photo audit. Kept ON the analysis (not in
+    // separate state) so they are saved and restored with it; before, they lived only in
+    // React state and disappeared on reload. Shapes are owned by the Railway service.
+    srProducts:     railwayResponse.srProducts || null,
+    shelfAnalysis:  railwayResponse.shelfAnalysis || null,
   };
 }
 
@@ -207,9 +212,6 @@ export async function analyzeWithRailway(answers) {
     clearTimeout(timeout);
   }
 
-  const analysis      = mapToAppFormat(data, answers);
-  const srProducts    = data.srProducts || null;
-  const shelfAnalysis = data.shelfAnalysis || null;
-
-  return { analysis, srProducts, shelfAnalysis };
+  // One object carries everything (srProducts / shelfAnalysis included - see mapToAppFormat).
+  return mapToAppFormat(data, answers);
 }

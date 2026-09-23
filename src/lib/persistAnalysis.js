@@ -61,5 +61,12 @@ export async function persistAnalysis({ analysis, answers }) {
     // 'gemini' | 'fallback' (+ why it failed). Lets the server mark generic results.
     source:         analysis.source ?? null,
     fallbackReason: analysis.fallbackReason ?? null,
+    // Extra Gemini output. Saved so the product routine and shelf audit survive a
+    // reload; null on a fallback. The server sanitizes these before storing them.
+    srProducts:     analysis.srProducts ?? null,
+    shelfAnalysis:  analysis.shelfAnalysis ?? null,
+    safetyFlags:    analysis.safetyFlags ?? null,
+    checkInPrompts: analysis.checkInPrompts ?? null,
+    eventPrep:      analysis.eventPrep ?? null,
   }));
 }

@@ -41,6 +41,16 @@ const skinAnalysisSchema = new mongoose.Schema({
   source:         { type: String, enum: ['gemini', 'fallback', null], default: null },
   // Why the Gemini analysis failed (e.g. "Railway API 404"). Diagnostic only.
   fallbackReason: { type: String, default: null },
+
+  // Extra Gemini/Railway output. Before these were stored they lived only in React state,
+  // so the product routine (Morning/Evening SR products) and the shelf audit vanished on
+  // the next reload. Shapes are owned by the Railway service, hence Mixed. All null for
+  // fallback results and for documents saved by older clients.
+  srProducts:     { type: mongoose.Schema.Types.Mixed, default: null }, // product-matched AM/PM routine
+  shelfAnalysis:  { type: mongoose.Schema.Types.Mixed, default: null }, // audit of the user's shelf photos
+  safetyFlags:    { type: mongoose.Schema.Types.Mixed, default: null }, // stored only, not displayed yet
+  checkInPrompts: { type: mongoose.Schema.Types.Mixed, default: null }, // stored only, not displayed yet
+  eventPrep:      { type: mongoose.Schema.Types.Mixed, default: null }, // stored only, not displayed yet
 }, { timestamps: true });
 
 // Partial so the many legacy and older-client rows with clientRequestId: null don't

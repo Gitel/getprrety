@@ -4,7 +4,7 @@ const SkinAnalysis = require('../models/SkinAnalysis');
 const SkinScan = require('../models/SkinScan');
 const User = require('../models/User');
 const requireAuth = require('../middleware/auth');
-const { sanitizeQuizAnswers } = require('../services/sanitizeQuizAnswers');
+const { sanitizeQuizAnswers, sanitizeValue } = require('../services/sanitizeQuizAnswers');
 const { notifyClinic } = require('../services/clinicNotify');
 const { saveAnalysis } = require('../services/saveAnalysis');
 
@@ -38,6 +38,21 @@ function analysisSourceFromBody(body) {
     ? body.fallbackReason.trim().slice(0, 200)
     : null;
   return { source, fallbackReason };
+}
+
+// The Gemini extras the client relays from the Railway response (see SkinAnalysis).
+// The server cannot validate their shape (Railway owns it), so each one is run through
+// the same sanitizer as quiz answers: drops data: URLs, strings over 5000 chars and
+// prototype keys, and caps array length, key count and nesting depth. Missing -> null.
+const GEMINI_EXTRA_FIELDS = ['srProducts', 'shelfAnalysis', 'safetyFlags', 'checkInPrompts', 'eventPrep'];
+function geminiExtrasFromBody(body) {
+  const extras = {};
+  for (const field of GEMINI_EXTRA_FIELDS) {
+    const value = body?.[field];
+    // Only objects/arrays are meaningful here; a bare string or number is dropped.
+    extras[field] = value && typeof value === 'object' ? (sanitizeValue(value) ?? null) : null;
+  }
+  return extras;
 }
 
 async function withSkinScan(doc, userId) {
@@ -90,6 +105,7 @@ router.post('/', requireAuth, async (req, res) => {
       referralSource,
       clientRequestId,
       ...analysisSourceFromBody(req.body),
+      ...geminiExtrasFromBody(req.body),
     });
 
     if (created) {
@@ -148,3 +164,4 @@ router.get('/', requireAuth, async (req, res) => {
 module.exports = router;
 module.exports.locationFromQuizAnswers = locationFromQuizAnswers;
 module.exports.analysisSourceFromBody = analysisSourceFromBody;
+module.exports.geminiExtrasFromBody = geminiExtrasFromBody;

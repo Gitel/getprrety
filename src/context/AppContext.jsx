@@ -7,9 +7,8 @@ const AppContext = createContext(null);
 const BOOTSTRAP_TIMEOUT_MS = 8000;
 
 export function AppProvider({ children }) {
+  // srProducts / shelfAnalysis live on `analysis` (see analyzeWithRailway.js), not here.
   const [analysis, setAnalysis] = useState(null);
-  const [srProducts, setSrProducts] = useState(null);
-  const [shelfAnalysis, setShelfAnalysis] = useState(null);
   const [answers, setAnswers] = useState(null);
   const [user, setUser] = useState(null);
   const [authReady, setAuthReady] = useState(false);
@@ -39,8 +38,6 @@ export function AppProvider({ children }) {
     await removeToken();
     setUser(null);
     setAnalysis(null);
-    setSrProducts(null);
-    setShelfAnalysis(null);
     setAnswers(null);
     setAnalysisSaveFailed(false);
   }
@@ -48,8 +45,6 @@ export function AppProvider({ children }) {
   return (
     <AppContext.Provider value={{
       analysis, setAnalysis,
-      srProducts, setSrProducts,
-      shelfAnalysis, setShelfAnalysis,
       answers, setAnswers,
       user, setUser,
       authReady,

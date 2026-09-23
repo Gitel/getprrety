@@ -21,8 +21,12 @@ const SEVERITY_META = [
 ];
 
 export default function ProfileScreen({ navigation }) {
-  const { analysis, setAnalysis, answers, user, srProducts, shelfAnalysis, analysisSaveFailed, setAnalysisSaveFailed } = useApp();
+  const { analysis, setAnalysis, answers, user, analysisSaveFailed, setAnalysisSaveFailed } = useApp();
   const era = analysis?.era;
+  // Product routine + shelf audit travel on the analysis itself, so a saved analysis
+  // loaded after a reload/login shows them too (null for fallbacks and older records).
+  const srProducts    = analysis?.srProducts;
+  const shelfAnalysis = analysis?.shelfAnalysis;
   const audit         = analysis?.productAudit || {};
 
   const replaceItems = audit.replace || [];

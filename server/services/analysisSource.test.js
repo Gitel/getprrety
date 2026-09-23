@@ -1,4 +1,29 @@
-const { analysisSourceFromBody } = require('../routes/analysis');
+const { analysisSourceFromBody, geminiExtrasFromBody } = require('../routes/analysis');
+
+// The product routine, shelf audit, safety flags etc. relayed from the Railway response.
+describe('geminiExtrasFromBody', () => {
+  test('keeps object/array extras and nulls the missing ones', () => {
+    const srProducts = { am: [{ step: 1, routine_category: 'cleanser', sr_product_name: 'Gentle Wash' }], pm: [] };
+    expect(geminiExtrasFromBody({ srProducts, safetyFlags: ['retinoid caution'] })).toEqual({
+      srProducts,
+      shelfAnalysis: null,
+      safetyFlags: ['retinoid caution'],
+      checkInPrompts: null,
+      eventPrep: null,
+    });
+  });
+
+  test('strips embedded data: URLs and prototype keys', () => {
+    const body = JSON.parse('{"shelfAnalysis":{"__proto__":{"x":1},"note":"ok","img":"data:image/png;base64,AAAA"}}');
+    expect(geminiExtrasFromBody(body).shelfAnalysis).toEqual({ note: 'ok' });
+  });
+
+  test('drops bare scalars and tolerates a missing body', () => {
+    expect(geminiExtrasFromBody({ srProducts: 'text', eventPrep: 5 }).srProducts).toBeNull();
+    expect(geminiExtrasFromBody({ srProducts: 'text', eventPrep: 5 }).eventPrep).toBeNull();
+    expect(geminiExtrasFromBody(undefined).srProducts).toBeNull();
+  });
+});
 
 // SkinAnalysis.source tells a real Gemini result apart from the canned fallback.
 // It is diagnostic metadata, so bad input degrades to null instead of failing the save.

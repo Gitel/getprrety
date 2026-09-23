@@ -25,7 +25,7 @@ const SCAN_WAIT_COPY = [
 ];
 
 export default function LoadingScreen({ navigation }) {
-  const { answers, user, setAnalysis, setSrProducts, setShelfAnalysis, setAnalysisSaveFailed } = useApp();
+  const { answers, user, setAnalysis, setAnalysisSaveFailed } = useApp();
   const [step, setStep]               = useState(0);
   const [complete, setComplete]       = useState(false);
   const [scanWaitLabel, setScanWaitLabel] = useState(null);
@@ -36,13 +36,15 @@ export default function LoadingScreen({ navigation }) {
     called.current = true;
 
     const stepRef  = { current: 0 };
-    const apiRef    = { done: false, result: null, srProducts: null, shelfAnalysis: null };
+    const apiRef    = { done: false, result: null };
     let finishing = false;
 
     function finish(skinScan) {
       if (finishing) return;
       finishing = true;
-      const { result, srProducts, shelfAnalysis } = apiRef;
+      // result carries srProducts / shelfAnalysis itself (null on a fallback), so it
+      // replaces the previous analysis wholesale - no stale SR Ritual after a retake.
+      const { result } = apiRef;
       if (user) {
         // Fire-and-forget, matching the post-signup path in SignUpScreen. The Era
         // reveal must not wait on six photo uploads plus three POST attempts; the
@@ -59,8 +61,6 @@ export default function LoadingScreen({ navigation }) {
       setComplete(true);
       setTimeout(() => {
         setAnalysis({ ...result, skinScan: skinScan || null });
-        if (srProducts) setSrProducts(srProducts);
-        if (shelfAnalysis) setShelfAnalysis(shelfAnalysis);
         navigation.navigate('Profile');
       }, 700);
     }
@@ -111,10 +111,8 @@ export default function LoadingScreen({ navigation }) {
     advanceStage(0);
 
     analyzeWithRailway(answers || {})
-      .then(({ analysis, srProducts, shelfAnalysis }) => {
+      .then(analysis => {
         apiRef.result = analysis;
-        apiRef.srProducts = srProducts;
-        apiRef.shelfAnalysis = shelfAnalysis;
       })
       .catch(err => {
         console.warn('Railway fallback:', err.message);
