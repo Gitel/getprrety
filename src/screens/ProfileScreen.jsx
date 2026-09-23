@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { C, fetchProductRecs } from '../constants';
 import { useApp } from '../context/AppContext';
 import { pollScan } from '../lib/skinScan';
+import FallbackBanner from '../components/FallbackBanner';
 
 const CONCERN_LABELS = {
   acne: 'Acne', pore: 'Pores', texture: 'Texture', redness: 'Redness',
@@ -100,6 +101,9 @@ export default function ProfileScreen({ navigation }) {
             </Pressable>
           </View>
         )}
+
+        {/* Generic-result warning + Try again / Retake (renders nothing for real results) */}
+        <FallbackBanner analysis={analysis} navigation={navigation} />
 
         {/* Era hero */}
         <View style={s.eraHero}>

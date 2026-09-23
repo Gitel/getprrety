@@ -7,6 +7,7 @@ import { C, MOODS, DONE_MSGS } from '../constants';
 import { useApp } from '../context/AppContext';
 import { api } from '../lib/api';
 import { logActivity } from '../lib/logActivity';
+import FallbackBanner from '../components/FallbackBanner';
 
 export default function HomeScreen({ navigation }) {
   const { analysis } = useApp();
@@ -55,6 +56,9 @@ export default function HomeScreen({ navigation }) {
             <Text style={{ fontSize: 20 }}>⚙️</Text>
           </Pressable>
         </View>
+
+        {/* Generic-result warning + Try again / Retake (renders nothing for real results) */}
+        <FallbackBanner analysis={analysis} navigation={navigation} />
 
         {/* Check-in card */}
         {!checkedIn ? (

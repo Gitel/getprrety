@@ -7,6 +7,7 @@ import { C } from '../constants';
 import { useApp } from '../context/AppContext';
 import { logActivity } from '../lib/logActivity';
 import { loadReminderSchedule, requestNotificationPermission, saveReminderSchedule } from '../lib/notifications';
+import { startRetake } from '../lib/retake';
 
 const DAYS     = ['S','M','T','W','T','F','S'];
 const DAY_FULL = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
@@ -85,17 +86,10 @@ export default function SettingsScreen({ navigation }) {
     }
   }
 
+  // Same behaviour as before; the logic now lives in lib/retake.js so the generic-result
+  // banner can offer the identical "Retake assessment" action.
   function retake() {
-    setAnalysis(null);
-    setAnswers(null);
-    if (user?.termsAcceptedAt && user?.consentVersion) {
-      navigation.navigate('Quiz', {
-        consentAcceptedAt: user.termsAcceptedAt,
-        consentVersion: user.consentVersion,
-      });
-    } else {
-      navigation.navigate('QuizIntro');
-    }
+    startRetake({ navigation, user, setAnalysis, setAnswers });
   }
 
   async function handleLogout() {

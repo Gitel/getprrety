@@ -24,7 +24,9 @@ const SCAN_WAIT_COPY = [
   { until: Infinity, label: 'Almost there — putting your plan together…' },
 ];
 
-export default function LoadingScreen({ navigation }) {
+export default function LoadingScreen({ navigation, route }) {
+  // Set by FallbackBanner's "Try again": a re-run of an analysis that already fell back.
+  const isRetry = Boolean(route?.params?.retry);
   const { answers, user, setAnalysis, setAnalysisSaveFailed } = useApp();
   const [step, setStep]               = useState(0);
   const [complete, setComplete]       = useState(false);
@@ -45,7 +47,11 @@ export default function LoadingScreen({ navigation }) {
       // result carries srProducts / shelfAnalysis itself (null on a fallback), so it
       // replaces the previous analysis wholesale - no stale SR Ritual after a retake.
       const { result } = apiRef;
-      if (user) {
+      // A retry that falls back AGAIN is not saved: the first fallback is already stored,
+      // and saving another would add a duplicate record and a second clinic email while
+      // the AI service is down. A retry that succeeds is saved as a new analysis.
+      const skipDuplicateFallback = isRetry && result.source === 'fallback';
+      if (user && !skipDuplicateFallback) {
         // Fire-and-forget, matching the post-signup path in SignUpScreen. The Era
         // reveal must not wait on six photo uploads plus three POST attempts; the
         // outcome reaches the user either way, through the ProfileScreen banner.
