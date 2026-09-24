@@ -9,6 +9,31 @@
   var audit = analysis.productAudit || {};
   function itemsOf(bucket) { return Array.isArray(audit[bucket]) ? audit[bucket] : []; }
 
+  // Admin-edited picks are stored apart from the audit, by position:
+  // productRecs[bucket] = [{ index, rec }] where index -> productAudit[bucket][index].
+  // (AI-generated picks are never stored, so they cannot be shown here.)
+  var recs = analysis.productRecs || {};
+  function pickFor(bucket, i) {
+    var hit = (Array.isArray(recs[bucket]) ? recs[bucket] : []).filter(function (r) { return r && r.index === i; })[0];
+    return (hit && hit.rec) || {};
+  }
+
+  // Optional product card under a replace / add item. Paths are relative to the row,
+  // so the pick travels with its item when the row is moved.
+  function pickFields(pick) { pick = pick || {}; %>
+    <fieldset>
+      <legend>Product pick (optional)</legend>
+      <div class="grid2">
+        <div><label>Brand</label><input type="text" data-path="pick.brand" maxlength="100" value="<%= pick.brand || '' %>"></div>
+        <div><label>Product name</label><input type="text" data-path="pick.name" maxlength="160" value="<%= pick.name || '' %>"></div>
+        <div><label>Price</label><input type="text" data-path="pick.price" maxlength="50" value="<%= pick.price || '' %>" placeholder="e.g. $18"></div>
+        <div><label>Retailer</label><input type="text" data-path="pick.retailer" maxlength="100" value="<%= pick.retailer || '' %>"></div>
+      </div>
+      <label>Link (must start with https://)</label>
+      <input type="url" data-path="pick.url" maxlength="1000" value="<%= pick.url || '' %>" placeholder="https://">
+    </fieldset>
+<% }
+
   function simpleRow(item) { item = item || {}; %>
     <div class="row">
       <%- include('_rowTools') %>
@@ -18,7 +43,7 @@
       <textarea data-path="reason" maxlength="500" rows="2"><%= item.reason || '' %></textarea>
     </div>
 <% }
-  function replaceRow(item) { item = item || {}; %>
+  function replaceRow(item, i) { item = item || {}; %>
     <div class="row">
       <%- include('_rowTools') %>
       <div class="grid2">
@@ -27,9 +52,10 @@
       </div>
       <label>Why</label>
       <textarea data-path="reason" maxlength="500" rows="2"><%= item.reason || '' %></textarea>
+      <% pickFields(pickFor('replace', i)); %>
     </div>
 <% }
-  function addRow(item) { item = item || {}; %>
+  function addRow(item, i) { item = item || {}; %>
     <div class="row">
       <%- include('_rowTools') %>
       <div class="grid2">
@@ -44,6 +70,7 @@
       </div>
       <label>Why</label>
       <textarea data-path="reason" maxlength="500" rows="2"><%= item.reason || '' %></textarea>
+      <% pickFields(pickFor('add', i)); %>
     </div>
 <% }
   var BUCKETS = [
@@ -55,6 +82,15 @@
 %>
 <div class="card" id="audit">
   <h2>Product audit (Profile screen)</h2>
+  <p class="muted">
+    <% if (analysis.productRecs) { %>
+      Product picks below were set by an admin<% if (analysis.productRecsEditedAt) { %> (<%= new Date(analysis.productRecsEditedAt).toISOString().slice(0, 16).replace('T', ' ') %> UTC)<% } %>; the app shows exactly these.
+      Clear every pick and save to go back to AI-generated picks.
+    <% } else { %>
+      No admin picks yet: the app generates product picks with AI each time the Profile screen opens.
+      Fill in a pick below to replace the AI pick for that item.
+    <% } %>
+  </p>
   <form data-json-editor action="/admin/customer/<%= analysis._id %>/edit/audit">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
     <% BUCKETS.forEach(function (b) { %>
@@ -62,9 +98,9 @@
         <legend><%= b.title %> (<%= itemsOf(b.key).length %>)</legend>
         <div class="list-wrap">
           <div data-list="productAudit.<%= b.key %>">
-            <% itemsOf(b.key).forEach(function (item) { b.row(item); }); %>
+            <% itemsOf(b.key).forEach(function (item, i) { b.row(item, i); }); %>
           </div>
-          <template><% b.row({}); %></template>
+          <template><% b.row({}, -1); %></template>
           <button type="button" class="btn secondary small" data-row-action="add">+ Add to <%= b.title.toLowerCase() %></button>
         </div>
       </fieldset>

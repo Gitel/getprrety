@@ -23,6 +23,7 @@ const { addAdmin, removeAdmin } = require('../services/adminUsers');
 const { listUsers, getUserDetail } = require('../services/userDirectory');
 const { updateUserProfile, updateAnalysisSection, SECTIONS } = require('../services/adminEdits');
 const { ERAS } = require('../services/eras');
+const { SHELF_STATUSES } = require('../services/analysisFields');
 const AdminUser = require('../models/AdminUser');
 const AdminAuditLog = require('../models/AdminAuditLog');
 
@@ -180,6 +181,7 @@ router.get('/customer/:id', requireAdmin, async (req, res, next) => {
       admin: req.admin,
       isLatest: Boolean(latest && String(latest._id) === String(analysis._id)),
       eras: Object.values(ERAS), // the only Skin Eras an admin may pick
+      shelfStatuses: SHELF_STATUSES, // the shelf statuses the app knows how to color
       notice: noticeFrom(req),
     });
   } catch (err) {

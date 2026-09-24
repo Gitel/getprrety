@@ -111,9 +111,12 @@ function sanitizeSrProducts(value) {
       step: i + 1,
       routine_category: text(s.routine_category, 120),
       // The app shows the product block only when sr_product_id is set, and falls back
-      // to no_match_note otherwise. Admins type a product name, not a catalogue id, so a
-      // name without an id gets a marker id; without it the name would silently not show.
-      sr_product_id: text(s.sr_product_id, 100) || (name ? 'admin-entered' : ''),
+      // to no_match_note otherwise. So the id follows the name:
+      //  - a name without an id gets a marker id (admins type names, not catalogue ids),
+      //    otherwise the name would silently not show;
+      //  - no name means no id, so clearing the name shows no_match_note instead of an
+      //    empty product block.
+      sr_product_id: name ? (text(s.sr_product_id, 100) || 'admin-entered') : '',
       sr_product_name: name,
       // The app calls .replace() on each entry, so every one must be a string.
       key_actives_matched: list(s.key_actives_matched, MAX_ACTIVES, a => text(a, 60) || null),

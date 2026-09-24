@@ -37,6 +37,7 @@ test('customer page renders and embeds the CSRF token in the resend form', async
     dashboardUrl: 'https://x/admin/customer/1',
     // Everything routes/admin.js GET /customer/:id passes to the view.
     eras: Object.values(require('../services/eras').ERAS),
+    shelfStatuses: require('../services/analysisFields').SHELF_STATUSES,
     isLatest: true,
     notice: null,
   });
@@ -169,6 +170,7 @@ describe('customer page editors', () => {
     analysis,
     user: { _id: analysis.userId, email: 'ada@example.com' },
     imageIds: [], resent: false, dashboardUrl: 'x', eras: Object.values(ERAS), notice: null,
+    shelfStatuses: require('../services/analysisFields').SHELF_STATUSES,
   };
 
   test('the Skin Era editor offers only the fixed eras, current one selected', async () => {
@@ -193,5 +195,50 @@ describe('customer page editors', () => {
   test('editors never use inline event handlers (CSP blocks them)', async () => {
     const html = await render('customer', { ...base, isLatest: true });
     expect(html).not.toMatch(/<[a-z]+[^>]*\son(click|submit|change)=/i);
+  });
+});
+
+describe('customer page: picks, SR Ritual and shelf editors', () => {
+  const { ERAS } = require('../services/eras');
+  const { SHELF_STATUSES } = require('../services/analysisFields');
+  const full = {
+    ...analysis,
+    productAudit: { add: [{ product: 'SPF', priority: 'essential' }, { product: 'Serum' }], replace: [] },
+    productRecs: { add: [{ index: 1, rec: { name: 'Niacinamide', url: 'https://x.example/n' } }], replace: [] },
+    productRecsEditedAt: new Date('2026-09-20T08:00:00Z'),
+    srProducts: { bundle_note: 'Bundle', era_hero_product: { sr_product_name: 'Hero' }, am: [{ routine_category: 'Cleanse', key_actives_matched: ['a', 'b'] }], pm: [] },
+    shelfAnalysis: { identified_products: [{ product_name: 'Scrub', status: 'conflicting' }] },
+  };
+  const base = {
+    user: { _id: analysis.userId, email: 'a@x.co' }, imageIds: [], resent: false, dashboardUrl: 'x',
+    eras: Object.values(ERAS), shelfStatuses: SHELF_STATUSES, isLatest: true, notice: null,
+  };
+
+  test('a saved admin pick is pre-filled on the item it belongs to (by index)', async () => {
+    const html = await render('customer', { ...base, analysis: full });
+    const serumRow = html.slice(html.indexOf('value="Serum"'));
+    expect(serumRow.slice(0, 2500)).toContain('value="Niacinamide"');
+    const spfRow = html.slice(html.indexOf('value="SPF"'), html.indexOf('value="Serum"'));
+    expect(spfRow).not.toContain('Niacinamide');
+    expect(html).toContain('set by an admin');
+  });
+
+  test('without admin picks the page says the AI generates them', async () => {
+    const html = await render('customer', { ...base, analysis: { ...full, productRecs: null } });
+    expect(html).toContain('generates product picks with AI');
+  });
+
+  test('SR Ritual and shelf editors render existing data', async () => {
+    const html = await render('customer', { ...base, analysis: full });
+    expect(html).toContain('action="/admin/customer/64b000000000000000000001/edit/sr"');
+    expect(html).toContain('value="a, b"');
+    expect(html).toContain('action="/admin/customer/64b000000000000000000001/edit/shelf"');
+    expect(html).toMatch(/<option value="conflicting" selected>/);
+  });
+
+  test('a reading with no SR Ritual or shelf still renders empty editors', async () => {
+    const html = await render('customer', { ...base, analysis: { ...analysis, srProducts: null, shelfAnalysis: null } });
+    expect(html).toContain('has no SR Ritual yet');
+    expect(html).toContain('has no shelf analysis yet');
   });
 });

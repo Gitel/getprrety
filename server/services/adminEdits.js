@@ -5,7 +5,15 @@ const mongoose = require('mongoose');
 const User = require('../models/User');
 const SkinAnalysis = require('../models/SkinAnalysis');
 const { isDuplicateEmail } = require('./duplicateKey');
-const { text, sanitizeKeyInsights, sanitizeRoutine, sanitizeProductAudit } = require('./analysisFields');
+const {
+  text,
+  sanitizeKeyInsights,
+  sanitizeRoutine,
+  sanitizeProductAudit,
+  sanitizeProductRecs,
+  sanitizeSrProducts,
+  sanitizeShelfAnalysis,
+} = require('./analysisFields');
 const { eraById } = require('./eras');
 
 // Same shape check the app's signup uses (routes/auth.js).
@@ -119,15 +127,70 @@ const SECTIONS = {
   },
 
   // Customer page "Product audit" card: the keep / remove / replace / add buckets the
-  // Profile screen shows as tabs.
+  // Profile screen shows as tabs, plus the optional product pick (brand / name / price /
+  // link) on each replace and add item.
   audit: {
-    action: 'product_audit_updated',
-    reads: 'productAudit',
+    // Audited as a picks-only change when the buckets themselves did not change.
+    action: changed => (changed.includes('productAudit') ? 'product_audit_updated' : 'product_picks_updated'),
+    reads: 'productAudit productRecs',
     build(body) {
-      return { set: { productAudit: sanitizeProductAudit(body.productAudit) } };
+      return { set: buildAuditAndPicks(body.productAudit) };
+    },
+  },
+
+  // Customer page "SR Ritual" card.
+  sr: {
+    action: 'sr_ritual_updated',
+    reads: 'srProducts',
+    build(body) {
+      return { set: { srProducts: sanitizeSrProducts(body.srProducts) } };
+    },
+  },
+
+  // Customer page "Current shelf" card.
+  shelf: {
+    action: 'shelf_updated',
+    reads: 'shelfAnalysis',
+    build(body) {
+      return { set: { shelfAnalysis: sanitizeShelfAnalysis(body.shelfAnalysis) } };
     },
   },
 };
+
+/**
+ * Split the audit editor's rows into { productAudit, productRecs }.
+ *
+ * In the editor each replace/add row carries its own `pick`, so an item and its pick
+ * always move together. The app, however, stores picks separately and finds them by
+ * POSITION ({ index: i } -> productAudit[bucket][i]). The pairing is therefore done here,
+ * AFTER empty rows are dropped, so every index points at the item it was typed next to.
+ *
+ * productRecs is null when no pick has any content: that hands picks back to the AI
+ * (the Profile screen asks Claude whenever productRecs is null).
+ */
+function buildAuditAndPicks(rawAudit) {
+  const src = rawAudit && typeof rawAudit === 'object' ? rawAudit : {};
+  const productAudit = { keep: [], remove: [], replace: [], add: [] };
+  const rawRecs = { add: [], replace: [] };
+
+  Object.keys(productAudit).forEach(bucket => {
+    (Array.isArray(src[bucket]) ? src[bucket] : []).forEach(row => {
+      // Sanitize one row at a time so we know whether it survived, and at which index.
+      const [item] = sanitizeProductAudit({ [bucket]: [row] })[bucket];
+      if (!item) return;
+      productAudit[bucket].push(item);
+      if ((bucket === 'add' || bucket === 'replace') && row && typeof row.pick === 'object') {
+        rawRecs[bucket].push({ index: productAudit[bucket].length - 1, rec: row.pick });
+      }
+    });
+    // The same caps sanitizeProductAudit applies to a whole bucket.
+    productAudit[bucket] = sanitizeProductAudit({ [bucket]: productAudit[bucket] })[bucket];
+  });
+
+  const recs = sanitizeProductRecs(rawRecs, productAudit);
+  const productRecs = recs.add.length || recs.replace.length ? recs : null;
+  return { productAudit, productRecs };
+}
 
 /**
  * Apply one editor's JSON to a SkinAnalysis.
@@ -150,9 +213,13 @@ async function updateAnalysisSection(id, sectionName, body, { analysisModel = Sk
   const changed = Object.keys(built.set).filter(k => !sameJson(current[k], built.set[k]));
   if (changed.length) {
     const $set = Object.fromEntries(changed.map(k => [k, built.set[k]]));
+    // Picks carry an "edited at" stamp, written only when the picks really changed
+    // (and cleared when they were handed back to the AI).
+    if (changed.includes('productRecs')) $set.productRecsEditedAt = built.set.productRecs ? new Date() : null;
     await analysisModel.findByIdAndUpdate(id, { $set });
   }
-  return { ok: true, changed, action: section.action, userId: current.userId };
+  const action = typeof section.action === 'function' ? section.action(changed) : section.action;
+  return { ok: true, changed, action, userId: current.userId };
 }
 
 module.exports = { parseProfileForm, updateUserProfile, updateAnalysisSection, SECTIONS };

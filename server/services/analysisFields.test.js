@@ -166,3 +166,8 @@ describe('sanitizeShelfAnalysis', () => {
     expect(sanitizeShelfAnalysis({ identified_products: many }).identified_products).toHaveLength(LIMITS.MAX_SHELF_PRODUCTS);
   });
 });
+
+test('SR step: clearing the product name also clears the id, so the app shows no_match_note', () => {
+  const out = sanitizeSrProducts({ am: [{ routine_category: 'SPF', sr_product_id: 'sr-9', sr_product_name: '', no_match_note: 'Any SPF 50' }] });
+  expect(out.am[0].sr_product_id).toBe('');
+});

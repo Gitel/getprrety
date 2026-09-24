@@ -175,3 +175,70 @@ describe('updateAnalysisSection: audit', () => {
     });
   });
 });
+
+describe('updateAnalysisSection: audit + product picks, SR Ritual, shelf', () => {
+  const { updateAnalysisSection } = require('./adminEdits');
+  const AID = '64b000000000000000000001';
+  const model = current => ({
+    findById: jest.fn(() => ({ select: () => ({ lean: async () => ({ userId: 'u1', ...current }) }) })),
+    findByIdAndUpdate: jest.fn(async () => ({})),
+  });
+
+  test('picks are paired with their item AFTER empty rows are dropped', async () => {
+    const m = model({ productAudit: {}, productRecs: null });
+    const result = await updateAnalysisSection(AID, 'audit', {
+      productAudit: {
+        add: [
+          { product: '', pick: { name: 'belongs to a blank row' } }, // dropped row, pick dropped too
+          { product: 'SPF', priority: 'essential', pick: { brand: 'La Roche', name: 'Anthelios', url: 'https://x.example/a' } },
+        ],
+        replace: [{ from: 'Toner', to: 'Essence', pick: { brand: '', name: '', price: '', retailer: '', url: '' } }],
+      },
+    }, { analysisModel: m });
+
+    expect(result.changed).toEqual(['productAudit', 'productRecs']);
+    expect(result.action).toBe('product_audit_updated');
+    const { $set } = m.findByIdAndUpdate.mock.calls[0][1];
+    expect($set.productAudit.add).toEqual([{ product: 'SPF', reason: '', priority: 'essential' }]);
+    expect($set.productRecs).toEqual({
+      add: [{ index: 0, rec: { brand: 'La Roche', name: 'Anthelios', price: '', retailer: '', url: 'https://x.example/a' } }],
+      replace: [], // an all-blank pick is no pick
+    });
+    expect($set.productRecsEditedAt).toBeInstanceOf(Date);
+  });
+
+  test('changing only a pick is audited as a picks update', async () => {
+    const productAudit = { keep: [], remove: [], replace: [], add: [{ product: 'SPF', reason: '', priority: 'essential' }] };
+    const m = model({ productAudit, productRecs: null });
+    const result = await updateAnalysisSection(AID, 'audit', {
+      productAudit: { add: [{ product: 'SPF', priority: 'essential', pick: { name: 'Anthelios' } }] },
+    }, { analysisModel: m });
+    expect(result.changed).toEqual(['productRecs']);
+    expect(result.action).toBe('product_picks_updated');
+  });
+
+  test('clearing every pick hands picks back to the AI (productRecs null, stamp cleared)', async () => {
+    const productAudit = { keep: [], remove: [], replace: [], add: [{ product: 'SPF', reason: '', priority: 'essential' }] };
+    const productRecs = { add: [{ index: 0, rec: { brand: '', name: 'Old', price: '', retailer: '', url: '' } }], replace: [] };
+    const m = model({ productAudit, productRecs });
+    const result = await updateAnalysisSection(AID, 'audit', {
+      productAudit: { add: [{ product: 'SPF', priority: 'essential', pick: { name: '' } }] },
+    }, { analysisModel: m });
+    expect(result.changed).toEqual(['productRecs']);
+    expect(m.findByIdAndUpdate.mock.calls[0][1].$set).toEqual({ productRecs: null, productRecsEditedAt: null });
+  });
+
+  test('SR Ritual and shelf are written through their sanitizers; empty means "no section"', async () => {
+    const m = model({ srProducts: { bundle_note: 'Old', era_hero_product: { sr_product_name: '', hero_reason: '' }, am: [], pm: [] } });
+    const sr = await updateAnalysisSection(AID, 'sr', { srProducts: { bundle_note: '', am: [], pm: [] } }, { analysisModel: m });
+    expect(sr).toMatchObject({ changed: ['srProducts'], action: 'sr_ritual_updated' });
+    expect(m.findByIdAndUpdate.mock.calls[0][1]).toEqual({ $set: { srProducts: null } });
+
+    const m2 = model({ shelfAnalysis: null });
+    const shelf = await updateAnalysisSection(AID, 'shelf', {
+      shelfAnalysis: { identified_products: [{ product_name: 'Cleanser', status: 'compatible' }], shelf_summary: { overall_note: 'Ok' } },
+    }, { analysisModel: m2 });
+    expect(shelf).toMatchObject({ changed: ['shelfAnalysis'], action: 'shelf_updated' });
+    expect(m2.findByIdAndUpdate.mock.calls[0][1].$set.shelfAnalysis.identified_products[0]).toMatchObject({ product_name: 'Cleanser', status: 'compatible' });
+  });
+});
