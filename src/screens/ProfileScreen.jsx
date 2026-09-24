@@ -21,7 +21,17 @@ const SEVERITY_META = [
 ];
 
 export default function ProfileScreen({ navigation }) {
-  const { analysis, setAnalysis, answers, user, srProducts, shelfAnalysis, analysisSaveFailed, setAnalysisSaveFailed } = useApp();
+  const {
+    analysis, setAnalysis, answers, user,
+    srProducts: sessionSrProducts, shelfAnalysis: sessionShelfAnalysis,
+    analysisSaveFailed, setAnalysisSaveFailed,
+  } = useApp();
+  // The SR Ritual / shelf saved ON the analysis (read back from the server) win over the
+  // in-memory copies from this session: they survive app restarts and include admin
+  // edits. The in-memory copies only cover the first view right after the quiz, when the
+  // analysis object comes straight from the analysis service and has no such keys yet.
+  const srProducts    = analysis?.srProducts    !== undefined ? analysis.srProducts    : sessionSrProducts;
+  const shelfAnalysis = analysis?.shelfAnalysis !== undefined ? analysis.shelfAnalysis : sessionShelfAnalysis;
   const era = analysis?.era;
   const audit         = analysis?.productAudit || {};
 
@@ -43,18 +53,30 @@ export default function ProfileScreen({ navigation }) {
 
   useEffect(() => {
     if (!user) return;
+    // Picks edited by the clinic in the admin dashboard win: show exactly those and do
+    // not ask Claude. Without them, keep generating fresh picks on every open.
+    if (analysis?.productRecs) {
+      setProductRecs(analysis.productRecs);
+      setLoadingRecs(false);
+      return;
+    }
     if (!addItems.length && !replaceItems.length) return;
     setLoadingRecs(true);
+    // Set by the cleanup below when this effect re-runs (e.g. admin picks arrived) or the
+    // screen closes, so a slow Claude answer can never overwrite newer picks.
+    let cancelled = false;
     (async () => {
       try {
         const c    = answers?.country || 'United States';
         setCountry(c);
         const recs = await fetchProductRecs(audit, c, era?.name || '');
-        setProductRecs(recs);
+        if (!cancelled) setProductRecs(recs);
       } catch (e) { console.warn('Product recs:', e.message); }
-      setLoadingRecs(false);
+      if (!cancelled) setLoadingRecs(false);
     })();
-  }, [user]);
+    return () => { cancelled = true; };
+    // analysis?.productRecs: re-run when a resume refresh brings in admin-edited picks.
+  }, [user, analysis?.productRecs]);
 
   useEffect(() => {
     const scanId = analysis?.skinScanId || answers?.skinScanId;
