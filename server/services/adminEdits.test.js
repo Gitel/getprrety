@@ -63,3 +63,67 @@ describe('updateUserProfile', () => {
     expect(model.findById).not.toHaveBeenCalled();
   });
 });
+
+describe('updateAnalysisSection', () => {
+  const AID = '64b000000000000000000001';
+  const { updateAnalysisSection } = require('./adminEdits');
+
+  function fakeAnalysisModel(current) {
+    return {
+      findById: jest.fn(() => ({ select: () => ({ lean: async () => current }) })),
+      findByIdAndUpdate: jest.fn(async () => ({})),
+    };
+  }
+
+  const stored = {
+    userId: 'u1',
+    eraId: 'barrier_healing',
+    skinAnalysis: 'Old text',
+    keyInsights: ['One'],
+    affirmation: 'I glow',
+  };
+
+  test('fields: changing the era writes eraId AND the complete era object', async () => {
+    const model = fakeAnalysisModel(stored);
+    const result = await updateAnalysisSection(AID, 'fields', {
+      eraId: 'glow_building', skinAnalysis: 'Old text', keyInsights: ['One', ' '], affirmation: 'I glow',
+    }, { analysisModel: model });
+    expect(result).toEqual({ ok: true, changed: ['eraId', 'era'], action: 'analysis_fields_updated', userId: 'u1' });
+    const { $set } = model.findByIdAndUpdate.mock.calls[0][1];
+    expect($set.era).toMatchObject({ id: 'glow_building', name: 'Glow Building Era', color: '#B8924A', bg: '#FBF6EE', emoji: expect.any(String) });
+  });
+
+  test('fields: same era, new text writes only the text fields that changed', async () => {
+    const model = fakeAnalysisModel(stored);
+    const result = await updateAnalysisSection(AID, 'fields', {
+      eraId: 'barrier_healing', skinAnalysis: ' New text ', keyInsights: ['One', 'Two'], affirmation: 'I glow',
+    }, { analysisModel: model });
+    expect(result.changed).toEqual(['skinAnalysis', 'keyInsights']);
+    expect(model.findByIdAndUpdate.mock.calls[0][1]).toEqual({ $set: { skinAnalysis: 'New text', keyInsights: ['One', 'Two'] } });
+  });
+
+  test('fields: an unchanged form writes nothing', async () => {
+    const model = fakeAnalysisModel(stored);
+    const result = await updateAnalysisSection(AID, 'fields', { ...stored }, { analysisModel: model });
+    expect(result.changed).toEqual([]);
+    expect(model.findByIdAndUpdate).not.toHaveBeenCalled();
+  });
+
+  test('fields: an era outside the fixed list is rejected (the app would crash on it)', async () => {
+    const model = fakeAnalysisModel(stored);
+    await expect(updateAnalysisSection(AID, 'fields', { eraId: 'made_up' }, { analysisModel: model }))
+      .resolves.toEqual({ ok: false, code: 'analysis_invalid_era' });
+    expect(model.findByIdAndUpdate).not.toHaveBeenCalled();
+  });
+
+  test('unknown or malformed analysis ids are notfound', async () => {
+    await expect(updateAnalysisSection(AID, 'fields', {}, { analysisModel: fakeAnalysisModel(null) }))
+      .resolves.toEqual({ ok: false, code: 'analysis_notfound' });
+    await expect(updateAnalysisSection('x', 'fields', {}, { analysisModel: fakeAnalysisModel(stored) }))
+      .resolves.toEqual({ ok: false, code: 'analysis_notfound' });
+  });
+
+  test('an unknown section name is a programming error', async () => {
+    await expect(updateAnalysisSection(AID, 'nope', {}, { analysisModel: fakeAnalysisModel(stored) })).rejects.toThrow('Unknown analysis section');
+  });
+});

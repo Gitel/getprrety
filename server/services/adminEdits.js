@@ -3,8 +3,10 @@
 // field names and tell the admin "nothing changed" when that is the case.
 const mongoose = require('mongoose');
 const User = require('../models/User');
+const SkinAnalysis = require('../models/SkinAnalysis');
 const { isDuplicateEmail } = require('./duplicateKey');
-const { text } = require('./analysisFields');
+const { text, sanitizeKeyInsights } = require('./analysisFields');
+const { eraById } = require('./eras');
 
 // Same shape check the app's signup uses (routes/auth.js).
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -78,4 +80,60 @@ async function updateUserProfile(id, body, { userModel = User } = {}) {
   return { ok: true, changed };
 }
 
-module.exports = { parseProfileForm, updateUserProfile };
+// Deep "did this change?" for the Mixed analysis fields (arrays / nested objects).
+function sameJson(a, b) {
+  return JSON.stringify(a == null ? null : a) === JSON.stringify(b == null ? null : b);
+}
+
+// Editable sections of a SkinAnalysis. Each one turns the JSON an editor posted into the
+// exact values to $set (already sanitized), or an error code. `current` is the stored
+// document (only the fields in `reads`), for sections whose output depends on it.
+const SECTIONS = {
+  // Customer page "Skin Era & analysis" card.
+  fields: {
+    action: 'analysis_fields_updated',
+    reads: 'eraId skinAnalysis keyInsights affirmation',
+    build(body, current) {
+      const era = eraById(body.eraId);
+      if (!era) return { error: 'analysis_invalid_era' };
+      const set = {
+        eraId: era.id,
+        skinAnalysis: text(body.skinAnalysis, 5000),
+        keyInsights: sanitizeKeyInsights(body.keyInsights),
+        affirmation: text(body.affirmation, 300),
+      };
+      // The full era object is only rewritten when the era actually changes. Comparing
+      // the stored object itself would flag a change whenever its key order differs.
+      if (era.id !== current.eraId) set.era = era;
+      return { set };
+    },
+  },
+};
+
+/**
+ * Apply one editor's JSON to a SkinAnalysis.
+ * Returns { ok: true, changed, action, userId } or { ok: false, code }.
+ * `changed` lists field names whose value really differs; only those are written, in a
+ * single $set. A whole-field $set also avoids Mongoose silently dropping in-place edits
+ * to Mixed fields (it cannot see nested changes without markModified).
+ */
+async function updateAnalysisSection(id, sectionName, body, { analysisModel = SkinAnalysis } = {}) {
+  const section = SECTIONS[sectionName];
+  if (!section) throw new Error(`Unknown analysis section: ${sectionName}`);
+  if (!mongoose.isValidObjectId(id)) return { ok: false, code: 'analysis_notfound' };
+
+  const current = await analysisModel.findById(id).select(`userId ${section.reads}`).lean();
+  if (!current) return { ok: false, code: 'analysis_notfound' };
+
+  const built = section.build(body && typeof body === 'object' ? body : {}, current);
+  if (built.error) return { ok: false, code: built.error };
+
+  const changed = Object.keys(built.set).filter(k => !sameJson(current[k], built.set[k]));
+  if (changed.length) {
+    const $set = Object.fromEntries(changed.map(k => [k, built.set[k]]));
+    await analysisModel.findByIdAndUpdate(id, { $set });
+  }
+  return { ok: true, changed, action: section.action, userId: current.userId };
+}
+
+module.exports = { parseProfileForm, updateUserProfile, updateAnalysisSection, SECTIONS };

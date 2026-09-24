@@ -1,0 +1,49 @@
+<%#
+  Editor: Skin Era (fixed list only - the app crashes on an unknown era), analysis text,
+  key insights (reorderable list) and affirmation.
+  Saves to POST /admin/customer/:id/edit/fields  (services/adminEdits.js SECTIONS.fields).
+  Needs: analysis, eras (array of the server era table), csrfToken.
+%>
+<%
+  var knownEra = eras.some(function (e) { return e.id === analysis.eraId; });
+  function insightRow(value) { %>
+    <div class="row" data-scalar>
+      <%- include('_rowTools') %>
+      <textarea data-path="value" maxlength="500" rows="2"><%= value %></textarea>
+    </div>
+<% } %>
+<div class="card" id="fields">
+  <h2>Skin Era &amp; analysis</h2>
+  <form data-json-editor action="/admin/customer/<%= analysis._id %>/edit/fields">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+    <label for="eraId">Skin Era</label>
+    <select id="eraId" data-path="eraId">
+      <% if (!knownEra) { %>
+        <option value="<%= analysis.eraId %>" selected>Current: <%= analysis.eraId || 'none' %> (not in the list, pick one)</option>
+      <% } %>
+      <% eras.forEach(function (e) { %>
+        <option value="<%= e.id %>" <%= e.id === analysis.eraId ? 'selected' : '' %>><%= e.emoji %> <%= e.name %></option>
+      <% }); %>
+    </select>
+    <% if (analysis.era && analysis.era.tagline) { %><p class="muted">Tagline: <%= analysis.era.tagline %></p><% } %>
+
+    <label for="skinAnalysis">Skin analysis (shown on the Profile screen)</label>
+    <textarea id="skinAnalysis" data-path="skinAnalysis" maxlength="5000" rows="6"><%= analysis.skinAnalysis || '' %></textarea>
+
+    <label>Key insights</label>
+    <div class="list-wrap">
+      <div data-list="keyInsights">
+        <% (Array.isArray(analysis.keyInsights) ? analysis.keyInsights : []).forEach(function (i) { insightRow(i); }); %>
+      </div>
+      <template><% insightRow(''); %></template>
+      <button type="button" class="btn secondary small" data-row-action="add">+ Add insight</button>
+    </div>
+
+    <label for="affirmation">Affirmation</label>
+    <input type="text" id="affirmation" data-path="affirmation" maxlength="300" value="<%= analysis.affirmation || '' %>">
+
+    <p><button type="submit">Save Skin Era &amp; analysis</button></p>
+    <p class="editor-status muted"></p>
+  </form>
+</div>

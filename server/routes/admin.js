@@ -21,7 +21,8 @@ const { allowAuthAttempt, releaseAuthAttempt } = require('../services/authRateLi
 const { logAdminAction } = require('../services/adminAudit');
 const { addAdmin, removeAdmin } = require('../services/adminUsers');
 const { listUsers, getUserDetail } = require('../services/userDirectory');
-const { updateUserProfile } = require('../services/adminEdits');
+const { updateUserProfile, updateAnalysisSection, SECTIONS } = require('../services/adminEdits');
+const { ERAS } = require('../services/eras');
 const AdminUser = require('../models/AdminUser');
 const AdminAuditLog = require('../models/AdminAuditLog');
 
@@ -41,6 +42,10 @@ const NOTICES = {
   profile_invalid_timing:  { text: 'Routine timing must be morning, night or both.', error: true },
   profile_invalid_country: { text: 'Country must be a 2-letter code, e.g. IL or US.', error: true },
   profile_email_taken:     { text: 'Another account already uses that email address.', error: true },
+  analysis_saved:          { text: 'Saved.' },
+  analysis_unchanged:      { text: 'Nothing changed.' },
+  analysis_invalid_era:    { text: 'Pick a Skin Era from the list.', error: true },
+  analysis_notfound:       { text: 'That skin reading no longer exists.', error: true },
 };
 
 function noticeFrom(req) {
@@ -161,6 +166,11 @@ router.get('/customer/:id', requireAdmin, async (req, res, next) => {
       ...((user && user.shelfPhotoIds) || []),
     ].filter(Boolean).map(String))];
 
+    // The app shows only the user's newest analysis; the page says whether this is it.
+    const latest = analysis.userId
+      ? await SkinAnalysis.findOne({ userId: analysis.userId }).sort({ createdAt: -1 }).select('_id').lean()
+      : null;
+
     res.render('admin/customer', {
       analysis,
       user,
@@ -168,6 +178,9 @@ router.get('/customer/:id', requireAdmin, async (req, res, next) => {
       resent: req.query.resent === '1',
       dashboardUrl: `${publicBaseUrl(req)}/admin/customer/${analysis._id}`,
       admin: req.admin,
+      isLatest: Boolean(latest && String(latest._id) === String(analysis._id)),
+      eras: Object.values(ERAS), // the only Skin Eras an admin may pick
+      notice: noticeFrom(req),
     });
   } catch (err) {
     next(err);
@@ -208,6 +221,32 @@ router.post('/customer/:id/resend', requireAdmin, requireCsrf, async (req, res, 
     await notifyClinic(req.params.id, { force: true });
     await logAdminAction(req, 'clinic_email_resent', { analysisId: req.params.id });
     res.redirect(`/admin/customer/${req.params.id}?resent=1`);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Structured editors on the customer page (views/admin/_edit_*.ejs + _editor.ejs).
+// Each posts JSON for one section; validation, sanitizing and change detection live in
+// services/adminEdits.js. Answers JSON because the editor script reads it:
+// { ok, redirect } on success, { error } otherwise.
+router.post('/customer/:id/edit/:section', requireAdmin, requireCsrf, async (req, res, next) => {
+  try {
+    const { id, section } = req.params;
+    if (!Object.prototype.hasOwnProperty.call(SECTIONS, section)) {
+      return res.status(404).json({ error: 'Unknown editor.' });
+    }
+    const result = await updateAnalysisSection(id, section, req.body);
+    if (!result.ok) {
+      const status = result.code === 'analysis_notfound' ? 404 : 400;
+      return res.status(status).json({ error: (NOTICES[result.code] || {}).text || 'Could not save.' });
+    }
+    if (result.changed.length) {
+      await logAdminAction(req, result.action, { userId: result.userId, analysisId: id, fields: result.changed });
+    }
+    const notice = result.changed.length ? 'analysis_saved' : 'analysis_unchanged';
+    // #section scrolls the admin back to the editor they just used.
+    res.json({ ok: true, redirect: `/admin/customer/${id}?notice=${notice}#${section}` });
   } catch (err) {
     next(err);
   }

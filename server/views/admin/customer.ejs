@@ -22,6 +22,15 @@
   <% if (resent) { %>
     <div class="card" style="background: #eef4ea; color: #3f6b34;">Clinic notification re-sent.</div>
   <% } %>
+  <% if (locals.notice) { %>
+    <div class="notice <%= notice.error ? 'error' : '' %>"><%= notice.text %></div>
+  <% } %>
+  <%# The app only ever reads a user's NEWEST analysis, so say which one this is. %>
+  <% if (locals.isLatest) { %>
+    <div class="notice">This is the user's current skin reading: it is what the app shows. Edits reach the app the next time it refreshes.</div>
+  <% } else if (user) { %>
+    <div class="notice error">This is an older skin reading. The app shows only the newest one, so edits here will not appear in the app.</div>
+  <% } %>
 
   <% if (allergies.length) { %>
     <div class="allergy">&#9888; Allergies: <%= allergies.join(', ') %></div>
@@ -49,18 +58,7 @@
     </form>
   </div>
 
-  <div class="card">
-    <h2>Skin Era</h2>
-    <dl class="kv">
-      <dt>Era</dt><dd><%= (analysis.era && analysis.era.name) || analysis.eraId || '—' %></dd>
-      <% if (analysis.era && analysis.era.tagline) { %><dt>Tagline</dt><dd><%= analysis.era.tagline %></dd><% } %>
-      <% if (analysis.affirmation) { %><dt>Affirmation</dt><dd><%= analysis.affirmation %></dd><% } %>
-    </dl>
-    <% if (analysis.skinAnalysis) { %><p style="margin-top: 10px;"><%= analysis.skinAnalysis %></p><% } %>
-    <% if (Array.isArray(analysis.keyInsights) && analysis.keyInsights.length) { %>
-      <ul><% analysis.keyInsights.forEach(function (i) { %><li><%= i %></li><% }); %></ul>
-    <% } %>
-  </div>
+  <%- include('_edit_fields') %>
 
   <div class="card">
     <h2>Routine</h2>
@@ -101,4 +99,5 @@
     <% } %>
   </div>
 </main>
+<%- include('_editor') %>
 <%- include('_foot') %>

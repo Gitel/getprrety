@@ -158,3 +158,36 @@ test('user page profile form is pre-filled and carries the CSRF token', async ()
   expect(html).toContain('signs in with Google');
   expect(html).toContain('Profile saved.');
 });
+
+describe('customer page editors', () => {
+  const { ERAS } = require('../services/eras');
+  const base = {
+    analysis,
+    user: { _id: analysis.userId, email: 'ada@example.com' },
+    imageIds: [], resent: false, dashboardUrl: 'x', eras: Object.values(ERAS), notice: null,
+  };
+
+  test('the Skin Era editor offers only the fixed eras, current one selected', async () => {
+    const html = await render('customer', { ...base, isLatest: true });
+    expect(html).toContain('action="/admin/customer/64b000000000000000000001/edit/fields"');
+    expect((html.match(/<option value="/g) || []).length).toBeGreaterThanOrEqual(5);
+    expect(html).toMatch(/<option value="barrier_healing" selected>/);
+    expect(html).toContain('data-list="keyInsights"');
+    expect(html).toContain("it is what the app shows");
+  });
+
+  test('an older reading warns that edits will not appear in the app', async () => {
+    const html = await render('customer', { ...base, isLatest: false });
+    expect(html).toContain('older skin reading');
+  });
+
+  test('a legacy era id outside the list is shown but must be replaced', async () => {
+    const html = await render('customer', { ...base, isLatest: true, analysis: { ...analysis, eraId: 'legacy_era' } });
+    expect(html).toContain('Current: legacy_era (not in the list, pick one)');
+  });
+
+  test('editors never use inline event handlers (CSP blocks them)', async () => {
+    const html = await render('customer', { ...base, isLatest: true });
+    expect(html).not.toMatch(/<[a-z]+[^>]*\son(click|submit|change)=/i);
+  });
+});
