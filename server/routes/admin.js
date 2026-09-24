@@ -27,6 +27,7 @@ const { SHELF_STATUSES } = require('../services/analysisFields');
 const AdminUser = require('../models/AdminUser');
 const AdminAuditLog = require('../models/AdminAuditLog');
 const messages = require('../services/messages');
+const { deleteUserAndData } = require('../services/deleteUser');
 
 // Result banners after a redirect. The URL carries only a short code (?notice=...),
 // never free text, so a crafted link cannot make the dashboard display arbitrary words.
@@ -51,6 +52,8 @@ const NOTICES = {
   message_sent:            { text: 'Message sent. The user sees it in the app the next time it refreshes.' },
   message_empty:           { text: 'Write a message first.', error: true },
   message_too_long:        { text: 'Messages can be up to 2000 characters.', error: true },
+  user_deleted:            { text: 'The account and all of its data were permanently deleted.' },
+  delete_confirm_mismatch: { text: 'Nothing was deleted: the email you typed does not match this account.', error: true },
 };
 
 function noticeFrom(req) {
@@ -280,7 +283,7 @@ router.post('/customer/:id/edit/:section', requireAdmin, requireCsrf, async (req
 router.get('/users', adminPage, async (req, res, next) => {
   try {
     const list = await listUsers({ q: req.query.q, page: req.query.page });
-    res.render('admin/users', { admin: req.admin, list });
+    res.render('admin/users', { admin: req.admin, list, notice: noticeFrom(req) });
   } catch (err) {
     next(err);
   }
@@ -322,6 +325,24 @@ router.post('/users/:id/messages', requireAdmin, requireCsrf, async (req, res, n
     if (!result.ok) return res.redirect(`${back}?notice=message_${result.code}#messages`);
     await logAdminAction(req, 'message_sent', { userId: req.params.id });
     res.redirect(`${back}?notice=message_sent#messages`);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Permanently delete the account and all of its data (services/deleteUser.js).
+// Requires typing the account's email. The audit entry keeps only the user id plus
+// how many documents were removed per collection, never the email.
+router.post('/users/:id/delete', requireAdmin, requireCsrf, async (req, res, next) => {
+  try {
+    const result = await deleteUserAndData(req.params.id, req.body.confirmEmail);
+    if (!result.ok && result.code === 'user_notfound') return res.status(404).send('Not found');
+    if (!result.ok) return res.redirect(`/admin/users/${req.params.id}?notice=${result.code}#delete`);
+    await logAdminAction(req, 'user_deleted', {
+      userId: req.params.id,
+      fields: Object.entries(result.counts).map(([name, n]) => `${name}: ${n}`),
+    });
+    res.redirect('/admin/users?notice=user_deleted');
   } catch (err) {
     next(err);
   }

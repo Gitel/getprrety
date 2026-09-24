@@ -284,3 +284,21 @@ describe('messaging views', () => {
     expect(await render('inbox', { rows: [] })).toContain('No unread replies.');
   });
 });
+
+test('user page has a delete card that requires typing the email', async () => {
+  const html = await render('user', {
+    user: { _id: 'u1', email: 'ada@example.com' },
+    analyses: [], checkIns: [], products: [], activity: [], thread: [], notice: null,
+  });
+  expect(html).toContain('action="/admin/users/u1/delete"');
+  expect(html).toContain('name="confirmEmail"');
+  expect(html).toContain('data-confirm="Permanently delete ada@example.com');
+});
+
+test('users page shows the "deleted" notice after a delete', async () => {
+  const html = await render('users', {
+    list: { q: '', total: 0, page: 1, pages: 1, users: [] },
+    notice: { text: 'The account and all of its data were permanently deleted.' },
+  });
+  expect(html).toContain('permanently deleted');
+});

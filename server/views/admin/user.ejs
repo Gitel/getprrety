@@ -166,5 +166,23 @@
       </table>
     <% } %>
   </div>
+
+  <%# Hard delete (services/deleteUser.js). Typing the email is the confirmation the
+      server checks; the browser confirm dialog (data-confirm) is a second, softer one. %>
+  <div class="card" id="delete" style="border-color: #e7b4ae;">
+    <h2 style="color: #9b3b30;">Delete account</h2>
+    <p>
+      Permanently deletes this account and everything stored for it: every skin reading,
+      photo, product log, check-in, activity record and message. This cannot be undone.
+      The user is signed out of the app the next time it refreshes.
+    </p>
+    <form method="post" action="/admin/users/<%= user._id %>/delete"
+          data-confirm="Permanently delete <%= user.email %> and all of their data? This cannot be undone.">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label for="confirmEmail">Type <strong><%= user.email %></strong> to confirm</label>
+      <input type="text" id="confirmEmail" name="confirmEmail" required autocomplete="off" spellcheck="false">
+      <p><button type="submit" class="danger">Delete account and all data</button></p>
+    </form>
+  </div>
 </main>
 <%- include('_foot') %>

@@ -10,6 +10,9 @@
 <%- include('_head', { title: 'Users' }) %>
 <%- include('_nav', { active: 'users' }) %>
 <main>
+  <% if (locals.notice) { %>
+    <div class="notice <%= notice.error ? 'error' : '' %>"><%= notice.text %></div>
+  <% } %>
   <form method="get" action="/admin/users" style="display: flex; gap: 8px; margin-bottom: 14px;">
     <input type="search" name="q" value="<%= list.q %>" maxlength="100" placeholder="Search by email or first name">
     <button type="submit">Search</button>
