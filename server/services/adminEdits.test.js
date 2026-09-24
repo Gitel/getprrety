@@ -127,3 +127,31 @@ describe('updateAnalysisSection', () => {
     await expect(updateAnalysisSection(AID, 'nope', {}, { analysisModel: fakeAnalysisModel(stored) })).rejects.toThrow('Unknown analysis section');
   });
 });
+
+describe('updateAnalysisSection: routine', () => {
+  const AID = '64b000000000000000000001';
+  const { updateAnalysisSection } = require('./adminEdits');
+  const model = current => ({
+    findById: jest.fn(() => ({ select: () => ({ lean: async () => current }) })),
+    findByIdAndUpdate: jest.fn(async () => ({})),
+  });
+
+  test('writes the sanitized routine as one whole-field $set', async () => {
+    const m = model({ userId: 'u1', routine: { am: [{ name: 'Old', description: '' }], pm: [] } });
+    const result = await updateAnalysisSection(AID, 'routine', {
+      routine: { am: [{ name: ' Cleanse ', description: 'Gently' }, { name: '', description: '' }], pm: [{ name: 'Retinol' }] },
+    }, { analysisModel: m });
+    expect(result).toMatchObject({ ok: true, changed: ['routine'], action: 'routine_updated' });
+    expect(m.findByIdAndUpdate.mock.calls[0][1]).toEqual({
+      $set: { routine: { am: [{ name: 'Cleanse', description: 'Gently' }], pm: [{ name: 'Retinol', description: '' }] } },
+    });
+  });
+
+  test('saving the same routine is not a change', async () => {
+    const routine = { am: [{ name: 'Cleanse', description: 'Gently' }], pm: [] };
+    const m = model({ userId: 'u1', routine });
+    const result = await updateAnalysisSection(AID, 'routine', { routine }, { analysisModel: m });
+    expect(result.changed).toEqual([]);
+    expect(m.findByIdAndUpdate).not.toHaveBeenCalled();
+  });
+});

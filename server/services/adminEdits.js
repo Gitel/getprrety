@@ -5,7 +5,7 @@ const mongoose = require('mongoose');
 const User = require('../models/User');
 const SkinAnalysis = require('../models/SkinAnalysis');
 const { isDuplicateEmail } = require('./duplicateKey');
-const { text, sanitizeKeyInsights } = require('./analysisFields');
+const { text, sanitizeKeyInsights, sanitizeRoutine } = require('./analysisFields');
 const { eraById } = require('./eras');
 
 // Same shape check the app's signup uses (routes/auth.js).
@@ -106,6 +106,15 @@ const SECTIONS = {
       // the stored object itself would flag a change whenever its key order differs.
       if (era.id !== current.eraId) set.era = era;
       return { set };
+    },
+  },
+
+  // Customer page "Routine" card: the AM/PM steps the Home screen checks off.
+  routine: {
+    action: 'routine_updated',
+    reads: 'routine',
+    build(body) {
+      return { set: { routine: sanitizeRoutine(body.routine) } };
     },
   },
 };

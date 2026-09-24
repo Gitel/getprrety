@@ -60,22 +60,7 @@
 
   <%- include('_edit_fields') %>
 
-  <div class="card">
-    <h2>Routine</h2>
-    <% var routine = analysis.routine || {}; var hasRoutine = false; %>
-    <% ['am', 'pm'].forEach(function (side) {
-         var steps = routine[side];
-         if (!Array.isArray(steps) || !steps.length) return;
-         hasRoutine = true; %>
-      <p style="font-weight: 600; margin: 8px 0 4px;"><%= side.toUpperCase() %></p>
-      <ol>
-        <% steps.forEach(function (s) { %>
-          <li><strong><%= s.name || s %></strong><% if (s && s.description) { %> — <%= s.description %><% } %></li>
-        <% }); %>
-      </ol>
-    <% }); %>
-    <% if (!hasRoutine) { %><p>—</p><% } %>
-  </div>
+  <%- include('_edit_routine') %>
 
   <div class="card">
     <h2>Quiz answers</h2>
