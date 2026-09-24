@@ -10,6 +10,8 @@ export const C = {
   accentLight: '#FBF6EE',
 };
 
+// KEEP IN SYNC with server/services/eras.js (the admin dashboard writes era objects from
+// that copy; server/services/eras.test.js fails if the two tables differ).
 export const ERAS = {
   barrier_healing:  { id:'barrier_healing',  emoji:'🌿', name:'Barrier Healing Era',   tagline:"Your skin is not broken — it's asking for gentleness.",       affirmation:'I give my skin permission to heal at its own pace.', color:'#7A9E6E', bg:'#F2F6EF' },
   acne_reset:       { id:'acne_reset',        emoji:'🧊', name:'Acne Reset Era',         tagline:"Your skin isn't struggling — it's communicating.",             affirmation:'I listen to my skin instead of fighting it.',         color:'#6A98B0', bg:'#EEF4F8' },

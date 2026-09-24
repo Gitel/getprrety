@@ -81,3 +81,6 @@ router.post('/product-recommendations', requireAuth, async (req, res) => {
 });
 
 module.exports = router;
+// Also used by services/analysisFields.js to sanitize admin-edited product picks with
+// exactly the same rules (https-only links, bounded indexes, capped lengths).
+module.exports.cleanRecommendationList = cleanRecommendationList;
