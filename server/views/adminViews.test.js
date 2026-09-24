@@ -95,3 +95,24 @@ test('audit page renders when empty', async () => {
   const html = await render('audit', { entries: [], filterUserId: null });
   expect(html).toContain('No admin actions recorded yet.');
 });
+
+test('users page lists accounts, escapes the search term and keeps it in page links', async () => {
+  const html = await render('users', {
+    list: {
+      q: '<b>ada</b>',
+      total: 120,
+      page: 2,
+      pages: 3,
+      users: [
+        { _id: 'u1', firstName: 'Ada', email: 'ada@example.com', googleId: 'g', createdAt: new Date(), analyses: { count: 2, latestEraName: 'Glow Building Era' } },
+        { _id: 'u2', email: 'noquiz@example.com', createdAt: new Date(), analyses: { count: 0 } },
+      ],
+    },
+  });
+  expect(html).toContain('/admin/users/u1');
+  expect(html).toContain('(no name)');
+  expect(html).toContain('Glow Building Era');
+  expect(html).not.toContain('<b>ada</b>');
+  expect(html).toContain('q=%3Cb%3Eada%3C%2Fb%3E');
+  expect(html).toContain('Page 2 of 3');
+});

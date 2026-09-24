@@ -20,6 +20,7 @@ const {
 const { allowAuthAttempt, releaseAuthAttempt } = require('../services/authRateLimit');
 const { logAdminAction } = require('../services/adminAudit');
 const { addAdmin, removeAdmin } = require('../services/adminUsers');
+const { listUsers } = require('../services/userDirectory');
 const AdminUser = require('../models/AdminUser');
 const AdminAuditLog = require('../models/AdminAuditLog');
 
@@ -200,6 +201,18 @@ router.post('/customer/:id/resend', requireAdmin, requireCsrf, async (req, res, 
     await notifyClinic(req.params.id, { force: true });
     await logAdminAction(req, 'clinic_email_resent', { analysisId: req.params.id });
     res.redirect(`/admin/customer/${req.params.id}?resent=1`);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── Users ───────────────────────────────────────────────────────────────────
+
+// One row per account, searchable, 50 per page (see services/userDirectory.js).
+router.get('/users', requireAdmin, async (req, res, next) => {
+  try {
+    const list = await listUsers({ q: req.query.q, page: req.query.page });
+    res.render('admin/users', { admin: req.admin, list });
   } catch (err) {
     next(err);
   }
