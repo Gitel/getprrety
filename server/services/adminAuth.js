@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const { OAuth2Client } = require('google-auth-library');
 const AdminUser = require('../models/AdminUser');
@@ -50,8 +51,13 @@ async function verifyGoogleCredential(credential) {
   return ticket.getPayload();
 }
 
+// The session carries a random per-login `csrf` value. Every dashboard form echoes it back
+// (hidden _csrf field or X-CSRF-Token header) and requireCsrf compares the two. Another
+// site can make the browser send our cookie, but it cannot read the page, so it can
+// never know this value. That makes a forged POST from elsewhere fail.
 function signSession(email) {
-  return jwt.sign({ email: String(email).toLowerCase(), scope: 'admin' }, sessionSecret(), {
+  const csrf = crypto.randomBytes(24).toString('base64url');
+  return jwt.sign({ email: String(email).toLowerCase(), scope: 'admin', csrf }, sessionSecret(), {
     expiresIn: SESSION_TTL_SECONDS,
   });
 }
@@ -68,6 +74,9 @@ async function verifySession(token) {
     return null; // bad signature, expired, or no secret configured
   }
   if (payload.scope !== 'admin') return null;
+  // Sessions issued before the CSRF claim existed have no `csrf`; treat them as logged
+  // out so every live session can protect its forms. Costs each admin one re-login.
+  if (typeof payload.csrf !== 'string' || !payload.csrf) return null;
   if (!(await isAllowed(payload.email))) return null;
   return payload;
 }
@@ -95,6 +104,27 @@ async function requireAdmin(req, res, next) {
   }
   if (!session) return res.redirect('/admin/login');
   req.admin = session;
+  // Exposed to every EJS view (and its includes) so forms can embed the token as a
+  // hidden `_csrf` input without each route passing it by hand.
+  if (res.locals) res.locals.csrfToken = session.csrf;
+  next();
+}
+
+// Guards every state-changing dashboard route. It must run AFTER requireAdmin (it reads
+// req.admin.csrf), which is why routes wire it explicitly instead of router-wide: the
+// Google sign-in POST has no session yet and must not be checked.
+// Accepts the token from a urlencoded form body (`_csrf`) or, for the JSON editors,
+// from the X-CSRF-Token header. Compared in constant time.
+function requireCsrf(req, res, next) {
+  const expected = req.admin && req.admin.csrf;
+  const sent = (req.body && typeof req.body._csrf === 'string' && req.body._csrf)
+    || (req.headers && req.headers['x-csrf-token'])
+    || '';
+  const ok = typeof expected === 'string'
+    && typeof sent === 'string'
+    && sent.length === expected.length
+    && crypto.timingSafeEqual(Buffer.from(sent), Buffer.from(expected));
+  if (!ok) return res.status(403).send('This form has expired. Go back, reload the page and try again.');
   next();
 }
 
@@ -110,4 +140,5 @@ module.exports = {
   verifySession,
   cookieOptions,
   requireAdmin,
+  requireCsrf,
 };

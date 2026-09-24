@@ -46,6 +46,7 @@
       <% } %>
     </dl>
     <form method="post" action="/admin/customer/<%= analysis._id %>/resend" style="margin-top: 14px;">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <button type="submit">Resend to clinic</button>
     </form>
   </div>

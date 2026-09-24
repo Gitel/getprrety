@@ -5,7 +5,7 @@ jest.mock('../models/AdminUser');
 const jwt = require('jsonwebtoken');
 const AdminUser = require('../models/AdminUser');
 const {
-  isAllowed, isBuiltInAdmin, signSession, verifySession, requireAdmin, COOKIE_NAME,
+  isAllowed, isBuiltInAdmin, signSession, verifySession, requireAdmin, requireCsrf, COOKIE_NAME,
 } = require('./adminAuth');
 
 const OLD_ENV = process.env;
@@ -111,5 +111,56 @@ describe('requireAdmin middleware', () => {
     expect(next).toHaveBeenCalledTimes(1);
     expect(next.mock.calls[0][0]).toBeInstanceOf(Error);
     expect(redirect).not.toHaveBeenCalled();
+  });
+});
+
+describe('CSRF', () => {
+  test('every session carries its own random csrf claim', async () => {
+    const a = await verifySession(signSession('dzaturansky@gmail.com'));
+    const b = await verifySession(signSession('dzaturansky@gmail.com'));
+    expect(typeof a.csrf).toBe('string');
+    expect(a.csrf.length).toBeGreaterThanOrEqual(24);
+    expect(a.csrf).not.toBe(b.csrf);
+  });
+
+  test('a session issued before the csrf claim existed is treated as logged out', async () => {
+    const legacy = jwt.sign({ email: 'dzaturansky@gmail.com', scope: 'admin' }, 'test-secret');
+    await expect(verifySession(legacy)).resolves.toBeNull();
+  });
+
+  test('requireAdmin exposes the token to views via res.locals', async () => {
+    const req = { cookies: { [COOKIE_NAME]: signSession('dzaturansky@gmail.com') } };
+    const res = { redirect: jest.fn(), locals: {} };
+    await requireAdmin(req, res, jest.fn());
+    expect(res.locals.csrfToken).toBe(req.admin.csrf);
+  });
+
+  function run(req) {
+    const res = { status: jest.fn().mockReturnThis(), send: jest.fn() };
+    const next = jest.fn();
+    requireCsrf(req, res, next);
+    return { res, next };
+  }
+
+  test('accepts a matching token from the form body', () => {
+    const { next } = run({ admin: { csrf: 'abc123' }, body: { _csrf: 'abc123' }, headers: {} });
+    expect(next).toHaveBeenCalled();
+  });
+
+  test('accepts a matching token from the X-CSRF-Token header (JSON editors)', () => {
+    const { next } = run({ admin: { csrf: 'abc123' }, body: {}, headers: { 'x-csrf-token': 'abc123' } });
+    expect(next).toHaveBeenCalled();
+  });
+
+  test.each([
+    ['missing', { admin: { csrf: 'abc123' }, body: {}, headers: {} }],
+    ['wrong', { admin: { csrf: 'abc123' }, body: { _csrf: 'abc124' }, headers: {} }],
+    ['different length', { admin: { csrf: 'abc123' }, body: { _csrf: 'abc' }, headers: {} }],
+    ['no session token', { admin: {}, body: { _csrf: 'abc123' }, headers: {} }],
+    ['no admin at all', { body: { _csrf: 'abc123' }, headers: {} }],
+  ])('rejects a %s token with 403', (_label, req) => {
+    const { res, next } = run(req);
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(403);
   });
 });

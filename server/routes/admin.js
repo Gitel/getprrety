@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const helmet = require('helmet');
-const router = require('express').Router();
+const express = require('express');
+const router = express.Router();
 
 const SkinAnalysis = require('../models/SkinAnalysis');
 const User = require('../models/User');
@@ -12,8 +13,10 @@ const {
   signSession,
   cookieOptions,
   requireAdmin,
+  requireCsrf,
   isAllowed,
 } = require('../services/adminAuth');
+const { allowAuthAttempt, releaseAuthAttempt } = require('../services/authRateLimit');
 
 // The Google Identity Services button loads a script + iframe from accounts.google.com
 // and opens a sign-in popup. The app-wide strict helmet() defaults break both:
@@ -34,6 +37,11 @@ router.use(helmet({
   },
   crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
 }));
+
+// Plain HTML <form method="post"> submissions arrive urlencoded. The app-wide parser only
+// handles JSON, so without this every dashboard form field would be silently missing
+// from req.body. Scoped to /admin: the public API has no reason to accept form posts.
+router.use(express.urlencoded({ extended: false, limit: '1mb' }));
 
 function adminGoogleClientId() {
   return process.env.ADMIN_GOOGLE_CLIENT_ID
@@ -57,6 +65,10 @@ router.get('/login', (req, res) => {
 // Google Identity Services posts the signed-in user's ID token here as `credential`.
 router.post('/auth/google', async (req, res) => {
   try {
+    // Per-IP throttle on failed sign-ins; a successful one is refunded below.
+    if (!await allowAuthAttempt(req, 'admin')) {
+      return res.status(429).json({ error: 'Too many sign-in attempts. Please wait a few minutes and try again.' });
+    }
     const credential = req.body && req.body.credential;
     if (!credential) return res.status(400).json({ error: 'Missing credential' });
 
@@ -76,6 +88,8 @@ router.post('/auth/google', async (req, res) => {
     }
 
     res.cookie(COOKIE_NAME, signSession(payload.email), cookieOptions());
+    // Fire-and-forget refund: a failed refund must never fail a successful sign-in.
+    releaseAuthAttempt(req, 'admin').catch(err => console.error('Admin rate-limit refund failed:', err));
     res.json({ ok: true });
   } catch (err) {
     console.error('admin google auth error:', err);
@@ -159,7 +173,7 @@ router.get('/customer/:id/image/:uploadId', requireAdmin, async (req, res, next)
   }
 });
 
-router.post('/customer/:id/resend', requireAdmin, async (req, res, next) => {
+router.post('/customer/:id/resend', requireAdmin, requireCsrf, async (req, res, next) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).send('Not found');
     await notifyClinic(req.params.id, { force: true });

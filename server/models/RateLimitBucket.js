@@ -1,7 +1,8 @@
 const mongoose = require('mongoose');
 
 const rateLimitBucketSchema = new mongoose.Schema({
-  scope: { type: String, enum: ['scan_ip', 'scan_global', 'ai_user'], required: true },
+  // auth_admin = /admin sign-in throttle, msg_user = in-app message replies per user.
+  scope: { type: String, enum: ['scan_ip', 'scan_global', 'ai_user', 'auth_admin', 'msg_user'], required: true },
   key: { type: String, required: true },
   windowStart: { type: Date, required: true },
   count: { type: Number, default: 0 },

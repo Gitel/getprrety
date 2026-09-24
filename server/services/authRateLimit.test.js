@@ -94,3 +94,11 @@ test('the refund lands on the same bucket the attempt consumed', async () => {
 test('releasing an unknown kind throws', async () => {
   await expect(releaseAuthAttempt(req(), 'nope')).rejects.toThrow('Unknown auth rate-limit kind');
 });
+
+test('the /admin sign-in has its own scope and 15-minute window', async () => {
+  consumeRateLimit.mockResolvedValue(true);
+  await allowAuthAttempt(req(), 'admin');
+  expect(consumeRateLimit.mock.calls[0][0]).toBe('auth_admin');
+  expect(consumeRateLimit.mock.calls[0][2]).toBe(20);
+  expect(consumeRateLimit.mock.calls[0][3]).toBe(15 * 60 * 1000);
+});
