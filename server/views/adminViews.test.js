@@ -35,6 +35,10 @@ test('customer page renders and embeds the CSRF token in the resend form', async
     imageIds: [],
     resent: false,
     dashboardUrl: 'https://x/admin/customer/1',
+    // Everything routes/admin.js GET /customer/:id passes to the view.
+    eras: Object.values(require('../services/eras').ERAS),
+    isLatest: true,
+    notice: null,
   });
   expect(html).toContain('name="_csrf" value="TEST_CSRF_TOKEN"');
 });
