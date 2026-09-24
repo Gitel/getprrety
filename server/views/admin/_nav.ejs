@@ -1,13 +1,15 @@
 <%#
   Shared dashboard header: section links + the signed-in admin.
-  Include with: include('_nav', { active: 'clients' | 'users' | 'admins' | 'audit' })
+  Include with: include('_nav', { active: 'clients' | 'users' | 'inbox' | 'admins' | 'audit' })
   `locals.active` (not `active`) so a page that passes nothing does not throw.
+  `locals.unreadReplies` (unread user replies) is set by the adminPage middleware.
 %>
 <header class="top">
   <nav class="sections">
     <strong>GetPretty admin</strong>
     <a href="/admin" class="<%= locals.active === 'clients' ? 'active' : '' %>">Clients</a>
     <a href="/admin/users" class="<%= locals.active === 'users' ? 'active' : '' %>">Users</a>
+    <a href="/admin/inbox" class="<%= locals.active === 'inbox' ? 'active' : '' %>">Inbox<% if (locals.unreadReplies) { %><span class="badge" title="Unread replies"><%= locals.unreadReplies %></span><% } %></a>
     <a href="/admin/admins" class="<%= locals.active === 'admins' ? 'active' : '' %>">Admins</a>
     <a href="/admin/audit" class="<%= locals.active === 'audit' ? 'active' : '' %>">Audit log</a>
   </nav>

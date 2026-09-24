@@ -4,6 +4,7 @@
 const router = require('express').Router();
 const requireAuth = require('../middleware/auth');
 const messages = require('../services/messages');
+const { notifyClinicOfReply } = require('../services/clinicNotify');
 
 // GET /api/messages - the user's thread, oldest first. Sender is 'admin' (shown as
 // "Your clinic") or 'user'; which admin wrote a message is never exposed here.
@@ -50,6 +51,10 @@ router.post('/', requireAuth, async (req, res) => {
       return res.status(e.status).json({ error: e.error });
     }
     res.status(201).json({ message: result.message });
+    // Tell the clinic by email. Fire-and-forget, after the response: an email problem
+    // must never turn a delivered reply into an error for the user.
+    notifyClinicOfReply({ userId: req.user.id, body: result.message.body })
+      .catch(err => console.error('Reply notification email failed:', err.message));
   } catch {
     res.status(500).json({ error: 'Unable to send message' });
   }

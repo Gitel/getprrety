@@ -242,3 +242,45 @@ describe('customer page: picks, SR Ritual and shelf editors', () => {
     expect(html).toContain('has no shelf analysis yet');
   });
 });
+
+describe('messaging views', () => {
+  test('the nav shows the unread-replies badge only when there are some', async () => {
+    const withBadge = await render('audit', { entries: [], filterUserId: null, unreadReplies: 3 });
+    expect(withBadge).toMatch(/Inbox<span class="badge"[^>]*>3<\/span>/);
+    const without = await render('audit', { entries: [], filterUserId: null, unreadReplies: 0 });
+    expect(without).not.toContain('class="badge"');
+  });
+
+  test('user page shows the thread (with admin names), new replies, and the send form', async () => {
+    const html = await render('user', {
+      user: { _id: 'u1', firstName: 'Ada', email: 'ada@example.com' },
+      analyses: [], checkIns: [], products: [], activity: [], notice: null, maxMessage: 2000,
+      thread: [
+        { from: 'admin', adminEmail: 'lu@clinic.com', body: 'Hi Ada <3', createdAt: new Date(), readAt: new Date() },
+        { from: 'user', body: 'Thanks!\nSee you', createdAt: new Date(), readAt: null },
+      ],
+    });
+    expect(html).toContain('id="messages"');
+    expect(html).toContain('lu@clinic.com');
+    expect(html).toContain('read by user');
+    expect(html).toContain('Hi Ada &lt;3');
+    expect(html).toContain('>new</span>');
+    expect(html).toContain('action="/admin/users/u1/messages"');
+  });
+
+  test('inbox lists users with unread replies, and handles a deleted user', async () => {
+    const html = await render('inbox', {
+      rows: [
+        { userId: 'u1', unread: 2, latestAt: new Date(), latestBody: 'x'.repeat(300), user: { firstName: 'Ada', email: 'ada@example.com' } },
+        { userId: 'u2', unread: 1, latestAt: new Date(), latestBody: 'hello', user: null },
+      ],
+    });
+    expect(html).toContain('/admin/users/u1#messages');
+    expect(html).toContain('...');
+    expect(html).toContain('Deleted user');
+  });
+
+  test('empty inbox', async () => {
+    expect(await render('inbox', { rows: [] })).toContain('No unread replies.');
+  });
+});

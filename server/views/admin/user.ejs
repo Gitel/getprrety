@@ -54,6 +54,35 @@
     <p class="muted" style="margin-top: 12px;"><a href="/admin/audit?user=<%= user._id %>">Admin changes to this user &rarr;</a></p>
   </div>
 
+  <%# Two-way in-app messages. The user sees admin messages as "Your clinic" in the app's
+      Messages screen; which admin wrote each one is shown only here. %>
+  <div class="card" id="messages">
+    <h2>Messages</h2>
+    <% var msgs = locals.thread || []; %>
+    <% if (!msgs.length) { %>
+      <p class="muted">No messages yet.</p>
+    <% } else { %>
+      <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px;">
+        <% msgs.forEach(function (msg) { var mine = msg.from === 'admin'; %>
+          <div style="max-width: 80%; padding: 8px 12px; border-radius: 10px; <%= mine ? 'align-self: flex-end; background: #f6efe3;' : 'align-self: flex-start; background: #eef4ea;' %>">
+            <div class="muted" style="font-size: 12px;">
+              <%= mine ? (msg.adminEmail || 'Clinic') : (user.firstName || 'User') %> &middot; <%= stamp(msg.createdAt) %> UTC
+              <% if (mine) { %>&middot; <%= msg.readAt ? 'read by user' : 'not read yet' %><% } %>
+              <% if (!mine && !msg.readAt) { %><span class="pill no">new</span><% } %>
+            </div>
+            <div style="white-space: pre-wrap;"><%= msg.body %></div>
+          </div>
+        <% }); %>
+      </div>
+    <% } %>
+    <form method="post" action="/admin/users/<%= user._id %>/messages">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label for="message-body">Write to <%= user.firstName || user.email %></label>
+      <textarea id="message-body" name="body" required maxlength="<%= locals.maxMessage || 2000 %>" rows="3"></textarea>
+      <p><button type="submit">Send message</button></p>
+    </form>
+  </div>
+
   <div class="card">
     <h2>Quiz completions (<%= analyses.length %>)</h2>
     <% if (!analyses.length) { %>

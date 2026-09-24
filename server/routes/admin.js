@@ -26,6 +26,7 @@ const { ERAS } = require('../services/eras');
 const { SHELF_STATUSES } = require('../services/analysisFields');
 const AdminUser = require('../models/AdminUser');
 const AdminAuditLog = require('../models/AdminAuditLog');
+const messages = require('../services/messages');
 
 // Result banners after a redirect. The URL carries only a short code (?notice=...),
 // never free text, so a crafted link cannot make the dashboard display arbitrary words.
@@ -47,11 +48,30 @@ const NOTICES = {
   analysis_unchanged:      { text: 'Nothing changed.' },
   analysis_invalid_era:    { text: 'Pick a Skin Era from the list.', error: true },
   analysis_notfound:       { text: 'That skin reading no longer exists.', error: true },
+  message_sent:            { text: 'Message sent. The user sees it in the app the next time it refreshes.' },
+  message_empty:           { text: 'Write a message first.', error: true },
+  message_too_long:        { text: 'Messages can be up to 2000 characters.', error: true },
 };
 
 function noticeFrom(req) {
   return NOTICES[req.query.notice] || null;
 }
+
+// Every dashboard PAGE shows the Inbox badge (unread user replies) in the nav. Runs after
+// requireAdmin. If the count fails, only the badge is hidden; the page still loads.
+async function loadInboxBadge(req, res, next) {
+  try {
+    res.locals.unreadReplies = await messages.unreadRepliesCount();
+  } catch (err) {
+    console.error('Inbox badge count failed:', err.message);
+    res.locals.unreadReplies = 0;
+  }
+  next();
+}
+
+// Middleware for GET routes that render a dashboard page. Image routes and POST actions
+// use requireAdmin alone: they render no nav, so they need no badge query.
+const adminPage = [requireAdmin, loadInboxBadge];
 
 // The Google Identity Services button loads a script + iframe from accounts.google.com
 // and opens a sign-in popup. The app-wide strict helmet() defaults break both:
@@ -139,7 +159,7 @@ router.get('/logout', (req, res) => {
 
 // ── Protected dashboard ─────────────────────────────────────────────────────
 
-router.get('/', requireAdmin, async (req, res, next) => {
+router.get('/', adminPage, async (req, res, next) => {
   try {
     const rows = await SkinAnalysis.find()
       .sort({ createdAt: -1 })
@@ -154,7 +174,7 @@ router.get('/', requireAdmin, async (req, res, next) => {
   }
 });
 
-router.get('/customer/:id', requireAdmin, async (req, res, next) => {
+router.get('/customer/:id', adminPage, async (req, res, next) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).send('Not found');
     const analysis = await SkinAnalysis.findById(req.params.id).lean();
@@ -257,7 +277,7 @@ router.post('/customer/:id/edit/:section', requireAdmin, requireCsrf, async (req
 // ── Users ───────────────────────────────────────────────────────────────────
 
 // One row per account, searchable, 50 per page (see services/userDirectory.js).
-router.get('/users', requireAdmin, async (req, res, next) => {
+router.get('/users', adminPage, async (req, res, next) => {
   try {
     const list = await listUsers({ q: req.query.q, page: req.query.page });
     res.render('admin/users', { admin: req.admin, list });
@@ -267,11 +287,50 @@ router.get('/users', requireAdmin, async (req, res, next) => {
 });
 
 // One account: profile, quiz completions, check-ins, logged products, activity.
-router.get('/users/:id', requireAdmin, async (req, res, next) => {
+router.get('/users/:id', adminPage, async (req, res, next) => {
   try {
     const detail = await getUserDetail(req.params.id);
     if (!detail) return res.status(404).send('Not found');
-    res.render('admin/user', { admin: req.admin, ...detail, notice: noticeFrom(req) });
+    // The page shows the whole message thread, so the user's replies are now seen:
+    // mark them read (for every admin) and refresh the nav badge accordingly.
+    const thread = await messages.threadForAdmin(detail.user._id);
+    const hadUnread = thread.some(msg => msg.from === 'user' && !msg.readAt);
+    if (hadUnread) {
+      await messages.markReadByAdmin(detail.user._id);
+      res.locals.unreadReplies = await messages.unreadRepliesCount();
+    }
+    res.render('admin/user', {
+      admin: req.admin, ...detail, thread, notice: noticeFrom(req), maxMessage: messages.MAX_BODY,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Admin writes to the user (appears in the app's Messages screen). Plain form post.
+// Only the fact that a message was sent is audited, never its text.
+router.post('/users/:id/messages', requireAdmin, requireCsrf, async (req, res, next) => {
+  try {
+    const result = await messages.sendAdminMessage({
+      userId: req.params.id,
+      adminEmail: req.admin.email,
+      body: req.body.body,
+    });
+    if (!result.ok && result.code === 'user_gone') return res.status(404).send('Not found');
+    // From here the id is a valid id of an existing user, so it is safe in the URL.
+    const back = `/admin/users/${req.params.id}`;
+    if (!result.ok) return res.redirect(`${back}?notice=message_${result.code}#messages`);
+    await logAdminAction(req, 'message_sent', { userId: req.params.id });
+    res.redirect(`${back}?notice=message_sent#messages`);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Inbox: users with unread replies, most recent first.
+router.get('/inbox', adminPage, async (req, res, next) => {
+  try {
+    res.render('admin/inbox', { admin: req.admin, rows: await messages.inbox() });
   } catch (err) {
     next(err);
   }
@@ -316,7 +375,7 @@ router.get('/users/:id/image/:uploadId', requireAdmin, async (req, res, next) =>
 // ── Admins ──────────────────────────────────────────────────────────────────
 
 // Built-in admins (env) are listed from settings; dashboard admins from AdminUser.
-router.get('/admins', requireAdmin, async (req, res, next) => {
+router.get('/admins', adminPage, async (req, res, next) => {
   try {
     const dbAdmins = await AdminUser.find().sort({ createdAt: 1 }).lean();
     res.render('admin/admins', { admin: req.admin, builtIn: allowedEmails(), dbAdmins, notice: noticeFrom(req) });
@@ -351,7 +410,7 @@ router.post('/admins/:id/remove', requireAdmin, requireCsrf, async (req, res, ne
 // ── Audit log ───────────────────────────────────────────────────────────────
 
 // Newest 200 entries; ?user=<id> narrows to one user (ignored unless a valid id).
-router.get('/audit', requireAdmin, async (req, res, next) => {
+router.get('/audit', adminPage, async (req, res, next) => {
   try {
     const filterUserId = mongoose.isValidObjectId(req.query.user) ? String(req.query.user) : null;
     const entries = await AdminAuditLog.find(filterUserId ? { userId: filterUserId } : {})
