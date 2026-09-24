@@ -21,6 +21,7 @@ const { allowAuthAttempt, releaseAuthAttempt } = require('../services/authRateLi
 const { logAdminAction } = require('../services/adminAudit');
 const { addAdmin, removeAdmin } = require('../services/adminUsers');
 const { listUsers, getUserDetail } = require('../services/userDirectory');
+const { updateUserProfile } = require('../services/adminEdits');
 const AdminUser = require('../models/AdminUser');
 const AdminAuditLog = require('../models/AdminAuditLog');
 
@@ -34,6 +35,12 @@ const NOTICES = {
   admin_exists:   { text: 'That email is already an admin.', error: true },
   admin_self:     { text: 'You cannot remove your own access.', error: true },
   admin_notfound: { text: 'That admin no longer exists.', error: true },
+  profile_saved:           { text: 'Profile saved. The user sees it the next time the app refreshes.' },
+  profile_unchanged:       { text: 'Nothing changed.' },
+  profile_invalid_email:   { text: 'That is not a valid email address.', error: true },
+  profile_invalid_timing:  { text: 'Routine timing must be morning, night or both.', error: true },
+  profile_invalid_country: { text: 'Country must be a 2-letter code, e.g. IL or US.', error: true },
+  profile_email_taken:     { text: 'Another account already uses that email address.', error: true },
 };
 
 function noticeFrom(req) {
@@ -224,6 +231,23 @@ router.get('/users/:id', requireAdmin, async (req, res, next) => {
     const detail = await getUserDetail(req.params.id);
     if (!detail) return res.status(404).send('Not found');
     res.render('admin/user', { admin: req.admin, ...detail, notice: noticeFrom(req) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Profile form on the user page. Validation and change detection live in
+// services/adminEdits.js; only the names of changed fields are audited.
+router.post('/users/:id/profile', requireAdmin, requireCsrf, async (req, res, next) => {
+  try {
+    const result = await updateUserProfile(req.params.id, req.body);
+    if (!result.ok && result.code === 'user_notfound') return res.status(404).send('Not found');
+    // From here the id is a valid ObjectId of an existing user, so it is safe in the URL.
+    const back = `/admin/users/${req.params.id}`;
+    if (!result.ok) return res.redirect(`${back}?notice=${result.code}`);
+    if (!result.changed.length) return res.redirect(`${back}?notice=profile_unchanged`);
+    await logAdminAction(req, 'user_profile_updated', { userId: req.params.id, fields: result.changed });
+    res.redirect(`${back}?notice=profile_saved`);
   } catch (err) {
     next(err);
   }

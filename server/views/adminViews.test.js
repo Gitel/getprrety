@@ -144,3 +144,17 @@ test('user page renders a signup with no quiz and no activity', async () => {
   });
   expect(html).toContain('has not finished the quiz');
 });
+
+test('user page profile form is pre-filled and carries the CSRF token', async () => {
+  const html = await render('user', {
+    user: { _id: 'u1', firstName: 'Ada', email: 'ada@example.com', googleId: 'g1', skincareTiming: 'night', city: 'Haifa', country: 'IL' },
+    analyses: [], checkIns: [], products: [], activity: [],
+    notice: { text: 'Profile saved.' },
+  });
+  expect(html).toContain('action="/admin/users/u1/profile"');
+  expect(html).toContain('name="_csrf" value="TEST_CSRF_TOKEN"');
+  expect(html).toContain('value="Haifa"');
+  expect(html).toMatch(/<option value="night" selected>/);
+  expect(html).toContain('signs in with Google');
+  expect(html).toContain('Profile saved.');
+});

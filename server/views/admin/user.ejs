@@ -17,15 +17,40 @@
   <div class="card">
     <h2>Profile</h2>
     <dl class="kv">
-      <dt>Name</dt><dd><%= user.firstName || '—' %></dd>
-      <dt>Email</dt><dd><%= user.email %></dd>
       <dt>Sign-in</dt><dd><%= user.googleId ? 'Google' : 'Email + password' %></dd>
       <dt>Signed up</dt><dd><%= stamp(user.createdAt) %></dd>
-      <dt>Routine timing</dt><dd><%= user.skincareTiming || '—' %></dd>
-      <dt>City / country</dt><dd><%= [user.city, user.country].filter(Boolean).join(', ') || '—' %></dd>
       <dt>Timezone</dt><dd><%= user.timezone || '—' %></dd>
       <dt>Consent version</dt><dd><%= user.consentVersion || '—' %></dd>
     </dl>
+
+    <%# Editable fields. Posted as a plain form; see POST /admin/users/:id/profile. %>
+    <form method="post" action="/admin/users/<%= user._id %>/profile" style="margin-top: 12px;">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label for="firstName">First name</label>
+      <input type="text" id="firstName" name="firstName" maxlength="100" value="<%= user.firstName || '' %>">
+
+      <label for="email">Email</label>
+      <input type="email" id="email" name="email" required maxlength="254" value="<%= user.email %>">
+      <p class="muted">
+        <% if (user.googleId) { %>This person signs in with Google; changing the email here does not change their Google account, they can still sign in with it.
+        <% } else { %>This is the address they log in with. Tell them if you change it.<% } %>
+      </p>
+
+      <label for="skincareTiming">Routine timing</label>
+      <select id="skincareTiming" name="skincareTiming">
+        <% [['', 'Not set'], ['morning', 'Morning'], ['night', 'Night'], ['both', 'Both']].forEach(function (o) { %>
+          <option value="<%= o[0] %>" <%= (user.skincareTiming || '') === o[0] ? 'selected' : '' %>><%= o[1] %></option>
+        <% }); %>
+      </select>
+
+      <label for="city">City</label>
+      <input type="text" id="city" name="city" maxlength="160" value="<%= user.city || '' %>">
+
+      <label for="country">Country (2-letter code)</label>
+      <input type="text" id="country" name="country" maxlength="2" value="<%= user.country || '' %>" style="max-width: 90px;">
+
+      <p><button type="submit">Save profile</button></p>
+    </form>
     <p class="muted" style="margin-top: 12px;"><a href="/admin/audit?user=<%= user._id %>">Admin changes to this user &rarr;</a></p>
   </div>
 
