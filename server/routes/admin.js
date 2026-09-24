@@ -15,9 +15,29 @@ const {
   requireAdmin,
   requireCsrf,
   isAllowed,
+  allowedEmails,
 } = require('../services/adminAuth');
 const { allowAuthAttempt, releaseAuthAttempt } = require('../services/authRateLimit');
 const { logAdminAction } = require('../services/adminAudit');
+const { addAdmin, removeAdmin } = require('../services/adminUsers');
+const AdminUser = require('../models/AdminUser');
+const AdminAuditLog = require('../models/AdminAuditLog');
+
+// Result banners after a redirect. The URL carries only a short code (?notice=...),
+// never free text, so a crafted link cannot make the dashboard display arbitrary words.
+const NOTICES = {
+  admin_added:    { text: 'Admin added. They can now sign in with their Google account.' },
+  admin_removed:  { text: 'Admin removed. Their access ended immediately.' },
+  admin_invalid:  { text: 'That is not a valid email address.', error: true },
+  admin_builtin:  { text: 'That email is a built-in admin and already has access.', error: true },
+  admin_exists:   { text: 'That email is already an admin.', error: true },
+  admin_self:     { text: 'You cannot remove your own access.', error: true },
+  admin_notfound: { text: 'That admin no longer exists.', error: true },
+};
+
+function noticeFrom(req) {
+  return NOTICES[req.query.notice] || null;
+}
 
 // The Google Identity Services button loads a script + iframe from accounts.google.com
 // and opens a sign-in popup. The app-wide strict helmet() defaults break both:
@@ -180,6 +200,57 @@ router.post('/customer/:id/resend', requireAdmin, requireCsrf, async (req, res, 
     await notifyClinic(req.params.id, { force: true });
     await logAdminAction(req, 'clinic_email_resent', { analysisId: req.params.id });
     res.redirect(`/admin/customer/${req.params.id}?resent=1`);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── Admins ──────────────────────────────────────────────────────────────────
+
+// Built-in admins (env) are listed from settings; dashboard admins from AdminUser.
+router.get('/admins', requireAdmin, async (req, res, next) => {
+  try {
+    const dbAdmins = await AdminUser.find().sort({ createdAt: 1 }).lean();
+    res.render('admin/admins', { admin: req.admin, builtIn: allowedEmails(), dbAdmins, notice: noticeFrom(req) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/admins', requireAdmin, requireCsrf, async (req, res, next) => {
+  try {
+    const result = await addAdmin({ email: req.body.email, addedBy: req.admin.email });
+    if (!result.ok) return res.redirect(`/admin/admins?notice=admin_${result.code}`);
+    await logAdminAction(req, 'admin_added', { targetAdminEmail: result.email });
+    res.redirect('/admin/admins?notice=admin_added');
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Only dashboard admins have an id here, so built-in admins can never be removed.
+router.post('/admins/:id/remove', requireAdmin, requireCsrf, async (req, res, next) => {
+  try {
+    const result = await removeAdmin({ id: req.params.id, actingEmail: req.admin.email });
+    if (!result.ok) return res.redirect(`/admin/admins?notice=admin_${result.code}`);
+    await logAdminAction(req, 'admin_removed', { targetAdminEmail: result.email });
+    res.redirect('/admin/admins?notice=admin_removed');
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── Audit log ───────────────────────────────────────────────────────────────
+
+// Newest 200 entries; ?user=<id> narrows to one user (ignored unless a valid id).
+router.get('/audit', requireAdmin, async (req, res, next) => {
+  try {
+    const filterUserId = mongoose.isValidObjectId(req.query.user) ? String(req.query.user) : null;
+    const entries = await AdminAuditLog.find(filterUserId ? { userId: filterUserId } : {})
+      .sort({ createdAt: -1 })
+      .limit(200)
+      .lean();
+    res.render('admin/audit', { admin: req.admin, entries, filterUserId });
   } catch (err) {
     next(err);
   }

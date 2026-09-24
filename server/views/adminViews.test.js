@@ -51,3 +51,47 @@ test('login page renders without a session', async () => {
   const html = await render('login', { googleClientId: 'cid', error: null, admin: undefined });
   expect(html).toContain('GetPretty Admin');
 });
+
+test('admins page: built-in admins are protected, others removable, never yourself', async () => {
+  const html = await render('admins', {
+    builtIn: ['owner@example.com'],
+    dbAdmins: [
+      { _id: 'a1', email: 'helper@example.com', addedBy: 'owner@example.com' },
+      { _id: 'a2', email: 'admin@example.com', addedBy: 'owner@example.com' }, // the viewer
+    ],
+    notice: { text: 'Admin added.' },
+  });
+  expect(html).toContain('owner@example.com');
+  expect(html).toContain('protected');
+  expect(html).toContain('/admin/admins/a1/remove');
+  expect(html).not.toContain('/admin/admins/a2/remove');
+  expect(html).toContain('Admin added.');
+  expect(html).not.toMatch(/<form[^>]*\son\w+=/); // CSP blocks inline handlers
+});
+
+test('admins page escapes a hostile email inside the confirm text', async () => {
+  const html = await render('admins', {
+    builtIn: [],
+    dbAdmins: [{ _id: 'a1', email: `x"><script>alert(1)</script>'@example.com`, addedBy: 'o@example.com' }],
+    notice: null,
+  });
+  expect(html).not.toContain('<script>alert(1)');
+  expect(html).toContain('&lt;script&gt;');
+});
+
+test('audit page renders entries and the per-user filter', async () => {
+  const html = await render('audit', {
+    entries: [{
+      createdAt: new Date(), adminEmail: 'admin@example.com', action: 'routine_updated',
+      userId: '64b0000000000000000000aa', analysisId: '64b000000000000000000001', fields: ['routine'],
+    }],
+    filterUserId: '64b0000000000000000000aa',
+  });
+  expect(html).toContain('routine updated');
+  expect(html).toContain('show all');
+});
+
+test('audit page renders when empty', async () => {
+  const html = await render('audit', { entries: [], filterUserId: null });
+  expect(html).toContain('No admin actions recorded yet.');
+});

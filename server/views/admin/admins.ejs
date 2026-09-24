@@ -1,0 +1,59 @@
+<%#
+  Admins page. Two kinds of admin:
+   - built-in: from the ADMIN_ALLOWED_EMAILS env var; always have access, not removable here
+   - dashboard: stored in the AdminUser collection; any admin can add or remove them
+%>
+<%- include('_head', { title: 'Admins' }) %>
+<%- include('_nav', { active: 'admins' }) %>
+<main>
+  <% if (notice) { %>
+    <div class="notice <%= notice.error ? 'error' : '' %>"><%= notice.text %></div>
+  <% } %>
+
+  <div class="card">
+    <h2>Add an admin</h2>
+    <p class="muted">They sign in at /admin with this Google account and get full dashboard access.</p>
+    <form method="post" action="/admin/admins">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label for="email">Google account email</label>
+      <input type="email" id="email" name="email" required maxlength="254" placeholder="name@gmail.com">
+      <p><button type="submit">Add admin</button></p>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Current admins</h2>
+    <table>
+      <thead><tr><th>Email</th><th>Type</th><th>Added by</th><th></th></tr></thead>
+      <tbody>
+        <% builtIn.forEach(function (email) { %>
+          <tr>
+            <td><%= email %></td>
+            <td><span class="pill yes">built-in</span></td>
+            <td class="muted">server settings</td>
+            <td class="muted">protected</td>
+          </tr>
+        <% }); %>
+        <% dbAdmins.forEach(function (a) { %>
+          <tr>
+            <td><%= a.email %></td>
+            <td>dashboard</td>
+            <td><%= a.addedBy %></td>
+            <td>
+              <% if (a.email === admin.email) { %>
+                <span class="muted">you</span>
+              <% } else { %>
+                <form class="inline-form" method="post" action="/admin/admins/<%= a._id %>/remove"
+                      data-confirm="Remove dashboard access for <%= a.email %>?">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                  <button type="submit" class="small danger">Remove</button>
+                </form>
+              <% } %>
+            </td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+</main>
+<%- include('_foot') %>

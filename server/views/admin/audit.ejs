@@ -1,0 +1,38 @@
+<%#
+  Audit log: newest first, capped at 200 rows. `filterUserId` narrows it to one user.
+  Shows field NAMES only; the log never stores the values that were changed.
+%>
+<%
+  function stamp(d) { return d ? new Date(d).toISOString().slice(0, 16).replace('T', ' ') : '—'; }
+  function humanize(k) { return String(k || '').replace(/_/g, ' '); }
+%>
+<%- include('_head', { title: 'Audit log' }) %>
+<%- include('_nav', { active: 'audit' }) %>
+<main>
+  <p class="muted">
+    Last <%= entries.length %> admin action<%= entries.length === 1 ? '' : 's' %><% if (filterUserId) { %>
+      for user <code><%= filterUserId %></code> &middot; <a href="/admin/audit">show all</a><% } %>.
+  </p>
+  <table>
+    <thead><tr><th>When (UTC)</th><th>Admin</th><th>Action</th><th>Target</th><th>Fields changed</th></tr></thead>
+    <tbody>
+      <% entries.forEach(function (e) { %>
+        <tr>
+          <td><%= stamp(e.createdAt) %></td>
+          <td><%= e.adminEmail %></td>
+          <td><%= humanize(e.action) %></td>
+          <td>
+            <% if (e.targetAdminEmail) { %><%= e.targetAdminEmail %><% } %>
+            <% if (e.userId) { %><a href="/admin/audit?user=<%= e.userId %>">user <%= String(e.userId).slice(-6) %></a><% } %>
+            <% if (e.analysisId) { %> <a href="/admin/customer/<%= e.analysisId %>">analysis</a><% } %>
+          </td>
+          <td><%= (e.fields || []).map(humanize).join(', ') || '—' %></td>
+        </tr>
+      <% }); %>
+      <% if (!entries.length) { %>
+        <tr><td colspan="5" class="muted">No admin actions recorded yet.</td></tr>
+      <% } %>
+    </tbody>
+  </table>
+</main>
+<%- include('_foot') %>

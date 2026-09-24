@@ -34,6 +34,21 @@
   .imgs img { width: 100%; max-width: 520px; border-radius: 8px; border: 1px solid #eadfce; }
   button, .btn { font: inherit; padding: 8px 14px; border-radius: 6px; border: 1px solid #cdb98f; background: #8a6d3b; color: #fff; cursor: pointer; text-decoration: none; display: inline-block; }
   .btn.secondary { background: #fff; color: #8a6d3b; }
+  /* Section links in the shared header (_nav.ejs). */
+  nav.sections { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; }
+  nav.sections a { text-decoration: none; font-size: 14px; }
+  nav.sections a.active { font-weight: 600; text-decoration: underline; }
+  .badge { display: inline-block; min-width: 18px; padding: 0 6px; border-radius: 999px; background: #b3261e; color: #fff; font-size: 11px; text-align: center; margin-left: 4px; }
+  /* Forms and editors. */
+  label { display: block; font-size: 13px; color: #8a7a63; margin: 10px 0 4px; }
+  input[type=text], input[type=email], input[type=url], input[type=search], select, textarea { font: inherit; width: 100%; padding: 7px 9px; border: 1px solid #d9c9aa; border-radius: 6px; background: #fff; }
+  textarea { min-height: 70px; resize: vertical; }
+  .btn.danger, button.danger { background: #b3261e; border-color: #b3261e; }
+  .btn.small, button.small { padding: 3px 9px; font-size: 13px; }
+  .muted { color: #8a7a63; font-size: 13px; }
+  .notice { padding: 10px 14px; border-radius: 6px; margin-bottom: 18px; background: #eef4ea; color: #3f6b34; }
+  .notice.error { background: #fdeceb; color: #7f1d17; }
+  .inline-form { display: inline; }
 </style>
 </head>
 <body>

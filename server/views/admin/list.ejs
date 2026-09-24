@@ -1,8 +1,5 @@
 <%- include('_head', { title: 'Clients' }) %>
-<header class="top">
-  <h1><a href="/admin">GetPretty · Clients</a></h1>
-  <span class="who"><%= admin.email %> &middot; <a href="/admin/logout">Log out</a></span>
-</header>
+<%- include('_nav', { active: 'clients' }) %>
 <main>
   <% if (mailProblem) { %>
     <div class="warn">

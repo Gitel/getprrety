@@ -17,10 +17,7 @@
   function stamp(d) { return d ? new Date(d).toISOString().slice(0, 16).replace('T', ' ') : null; }
 %>
 <%- include('_head', { title: clientName }) %>
-<header class="top">
-  <h1><a href="/admin">&larr; Clients</a></h1>
-  <span class="who"><%= admin.email %> &middot; <a href="/admin/logout">Log out</a></span>
-</header>
+<%- include('_nav', { active: 'clients' }) %>
 <main>
   <% if (resent) { %>
     <div class="card" style="background: #eef4ea; color: #3f6b34;">Clinic notification re-sent.</div>
