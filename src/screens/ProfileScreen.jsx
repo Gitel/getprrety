@@ -20,7 +20,7 @@ const SEVERITY_META = [
   { label: 'Priority',   color: '#C44B4B' },
 ];
 
-export default function ProfileScreen({ navigation }) {
+export default function ProfileScreen({ navigation, route }) {
   const {
     analysis, setAnalysis, answers, user,
     srProducts: sessionSrProducts, shelfAnalysis: sessionShelfAnalysis,
@@ -382,7 +382,11 @@ export default function ProfileScreen({ navigation }) {
           //  - no user (took "Skip for now")          -> SignUp, which saves this analysis;
           //  - signed in, SkinTiming never answered    -> first-time onboarding chain;
           //  - signed in and onboarded (e.g. a retake) -> straight to Home.
-          onPress={() => navigation.navigate(!user ? 'SignUp' : user.skincareTiming ? 'Home' : 'SkinTiming')}
+          //  - opened from Home's "My skin profile" button -> just go back to that Home
+          //    (navigating would stack a second Home on top of the first).
+          onPress={() => (route?.params?.fromHome
+            ? navigation.goBack()
+            : navigation.navigate(!user ? 'SignUp' : user.skincareTiming ? 'Home' : 'SkinTiming'))}
         >
           <Text style={s.ctaText}>See My Routine →</Text>
         </Pressable>

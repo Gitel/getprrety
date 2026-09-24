@@ -47,13 +47,24 @@ export default function HomeScreen({ navigation }) {
 
         {/* Greeting row */}
         <View style={s.greetingRow}>
-          <View>
+          <View style={s.greetingBlock}>
             <Text style={s.greetingText}>{greeting}</Text>
             <Text style={[s.eraTag, { color: era.color }]}>{era.emoji} {era.name}</Text>
           </View>
-          <Pressable onPress={() => navigation.navigate('Settings')}>
-            <Text style={{ fontSize: 20 }}>⚙️</Text>
-          </Pressable>
+          <View style={s.headerActions}>
+            {/* Re-opens the saved analysis (skin analysis, product audit, SR Ritual, shelf),
+                including anything the clinic edited. Before this, the Profile screen was
+                reachable only once, straight after the quiz. */}
+            <Pressable
+              style={[s.profileBtn, { borderColor: era.color + '60' }]}
+              onPress={() => navigation.navigate('Profile', { fromHome: true })}
+            >
+              <Text style={[s.profileBtnText, { color: era.color }]}>My skin profile</Text>
+            </Pressable>
+            <Pressable onPress={() => navigation.navigate('Settings')}>
+              <Text style={{ fontSize: 20 }}>⚙️</Text>
+            </Pressable>
+          </View>
         </View>
 
         {/* Check-in card */}
@@ -199,6 +210,11 @@ const s = StyleSheet.create({
   safe:        { flex: 1 },
   content:     { padding: 22, paddingTop: 22 },
   greetingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 22 },
+  // Lets a long era name wrap instead of pushing the header buttons off-screen.
+  greetingBlock: { flexShrink: 1, marginRight: 10 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  profileBtn:  { borderWidth: 1, borderRadius: 999, paddingVertical: 5, paddingHorizontal: 11, backgroundColor: C.card },
+  profileBtnText: { fontFamily: 'DMSans_500Medium', fontSize: 12 },
   greetingText:{ fontFamily: 'DMSans_400Regular', fontSize: 12, color: C.muted, marginBottom: 4 },
   eraTag:      { fontFamily: 'CormorantGaramond_500Medium', fontSize: 17 },
   checkInCard: { backgroundColor: C.card, borderWidth: 1.5, borderRadius: 14, padding: 16, flexDirection: 'row', alignItems: 'center', marginBottom: 22 },
