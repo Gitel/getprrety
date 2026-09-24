@@ -25,7 +25,7 @@ function isValidEmail(v) {
 //    just-finished analysis is in context and is saved here once the account exists.
 // `analysis` tells the two apart and drives the copy and the next screen.
 export default function SignUpScreen({ navigation }) {
-  const { analysis, answers, setUser, setAnalysisSaveFailed } = useApp();
+  const { analysis, answers, srProducts, shelfAnalysis, setUser, setAnalysisSaveFailed } = useApp();
   const era = analysis?.era;
   const afterQuiz = Boolean(analysis);
 
@@ -56,7 +56,7 @@ export default function SignUpScreen({ navigation }) {
       return;
     }
     // Skip path: save the anonymous analysis to the new account, then onboarding.
-    persistAnalysis({ analysis, answers }).then(
+    persistAnalysis({ analysis, answers, srProducts, shelfAnalysis }).then(
       () => setAnalysisSaveFailed(false),
       err => {
         console.error('Failed to save analysis after retries:', err?.message || err);

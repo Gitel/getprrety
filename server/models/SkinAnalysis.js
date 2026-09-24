@@ -13,6 +13,19 @@ const skinAnalysisSchema = new mongoose.Schema({
   quizAnswers:  { type: mongoose.Schema.Types.Mixed },
   quizPhotoIds: [String],
 
+  // SR Ritual products and shelf analysis from the Railway analysis service. Stored
+  // (sanitized by services/analysisFields.js) so the Profile screen can show them again
+  // after the app restarts, and so admins can edit them. Before this they lived only in
+  // React state and vanished on every relaunch. null / absent = none; older documents
+  // simply do not have them, so no migration is needed.
+  srProducts:    { type: mongoose.Schema.Types.Mixed, default: null },
+  shelfAnalysis: { type: mongoose.Schema.Types.Mixed, default: null },
+  // Specific product picks (brand / name / price / link) EDITED BY AN ADMIN. While null,
+  // the Profile screen keeps asking Claude for fresh picks every time it opens (owner
+  // decision); once an admin saves picks, the app shows exactly these instead.
+  productRecs:         { type: mongoose.Schema.Types.Mixed, default: null },
+  productRecsEditedAt: { type: Date, default: null },
+
   // Acquisition channel this client came through, e.g. "lu_clinic" — captured from the
   // ?ref= param on the welcome screen and carried through quizAnswers. null = organic/unknown.
   referralSource:   { type: String, default: null },

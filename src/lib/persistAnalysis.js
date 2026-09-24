@@ -21,7 +21,10 @@ export function quizPhotoUris(answers) {
 // Single writer for POST /api/analysis. Used by both the authenticated LoadingScreen
 // path and the post-signup SignUpScreen path so the payload — quizPhotoIds included —
 // stays identical.
-export async function persistAnalysis({ analysis, answers }) {
+// srProducts / shelfAnalysis come from the analysis service alongside `analysis` (they
+// live in separate context state). They are saved too so the Profile screen can show
+// them again after a restart and admins can edit them; the server sanitizes both.
+export async function persistAnalysis({ analysis, answers, srProducts = null, shelfAnalysis = null }) {
   if (!analysis) return;
 
   const scanClaimed = answers?.skinScanId && answers?.skinScanToken
@@ -54,6 +57,8 @@ export async function persistAnalysis({ analysis, answers }) {
     productAudit: analysis.productAudit,
     routine:      analysis.routine,
     affirmation:  analysis.affirmation,
+    srProducts,
+    shelfAnalysis,
     quizAnswers:  sanitizeQuizAnswers(answers),
     quizPhotoIds,
     skinScanId:   scanClaimed ? answers.skinScanId : null,

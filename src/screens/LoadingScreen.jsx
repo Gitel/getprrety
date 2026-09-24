@@ -47,7 +47,7 @@ export default function LoadingScreen({ navigation }) {
         // Fire-and-forget, matching the post-signup path in SignUpScreen. The Era
         // reveal must not wait on six photo uploads plus three POST attempts; the
         // outcome reaches the user either way, through the ProfileScreen banner.
-        persistAnalysis({ analysis: result, answers }).then(
+        persistAnalysis({ analysis: result, answers, srProducts, shelfAnalysis }).then(
           () => setAnalysisSaveFailed(false),
           err => {
             console.error('Failed to save analysis after retries:', err?.message || err);

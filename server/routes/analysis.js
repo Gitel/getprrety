@@ -7,6 +7,7 @@ const requireAuth = require('../middleware/auth');
 const { sanitizeQuizAnswers } = require('../services/sanitizeQuizAnswers');
 const { notifyClinic } = require('../services/clinicNotify');
 const { saveAnalysis } = require('../services/saveAnalysis');
+const { sanitizeSrProducts, sanitizeShelfAnalysis } = require('../services/analysisFields');
 
 function locationFromQuizAnswers(answers) {
   const city = typeof answers?.city === 'string' ? answers.city.trim().slice(0, 160) : '';
@@ -42,6 +43,7 @@ router.post('/', requireAuth, async (req, res) => {
   try {
     const {
       eraId, era, skinAnalysis, keyInsights, productAudit, routine, affirmation, quizAnswers, quizPhotoIds, skinScanId,
+      srProducts, shelfAnalysis,
     } = req.body;
     if (!eraId) return res.status(400).json({ error: 'eraId is required' });
 
@@ -75,6 +77,10 @@ router.post('/', requireAuth, async (req, res) => {
       affirmation,
       quizAnswers: cleanQuizAnswers,
       quizPhotoIds: Array.isArray(quizPhotoIds) ? quizPhotoIds.slice(0, 20) : [],
+      // Same sanitizers the admin editors use: only the fields the app renders, capped.
+      // Older app builds do not send these; both become null (= "no section").
+      srProducts: sanitizeSrProducts(srProducts),
+      shelfAnalysis: sanitizeShelfAnalysis(shelfAnalysis),
       referralSource,
       clientRequestId,
     });
