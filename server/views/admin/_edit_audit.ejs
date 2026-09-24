@@ -1,0 +1,75 @@
+<%#
+  Editor: the Profile screen product audit - four buckets shown as tabs in the app:
+   keep / remove: { product, reason }
+   replace:       { from, to, reason }
+   add:           { product, reason, priority: essential | recommended }
+  Saves to POST /admin/customer/:id/edit/audit  (services/adminEdits.js SECTIONS.audit).
+%>
+<%
+  var audit = analysis.productAudit || {};
+  function itemsOf(bucket) { return Array.isArray(audit[bucket]) ? audit[bucket] : []; }
+
+  function simpleRow(item) { item = item || {}; %>
+    <div class="row">
+      <%- include('_rowTools') %>
+      <label>Product</label>
+      <input type="text" data-path="product" maxlength="200" value="<%= item.product || item.from || '' %>">
+      <label>Why</label>
+      <textarea data-path="reason" maxlength="500" rows="2"><%= item.reason || '' %></textarea>
+    </div>
+<% }
+  function replaceRow(item) { item = item || {}; %>
+    <div class="row">
+      <%- include('_rowTools') %>
+      <div class="grid2">
+        <div><label>Replace this</label><input type="text" data-path="from" maxlength="200" value="<%= item.from || '' %>"></div>
+        <div><label>With this</label><input type="text" data-path="to" maxlength="200" value="<%= item.to || '' %>"></div>
+      </div>
+      <label>Why</label>
+      <textarea data-path="reason" maxlength="500" rows="2"><%= item.reason || '' %></textarea>
+    </div>
+<% }
+  function addRow(item) { item = item || {}; %>
+    <div class="row">
+      <%- include('_rowTools') %>
+      <div class="grid2">
+        <div><label>Product to add</label><input type="text" data-path="product" maxlength="200" value="<%= item.product || '' %>"></div>
+        <div>
+          <label>Priority</label>
+          <select data-path="priority">
+            <option value="essential" <%= item.priority === 'essential' ? 'selected' : '' %>>Essential</option>
+            <option value="recommended" <%= item.priority !== 'essential' ? 'selected' : '' %>>Recommended</option>
+          </select>
+        </div>
+      </div>
+      <label>Why</label>
+      <textarea data-path="reason" maxlength="500" rows="2"><%= item.reason || '' %></textarea>
+    </div>
+<% }
+  var BUCKETS = [
+    { key: 'keep', title: 'Keep', row: simpleRow },
+    { key: 'remove', title: 'Remove', row: simpleRow },
+    { key: 'replace', title: 'Replace', row: replaceRow },
+    { key: 'add', title: 'Add', row: addRow },
+  ];
+%>
+<div class="card" id="audit">
+  <h2>Product audit (Profile screen)</h2>
+  <form data-json-editor action="/admin/customer/<%= analysis._id %>/edit/audit">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <% BUCKETS.forEach(function (b) { %>
+      <fieldset>
+        <legend><%= b.title %> (<%= itemsOf(b.key).length %>)</legend>
+        <div class="list-wrap">
+          <div data-list="productAudit.<%= b.key %>">
+            <% itemsOf(b.key).forEach(function (item) { b.row(item); }); %>
+          </div>
+          <template><% b.row({}); %></template>
+          <button type="button" class="btn secondary small" data-row-action="add">+ Add to <%= b.title.toLowerCase() %></button>
+        </div>
+      </fieldset>
+    <% }); %>
+    <p><button type="submit">Save product audit</button></p>
+    <p class="editor-status muted"></p>
+  </form>
+</div>

@@ -5,7 +5,7 @@ const mongoose = require('mongoose');
 const User = require('../models/User');
 const SkinAnalysis = require('../models/SkinAnalysis');
 const { isDuplicateEmail } = require('./duplicateKey');
-const { text, sanitizeKeyInsights, sanitizeRoutine } = require('./analysisFields');
+const { text, sanitizeKeyInsights, sanitizeRoutine, sanitizeProductAudit } = require('./analysisFields');
 const { eraById } = require('./eras');
 
 // Same shape check the app's signup uses (routes/auth.js).
@@ -115,6 +115,16 @@ const SECTIONS = {
     reads: 'routine',
     build(body) {
       return { set: { routine: sanitizeRoutine(body.routine) } };
+    },
+  },
+
+  // Customer page "Product audit" card: the keep / remove / replace / add buckets the
+  // Profile screen shows as tabs.
+  audit: {
+    action: 'product_audit_updated',
+    reads: 'productAudit',
+    build(body) {
+      return { set: { productAudit: sanitizeProductAudit(body.productAudit) } };
     },
   },
 };

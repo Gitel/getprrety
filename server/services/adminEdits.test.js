@@ -155,3 +155,23 @@ describe('updateAnalysisSection: routine', () => {
     expect(m.findByIdAndUpdate).not.toHaveBeenCalled();
   });
 });
+
+describe('updateAnalysisSection: audit', () => {
+  const { updateAnalysisSection } = require('./adminEdits');
+  test('writes the four sanitized buckets as one whole-field $set', async () => {
+    const m = {
+      findById: jest.fn(() => ({ select: () => ({ lean: async () => ({ userId: 'u1', productAudit: {} }) }) })),
+      findByIdAndUpdate: jest.fn(async () => ({})),
+    };
+    const result = await updateAnalysisSection('64b000000000000000000001', 'audit', {
+      productAudit: { keep: [{ product: 'Cleanser', reason: 'Fine' }], add: [{ product: 'SPF', priority: 'essential' }], junk: [1] },
+    }, { analysisModel: m });
+    expect(result).toMatchObject({ ok: true, changed: ['productAudit'], action: 'product_audit_updated' });
+    expect(m.findByIdAndUpdate.mock.calls[0][1].$set.productAudit).toEqual({
+      keep: [{ product: 'Cleanser', reason: 'Fine' }],
+      remove: [],
+      replace: [],
+      add: [{ product: 'SPF', reason: '', priority: 'essential' }],
+    });
+  });
+});
