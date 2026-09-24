@@ -23,7 +23,10 @@
           <td><%= humanize(e.action) %></td>
           <td>
             <% if (e.targetAdminEmail) { %><%= e.targetAdminEmail %><% } %>
-            <% if (e.userId) { %><a href="/admin/audit?user=<%= e.userId %>">user <%= String(e.userId).slice(-6) %></a><% } %>
+            <% if (e.userId) { %>
+              <a href="/admin/users/<%= e.userId %>">user <%= String(e.userId).slice(-6) %></a>
+              (<a href="/admin/audit?user=<%= e.userId %>">filter</a>)
+            <% } %>
             <% if (e.analysisId) { %> <a href="/admin/customer/<%= e.analysisId %>">analysis</a><% } %>
           </td>
           <td><%= (e.fields || []).map(humanize).join(', ') || '—' %></td>

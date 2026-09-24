@@ -34,6 +34,7 @@
     <dl class="kv">
       <dt>Name</dt><dd><%= clientName %></dd>
       <dt>Email</dt><dd><%= (user && user.email) || '—' %></dd>
+      <% if (user) { %><dt>Account</dt><dd><a href="/admin/users/<%= user._id %>">Open user page &rarr;</a></dd><% } %>
       <dt>Phone</dt><dd><%= qa.phone || '—' %></dd>
       <dt>Completed</dt><dd><%= stamp(analysis.createdAt) || '—' %></dd>
       <dt>Referral source</dt><dd><%= analysis.referralSource || '—' %></dd>

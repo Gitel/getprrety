@@ -116,3 +116,31 @@ test('users page lists accounts, escapes the search term and keeps it in page li
   expect(html).toContain('q=%3Cb%3Eada%3C%2Fb%3E');
   expect(html).toContain('Page 2 of 3');
 });
+
+test('user page renders every section and marks the newest analysis as shown in app', async () => {
+  const html = await render('user', {
+    user: { _id: 'u1', firstName: 'Ada', email: 'ada@example.com', createdAt: new Date() },
+    analyses: [
+      { _id: 'a2', eraId: 'glow_building', era: { name: 'Glow Building Era' }, createdAt: new Date() },
+      { _id: 'a1', eraId: 'barrier_healing', createdAt: new Date() },
+    ],
+    checkIns: [{ mood: 'Glowing', createdAt: new Date() }],
+    products: [{ uploadId: 'up1', productName: 'Serum', createdAt: new Date() }],
+    activity: [{ event: 'app_open', location: { city: 'Tel Aviv', country: 'IL' }, createdAt: new Date() }],
+    notice: null,
+  });
+  expect(html.match(/shown in app/g)).toHaveLength(1);
+  expect(html).toContain('/admin/customer/a2');
+  expect(html).toContain('/admin/users/u1/image/up1');
+  expect(html).toContain('Glowing');
+  expect(html).toContain('app open');
+  expect(html).toContain('Tel Aviv, IL');
+});
+
+test('user page renders a signup with no quiz and no activity', async () => {
+  const html = await render('user', {
+    user: { _id: 'u1', email: 'new@example.com' },
+    analyses: [], checkIns: [], products: [], activity: [], notice: null,
+  });
+  expect(html).toContain('has not finished the quiz');
+});

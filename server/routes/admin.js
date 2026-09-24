@@ -20,7 +20,7 @@ const {
 const { allowAuthAttempt, releaseAuthAttempt } = require('../services/authRateLimit');
 const { logAdminAction } = require('../services/adminAudit');
 const { addAdmin, removeAdmin } = require('../services/adminUsers');
-const { listUsers } = require('../services/userDirectory');
+const { listUsers, getUserDetail } = require('../services/userDirectory');
 const AdminUser = require('../models/AdminUser');
 const AdminAuditLog = require('../models/AdminAuditLog');
 
@@ -213,6 +213,36 @@ router.get('/users', requireAdmin, async (req, res, next) => {
   try {
     const list = await listUsers({ q: req.query.q, page: req.query.page });
     res.render('admin/users', { admin: req.admin, list });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// One account: profile, quiz completions, check-ins, logged products, activity.
+router.get('/users/:id', requireAdmin, async (req, res, next) => {
+  try {
+    const detail = await getUserDetail(req.params.id);
+    if (!detail) return res.status(404).send('Not found');
+    res.render('admin/user', { admin: req.admin, ...detail, notice: noticeFrom(req) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Product-log photos for the user page. /api/uploads only serves an upload to its own
+// user, so admins need this route. The query requires BOTH ids to match, so it only
+// ever returns this user's own uploads and cannot be used to walk other uploads by id.
+router.get('/users/:id/image/:uploadId', requireAdmin, async (req, res, next) => {
+  try {
+    const { id, uploadId } = req.params;
+    if (!mongoose.isValidObjectId(id) || !mongoose.isValidObjectId(uploadId)) {
+      return res.status(404).send('Not found');
+    }
+    const doc = await Upload.findOne({ _id: uploadId, userId: id });
+    if (!doc) return res.status(404).send('Not found');
+    res.set('Content-Type', doc.mimeType || 'image/jpeg');
+    res.set('Cache-Control', 'private, max-age=3600');
+    res.send(doc.data);
   } catch (err) {
     next(err);
   }

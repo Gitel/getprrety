@@ -1,0 +1,116 @@
+<%#
+  User page: one account and everything recorded for it.
+  Data from userDirectory.getUserDetail: user, analyses, checkIns, products, activity.
+  The newest analysis is the one the app shows (GET /api/analysis/latest).
+%>
+<%
+  function stamp(d) { return d ? new Date(d).toISOString().slice(0, 16).replace('T', ' ') : '—'; }
+  var displayName = user.firstName || user.email;
+%>
+<%- include('_head', { title: displayName }) %>
+<%- include('_nav', { active: 'users' }) %>
+<main>
+  <% if (locals.notice) { %>
+    <div class="notice <%= notice.error ? 'error' : '' %>"><%= notice.text %></div>
+  <% } %>
+
+  <div class="card">
+    <h2>Profile</h2>
+    <dl class="kv">
+      <dt>Name</dt><dd><%= user.firstName || '—' %></dd>
+      <dt>Email</dt><dd><%= user.email %></dd>
+      <dt>Sign-in</dt><dd><%= user.googleId ? 'Google' : 'Email + password' %></dd>
+      <dt>Signed up</dt><dd><%= stamp(user.createdAt) %></dd>
+      <dt>Routine timing</dt><dd><%= user.skincareTiming || '—' %></dd>
+      <dt>City / country</dt><dd><%= [user.city, user.country].filter(Boolean).join(', ') || '—' %></dd>
+      <dt>Timezone</dt><dd><%= user.timezone || '—' %></dd>
+      <dt>Consent version</dt><dd><%= user.consentVersion || '—' %></dd>
+    </dl>
+    <p class="muted" style="margin-top: 12px;"><a href="/admin/audit?user=<%= user._id %>">Admin changes to this user &rarr;</a></p>
+  </div>
+
+  <div class="card">
+    <h2>Quiz completions (<%= analyses.length %>)</h2>
+    <% if (!analyses.length) { %>
+      <p class="muted">This user has not finished the quiz.</p>
+    <% } else { %>
+      <table>
+        <thead><tr><th>Completed</th><th>Skin Era</th><th>Clinic notified</th><th></th></tr></thead>
+        <tbody>
+          <% analyses.forEach(function (a, i) { %>
+            <tr>
+              <td><a href="/admin/customer/<%= a._id %>"><%= stamp(a.createdAt) %></a></td>
+              <td><%= (a.era && a.era.name) || a.eraId || '—' %></td>
+              <td><%= a.clinicNotifiedAt ? stamp(a.clinicNotifiedAt) : 'not sent' %></td>
+              <td><% if (i === 0) { %><span class="pill yes">shown in app</span><% } %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    <% } %>
+  </div>
+
+  <div class="card">
+    <h2>Check-ins (last <%= checkIns.length %>)</h2>
+    <% if (!checkIns.length) { %>
+      <p class="muted">No check-ins yet.</p>
+    <% } else { %>
+      <table>
+        <thead><tr><th>When (UTC)</th><th>Mood</th></tr></thead>
+        <tbody>
+          <% checkIns.forEach(function (c) { %>
+            <tr><td><%= stamp(c.date || c.createdAt) %></td><td><%= c.mood %></td></tr>
+          <% }); %>
+        </tbody>
+      </table>
+    <% } %>
+  </div>
+
+  <div class="card">
+    <h2>Logged products (<%= products.length %>)</h2>
+    <% if (!products.length) { %>
+      <p class="muted">No products logged yet.</p>
+    <% } else { %>
+      <table>
+        <thead><tr><th>Photo</th><th>Product</th><th>Category</th><th>Notes</th><th>Logged</th></tr></thead>
+        <tbody>
+          <% products.forEach(function (p) { %>
+            <tr>
+              <td>
+                <% if (p.uploadId) { %>
+                  <img src="/admin/users/<%= user._id %>/image/<%= p.uploadId %>" alt="product photo" loading="lazy"
+                       style="width: 72px; height: 72px; object-fit: cover; border-radius: 6px; border: 1px solid #eadfce;">
+                <% } else { %>—<% } %>
+              </td>
+              <td><%= p.productName || '—' %></td>
+              <td><%= p.category || '—' %></td>
+              <td><%= p.notes || '—' %></td>
+              <td><%= stamp(p.createdAt) %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    <% } %>
+  </div>
+
+  <div class="card">
+    <h2>Activity (last <%= activity.length %>)</h2>
+    <% if (!activity.length) { %>
+      <p class="muted">No activity recorded.</p>
+    <% } else { %>
+      <table>
+        <thead><tr><th>When (UTC)</th><th>Event</th><th>Location</th></tr></thead>
+        <tbody>
+          <% activity.forEach(function (e) { %>
+            <tr>
+              <td><%= stamp(e.createdAt) %></td>
+              <td><%= String(e.event).replace(/_/g, ' ') %></td>
+              <td><%= e.location ? [e.location.city, e.location.country].filter(Boolean).join(', ') || '—' : '—' %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    <% } %>
+  </div>
+</main>
+<%- include('_foot') %>
