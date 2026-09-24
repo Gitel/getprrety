@@ -23,6 +23,7 @@ const activityRoutes = require('./routes/activity');
 const skinScanRoutes = require('./routes/skinScan');
 const aiRoutes       = require('./routes/ai');
 const cityRoutes     = require('./routes/cities');
+const messageRoutes  = require('./routes/messages');
 const adminRoutes    = require('./routes/admin');
 const skinScanPoller = require('./jobs/skinScanPoller');
 const { mailConfigError } = require('./services/clinicNotify');
@@ -64,6 +65,7 @@ app.use('/api/uploads',   uploadRoutes);
 app.use('/api/activity',  activityRoutes);
 app.use('/api/ai',        aiRoutes);
 app.use('/api/cities',    cityRoutes);
+app.use('/api/messages',  messageRoutes); // in-app messages with the clinic
 
 // Server-rendered clinic admin dashboard (Google sign-in + email allow-list)
 app.use('/admin',         adminRoutes);
