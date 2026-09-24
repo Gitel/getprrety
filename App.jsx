@@ -17,6 +17,7 @@ import ShelfPhotosScreen from './src/screens/ShelfPhotosScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import ProductCameraScreen from './src/screens/ProductCameraScreen';
+import MessagesScreen from './src/screens/MessagesScreen';
 
 const screens = {
   Welcome: WelcomeScreen,
@@ -34,6 +35,7 @@ const screens = {
   Home: HomeScreen,
   Settings: SettingsScreen,
   ProductCamera: ProductCameraScreen,
+  Messages: MessagesScreen, // two-way chat with the clinic (opened from Home)
 };
 
 class ErrorBoundary extends React.Component {

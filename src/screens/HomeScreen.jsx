@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, Pressable, ScrollView, Modal, StyleSheet,
 } from 'react-native';
@@ -9,8 +9,13 @@ import { api } from '../lib/api';
 import { logActivity } from '../lib/logActivity';
 
 export default function HomeScreen({ navigation }) {
-  const { analysis } = useApp();
+  const { analysis, unreadMessages, refreshUnreadMessages } = useApp();
   const era     = analysis?.era;
+
+  // Home is re-mounted every time the user comes back to it (only the top screen of the
+  // stack is mounted), so this refreshes the message badge after login and after
+  // leaving the Messages screen. App resumes are covered in AppContext.
+  useEffect(() => { refreshUnreadMessages(); }, []);
   const routine = analysis?.routine || { am: [], pm: [] };
 
   const [tab,       setTab]      = useState('am');
@@ -52,6 +57,18 @@ export default function HomeScreen({ navigation }) {
             <Text style={[s.eraTag, { color: era.color }]}>{era.emoji} {era.name}</Text>
           </View>
           <View style={s.headerActions}>
+            {/* Messages with the clinic; the badge counts clinic messages not opened yet. */}
+            <Pressable
+              onPress={() => navigation.navigate('Messages')}
+              accessibilityLabel={unreadMessages ? `Messages, ${unreadMessages} unread` : 'Messages'}
+            >
+              <Text style={{ fontSize: 19 }}>💬</Text>
+              {unreadMessages > 0 && (
+                <View style={s.msgBadge}>
+                  <Text style={s.msgBadgeText}>{unreadMessages > 9 ? '9+' : unreadMessages}</Text>
+                </View>
+              )}
+            </Pressable>
             {/* Re-opens the saved analysis (skin analysis, product audit, SR Ritual, shelf),
                 including anything the clinic edited. Before this, the Profile screen was
                 reachable only once, straight after the quiz. */}
@@ -215,6 +232,9 @@ const s = StyleSheet.create({
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   profileBtn:  { borderWidth: 1, borderRadius: 999, paddingVertical: 5, paddingHorizontal: 11, backgroundColor: C.card },
   profileBtnText: { fontFamily: 'DMSans_500Medium', fontSize: 12 },
+  // Small red count pinned to the top-right of the message icon.
+  msgBadge:    { position: 'absolute', top: -5, right: -9, minWidth: 16, height: 16, borderRadius: 8, paddingHorizontal: 3, backgroundColor: '#C44B4B', alignItems: 'center', justifyContent: 'center' },
+  msgBadgeText:{ fontFamily: 'DMSans_500Medium', fontSize: 9, color: '#FFFFFF' },
   greetingText:{ fontFamily: 'DMSans_400Regular', fontSize: 12, color: C.muted, marginBottom: 4 },
   eraTag:      { fontFamily: 'CormorantGaramond_500Medium', fontSize: 17 },
   checkInCard: { backgroundColor: C.card, borderWidth: 1.5, borderRadius: 14, padding: 16, flexDirection: 'row', alignItems: 'center', marginBottom: 22 },
