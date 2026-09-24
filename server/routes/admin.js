@@ -70,7 +70,8 @@ router.post('/auth/google', async (req, res) => {
       return res.status(401).json({ error: 'Google account has no verified email' });
     }
 
-    if (!isAllowed(payload.email)) {
+    // Built-in (env) admins or dashboard-added admins (AdminUser collection).
+    if (!(await isAllowed(payload.email))) {
       return res.status(403).json({ error: 'This Google account is not authorized for the dashboard.' });
     }
 
