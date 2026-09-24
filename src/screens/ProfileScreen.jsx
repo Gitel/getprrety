@@ -37,6 +37,8 @@ export default function ProfileScreen({ navigation, route }) {
 
   const replaceItems = audit.replace || [];
   const addItems     = audit.add     || [];
+  // The items that get product picks, as a string: a stable dependency for the effect below.
+  const auditPickKey = JSON.stringify([addItems, replaceItems]);
 
   const auditTabs = [
     { key:'remove',  label:'🚫 Remove',  color:'#C44B4B', items: audit.remove  || [] },
@@ -75,8 +77,10 @@ export default function ProfileScreen({ navigation, route }) {
       if (!cancelled) setLoadingRecs(false);
     })();
     return () => { cancelled = true; };
-    // analysis?.productRecs: re-run when a resume refresh brings in admin-edited picks.
-  }, [user, analysis?.productRecs]);
+    // Re-run when a resume refresh brings in admin-edited picks (productRecs) or a changed
+    // add/replace list (new items need picks). The list is compared as a string, so an
+    // equal list in a new object does not trigger another Claude call.
+  }, [user, analysis?.productRecs, auditPickKey]);
 
   useEffect(() => {
     const scanId = analysis?.skinScanId || answers?.skinScanId;

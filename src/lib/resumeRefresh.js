@@ -29,8 +29,9 @@ export function onAppResume(onResume, deps = {}) {
  *
  * Right after a quiz, the in-memory analysis comes straight from the analysis service:
  * it has no `_id`, and its save to the server may still be running in the background.
- * The server's "latest" could then be the PREVIOUS reading, so an analysis that was
- * never read from the server is never replaced. The next cold start re-reads it anyway.
+ * The server's "latest" could then be the PREVIOUS reading, so an analysis without an
+ * `_id` is never replaced. Once its save finishes, LoadingScreen / SignUpScreen attach
+ * the saved `_id` (persistAnalysis withSavedId), and from then on resume refreshes apply.
  * Otherwise the server copy wins, because it carries any clinic edits.
  */
 export function nextAnalysis(current, saved) {

@@ -49,7 +49,11 @@ export async function persistAnalysis({ analysis, answers, srProducts = null, sh
   // Retry a few times before giving up — a transient upload/API blip used to be
   // swallowed and the assessment silently lost. Callers treat a thrown error here
   // as "save failed" and warn the user rather than pretending it worked.
-  await withRetry(() => api.post('/api/analysis', {
+  // Resolves to the analysis as the server saved it (with its `_id`), or null. Callers
+  // attach that `_id` to the in-memory analysis: resume refresh only replaces analyses
+  // that carry an `_id` (see src/lib/resumeRefresh.js nextAnalysis), so without it clinic
+  // edits would not reach the app for the rest of the session after a quiz.
+  const response = await withRetry(() => api.post('/api/analysis', {
     eraId:        analysis.era?.id ?? analysis.eraId,
     era:          analysis.era,
     skinAnalysis: analysis.skinAnalysis,
@@ -64,4 +68,12 @@ export async function persistAnalysis({ analysis, answers, srProducts = null, sh
     skinScanId:   scanClaimed ? answers.skinScanId : null,
     clientRequestId,
   }));
+  return response?.analysis || null;
+}
+
+// Give the in-memory analysis the `_id` it was saved under, once, if it has none yet.
+// Pure so both callers (LoadingScreen, SignUpScreen) share it and it can be tested.
+export function withSavedId(current, saved) {
+  if (!current || current._id || !saved?._id) return current;
+  return { ...current, _id: saved._id };
 }

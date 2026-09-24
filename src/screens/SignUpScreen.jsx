@@ -6,7 +6,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { api } from '../lib/api';
 import { storeToken } from '../lib/auth';
-import { persistAnalysis } from '../lib/persistAnalysis';
+import { persistAnalysis, withSavedId } from '../lib/persistAnalysis';
 import { logActivity } from '../lib/logActivity';
 import { C } from '../constants';
 import { useApp } from '../context/AppContext';
@@ -25,7 +25,7 @@ function isValidEmail(v) {
 //    just-finished analysis is in context and is saved here once the account exists.
 // `analysis` tells the two apart and drives the copy and the next screen.
 export default function SignUpScreen({ navigation }) {
-  const { analysis, answers, srProducts, shelfAnalysis, setUser, setAnalysisSaveFailed } = useApp();
+  const { analysis, setAnalysis, answers, srProducts, shelfAnalysis, setUser, setAnalysisSaveFailed } = useApp();
   const era = analysis?.era;
   const afterQuiz = Boolean(analysis);
 
@@ -57,7 +57,11 @@ export default function SignUpScreen({ navigation }) {
     }
     // Skip path: save the anonymous analysis to the new account, then onboarding.
     persistAnalysis({ analysis, answers, srProducts, shelfAnalysis }).then(
-      () => setAnalysisSaveFailed(false),
+      saved => {
+        setAnalysisSaveFailed(false);
+        // Attach the saved `_id` so resume refresh can bring in clinic edits later.
+        setAnalysis(current => withSavedId(current, saved));
+      },
       err => {
         console.error('Failed to save analysis after retries:', err?.message || err);
         // The anonymous funnel saves here, not in LoadingScreen (user is null there),

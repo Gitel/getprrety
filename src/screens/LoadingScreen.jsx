@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { C, QUESTIONS, buildFallback } from '../constants';
 import { analyzeWithRailway } from '../lib/analyzeWithRailway';
 import { pollScan } from '../lib/skinScan';
-import { persistAnalysis } from '../lib/persistAnalysis';
+import { persistAnalysis, withSavedId } from '../lib/persistAnalysis';
 import { logActivity } from '../lib/logActivity';
 import { useApp } from '../context/AppContext';
 
@@ -43,12 +43,22 @@ export default function LoadingScreen({ navigation }) {
       if (finishing) return;
       finishing = true;
       const { result, srProducts, shelfAnalysis } = apiRef;
+      // The save below and the 700 ms reveal race each other. Whichever finishes second
+      // attaches the saved `_id` to the analysis in context, so resume refresh can later
+      // swap in clinic edits (it only replaces analyses that have an `_id`).
+      let savedId = null;
+      let revealed = false;
       if (user) {
         // Fire-and-forget, matching the post-signup path in SignUpScreen. The Era
         // reveal must not wait on six photo uploads plus three POST attempts; the
         // outcome reaches the user either way, through the ProfileScreen banner.
         persistAnalysis({ analysis: result, answers, srProducts, shelfAnalysis }).then(
-          () => setAnalysisSaveFailed(false),
+          saved => {
+            setAnalysisSaveFailed(false);
+            if (!saved?._id) return;
+            savedId = saved._id;
+            if (revealed) setAnalysis(current => withSavedId(current, saved));
+          },
           err => {
             console.error('Failed to save analysis after retries:', err?.message || err);
             logActivity('analysis_save_failed');
@@ -58,7 +68,8 @@ export default function LoadingScreen({ navigation }) {
       }
       setComplete(true);
       setTimeout(() => {
-        setAnalysis({ ...result, skinScan: skinScan || null });
+        revealed = true;
+        setAnalysis({ ...result, skinScan: skinScan || null, ...(savedId ? { _id: savedId } : {}) });
         if (srProducts) setSrProducts(srProducts);
         if (shelfAnalysis) setShelfAnalysis(shelfAnalysis);
         navigation.navigate('Profile');

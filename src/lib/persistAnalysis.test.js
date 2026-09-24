@@ -37,3 +37,24 @@ test('sends null for both when the analysis service returned none', async () => 
   expect(body.srProducts).toBeNull();
   expect(body.shelfAnalysis).toBeNull();
 });
+
+test('resolves to the analysis the server saved (with its _id)', async () => {
+  api.post.mockResolvedValueOnce({ analysis: { _id: 'saved-1', eraId: 'glow_building' } });
+  await expect(persistAnalysis({ analysis, answers: {} })).resolves.toEqual({ _id: 'saved-1', eraId: 'glow_building' });
+  api.post.mockResolvedValueOnce({});
+  await expect(persistAnalysis({ analysis, answers: {} })).resolves.toBeNull();
+});
+
+describe('withSavedId', () => {
+  const { withSavedId } = require('./persistAnalysis');
+  test('adds the saved _id to an in-memory analysis that has none', () => {
+    expect(withSavedId({ eraId: 'x' }, { _id: 's1' })).toEqual({ eraId: 'x', _id: 's1' });
+  });
+  test('never overwrites an existing _id, and ignores missing inputs', () => {
+    const fromServer = { _id: 'old' };
+    expect(withSavedId(fromServer, { _id: 's1' })).toBe(fromServer);
+    expect(withSavedId(null, { _id: 's1' })).toBeNull();
+    const current = { eraId: 'x' };
+    expect(withSavedId(current, null)).toBe(current);
+  });
+});
