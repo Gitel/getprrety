@@ -17,6 +17,7 @@ const {
   isAllowed,
 } = require('../services/adminAuth');
 const { allowAuthAttempt, releaseAuthAttempt } = require('../services/authRateLimit');
+const { logAdminAction } = require('../services/adminAudit');
 
 // The Google Identity Services button loads a script + iframe from accounts.google.com
 // and opens a sign-in popup. The app-wide strict helmet() defaults break both:
@@ -177,6 +178,7 @@ router.post('/customer/:id/resend', requireAdmin, requireCsrf, async (req, res, 
   try {
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).send('Not found');
     await notifyClinic(req.params.id, { force: true });
+    await logAdminAction(req, 'clinic_email_resent', { analysisId: req.params.id });
     res.redirect(`/admin/customer/${req.params.id}?resent=1`);
   } catch (err) {
     next(err);
