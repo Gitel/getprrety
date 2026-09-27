@@ -8,6 +8,7 @@ const { sanitizeQuizAnswers, sanitizeValue } = require('../services/sanitizeQuiz
 const { notifyClinic } = require('../services/clinicNotify');
 const { saveAnalysis } = require('../services/saveAnalysis');
 const { sanitizeSrProducts, sanitizeShelfAnalysis } = require('../services/analysisFields');
+const { scanView } = require('../services/skinScan/scanView');
 
 function locationFromQuizAnswers(answers) {
   const city = typeof answers?.city === 'string' ? answers.city.trim().slice(0, 160) : '';
@@ -62,7 +63,8 @@ async function withSkinScan(doc, userId) {
   if (!analysis.skinScanId) return analysis;
   const scan = await SkinScan.findOne({ _id: analysis.skinScanId, userId, status: 'complete' })
     .select('merged fusion');
-  if (scan) analysis.skinScan = { merged: scan.merged, fusion: scan.fusion };
+  // Same shape as GET /api/skin-scan/:id, so a reloaded analysis renders the score section too.
+  if (scan) analysis.skinScan = scanView(scan);
   return analysis;
 }
 

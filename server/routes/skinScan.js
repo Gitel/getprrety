@@ -9,6 +9,7 @@ const poller = require('../jobs/skinScanPoller');
 const { AnalysisError } = require('../services/perfectcorp/errors');
 const { enforceAnonymousScanBudget } = require('../services/anonymousScanBudget');
 const { sanitizeQuizAnswers } = require('../services/sanitizeQuizAnswers');
+const { scanView } = require('../services/skinScan/scanView');
 
 const MAX_BYTES = 8 * 1024 * 1024;
 const ALLOWED_TYPES = ['image/jpeg', 'image/png'];
@@ -218,7 +219,7 @@ router.get('/:id', async (req, res) => {
       poller.startPolling(scan._id, angles);
     }
     if (scan.status === 'complete') {
-      return res.json({ status: 'complete', skinScan: { merged: scan.merged, fusion: scan.fusion } });
+      return res.json({ status: 'complete', skinScan: scanView(scan) });
     }
     if (scan.status === 'failed') {
       return res.json({ status: 'failed', reason: scan.failureReason, recoverable: true });
