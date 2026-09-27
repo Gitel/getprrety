@@ -1,4 +1,5 @@
 import { getToken } from './auth';
+import { ageFromBirthday, hasPregnancyCaution } from './analyzeWithRailway';
 
 const BASE = process.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -20,6 +21,30 @@ const SCAN_REQUEST_TIMEOUT_MS = 15000;
 // ceiling here would defeat that budget — a hung poll should fail fast and let the
 // caller's own retry/timeout logic keep driving the loop.
 const POLL_TIMEOUT_MS = 5000;
+
+// Quiz answers copied as-is onto the scan (server `quizSnapshot`). The fusion engine reads the
+// first three; the server's score-reading call sends all of them to Railway so its copy can say
+// "why" (routine, water, lifestyle). Deliberately a whitelist (owner decision): no name,
+// birthday, city, health conditions or raw hormone answers are stored on the (anonymous) scan.
+const SCAN_QUIZ_KEYS = [
+  'skin_goals', 'top_concern', 'post_cleanse_feel',
+  'gender', 'tone', 'work_environment', 'irritants', 'routine_products', 'water_intake',
+  'sleep', 'stress', 'alcohol', 'smoke', 'exercise', 'allergies', 'diagnosed_conditions',
+];
+
+// Builds the answers sent at scan init. `age` replaces the birthday, and pregnancy /
+// breastfeeding become one yes/no flag (same rule as the Era analysis) instead of the raw
+// hormone answers. Unanswered questions are left out. `today` is injectable for tests only.
+export function scanQuizAnswers(answers = {}, today = new Date()) {
+  const picked = {};
+  SCAN_QUIZ_KEYS.forEach(key => {
+    if (answers[key] !== undefined && answers[key] !== null) picked[key] = answers[key];
+  });
+  const age = ageFromBirthday(answers.birthday, today);
+  if (age != null) picked.age = age;
+  picked.pregnancy_caution = hasPregnancyCaution(answers);
+  return picked;
+}
 
 // Fires the PerfectCorp scan in the background as soon as the front photo is captured. Never throws —
 // a failure here must never block the quiz, same as every other photo-analysis failure mode today.

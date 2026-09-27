@@ -6,7 +6,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { C, QUESTIONS, SKIN_TONES } from '../constants';
 import { useApp } from '../context/AppContext';
-import { initAndStartScan } from '../lib/skinScan';
+import { initAndStartScan, scanQuizAnswers } from '../lib/skinScan';
 import LocationQuestion from '../components/LocationQuestion';
 
 const START_IDX = QUESTIONS.findIndex(q => q.id === 'name');
@@ -213,7 +213,8 @@ export default function QuizScreen({ navigation, route }) {
     if (q.type === 'photos' && a.front) {
       scanPromiseRef.current = initAndStartScan({
         front: a.front, left: a.left, right: a.right,
-        quizAnswers: { skin_goals: a.skin_goals, top_concern: a.top_concern, post_cleanse_feel: a.post_cleanse_feel },
+        // Whitelisted answers (see scanQuizAnswers) - also the input for the score-reading copy.
+        quizAnswers: scanQuizAnswers(a),
       }).then(scanRef => {
         if (scanRef) setAns(prev => ({ ...prev, ...scanRef }));
         return scanRef;

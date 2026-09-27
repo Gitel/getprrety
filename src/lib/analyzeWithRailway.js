@@ -63,15 +63,20 @@ export function ageRange(age) {
   return '65+';
 }
 
+// Whether Gemini must apply its cautious ingredient rules (e.g. no retinoids). Breastfeeding
+// counts like pregnancy / trying to conceive (owner decision); women only, as before.
+// Shared by the Era analysis (below) and the score-reading answers (src/lib/skinScan.js).
+export function hasPregnancyCaution(answers) {
+  const caution = answers?.hormones?.pregnant === 'yes'
+    || answers?.hormones?.trying_to_conceive === 'yes'
+    || answers?.hormones?.breastfeeding === 'yes';
+  return answers?.gender === 'she' && caution;
+}
+
 // Map app quiz answer fields → Railway API schema.
 // `today` is injectable only so tests can pin the age calculation.
 export function buildQuizPayload(answers, today = new Date()) {
   const age = ageFromBirthday(answers.birthday, today);
-  // Breastfeeding counts like pregnancy / trying to conceive (owner decision), so Gemini
-  // applies the same cautious ingredient rules (e.g. retinoids).
-  const pregnancyCaution = answers.hormones?.pregnant === 'yes'
-    || answers.hormones?.trying_to_conceive === 'yes'
-    || answers.hormones?.breastfeeding === 'yes';
   const productMap = {
     cleanser:    'cleanser',
     toner:       'toner',
@@ -101,7 +106,7 @@ export function buildQuizPayload(answers, today = new Date()) {
     smokes:               SMOKE_TO_LEGACY[answers.smoke] || 'no',
     has_diabetes:         (answers.health_conditions || []).includes('diabetes') ? 'yes' : 'no',
     allergies:            answers.allergies || ['none'],
-    pregnant_or_ttc:      answers.gender === 'she' && pregnancyCaution ? 'yes' : 'no',
+    pregnant_or_ttc:      hasPregnancyCaution(answers) ? 'yes' : 'no',
     name:                 answers.name || null,
     interests:            answers.interests || [],
     // The quiz's "No special event" option is 'no_event'; the contract's no-event value
