@@ -58,7 +58,7 @@ export default function LoadingScreen({ navigation, route }) {
       // The save below and the 700 ms reveal race each other. Whichever finishes second
       // attaches the saved `_id` to the analysis in context, so resume refresh can later
       // swap in clinic edits (it only replaces analyses that have an `_id`).
-      let savedId = null;
+      let savedRecord = null; // the save response (for its _id, createdAt, firstReadingAt)
       let revealed = false;
       if (user && !skipDuplicateFallback) {
         // Fire-and-forget, matching the post-signup path in SignUpScreen. The Era
@@ -68,7 +68,7 @@ export default function LoadingScreen({ navigation, route }) {
           saved => {
             setAnalysisSaveFailed(false);
             if (!saved?._id) return;
-            savedId = saved._id;
+            savedRecord = saved;
             if (revealed) setAnalysis(current => withSavedId(current, saved));
           },
           err => {
@@ -81,7 +81,8 @@ export default function LoadingScreen({ navigation, route }) {
       setComplete(true);
       setTimeout(() => {
         revealed = true;
-        const next = { ...result, skinScan: skinScan || null, ...(savedId ? { _id: savedId } : {}) };
+        // Save already done -> attach its _id (and "Day N" dates) now; withSavedId(x, null) is x.
+        const next = withSavedId({ ...result, skinScan: skinScan || null }, savedRecord);
         // An unsaved retry replaces the fallback on screen, which is the stored one: it takes
         // over that `_id`, or resume refresh (which needs an `_id`) would never again bring in
         // clinic edits this session. If the first save is still in flight, there is no `_id`

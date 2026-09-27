@@ -102,10 +102,14 @@ export default function ProfileScreen({ navigation, route }) {
     // equal list in a new object does not trigger another Claude call.
   }, [user, analysis?.productRecs, auditPickKey]);
 
+  // The scan is "settled" once its result is in AND Railway's score-section copy is no longer
+  // on its way (readingStatus 'ready' / 'failed' / 'unavailable'). Until then we poll.
+  const scanSettled = Boolean(analysis?.skinScan) && analysis.skinScan.readingStatus !== 'pending';
+
   useEffect(() => {
     const scanId = analysis?.skinScanId || answers?.skinScanId;
     const scanToken = answers?.skinScanToken;
-    if (!scanId || analysis?.skinScan) return;
+    if (!scanId || scanSettled) return;
     let cancelled = false;
     let attempts = 0;
 
@@ -113,16 +117,22 @@ export default function ProfileScreen({ navigation, route }) {
       const result = await pollScan(scanId, scanToken);
       if (cancelled) return;
       if (result?.status === 'complete' && result.skinScan) {
+        // Always take the fresh copy: signals now, and the reading once Railway answers.
         setAnalysis(current => current ? { ...current, skinScanId: scanId, skinScan: result.skinScan } : current);
+        // Keep polling (same loop and attempt cap) while the copy is still on its way.
+        if (result.skinScan.readingStatus !== 'pending') return;
+      } else if (result?.status === 'failed') {
         return;
       }
-      if (result?.status === 'failed' || attempts >= 30) return;
+      if (attempts >= 30) return;
       attempts += 1;
       setTimeout(refreshScan, 2000);
     }
     refreshScan();
     return () => { cancelled = true; };
-  }, [analysis?.skinScanId, analysis?.skinScan, answers?.skinScanId, answers?.skinScanToken]);
+    // Depends on scanSettled rather than the skinScan object, so a 'pending' result does not
+    // restart this loop (and its attempt cap) on every poll.
+  }, [analysis?.skinScanId, scanSettled, answers?.skinScanId, answers?.skinScanToken]);
 
   if (!analysis) return null;
 

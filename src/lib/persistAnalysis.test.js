@@ -51,6 +51,12 @@ describe('withSavedId', () => {
   test('adds the saved _id to an in-memory analysis that has none', () => {
     expect(withSavedId({ eraId: 'x' }, { _id: 's1' })).toEqual({ eraId: 'x', _id: 's1' });
   });
+  test('also brings the saved dates used by the score section\'s "Day N"', () => {
+    const saved = { _id: 's1', createdAt: '2026-09-27T10:00:00Z', firstReadingAt: '2026-09-20T09:00:00Z', eraId: 'server' };
+    expect(withSavedId({ eraId: 'x' }, saved)).toEqual({
+      eraId: 'x', _id: 's1', createdAt: '2026-09-27T10:00:00Z', firstReadingAt: '2026-09-20T09:00:00Z',
+    });
+  });
   test('never overwrites an existing _id, and ignores missing inputs', () => {
     const fromServer = { _id: 'old' };
     expect(withSavedId(fromServer, { _id: 's1' })).toBe(fromServer);

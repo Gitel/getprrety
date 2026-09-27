@@ -81,9 +81,16 @@ export async function persistAnalysis({ analysis, answers }) {
 
 // Give the in-memory analysis the `_id` it was saved under, once, if it has none yet.
 // Pure so both callers (LoadingScreen, SignUpScreen) share it and it can be tested.
+// createdAt / firstReadingAt come along for the Profile score section's "Day N" label
+// (src/lib/scoreReading.js); without them a fresh analysis shows Day 1 until a reload.
 export function withSavedId(current, saved) {
   if (!current || current._id || !saved?._id) return current;
-  return { ...current, _id: saved._id };
+  return {
+    ...current,
+    _id: saved._id,
+    ...(saved.createdAt ? { createdAt: saved.createdAt } : {}),
+    ...(saved.firstReadingAt ? { firstReadingAt: saved.firstReadingAt } : {}),
+  };
 }
 
 // Whether LoadingScreen skips saving a "Try again" (FallbackBanner) that fell back AGAIN.
