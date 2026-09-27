@@ -85,3 +85,13 @@ export function withSavedId(current, saved) {
   if (!current || current._id || !saved?._id) return current;
   return { ...current, _id: saved._id };
 }
+
+// Whether LoadingScreen skips saving a "Try again" (FallbackBanner) that fell back AGAIN.
+// Normally skipped: the first fallback is already stored, or its save is still in flight,
+// and a second copy would add a duplicate record and a second clinic email. Saved only
+// when that first save is known to have failed (analysisSaveFailed), or nothing would
+// ever be stored (owner decision). A retry that succeeds is always saved.
+// Known gap: the Profile "couldn't save" banner's dismiss button also clears the flag.
+export function skipRetrySave({ isRetry, result, firstSaveFailed }) {
+  return Boolean(isRetry && result?.source === 'fallback' && !firstSaveFailed);
+}

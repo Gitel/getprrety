@@ -58,4 +58,26 @@ describe('withSavedId', () => {
     const current = { eraId: 'x' };
     expect(withSavedId(current, null)).toBe(current);
   });
+  test('an unsaved retry takes over the _id of the stored fallback it replaces', () => {
+    // LoadingScreen: withSavedId(retryResult, fallbackOnScreen), so resume refresh keeps working.
+    const retry = { source: 'fallback', eraId: 'x' };
+    expect(withSavedId(retry, { _id: 'stored-1', source: 'fallback' })).toEqual({ ...retry, _id: 'stored-1' });
+    // First save still in flight: nothing to take over yet (its own callback attaches it later).
+    expect(withSavedId(retry, { source: 'fallback' })).toBe(retry);
+  });
+});
+
+describe('skipRetrySave', () => {
+  const { skipRetrySave } = require('./persistAnalysis');
+  const fallback = { source: 'fallback' };
+  test('skips a retry that fell back again while the first save is stored or in flight', () => {
+    expect(skipRetrySave({ isRetry: true, result: fallback, firstSaveFailed: false })).toBe(true);
+  });
+  test('saves the retry when the first save failed, so the assessment is not lost', () => {
+    expect(skipRetrySave({ isRetry: true, result: fallback, firstSaveFailed: true })).toBe(false);
+  });
+  test('always saves a successful retry and any first run', () => {
+    expect(skipRetrySave({ isRetry: true, result: { source: 'gemini' }, firstSaveFailed: false })).toBe(false);
+    expect(skipRetrySave({ isRetry: false, result: fallback, firstSaveFailed: false })).toBe(false);
+  });
 });
