@@ -60,9 +60,13 @@ function geminiExtrasFromBody(body) {
 async function withSkinScan(doc, userId) {
   if (!doc) return null;
   const analysis = doc.toObject ? doc.toObject() : { ...doc };
+  // When the user's first reading happened: the Profile score section shows
+  // "Day N" = calendar days from it to this analysis (src/lib/scoreReading.js).
+  const first = await SkinAnalysis.findOne({ userId }).sort({ createdAt: 1 }).select('createdAt');
+  analysis.firstReadingAt = first?.createdAt || analysis.createdAt || null;
   if (!analysis.skinScanId) return analysis;
   const scan = await SkinScan.findOne({ _id: analysis.skinScanId, userId, status: 'complete' })
-    .select('merged fusion');
+    .select('merged fusion reading readingStatus');
   // Same shape as GET /api/skin-scan/:id, so a reloaded analysis renders the score section too.
   if (scan) analysis.skinScan = scanView(scan);
   return analysis;

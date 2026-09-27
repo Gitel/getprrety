@@ -10,6 +10,7 @@ const { AnalysisError } = require('../services/perfectcorp/errors');
 const { enforceAnonymousScanBudget } = require('../services/anonymousScanBudget');
 const { sanitizeQuizAnswers } = require('../services/sanitizeQuizAnswers');
 const { scanView } = require('../services/skinScan/scanView');
+const { maybeRequestReading } = require('../services/skinScan/scoreReading');
 
 const MAX_BYTES = 8 * 1024 * 1024;
 const ALLOWED_TYPES = ['image/jpeg', 'image/png'];
@@ -219,6 +220,10 @@ router.get('/:id', async (req, res) => {
       poller.startPolling(scan._id, angles);
     }
     if (scan.status === 'complete') {
+      // Asks Railway for the score-section copy the first time a complete scan is polled
+      // (no-op once asked). Fire-and-forget: this response never waits on Gemini; the app
+      // keeps polling while readingStatus is 'pending'.
+      maybeRequestReading(scan).catch(err => console.warn(`score-reading claim failed: ${err.message}`));
       return res.json({ status: 'complete', skinScan: scanView(scan) });
     }
     if (scan.status === 'failed') {

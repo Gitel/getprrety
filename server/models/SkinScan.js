@@ -26,6 +26,12 @@ const skinScanSchema = new mongoose.Schema({
   merged: { type: mongoose.Schema.Types.Mixed, default: null },
   quizSnapshot: { type: mongoose.Schema.Types.Mixed, default: null },
   fusion: { type: mongoose.Schema.Types.Mixed, default: null }, // { concerns, skinType, discoveries, contradictions }
+  // Profile score-section copy from the Railway /score-reading call, already sanitized
+  // (services/skinScan/scoreReading.js). null until ready. readingStatus: null = never asked,
+  // 'pending' = a request is in flight since readingRequestedAt, 'ready' / 'failed' = final.
+  reading: { type: mongoose.Schema.Types.Mixed, default: null },
+  readingStatus: { type: String, enum: ['pending', 'ready', 'failed'], default: null },
+  readingRequestedAt: { type: Date, default: null },
   sidePhotoAnalysisEnabled: { type: Boolean, default: true },
   bandsVersion: { type: String, default: 'v1' },
   fusionVersion: { type: String, default: '1.0' },
