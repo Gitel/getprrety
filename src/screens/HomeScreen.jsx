@@ -51,9 +51,22 @@ export default function HomeScreen({ navigation }) {
     doneRef.current = next;
     setDone(next);
   }
+  // The routine the ticks in `done` belong to. Ticks are step POSITIONS, so if the steps
+  // change while Home stays open (a clinic edit arriving on resume, or the first resume
+  // after a quiz swapping in the server's sanitized copy), keeping them would tick the
+  // wrong steps, and the next tap would save that under the new routine.
+  const ticksKey  = useRef(routineKey);
 
   // Restore today's ticks. Ignored if they were saved for a different routine (retake).
   useEffect(() => {
+    // Routine changed under an open Home: start it unticked (owner decision: clear on any
+    // change, even a cosmetic one). `touched` is reset too, so ticks the server has for
+    // this exact routine can still be restored below.
+    if (ticksKey.current !== routineKey) {
+      ticksKey.current = routineKey;
+      touched.current = false;
+      applyDone({});
+    }
     if (!user || !analysis) return;
     let cancelled = false;
     api.get(`/api/routine-progress?date=${today}`)
