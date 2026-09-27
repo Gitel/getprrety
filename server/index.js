@@ -1,10 +1,17 @@
 require('dotenv').config();
 const path     = require('path');
+const dns      = require('dns');
 const express  = require('express');
 const mongoose = require('mongoose');
 const cors     = require('cors');
 const helmet   = require('helmet');
 const cookieParser = require('cookie-parser');
+
+// Node's c-ares DNS resolver can't query link-local IPv6 DNS servers
+// (fe80::... — common on Wi-Fi hotspots), causing mongodb+srv:// SRV
+// lookups to fail with ECONNREFUSED even though the OS resolver works.
+// Point Node at public resolvers so the SRV lookup always succeeds.
+dns.setServers(['8.8.8.8', '1.1.1.1']);
 
 const authRoutes     = require('./routes/auth');
 const profileRoutes  = require('./routes/profile');
@@ -16,6 +23,8 @@ const activityRoutes = require('./routes/activity');
 const skinScanRoutes = require('./routes/skinScan');
 const aiRoutes       = require('./routes/ai');
 const cityRoutes     = require('./routes/cities');
+const messageRoutes  = require('./routes/messages');
+const routineProgressRoutes = require('./routes/routineProgress');
 const adminRoutes    = require('./routes/admin');
 const skinScanPoller = require('./jobs/skinScanPoller');
 const { mailConfigError } = require('./services/clinicNotify');
@@ -57,6 +66,8 @@ app.use('/api/uploads',   uploadRoutes);
 app.use('/api/activity',  activityRoutes);
 app.use('/api/ai',        aiRoutes);
 app.use('/api/cities',    cityRoutes);
+app.use('/api/messages',  messageRoutes); // in-app messages with the clinic
+app.use('/api/routine-progress', routineProgressRoutes); // Home step ticks, per user per day
 
 // Server-rendered clinic admin dashboard (Google sign-in + email allow-list)
 app.use('/admin',         adminRoutes);

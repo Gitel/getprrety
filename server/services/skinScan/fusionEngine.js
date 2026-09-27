@@ -12,6 +12,10 @@ const CONCERN_TO_GOALS = {
   moisture: ['dryness', 'dehydration'],
   radiance: ['dull_skin'],
   wrinkle: ['fine_lines', 'wrinkles', 'neck_aging'],
+  // Added with the Profile score section (owner decision). A goal may back more than one
+  // concern: 'wrinkles' / 'neck_aging' raise both wrinkle and firmness.
+  firmness: ['wrinkles', 'neck_aging'],
+  age_spot: ['pigmentation', 'melasma'],
 };
 
 const REPORTED_SKIN_TYPE_LABEL = {

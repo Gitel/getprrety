@@ -2,6 +2,7 @@ const { toSeverity, BANDS_VERSION } = require('./severityBands');
 
 const SCORED_CONCERNS = new Set([
   'acne', 'pore', 'texture', 'redness', 'oiliness', 'moisture', 'radiance', 'wrinkle',
+  'firmness', 'age_spot',
 ]);
 
 // data.results.output[] is a heterogeneous array — index by `type` (+`region` for skin_type),

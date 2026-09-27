@@ -1,0 +1,62 @@
+<%#
+  Editor: the Profile screen "Your Current Shelf" section - the products identified in
+  the user's shelf photos, a summary note and the first SR purchase to make.
+  Saves to POST /admin/customer/:id/edit/shelf  (services/adminEdits.js SECTIONS.shelf).
+  Needs: shelfStatuses (the statuses the app colors). No products = section hidden.
+%>
+<%
+  var shelf = analysis.shelfAnalysis || {};
+  function shelfRow(p) { p = p || {}; %>
+    <div class="row">
+      <%- include('_rowTools') %>
+      <div class="grid2">
+        <div><label>Brand</label><input type="text" data-path="brand" maxlength="100" value="<%= p.brand || '' %>"></div>
+        <div><label>Product name</label><input type="text" data-path="product_name" maxlength="200" value="<%= p.product_name || '' %>"></div>
+        <div><label>Category</label><input type="text" data-path="category" maxlength="100" value="<%= p.category || '' %>"></div>
+        <div>
+          <label>Status</label>
+          <select data-path="status">
+            <% shelfStatuses.forEach(function (st) { %>
+              <option value="<%= st %>" <%= (p.status || 'unknown') === st ? 'selected' : '' %>><%= st %></option>
+            <% }); %>
+          </select>
+        </div>
+      </div>
+      <label>Why this status</label>
+      <textarea data-path="status_reason" maxlength="1000" rows="2"><%= p.status_reason || '' %></textarea>
+      <label>How to use it</label>
+      <textarea data-path="use_instruction" maxlength="1000" rows="2"><%= p.use_instruction || '' %></textarea>
+      <label>Swap with (SR product, optional)</label>
+      <input type="text" data-path="sr_substitute_name" maxlength="200" value="<%= p.sr_substitute_name || '' %>">
+    </div>
+<% } %>
+<div class="card" id="shelf">
+  <h2>Current shelf (Profile screen)</h2>
+  <% if (!analysis.shelfAnalysis) { %>
+    <p class="muted">This reading has no shelf analysis yet. Products you add here appear on the user's Profile screen.</p>
+  <% } %>
+  <form data-json-editor action="/admin/customer/<%= analysis._id %>/edit/shelf">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+    <label>Summary note</label>
+    <textarea data-path="shelfAnalysis.shelf_summary.overall_note" maxlength="1000" rows="2"><%= (shelf.shelf_summary && shelf.shelf_summary.overall_note) || '' %></textarea>
+
+    <fieldset>
+      <legend>Identified products</legend>
+      <div class="list-wrap">
+        <div data-list="shelfAnalysis.identified_products">
+          <% (Array.isArray(shelf.identified_products) ? shelf.identified_products : []).forEach(function (p) { shelfRow(p); }); %>
+        </div>
+        <template><% shelfRow({}); %></template>
+        <button type="button" class="btn secondary small" data-row-action="add">+ Add product</button>
+      </div>
+    </fieldset>
+
+    <label>"Start here" (first SR purchase)</label>
+    <input type="text" data-path="shelfAnalysis.transition_plan.first_sr_purchase" maxlength="200"
+           value="<%= (shelf.transition_plan && shelf.transition_plan.first_sr_purchase) || '' %>">
+
+    <p><button type="submit">Save shelf</button></p>
+    <p class="editor-status muted"></p>
+  </form>
+</div>

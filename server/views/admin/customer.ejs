@@ -17,13 +17,19 @@
   function stamp(d) { return d ? new Date(d).toISOString().slice(0, 16).replace('T', ' ') : null; }
 %>
 <%- include('_head', { title: clientName }) %>
-<header class="top">
-  <h1><a href="/admin">&larr; Clients</a></h1>
-  <span class="who"><%= admin.email %> &middot; <a href="/admin/logout">Log out</a></span>
-</header>
+<%- include('_nav', { active: 'clients' }) %>
 <main>
   <% if (resent) { %>
     <div class="card" style="background: #eef4ea; color: #3f6b34;">Clinic notification re-sent.</div>
+  <% } %>
+  <% if (locals.notice) { %>
+    <div class="notice <%= notice.error ? 'error' : '' %>"><%= notice.text %></div>
+  <% } %>
+  <%# The app only ever reads a user's NEWEST analysis, so say which one this is. %>
+  <% if (locals.isLatest) { %>
+    <div class="notice">This is the user's current skin reading: it is what the app shows. Edits reach the app the next time it refreshes.</div>
+  <% } else if (user) { %>
+    <div class="notice error">This is an older skin reading. The app shows only the newest one, so edits here will not appear in the app.</div>
   <% } %>
 
   <% if (allergies.length) { %>
@@ -37,6 +43,7 @@
     <dl class="kv">
       <dt>Name</dt><dd><%= clientName %></dd>
       <dt>Email</dt><dd><%= (user && user.email) || '—' %></dd>
+      <% if (user) { %><dt>Account</dt><dd><a href="/admin/users/<%= user._id %>">Open user page &rarr;</a></dd><% } %>
       <dt>Phone</dt><dd><%= qa.phone || '—' %></dd>
       <dt>Completed</dt><dd><%= stamp(analysis.createdAt) || '—' %></dd>
       <dt>Referral source</dt><dd><%= analysis.referralSource || '—' %></dd>
@@ -46,39 +53,29 @@
       <% } %>
     </dl>
     <form method="post" action="/admin/customer/<%= analysis._id %>/resend" style="margin-top: 14px;">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <button type="submit">Resend to clinic</button>
     </form>
   </div>
 
-  <div class="card">
-    <h2>Skin Era</h2>
-    <dl class="kv">
-      <dt>Era</dt><dd><%= (analysis.era && analysis.era.name) || analysis.eraId || '—' %></dd>
-      <% if (analysis.era && analysis.era.tagline) { %><dt>Tagline</dt><dd><%= analysis.era.tagline %></dd><% } %>
-      <% if (analysis.affirmation) { %><dt>Affirmation</dt><dd><%= analysis.affirmation %></dd><% } %>
-    </dl>
-    <% if (analysis.skinAnalysis) { %><p style="margin-top: 10px;"><%= analysis.skinAnalysis %></p><% } %>
-    <% if (Array.isArray(analysis.keyInsights) && analysis.keyInsights.length) { %>
-      <ul><% analysis.keyInsights.forEach(function (i) { %><li><%= i %></li><% }); %></ul>
-    <% } %>
-  </div>
+  <%# Gemini failed for this client, so the Skin Era, analysis text and routine in the %>
+  <%# editors below are the canned template every such client receives - not a %>
+  <%# personalized reading. Shown above the editors so admins see it before editing. %>
+  <% if (analysis.source === 'fallback') { %>
+    <div class="warn">
+      &#9888; Generic result: the AI skin analysis was unavailable, so this client got the standard template, not a personalized reading.
+      <% if (analysis.fallbackReason) { %><br><code><%= analysis.fallbackReason %></code><% } %>
+    </div>
+  <% } %>
+  <%- include('_edit_fields') %>
 
-  <div class="card">
-    <h2>Routine</h2>
-    <% var routine = analysis.routine || {}; var hasRoutine = false; %>
-    <% ['am', 'pm'].forEach(function (side) {
-         var steps = routine[side];
-         if (!Array.isArray(steps) || !steps.length) return;
-         hasRoutine = true; %>
-      <p style="font-weight: 600; margin: 8px 0 4px;"><%= side.toUpperCase() %></p>
-      <ol>
-        <% steps.forEach(function (s) { %>
-          <li><strong><%= s.name || s %></strong><% if (s && s.description) { %> — <%= s.description %><% } %></li>
-        <% }); %>
-      </ol>
-    <% }); %>
-    <% if (!hasRoutine) { %><p>—</p><% } %>
-  </div>
+  <%- include('_edit_routine') %>
+
+  <%- include('_edit_audit') %>
+
+  <%- include('_edit_sr') %>
+
+  <%- include('_edit_shelf') %>
 
   <div class="card">
     <h2>Quiz answers</h2>
@@ -102,4 +99,5 @@
     <% } %>
   </div>
 </main>
+<%- include('_editor') %>
 <%- include('_foot') %>

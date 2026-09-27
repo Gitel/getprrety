@@ -1,8 +1,9 @@
 import { Alert, Linking } from 'react-native';
 
-// Single source of truth for the pre-quiz Terms/Privacy consent. Both entry points
-// (QuizIntroScreen and the referral WelcomeScreen) show binding "by continuing you
-// agree" copy and stamp the acceptance on CTA tap — there is no separate checkbox.
+// Single source of truth for the Terms/Privacy consent. Since login-first, the auth
+// screens (LoginScreen and SignUpScreen) show the binding "by continuing you agree"
+// copy and stamp the acceptance on tap of Sign up / Google / "Skip for now" — there is
+// no separate checkbox.
 export const TERMS_URL = process.env.VITE_TERMS_URL;
 export const PRIVACY_URL = process.env.VITE_PRIVACY_URL;
 export const CONSENT_VERSION = process.env.VITE_CONSENT_VERSION;
@@ -37,7 +38,8 @@ export function openLegal(url) {
   );
 }
 
-// Params to carry into the quiz so signup can record a versioned acceptance.
+// A fresh, versioned acceptance stamp: sent with sign-up / Google sign-in (the server
+// requires it for new accounts), and carried into the quiz by "Skip for now".
 // Returns null when legal config is missing — callers must not proceed.
 export function consentParams() {
   if (!LEGAL_READY) return null;

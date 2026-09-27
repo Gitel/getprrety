@@ -13,6 +13,20 @@ const skinAnalysisSchema = new mongoose.Schema({
   quizAnswers:  { type: mongoose.Schema.Types.Mixed },
   quizPhotoIds: [String],
 
+  // SR Ritual products and shelf analysis from the Railway analysis service. Stored
+  // (sanitized by services/analysisFields.js) so the Profile screen can show them again
+  // after the app restarts, and so admins can edit them. Before this they lived only in
+  // React state and vanished on every relaunch. null / absent = none; older documents
+  // simply do not have them, so no migration is needed.
+  srProducts:    { type: mongoose.Schema.Types.Mixed, default: null },
+  shelfAnalysis: { type: mongoose.Schema.Types.Mixed, default: null },
+  // Specific product picks (brand / name / price / link) EDITED BY AN ADMIN. While null,
+  // the Profile screen asks Claude for picks (reused from an in-memory cache for the rest
+  // of that app session; owner decision); once an admin saves picks, the app shows
+  // exactly these instead.
+  productRecs:         { type: mongoose.Schema.Types.Mixed, default: null },
+  productRecsEditedAt: { type: Date, default: null },
+
   // Acquisition channel this client came through, e.g. "lu_clinic" — captured from the
   // ?ref= param on the welcome screen and carried through quizAnswers. null = organic/unknown.
   referralSource:   { type: String, default: null },
@@ -30,6 +44,26 @@ const skinAnalysisSchema = new mongoose.Schema({
   // that attempt's retries. Null for older clients, which fall back to the
   // previous non-idempotent behavior.
   clientRequestId:  { type: String, default: null },
+
+  // Where this result came from:
+  //  - 'gemini'   the Railway/Gemini analysis succeeded;
+  //  - 'fallback' it failed, and the client showed the canned buildFallback() template
+  //               from src/constants.js instead (same text and routine for everyone);
+  //  - null       saved by an older client, before this was recorded.
+  // Without this a fallback looked exactly like a real analysis on /admin, in the clinic
+  // email and in the app, which is how a months-long Gemini outage went unnoticed.
+  source:         { type: String, enum: ['gemini', 'fallback', null], default: null },
+  // Why the Gemini analysis failed (e.g. "Railway API 404"). Diagnostic only.
+  fallbackReason: { type: String, default: null },
+
+  // Extra Gemini/Railway output. Before these were stored they lived only in React state,
+  // so they vanished on the next reload. Shapes are owned by the Railway service, hence
+  // Mixed. All null for fallback results and for documents saved by older clients.
+  // srProducts (product-matched AM/PM routine) and shelfAnalysis (audit of the user's
+  // shelf photos) are Gemini extras too, but are declared once, near the top.
+  safetyFlags:    { type: mongoose.Schema.Types.Mixed, default: null }, // stored only, not displayed yet
+  checkInPrompts: { type: mongoose.Schema.Types.Mixed, default: null }, // stored only, not displayed yet
+  eventPrep:      { type: mongoose.Schema.Types.Mixed, default: null }, // stored only, not displayed yet
 }, { timestamps: true });
 
 // Partial so the many legacy and older-client rows with clientRequestId: null don't

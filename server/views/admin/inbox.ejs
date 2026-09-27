@@ -1,0 +1,33 @@
+<%#
+  Inbox: users who replied and whose replies no admin has opened yet, newest first.
+  Opening a user's page marks their replies read (for every admin). Data: messages.inbox().
+%>
+<%
+  function stamp(d) { return d ? new Date(d).toISOString().slice(0, 16).replace('T', ' ') : '—'; }
+  function snippet(t) { t = String(t || ''); return t.length > 140 ? t.slice(0, 140) + '...' : t; }
+%>
+<%- include('_head', { title: 'Inbox' }) %>
+<%- include('_nav', { active: 'inbox' }) %>
+<main>
+  <p class="muted">Replies from users that no admin has read yet. Open a conversation to read and answer it.</p>
+  <table>
+    <thead><tr><th>User</th><th>Unread</th><th>Latest reply</th><th>When (UTC)</th></tr></thead>
+    <tbody>
+      <% rows.forEach(function (r) { %>
+        <tr>
+          <td>
+            <a href="/admin/users/<%= r.userId %>#messages"><%= (r.user && (r.user.firstName || r.user.email)) || 'Deleted user' %></a>
+            <% if (r.user && r.user.firstName) { %><div class="muted"><%= r.user.email %></div><% } %>
+          </td>
+          <td><span class="badge"><%= r.unread %></span></td>
+          <td><%= snippet(r.latestBody) %></td>
+          <td><%= stamp(r.latestAt) %></td>
+        </tr>
+      <% }); %>
+      <% if (!rows.length) { %>
+        <tr><td colspan="4" class="muted">No unread replies.</td></tr>
+      <% } %>
+    </tbody>
+  </table>
+</main>
+<%- include('_foot') %>

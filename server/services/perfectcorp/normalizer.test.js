@@ -10,8 +10,13 @@ describe('normalize', () => {
     expect(result.concerns.acne.ui).toBe(91);
     expect(result.concerns.moisture.raw).toBeCloseTo(48.94);
     expect(Object.keys(result.concerns).sort()).toEqual(
-      ['acne', 'moisture', 'oiliness', 'pore', 'radiance', 'redness', 'texture', 'wrinkle'].sort()
+      ['acne', 'moisture', 'oiliness', 'pore', 'radiance', 'redness', 'texture', 'wrinkle', 'firmness', 'age_spot'].sort()
     );
+  });
+
+  test('scores firmness and age_spot like the other SD concerns', () => {
+    expect(result.concerns.firmness).toMatchObject({ raw: 85.12, ui: 86, severity: 0 });
+    expect(result.concerns.age_spot).toMatchObject({ raw: 71.4, ui: 77, severity: 1 });
   });
 
   test('routes skin_type by region, not by array position', () => {

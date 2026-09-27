@@ -16,6 +16,9 @@ const RULES = {
   login:  { scope: 'auth_login',  limit: () => Number(process.env.AUTH_LOGIN_IP_15MIN_LIMIT || 15),  windowMs: 15 * 60 * 1000 },
   signup: { scope: 'auth_signup', limit: () => Number(process.env.AUTH_SIGNUP_IP_HOURLY_LIMIT || 30), windowMs: 60 * 60 * 1000 },
   google: { scope: 'auth_google', limit: () => Number(process.env.AUTH_GOOGLE_IP_15MIN_LIMIT || 30), windowMs: 15 * 60 * 1000 },
+  // /admin Google sign-in. Only a handful of people ever sign in here, so 20 failed
+  // attempts per IP per 15 minutes is generous for them and useless to anyone probing.
+  admin:  { scope: 'auth_admin',  limit: () => 20, windowMs: 15 * 60 * 1000 },
 };
 
 function ruleFor(kind) {

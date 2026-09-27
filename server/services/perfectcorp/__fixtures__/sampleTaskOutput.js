@@ -10,6 +10,9 @@ module.exports = [
   { type: 'moisture', raw_score: 48.94, ui_score: 70, mask_urls: ['https://cdn.example/moisture.png'] },
   { type: 'radiance', raw_score: 76.80, ui_score: 79, mask_urls: ['https://cdn.example/radiance.png'] },
   { type: 'wrinkle', raw_score: 74.79, ui_score: 74, mask_urls: ['https://cdn.example/wrinkle.png'] },
+  // Added for the score section (not in the spec sample): same SD entry shape as the concerns above.
+  { type: 'firmness', raw_score: 85.12, ui_score: 86, mask_urls: ['https://cdn.example/firmness.png'] },
+  { type: 'age_spot', raw_score: 71.40, ui_score: 77, mask_urls: ['https://cdn.example/age_spot.png'] },
   { type: 'skin_type', region: 'whole', skin_type: 'Combination', mask_urls: ['https://cdn.example/st_whole.png'] },
   { type: 'skin_type', region: 't_zone', skin_type: 'Oily', mask_urls: ['https://cdn.example/st_tzone.png'] },
   { type: 'skin_type', region: 'u_zone', skin_type: 'Normal', mask_urls: ['https://cdn.example/st_uzone.png'] },

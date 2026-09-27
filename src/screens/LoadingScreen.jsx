@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { C, QUESTIONS, buildFallback } from '../constants';
 import { analyzeWithRailway } from '../lib/analyzeWithRailway';
 import { pollScan } from '../lib/skinScan';
-import { persistAnalysis } from '../lib/persistAnalysis';
+import { persistAnalysis, withSavedId, skipRetrySave } from '../lib/persistAnalysis';
 import { logActivity } from '../lib/logActivity';
 import { useApp } from '../context/AppContext';
 
@@ -24,31 +24,53 @@ const SCAN_WAIT_COPY = [
   { until: Infinity, label: 'Almost there — putting your plan together…' },
 ];
 
-export default function LoadingScreen({ navigation }) {
-  const { answers, user, setAnalysis, setSrProducts, setShelfAnalysis, setAnalysisSaveFailed } = useApp();
+export default function LoadingScreen({ navigation, route }) {
+  // Set by FallbackBanner's "Try again": a re-run of an analysis that already fell back.
+  const isRetry = Boolean(route?.params?.retry);
+  const { answers, user, setAnalysis, analysisSaveFailed, setAnalysisSaveFailed } = useApp();
   const [step, setStep]               = useState(0);
   const [complete, setComplete]       = useState(false);
   const [scanWaitLabel, setScanWaitLabel] = useState(null);
   const called                        = useRef(false);
+  // Latest "first save failed" flag for finish(), which runs inside the mount-time effect
+  // below and would otherwise see the value from mount. On a retry, the first save can
+  // still fail while this analysis is running.
+  const saveFailedRef                 = useRef(analysisSaveFailed);
+  saveFailedRef.current               = analysisSaveFailed;
 
   useEffect(() => {
     if (called.current) return;
     called.current = true;
 
     const stepRef  = { current: 0 };
-    const apiRef    = { done: false, result: null, srProducts: null, shelfAnalysis: null };
+    const apiRef    = { done: false, result: null };
     let finishing = false;
 
     function finish(skinScan) {
       if (finishing) return;
       finishing = true;
-      const { result, srProducts, shelfAnalysis } = apiRef;
-      if (user) {
+      // result carries srProducts / shelfAnalysis itself (null on a fallback), so it
+      // replaces the previous analysis wholesale - no stale SR Ritual after a retake.
+      const { result } = apiRef;
+      // A retry that falls back AGAIN is not saved, unless the first save failed (rules in
+      // skipRetrySave). A retry that succeeds is saved as a new analysis.
+      const skipDuplicateFallback = skipRetrySave({ isRetry, result, firstSaveFailed: saveFailedRef.current });
+      // The save below and the 700 ms reveal race each other. Whichever finishes second
+      // attaches the saved `_id` to the analysis in context, so resume refresh can later
+      // swap in clinic edits (it only replaces analyses that have an `_id`).
+      let savedRecord = null; // the save response (for its _id, createdAt, firstReadingAt)
+      let revealed = false;
+      if (user && !skipDuplicateFallback) {
         // Fire-and-forget, matching the post-signup path in SignUpScreen. The Era
         // reveal must not wait on six photo uploads plus three POST attempts; the
         // outcome reaches the user either way, through the ProfileScreen banner.
         persistAnalysis({ analysis: result, answers }).then(
-          () => setAnalysisSaveFailed(false),
+          saved => {
+            setAnalysisSaveFailed(false);
+            if (!saved?._id) return;
+            savedRecord = saved;
+            if (revealed) setAnalysis(current => withSavedId(current, saved));
+          },
           err => {
             console.error('Failed to save analysis after retries:', err?.message || err);
             logActivity('analysis_save_failed');
@@ -58,9 +80,14 @@ export default function LoadingScreen({ navigation }) {
       }
       setComplete(true);
       setTimeout(() => {
-        setAnalysis({ ...result, skinScan: skinScan || null });
-        if (srProducts) setSrProducts(srProducts);
-        if (shelfAnalysis) setShelfAnalysis(shelfAnalysis);
+        revealed = true;
+        // Save already done -> attach its _id (and "Day N" dates) now; withSavedId(x, null) is x.
+        const next = withSavedId({ ...result, skinScan: skinScan || null }, savedRecord);
+        // An unsaved retry replaces the fallback on screen, which is the stored one: it takes
+        // over that `_id`, or resume refresh (which needs an `_id`) would never again bring in
+        // clinic edits this session. If the first save is still in flight, there is no `_id`
+        // yet; that save's own callback (withSavedId above, in the first run) attaches it.
+        setAnalysis(current => (skipDuplicateFallback ? withSavedId(next, current) : next));
         navigation.navigate('Profile');
       }, 700);
     }
@@ -111,14 +138,17 @@ export default function LoadingScreen({ navigation }) {
     advanceStage(0);
 
     analyzeWithRailway(answers || {})
-      .then(({ analysis, srProducts, shelfAnalysis }) => {
+      .then(analysis => {
         apiRef.result = analysis;
-        apiRef.srProducts = srProducts;
-        apiRef.shelfAnalysis = shelfAnalysis;
       })
       .catch(err => {
         console.warn('Railway fallback:', err.message);
-        apiRef.result = buildFallback(answers || {});
+        // Stamp the canned template as a fallback, with the reason, so it is never
+        // mistaken for a personalized result (saved with the analysis; shown as a
+        // banner in the app, a marker on /admin and a label in the clinic email).
+        apiRef.result = { ...buildFallback(answers || {}), source: 'fallback', fallbackReason: err.message || 'unknown error' };
+        // Activity logging needs an account; anonymous users are covered by the saved marker.
+        if (user) logActivity('analysis_fallback');
       })
       .finally(() => {
         apiRef.done = true;

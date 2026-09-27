@@ -12,6 +12,7 @@ const EVENTS_THE_CLIENT_EMITS = [
   'logout',
   'checkin',
   'analysis_save_failed',
+  'analysis_fallback', // LoadingScreen, when Gemini fails and the generic template is shown
 ];
 
 test('the event enum accepts every event the client emits', () => {

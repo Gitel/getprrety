@@ -1,0 +1,133 @@
+<%#
+  Shared client-side code for the structured editors on the customer page.
+  Include ONCE per page, after the editors.
+
+  Markup contract (no inline JS anywhere; the CSP blocks inline handlers):
+   - <form data-json-editor action="/admin/..."> with a hidden _csrf input.
+     On submit the form is serialized to JSON and POSTed with the X-CSRF-Token header.
+     The server answers { ok, redirect } (we navigate there) or { error } (shown inline).
+   - data-path="a.b"   on an input/select/textarea: sets obj.a.b = value.
+       + data-split="," turns "x, y" into ["x", "y"].
+   - data-list="name"  on a container: obj.name = [ one entry per direct child .row ].
+       A .row is serialized like a mini form from its own data-path fields;
+       a .row with data-scalar becomes just the value of its single data-path field.
+   - .list-wrap groups one [data-list], its <template> (a blank row) and an
+       "Add" button with data-row-action="add".
+   - Row buttons: data-row-action="up" | "down" | "remove".
+%>
+<style>
+  .row { border: 1px solid #eadfce; border-radius: 6px; padding: 10px 12px; margin: 8px 0; background: #fffdf9; }
+  .row-tools { display: flex; gap: 6px; justify-content: flex-end; margin-bottom: 4px; }
+  .row .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+  .editor-status { margin-top: 8px; }
+  .editor-status.error { color: #9b3b30; font-weight: 600; }
+  fieldset { border: 1px solid #f0e8db; border-radius: 6px; margin: 12px 0; padding: 8px 12px; }
+  legend { font-size: 13px; font-weight: 600; color: #8a6d3b; padding: 0 4px; }
+</style>
+<script>
+(function () {
+  // The scope an element belongs to: its nearest enclosing .row, or the form itself.
+  function ownerOf(el) {
+    return el.parentElement ? el.parentElement.closest('.row, form') : null;
+  }
+
+  function valueOf(el) {
+    if (el.type === 'checkbox') return el.checked;
+    if (el.hasAttribute('data-split')) {
+      return el.value.split(el.getAttribute('data-split'))
+        .map(function (s) { return s.trim(); })
+        .filter(Boolean);
+    }
+    return el.value;
+  }
+
+  // setPath(o, 'a.b', 1) -> o.a.b = 1, creating o.a when needed.
+  function setPath(obj, path, value) {
+    var keys = path.split('.');
+    var cur = obj;
+    for (var i = 0; i < keys.length - 1; i++) {
+      if (!cur[keys[i]] || typeof cur[keys[i]] !== 'object') cur[keys[i]] = {};
+      cur = cur[keys[i]];
+    }
+    cur[keys[keys.length - 1]] = value;
+  }
+
+  // Serialize a form or a .row into a plain object (see the contract above).
+  // Only fields whose owner is exactly `scope` are read here; fields inside nested rows
+  // are read when that row itself is serialized.
+  function build(scope) {
+    var obj = {};
+    scope.querySelectorAll('[data-path], [data-list]').forEach(function (el) {
+      if (ownerOf(el) !== scope) return;
+      if (el.hasAttribute('data-list')) {
+        var rows = Array.prototype.filter.call(el.children, function (c) { return c.classList.contains('row'); });
+        setPath(obj, el.getAttribute('data-list'), rows.map(function (row) {
+          if (row.hasAttribute('data-scalar')) {
+            var input = row.querySelector('[data-path]');
+            return input ? valueOf(input) : '';
+          }
+          return build(row);
+        }));
+      } else {
+        setPath(obj, el.getAttribute('data-path'), valueOf(el));
+      }
+    });
+    return obj;
+  }
+
+  // Add / move / remove rows. One delegated listener serves every editor on the page.
+  document.addEventListener('click', function (event) {
+    var btn = event.target.closest('button[data-row-action]');
+    if (!btn) return;
+    var action = btn.getAttribute('data-row-action');
+    if (action === 'add') {
+      var wrap = btn.closest('.list-wrap');
+      var list = wrap.querySelector(':scope > [data-list]');
+      var tpl = wrap.querySelector(':scope > template');
+      list.appendChild(tpl.content.cloneNode(true));
+      return;
+    }
+    var row = btn.closest('.row');
+    if (!row) return;
+    if (action === 'remove') row.remove();
+    if (action === 'up' && row.previousElementSibling) row.parentNode.insertBefore(row, row.previousElementSibling);
+    if (action === 'down' && row.nextElementSibling) row.parentNode.insertBefore(row.nextElementSibling, row);
+  });
+
+  // Save: POST the serialized form as JSON with the CSRF token in a header.
+  document.querySelectorAll('form[data-json-editor]').forEach(function (form) {
+    form.addEventListener('submit', function (event) {
+      event.preventDefault();
+      var status = form.querySelector('.editor-status');
+      var button = form.querySelector('button[type=submit]');
+      function fail(message) {
+        if (button) button.disabled = false;
+        if (status) { status.textContent = message; status.className = 'editor-status error'; }
+      }
+      if (button) button.disabled = true;
+      if (status) { status.textContent = 'Saving...'; status.className = 'editor-status muted'; }
+
+      fetch(form.getAttribute('action'), {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': form.querySelector('input[name=_csrf]').value,
+        },
+        body: JSON.stringify(build(form)),
+      }).then(function (res) {
+        // An expired session is redirected to the login page, which fetch follows silently.
+        if (res.redirected && res.url.indexOf('/admin/login') !== -1) {
+          return fail('Your session expired. Reload the page and sign in again (your changes were not saved).');
+        }
+        return res.json().catch(function () { return {}; }).then(function (body) {
+          if (res.ok && body.redirect) { window.location.href = body.redirect; return; }
+          fail(body.error || ('Could not save (error ' + res.status + '). Reload the page and try again.'));
+        });
+      }).catch(function () {
+        fail('Could not reach the server. Check your connection and try again.');
+      });
+    });
+  });
+})();
+</script>

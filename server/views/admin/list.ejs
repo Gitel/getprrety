@@ -1,8 +1,5 @@
 <%- include('_head', { title: 'Clients' }) %>
-<header class="top">
-  <h1><a href="/admin">GetPretty · Clients</a></h1>
-  <span class="who"><%= admin.email %> &middot; <a href="/admin/logout">Log out</a></span>
-</header>
+<%- include('_nav', { active: 'clients' }) %>
 <main>
   <% if (mailProblem) { %>
     <div class="warn">
@@ -30,7 +27,11 @@
           <td><%= email %></td>
           <td><%= qa.phone || '—' %></td>
           <td><%= stamp(r.createdAt) || '—' %></td>
-          <td><%= era %></td>
+          <td>
+            <%= era %>
+            <%# "generic" = Gemini failed and the client got the canned template; hover for why. %>
+            <% if (r.source === 'fallback') { %><span class="pill no" title="<%= r.fallbackReason || '' %>">generic</span><% } %>
+          </td>
           <td>
             <% if (r.clinicNotifiedAt) { %>
               <span class="pill yes"><%= stamp(r.clinicNotifiedAt) %></span>

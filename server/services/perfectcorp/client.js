@@ -4,8 +4,10 @@ function getConfig() {
   return {
     baseUrl: process.env.PERFECTCORP_BASE_URL || 'https://yce-api-01.makeupar.com/s2s/v2.0',
     apiKey: process.env.PERFECTCORP_API_KEY,
+    // firmness + age_spot feed the Resilience and Tone & Radiance signals on Profile
+    // (services/skinScan/signals.js). All are SD actions: PerfectCorp rejects a mix of SD and HD.
     dstActions: (process.env.PERFECTCORP_DST_ACTIONS ||
-      'acne,pore,texture,redness,oiliness,moisture,radiance,wrinkle,skin_type').split(','),
+      'acne,pore,texture,redness,oiliness,moisture,radiance,wrinkle,firmness,age_spot,skin_type').split(','),
   };
 }
 

@@ -7,26 +7,30 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { C, fetchProductRecs } from '../constants';
 import { useApp } from '../context/AppContext';
 import { pollScan } from '../lib/skinScan';
+import FallbackBanner from '../components/FallbackBanner';
+import ScoreSection from '../components/ScoreSection';
 
-const CONCERN_LABELS = {
-  acne: 'Acne', pore: 'Pores', texture: 'Texture', redness: 'Redness',
-  oiliness: 'Oiliness', moisture: 'Moisture', radiance: 'Radiance', wrinkle: 'Fine lines & wrinkles',
-};
-const SEVERITY_META = [
-  { label: 'Strong',     color: '#7A9E6E' },
-  { label: 'Good',       color: '#8FAE7A' },
-  { label: 'Watch',      color: '#B8924A' },
-  { label: 'Needs work', color: '#C4784B' },
-  { label: 'Priority',   color: '#C44B4B' },
-];
-
-export default function ProfileScreen({ navigation }) {
-  const { analysis, setAnalysis, answers, user, srProducts, shelfAnalysis, analysisSaveFailed, setAnalysisSaveFailed } = useApp();
+export default function ProfileScreen({ navigation, route }) {
+  const {
+    analysis, setAnalysis, answers, user, analysisSaveFailed, setAnalysisSaveFailed,
+    productRecsCache, setProductRecsCache,
+  } = useApp();
+  // Opened from Home (the "My skin profile" header button or the "View my full analysis"
+  // card), not from the quiz reveal.
+  const openedFromHome = Boolean(route?.params?.fromHome);
   const era = analysis?.era;
+  // Product routine + shelf audit travel on the analysis itself, so a saved analysis
+  // loaded after a reload/login shows them too (null for fallbacks and older records).
+  // Right after the quiz they come straight from the analysis service on the same object;
+  // after a resume refresh they are the server copy, admin edits included.
+  const srProducts    = analysis?.srProducts;
+  const shelfAnalysis = analysis?.shelfAnalysis;
   const audit         = analysis?.productAudit || {};
 
   const replaceItems = audit.replace || [];
   const addItems     = audit.add     || [];
+  // The items that get product picks, as a string: a stable dependency for the effect below.
+  const auditPickKey = JSON.stringify([addItems, replaceItems]);
 
   const auditTabs = [
     { key:'remove',  label:'🚫 Remove',  color:'#C44B4B', items: audit.remove  || [] },
@@ -43,40 +47,87 @@ export default function ProfileScreen({ navigation }) {
 
   useEffect(() => {
     if (!user) return;
+    // Picks edited by the clinic in the admin dashboard win: show exactly those and do
+    // not ask Claude. Without them, reuse this session's picks for the same audit (cache
+    // below), else ask Claude. Nothing is saved server-side, so a reload asks again.
+    if (analysis?.productRecs) {
+      setProductRecs(analysis.productRecs);
+      setLoadingRecs(false);
+      return;
+    }
     if (!addItems.length && !replaceItems.length) return;
+    // Quiz answers are only in memory in the quiz session; a saved analysis (reopened
+    // after a reload) carries its own copy, so use that before the US default.
+    const c   = answers?.country || analysis?.quizAnswers?.country || 'United States';
+    const key = JSON.stringify([audit, c, era?.name || '']);
+    // Session cache: reopening Profile for the same audit reuses the earlier result
+    // instead of calling the paid, rate-limited recommendations endpoint again.
+    if (productRecsCache?.key === key) {
+      setCountry(productRecsCache.country);
+      setProductRecs(productRecsCache.recs);
+      // An earlier run of this effect may have been cancelled mid-request (its spinner
+      // is then never cleared by that run), so clear it here, like the admin-picks branch.
+      setLoadingRecs(false);
+      return;
+    }
     setLoadingRecs(true);
+    // Set by the cleanup below when this effect re-runs (e.g. admin picks arrived) or the
+    // screen closes, so a slow Claude answer can never overwrite newer picks.
+    let cancelled = false;
     (async () => {
       try {
-        const c    = answers?.country || 'United States';
         setCountry(c);
         const recs = await fetchProductRecs(audit, c, era?.name || '');
-        setProductRecs(recs);
+        // Cached even if this run was cancelled: the picks are still correct for `key`, so
+        // reopening Profile for the same audit reuses them instead of paying again.
+        setProductRecsCache({ key, recs, country: c });
+        if (!cancelled) setProductRecs(recs);
       } catch (e) { console.warn('Product recs:', e.message); }
-      setLoadingRecs(false);
+      if (!cancelled) setLoadingRecs(false);
     })();
-  }, [user]);
+    return () => { cancelled = true; };
+    // Re-run when a resume refresh brings in admin-edited picks (productRecs) or a changed
+    // add/replace list (new items need picks). The list is compared as a string, so an
+    // equal list in a new object does not trigger another Claude call.
+  }, [user, analysis?.productRecs, auditPickKey]);
+
+  // The scan is "settled" once its result is in AND Railway's score-section copy is no longer
+  // on its way (readingStatus 'ready' / 'failed' / 'unavailable'). Until then we poll.
+  const scanSettled = Boolean(analysis?.skinScan) && analysis.skinScan.readingStatus !== 'pending';
+  // True while the loop below is running: the score section then shows its
+  // "Reading your skin..." placeholder / copy skeleton instead of hiding them.
+  const [scanPolling, setScanPolling] = useState(() => Boolean(analysis?.skinScanId || answers?.skinScanId));
 
   useEffect(() => {
     const scanId = analysis?.skinScanId || answers?.skinScanId;
     const scanToken = answers?.skinScanToken;
-    if (!scanId || analysis?.skinScan) return;
+    if (!scanId || scanSettled) { setScanPolling(false); return; }
     let cancelled = false;
     let attempts = 0;
+    setScanPolling(true);
 
     async function refreshScan() {
       const result = await pollScan(scanId, scanToken);
       if (cancelled) return;
       if (result?.status === 'complete' && result.skinScan) {
+        // Always take the fresh copy: signals now, and the reading once Railway answers.
         setAnalysis(current => current ? { ...current, skinScanId: scanId, skinScan: result.skinScan } : current);
+        // Keep polling (same loop and attempt cap) while the copy is still on its way.
+        if (result.skinScan.readingStatus !== 'pending') { setScanPolling(false); return; }
+      } else if (result?.status === 'failed') {
+        setScanPolling(false);
         return;
       }
-      if (result?.status === 'failed' || attempts >= 30) return;
+      // Gave up: the section keeps what it has (numbers only, or nothing without a scan).
+      if (attempts >= 30) { setScanPolling(false); return; }
       attempts += 1;
       setTimeout(refreshScan, 2000);
     }
     refreshScan();
     return () => { cancelled = true; };
-  }, [analysis?.skinScanId, analysis?.skinScan, answers?.skinScanId, answers?.skinScanToken]);
+    // Depends on scanSettled rather than the skinScan object, so a 'pending' result does not
+    // restart this loop (and its attempt cap) on every poll.
+  }, [analysis?.skinScanId, scanSettled, answers?.skinScanId, answers?.skinScanToken]);
 
   if (!analysis) return null;
 
@@ -96,6 +147,13 @@ export default function ProfileScreen({ navigation }) {
             </Pressable>
           </View>
         )}
+
+        {/* Generic-result warning + Try again / Retake (renders nothing for real results) */}
+        <FallbackBanner analysis={analysis} navigation={navigation} />
+
+        {/* Score section: overall score, skin age, "Start here" and the four signals
+            (PerfectCorp scan + Railway copy). Replaces the old "AI Skin Scan" card. */}
+        <ScoreSection analysis={analysis} polling={scanPolling} />
 
         {/* Era hero */}
         <View style={s.eraHero}>
@@ -124,50 +182,6 @@ export default function ProfileScreen({ navigation }) {
             </View>
           ))}
         </View>
-
-        {/* AI Skin Scan — only present when the PerfectCorp scan landed before this reveal.
-            Purely supplementary: it never changes the Era above, per the quiz-anchored design. */}
-        {analysis.skinScan?.fusion && (
-          <View style={s.card}>
-            <Text style={s.cardLabel}>📷 AI Skin Scan</Text>
-
-            {analysis.skinScan.fusion.skinType?.resolved && (
-              <Text style={s.scanSkinType}>
-                Skin type: {analysis.skinScan.fusion.skinType.observed || analysis.skinScan.fusion.skinType.reported}
-                {analysis.skinScan.fusion.skinType.tZone ? ` · T-zone ${analysis.skinScan.fusion.skinType.tZone}` : ''}
-              </Text>
-            )}
-
-            <View style={s.scanConcernList}>
-              {analysis.skinScan.fusion.concerns.slice(0, 5).map(c => {
-                const meta = SEVERITY_META[c.severity] || SEVERITY_META[0];
-                return (
-                  <View key={c.key} style={s.scanConcernRow}>
-                    <View style={[s.scanDot, { backgroundColor: meta.color }]} />
-                    <Text style={s.scanConcernLabel}>{CONCERN_LABELS[c.key] || c.key}</Text>
-                    <Text style={[s.scanConcernSeverity, { color: meta.color }]}>{meta.label}</Text>
-                  </View>
-                );
-              })}
-            </View>
-
-            {analysis.skinScan.fusion.discoveries?.length > 0 && (
-              <View style={s.scanDiscoveries}>
-                {analysis.skinScan.fusion.discoveries.map(d => (
-                  <Text key={d.key} style={s.scanDiscoveryText}>
-                    ✨ Your photo also shows some {(CONCERN_LABELS[d.key] || d.key).toLowerCase()} — worth
-                    keeping an eye on, though it's not driving your routine right now.
-                  </Text>
-                ))}
-              </View>
-            )}
-
-            <Text style={s.scanDisclaimer}>
-              This is a cosmetic skin assessment, not a medical evaluation. If something on your skin
-              concerns you, please see a dermatologist.
-            </Text>
-          </View>
-        )}
 
         {/* Product Audit */}
         {auditTabs.length > 0 && (
@@ -356,7 +370,15 @@ export default function ProfileScreen({ navigation }) {
 
         <Pressable
           style={[s.cta, { backgroundColor: era.color }]}
-          onPress={() => navigation.navigate(user ? 'Home' : 'SignUp')}
+          // The routine (Home) always needs an account:
+          //  - no user (took "Skip for now")          -> SignUp, which saves this analysis;
+          //  - signed in, SkinTiming never answered    -> first-time onboarding chain;
+          //  - signed in and onboarded (e.g. a retake) -> straight to Home.
+          //  - opened from Home ("My skin profile" button or "View my full analysis" card)
+          //    -> just go back to that Home (navigating would stack a second Home on top).
+          onPress={() => (openedFromHome
+            ? navigation.goBack()
+            : navigation.navigate(!user ? 'SignUp' : user.skincareTiming ? 'Home' : 'SkinTiming'))}
         >
           <Text style={s.ctaText}>See My Routine →</Text>
         </Pressable>
@@ -419,16 +441,6 @@ const s = StyleSheet.create({
   card:      { backgroundColor: C.card, borderRadius: 14, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: C.border },
   cardLabel: { fontFamily: 'DMSans_400Regular', fontSize: 10, color: C.muted, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 10 },
   cardBody:  { fontFamily: 'DMSans_400Regular', fontSize: 14, color: '#4A4039', lineHeight: 25 },
-
-  scanSkinType:    { fontFamily: 'DMSans_500Medium', fontSize: 13, color: C.text, marginBottom: 12 },
-  scanConcernList: { gap: 9, marginBottom: 8 },
-  scanConcernRow:  { flexDirection: 'row', alignItems: 'center', gap: 9 },
-  scanDot:         { width: 8, height: 8, borderRadius: 4 },
-  scanConcernLabel:{ fontFamily: 'DMSans_400Regular', fontSize: 13, color: '#4A4039', flex: 1 },
-  scanConcernSeverity:{ fontFamily: 'DMSans_500Medium', fontSize: 11 },
-  scanDiscoveries: { marginTop: 12, gap: 6 },
-  scanDiscoveryText:{ fontFamily: 'DMSans_400Regular', fontSize: 12, color: C.muted, lineHeight: 19, fontStyle: 'italic' },
-  scanDisclaimer:  { fontFamily: 'DMSans_400Regular', fontSize: 10, color: C.muted, lineHeight: 16, marginTop: 14 },
 
   sectionLabel:{ fontFamily: 'DMSans_400Regular', fontSize: 10, color: C.muted, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 12 },
   insightList: { gap: 8, marginBottom: 18 },

@@ -6,6 +6,7 @@ const User    = require('../models/User');
 const requireAuth = require('../middleware/auth');
 const { allowAuthAttempt, releaseAuthAttempt } = require('../services/authRateLimit');
 const { isDuplicateEmail } = require('../services/duplicateKey');
+const { consentError } = require('../services/consent');
 
 const TOO_MANY = { error: 'Too many attempts. Please wait a few minutes and try again.' };
 
@@ -19,8 +20,10 @@ function signToken(user) {
   );
 }
 
+// skincareTiming is included so the client can tell a first-time user (not yet through
+// the SkinTiming onboarding screen) from a returning one right after login/signup.
 function toPublicUser(user) {
-  return { id: user._id, firstName: user.firstName, email: user.email, termsAcceptedAt: user.termsAcceptedAt, consentVersion: user.consentVersion };
+  return { id: user._id, firstName: user.firstName, email: user.email, termsAcceptedAt: user.termsAcceptedAt, consentVersion: user.consentVersion, skincareTiming: user.skincareTiming };
 }
 
 // Fire-and-forget: a refund that fails must never turn a successful signup into a
@@ -38,14 +41,11 @@ router.post('/signup', async (req, res) => {
       return res.status(400).json({ error: 'Email and password are required' });
     if (password.length < 8)
       return res.status(400).json({ error: 'Password must be at least 8 characters' });
-    const acceptedAt = new Date(consentAcceptedAt);
+    // Same consent rule as a new Google account (services/consent.js).
     const now = new Date();
+    const consentProblem = consentError({ consentAcceptedAt, consentVersion }, now);
+    if (consentProblem) return res.status(consentProblem.status).json({ error: consentProblem.error });
     const activeConsentVersion = process.env.CONSENT_VERSION;
-    if (!activeConsentVersion) return res.status(503).json({ error: 'Account creation is temporarily unavailable' });
-    if (!consentAcceptedAt || Number.isNaN(acceptedAt.getTime()) || acceptedAt > now || now - acceptedAt > 24 * 60 * 60 * 1000)
-      return res.status(400).json({ error: 'Terms and privacy consent is required' });
-    if (consentVersion !== activeConsentVersion)
-      return res.status(400).json({ error: 'Please review the current Terms and Privacy Policy' });
 
     const normalizedEmail = email.trim().toLowerCase();
     if (normalizedEmail.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail))
@@ -113,9 +113,17 @@ router.post('/google', async (req, res) => {
         await user.save();
       }
     } else {
+      // Creating an account: Google must meet the same Terms/Privacy rule as email signup.
+      // Existing users (the branch above) log in without it, exactly as before.
+      const now = new Date();
+      const consentProblem = consentError(req.body, now);
+      if (consentProblem) return res.status(consentProblem.status).json({ error: consentProblem.error });
       user = await User.create({
         googleId,
         email: normalizedEmail,
+        termsAcceptedAt: now,
+        privacyAcceptedAt: now,
+        consentVersion: process.env.CONSENT_VERSION,
         ...(payload.given_name ? { firstName: String(payload.given_name).slice(0, 100) } : {}),
       });
     }

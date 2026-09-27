@@ -2,7 +2,7 @@ jest.mock('../models/SkinAnalysis');
 jest.mock('../models/User');
 
 const User = require('../models/User');
-const { notifyClinic, buildClinicEmailHtml, mailConfigError } = require('./clinicNotify');
+const { notifyClinic, buildClinicEmailHtml, mailConfigError, notifyClinicOfReply } = require('./clinicNotify');
 
 function makeAnalysis(overrides = {}) {
   return {
@@ -46,6 +46,19 @@ describe('buildClinicEmailHtml', () => {
     expect(html).toContain('Barrier Healing Era');
     expect(html).toContain('dryness, sensitive');
     expect(html).toContain(`/admin/customer/${analysis._id}`);
+  });
+
+  test('labels a fallback (generic template) result, keeping the allergy block first', () => {
+    const html = buildClinicEmailHtml({ analysis: makeAnalysis({ source: 'fallback' }), user: { email: 'a@b.co' } });
+    expect(html).toContain('Generic result');
+    expect(html.indexOf('No allergies reported')).toBeLessThan(html.indexOf('Generic result'));
+  });
+
+  test('does not label a real gemini result or a legacy one without a source', () => {
+    for (const source of ['gemini', undefined]) {
+      const html = buildClinicEmailHtml({ analysis: makeAnalysis({ source }), user: { email: 'a@b.co' } });
+      expect(html).not.toContain('Generic result');
+    }
   });
 
   test('escapes HTML in quiz answers', () => {
@@ -93,6 +106,15 @@ describe('notifyClinic', () => {
     expect(arg.MessageStream).toBe('outbound');
     expect(analysis.clinicNotifiedAt).toBeInstanceOf(Date);
     expect(analysis.save).toHaveBeenCalledTimes(1);
+  });
+
+  test('prefixes the subject for a fallback (generic template) result', async () => {
+    const client = { sendEmail: jest.fn().mockResolvedValue({}) };
+
+    await notifyClinic(makeAnalysis({ source: 'fallback' }), { client });
+
+    expect(client.sendEmail.mock.calls[0][0].Subject)
+      .toBe('[Generic result] New GetPretty client: Ada — Barrier Healing Era');
   });
 
   test('force resends even when clinicNotifiedAt is set', async () => {
@@ -181,5 +203,34 @@ describe('mailConfigError', () => {
   test('returns null when both are set', () => {
     process.env = { ...OLD_ENV, POSTMARK_API_KEY: 'token', POSTMARK_SENDER_ADDRESS: 'hello@getpretty.app' };
     expect(mailConfigError()).toBeNull();
+  });
+});
+
+describe('notifyClinicOfReply', () => {
+  const OLD_ENV = process.env;
+  beforeEach(() => {
+    process.env = { ...OLD_ENV, POSTMARK_SENDER_ADDRESS: 'hello@getpretty.app', PUBLIC_BASE_URL: 'https://api.example/' };
+    // notifyClinicOfReply reads the user with findById().select().lean()
+    User.findById.mockReturnValue({ select: () => ({ lean: async () => ({ firstName: 'Ada\nBcc: x@evil', email: 'ada@example.com' }) }) });
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+  afterEach(() => { process.env = OLD_ENV; jest.clearAllMocks(); jest.restoreAllMocks(); });
+
+  test('emails the clinic the escaped reply with a link to the conversation', async () => {
+    const client = { sendEmail: jest.fn().mockResolvedValue({}) };
+    const result = await notifyClinicOfReply({ userId: '64b0000000000000000000aa', body: '<b>hi</b>\nsecond line' }, { client });
+    expect(result).toEqual({ sent: true });
+    const sent = client.sendEmail.mock.calls[0][0];
+    expect(sent.To).toBe('lutreat@gmail.com,dzaturansky@gmail.com');
+    expect(sent.Subject).not.toMatch(/[\r\n]/); // no header injection via the name
+    expect(sent.HtmlBody).toContain('&lt;b&gt;hi&lt;/b&gt;<br>second line');
+    expect(sent.HtmlBody).toContain('https://api.example/admin/users/64b0000000000000000000aa#messages');
+  });
+
+  test('without mail configured it skips quietly instead of throwing', async () => {
+    delete process.env.POSTMARK_SENDER_ADDRESS;
+    const client = { sendEmail: jest.fn() };
+    await expect(notifyClinicOfReply({ userId: 'u', body: 'x' }, { client })).resolves.toEqual({ sent: false, reason: 'no-mail' });
+    expect(client.sendEmail).not.toHaveBeenCalled();
   });
 });

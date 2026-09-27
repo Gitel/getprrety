@@ -1,0 +1,41 @@
+<%#
+  Editor: the generic Home screen routine - Morning (am) and Evening (pm) step lists, each
+  step { name, description }, in the order the user will do them.
+  Home shows these steps only for a tab (am / pm) where the SR Ritual has no product steps;
+  otherwise Home shows the SR Ritual steps (src/lib/homeRoutine.js routineSteps), which are
+  edited in _edit_sr.ejs.
+  Saves to POST /admin/customer/:id/edit/routine  (services/adminEdits.js SECTIONS.routine).
+%>
+<%
+  var routine = analysis.routine || {};
+  function stepRow(step) {
+    step = step && typeof step === 'object' ? step : { name: step || '' }; %>
+    <div class="row">
+      <%- include('_rowTools') %>
+      <label>Step name</label>
+      <input type="text" data-path="name" maxlength="120" value="<%= step.name || '' %>" placeholder="e.g. Gentle cleanser">
+      <label>How to do it</label>
+      <textarea data-path="description" maxlength="1000" rows="2"><%= step.description || '' %></textarea>
+    </div>
+<% } %>
+<div class="card" id="routine">
+  <h2>Routine (Home screen)</h2>
+  <p class="muted">Shown on Home only when the SR Ritual below has no Morning / Evening product steps. If it has them, Home shows those instead: edit them in the SR Ritual section.</p>
+  <form data-json-editor action="/admin/customer/<%= analysis._id %>/edit/routine">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <% [['am', 'Morning'], ['pm', 'Evening']].forEach(function (side) { %>
+      <fieldset>
+        <legend><%= side[1] %></legend>
+        <div class="list-wrap">
+          <div data-list="routine.<%= side[0] %>">
+            <% (Array.isArray(routine[side[0]]) ? routine[side[0]] : []).forEach(function (s) { stepRow(s); }); %>
+          </div>
+          <template><% stepRow({}); %></template>
+          <button type="button" class="btn secondary small" data-row-action="add">+ Add <%= side[1].toLowerCase() %> step</button>
+        </div>
+      </fieldset>
+    <% }); %>
+    <p><button type="submit">Save routine</button></p>
+    <p class="editor-status muted"></p>
+  </form>
+</div>

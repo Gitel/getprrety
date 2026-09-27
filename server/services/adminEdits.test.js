@@ -1,0 +1,244 @@
+const { parseProfileForm, updateUserProfile } = require('./adminEdits');
+
+const ID = '64b0000000000000000000aa';
+
+function fakeUserModel(current, updateImpl) {
+  return {
+    findById: jest.fn(() => ({ select: () => ({ lean: async () => current }) })),
+    findByIdAndUpdate: jest.fn(updateImpl || (async () => ({}))),
+  };
+}
+
+describe('parseProfileForm', () => {
+  test('normalizes a valid form and turns empty optionals into null', () => {
+    expect(parseProfileForm({ firstName: ' Ada ', email: ' Ada@Example.COM ', skincareTiming: '', city: '', country: 'il' }))
+      .toEqual({ updates: { firstName: 'Ada', email: 'ada@example.com', skincareTiming: null, city: null, country: 'IL' } });
+  });
+
+  test.each([
+    [{ email: 'nope' }, 'profile_invalid_email'],
+    [{}, 'profile_invalid_email'],
+    [{ email: 'a@b.co', skincareTiming: 'noon' }, 'profile_invalid_timing'],
+    [{ email: 'a@b.co', country: 'Israel' }, 'profile_invalid_country'],
+    [{ email: 'a@b.co', country: '1L' }, 'profile_invalid_country'],
+  ])('rejects %p with %s', (body, code) => {
+    expect(parseProfileForm(body)).toEqual({ error: code });
+  });
+});
+
+describe('updateUserProfile', () => {
+  const current = { firstName: 'Ada', email: 'ada@example.com', skincareTiming: 'both', city: null, country: null };
+
+  test('writes only the changed fields with one $set and reports them', async () => {
+    const model = fakeUserModel(current);
+    const result = await updateUserProfile(ID, { firstName: 'Ada', email: 'ada@example.com', skincareTiming: 'night', city: 'Haifa', country: '' }, { userModel: model });
+    expect(result).toEqual({ ok: true, changed: ['skincareTiming', 'city'] });
+    expect(model.findByIdAndUpdate).toHaveBeenCalledWith(ID, { $set: { skincareTiming: 'night', city: 'Haifa' } }, { runValidators: true });
+  });
+
+  test('an unchanged form writes nothing', async () => {
+    const model = fakeUserModel(current);
+    const result = await updateUserProfile(ID, { ...current, skincareTiming: 'both' }, { userModel: model });
+    expect(result).toEqual({ ok: true, changed: [] });
+    expect(model.findByIdAndUpdate).not.toHaveBeenCalled();
+  });
+
+  test('an email already used by another account is a friendly error', async () => {
+    const dup = Object.assign(new Error('E11000'), { code: 11000, keyPattern: { email: 1 } });
+    const model = fakeUserModel(current, async () => { throw dup; });
+    await expect(updateUserProfile(ID, { ...current, email: 'taken@example.com' }, { userModel: model }))
+      .resolves.toEqual({ ok: false, code: 'profile_email_taken' });
+  });
+
+  test('any other database error is rethrown', async () => {
+    const model = fakeUserModel(current, async () => { throw new Error('mongo down'); });
+    await expect(updateUserProfile(ID, { ...current, email: 'new@example.com' }, { userModel: model })).rejects.toThrow('mongo down');
+  });
+
+  test('unknown or malformed user ids are notfound; invalid forms never read the DB', async () => {
+    await expect(updateUserProfile(ID, current, { userModel: fakeUserModel(null) })).resolves.toEqual({ ok: false, code: 'user_notfound' });
+    await expect(updateUserProfile('x', current, { userModel: fakeUserModel(current) })).resolves.toEqual({ ok: false, code: 'user_notfound' });
+    const model = fakeUserModel(current);
+    await expect(updateUserProfile(ID, { email: 'bad' }, { userModel: model })).resolves.toEqual({ ok: false, code: 'profile_invalid_email' });
+    expect(model.findById).not.toHaveBeenCalled();
+  });
+});
+
+describe('updateAnalysisSection', () => {
+  const AID = '64b000000000000000000001';
+  const { updateAnalysisSection } = require('./adminEdits');
+
+  function fakeAnalysisModel(current) {
+    return {
+      findById: jest.fn(() => ({ select: () => ({ lean: async () => current }) })),
+      findByIdAndUpdate: jest.fn(async () => ({})),
+    };
+  }
+
+  const stored = {
+    userId: 'u1',
+    eraId: 'barrier_healing',
+    skinAnalysis: 'Old text',
+    keyInsights: ['One'],
+    affirmation: 'I glow',
+  };
+
+  test('fields: changing the era writes eraId AND the complete era object', async () => {
+    const model = fakeAnalysisModel(stored);
+    const result = await updateAnalysisSection(AID, 'fields', {
+      eraId: 'glow_building', skinAnalysis: 'Old text', keyInsights: ['One', ' '], affirmation: 'I glow',
+    }, { analysisModel: model });
+    expect(result).toEqual({ ok: true, changed: ['eraId', 'era'], action: 'analysis_fields_updated', userId: 'u1' });
+    const { $set } = model.findByIdAndUpdate.mock.calls[0][1];
+    expect($set.era).toMatchObject({ id: 'glow_building', name: 'Glow Building Era', color: '#B8924A', bg: '#FBF6EE', emoji: expect.any(String) });
+  });
+
+  test('fields: same era, new text writes only the text fields that changed', async () => {
+    const model = fakeAnalysisModel(stored);
+    const result = await updateAnalysisSection(AID, 'fields', {
+      eraId: 'barrier_healing', skinAnalysis: ' New text ', keyInsights: ['One', 'Two'], affirmation: 'I glow',
+    }, { analysisModel: model });
+    expect(result.changed).toEqual(['skinAnalysis', 'keyInsights']);
+    expect(model.findByIdAndUpdate.mock.calls[0][1]).toEqual({ $set: { skinAnalysis: 'New text', keyInsights: ['One', 'Two'] } });
+  });
+
+  test('fields: an unchanged form writes nothing', async () => {
+    const model = fakeAnalysisModel(stored);
+    const result = await updateAnalysisSection(AID, 'fields', { ...stored }, { analysisModel: model });
+    expect(result.changed).toEqual([]);
+    expect(model.findByIdAndUpdate).not.toHaveBeenCalled();
+  });
+
+  test('fields: an era outside the fixed list is rejected (the app would crash on it)', async () => {
+    const model = fakeAnalysisModel(stored);
+    await expect(updateAnalysisSection(AID, 'fields', { eraId: 'made_up' }, { analysisModel: model }))
+      .resolves.toEqual({ ok: false, code: 'analysis_invalid_era' });
+    expect(model.findByIdAndUpdate).not.toHaveBeenCalled();
+  });
+
+  test('unknown or malformed analysis ids are notfound', async () => {
+    await expect(updateAnalysisSection(AID, 'fields', {}, { analysisModel: fakeAnalysisModel(null) }))
+      .resolves.toEqual({ ok: false, code: 'analysis_notfound' });
+    await expect(updateAnalysisSection('x', 'fields', {}, { analysisModel: fakeAnalysisModel(stored) }))
+      .resolves.toEqual({ ok: false, code: 'analysis_notfound' });
+  });
+
+  test('an unknown section name is a programming error', async () => {
+    await expect(updateAnalysisSection(AID, 'nope', {}, { analysisModel: fakeAnalysisModel(stored) })).rejects.toThrow('Unknown analysis section');
+  });
+});
+
+describe('updateAnalysisSection: routine', () => {
+  const AID = '64b000000000000000000001';
+  const { updateAnalysisSection } = require('./adminEdits');
+  const model = current => ({
+    findById: jest.fn(() => ({ select: () => ({ lean: async () => current }) })),
+    findByIdAndUpdate: jest.fn(async () => ({})),
+  });
+
+  test('writes the sanitized routine as one whole-field $set', async () => {
+    const m = model({ userId: 'u1', routine: { am: [{ name: 'Old', description: '' }], pm: [] } });
+    const result = await updateAnalysisSection(AID, 'routine', {
+      routine: { am: [{ name: ' Cleanse ', description: 'Gently' }, { name: '', description: '' }], pm: [{ name: 'Retinol' }] },
+    }, { analysisModel: m });
+    expect(result).toMatchObject({ ok: true, changed: ['routine'], action: 'routine_updated' });
+    expect(m.findByIdAndUpdate.mock.calls[0][1]).toEqual({
+      $set: { routine: { am: [{ name: 'Cleanse', description: 'Gently' }], pm: [{ name: 'Retinol', description: '' }] } },
+    });
+  });
+
+  test('saving the same routine is not a change', async () => {
+    const routine = { am: [{ name: 'Cleanse', description: 'Gently' }], pm: [] };
+    const m = model({ userId: 'u1', routine });
+    const result = await updateAnalysisSection(AID, 'routine', { routine }, { analysisModel: m });
+    expect(result.changed).toEqual([]);
+    expect(m.findByIdAndUpdate).not.toHaveBeenCalled();
+  });
+});
+
+describe('updateAnalysisSection: audit', () => {
+  const { updateAnalysisSection } = require('./adminEdits');
+  test('writes the four sanitized buckets as one whole-field $set', async () => {
+    const m = {
+      findById: jest.fn(() => ({ select: () => ({ lean: async () => ({ userId: 'u1', productAudit: {} }) }) })),
+      findByIdAndUpdate: jest.fn(async () => ({})),
+    };
+    const result = await updateAnalysisSection('64b000000000000000000001', 'audit', {
+      productAudit: { keep: [{ product: 'Cleanser', reason: 'Fine' }], add: [{ product: 'SPF', priority: 'essential' }], junk: [1] },
+    }, { analysisModel: m });
+    expect(result).toMatchObject({ ok: true, changed: ['productAudit'], action: 'product_audit_updated' });
+    expect(m.findByIdAndUpdate.mock.calls[0][1].$set.productAudit).toEqual({
+      keep: [{ product: 'Cleanser', reason: 'Fine' }],
+      remove: [],
+      replace: [],
+      add: [{ product: 'SPF', reason: '', priority: 'essential' }],
+    });
+  });
+});
+
+describe('updateAnalysisSection: audit + product picks, SR Ritual, shelf', () => {
+  const { updateAnalysisSection } = require('./adminEdits');
+  const AID = '64b000000000000000000001';
+  const model = current => ({
+    findById: jest.fn(() => ({ select: () => ({ lean: async () => ({ userId: 'u1', ...current }) }) })),
+    findByIdAndUpdate: jest.fn(async () => ({})),
+  });
+
+  test('picks are paired with their item AFTER empty rows are dropped', async () => {
+    const m = model({ productAudit: {}, productRecs: null });
+    const result = await updateAnalysisSection(AID, 'audit', {
+      productAudit: {
+        add: [
+          { product: '', pick: { name: 'belongs to a blank row' } }, // dropped row, pick dropped too
+          { product: 'SPF', priority: 'essential', pick: { brand: 'La Roche', name: 'Anthelios', url: 'https://x.example/a' } },
+        ],
+        replace: [{ from: 'Toner', to: 'Essence', pick: { brand: '', name: '', price: '', retailer: '', url: '' } }],
+      },
+    }, { analysisModel: m });
+
+    expect(result.changed).toEqual(['productAudit', 'productRecs']);
+    expect(result.action).toBe('product_audit_updated');
+    const { $set } = m.findByIdAndUpdate.mock.calls[0][1];
+    expect($set.productAudit.add).toEqual([{ product: 'SPF', reason: '', priority: 'essential' }]);
+    expect($set.productRecs).toEqual({
+      add: [{ index: 0, rec: { brand: 'La Roche', name: 'Anthelios', price: '', retailer: '', url: 'https://x.example/a' } }],
+      replace: [], // an all-blank pick is no pick
+    });
+    expect($set.productRecsEditedAt).toBeInstanceOf(Date);
+  });
+
+  test('changing only a pick is audited as a picks update', async () => {
+    const productAudit = { keep: [], remove: [], replace: [], add: [{ product: 'SPF', reason: '', priority: 'essential' }] };
+    const m = model({ productAudit, productRecs: null });
+    const result = await updateAnalysisSection(AID, 'audit', {
+      productAudit: { add: [{ product: 'SPF', priority: 'essential', pick: { name: 'Anthelios' } }] },
+    }, { analysisModel: m });
+    expect(result.changed).toEqual(['productRecs']);
+    expect(result.action).toBe('product_picks_updated');
+  });
+
+  test('clearing every pick hands picks back to the AI (productRecs null, stamp cleared)', async () => {
+    const productAudit = { keep: [], remove: [], replace: [], add: [{ product: 'SPF', reason: '', priority: 'essential' }] };
+    const productRecs = { add: [{ index: 0, rec: { brand: '', name: 'Old', price: '', retailer: '', url: '' } }], replace: [] };
+    const m = model({ productAudit, productRecs });
+    const result = await updateAnalysisSection(AID, 'audit', {
+      productAudit: { add: [{ product: 'SPF', priority: 'essential', pick: { name: '' } }] },
+    }, { analysisModel: m });
+    expect(result.changed).toEqual(['productRecs']);
+    expect(m.findByIdAndUpdate.mock.calls[0][1].$set).toEqual({ productRecs: null, productRecsEditedAt: null });
+  });
+
+  test('SR Ritual and shelf are written through their sanitizers; empty means "no section"', async () => {
+    const m = model({ srProducts: { bundle_note: 'Old', era_hero_product: { sr_product_name: '', hero_reason: '' }, am: [], pm: [] } });
+    const sr = await updateAnalysisSection(AID, 'sr', { srProducts: { bundle_note: '', am: [], pm: [] } }, { analysisModel: m });
+    expect(sr).toMatchObject({ changed: ['srProducts'], action: 'sr_ritual_updated' });
+    expect(m.findByIdAndUpdate.mock.calls[0][1]).toEqual({ $set: { srProducts: null } });
+
+    const m2 = model({ shelfAnalysis: null });
+    const shelf = await updateAnalysisSection(AID, 'shelf', {
+      shelfAnalysis: { identified_products: [{ product_name: 'Cleanser', status: 'compatible' }], shelf_summary: { overall_note: 'Ok' } },
+    }, { analysisModel: m2 });
+    expect(shelf).toMatchObject({ changed: ['shelfAnalysis'], action: 'shelf_updated' });
+    expect(m2.findByIdAndUpdate.mock.calls[0][1].$set.shelfAnalysis.identified_products[0]).toMatchObject({ product_name: 'Cleanser', status: 'compatible' });
+  });
+});

@@ -72,6 +72,13 @@ function renderRoutine(routine) {
   return body || '<p><em>See full profile in dashboard.</em></p>';
 }
 
+// A 'fallback' result is the canned buildFallback() template the app shows when the
+// Gemini analysis fails - the same text and routine for everyone. The clinic still gets
+// the email (so it knows a client signed up), but must not read it as personalized.
+function isGenericResult(analysis) {
+  return Boolean(analysis && analysis.source === 'fallback');
+}
+
 // customer here is a { analysis, user } pair — the app has no single "customer" document.
 function buildClinicEmailHtml({ analysis, user }) {
   const answers = (analysis && analysis.quizAnswers) || {};
@@ -93,8 +100,14 @@ function buildClinicEmailHtml({ analysis, user }) {
   const concerns = joinList(answers.skin_goals) || answers.top_concern || 'n/a';
   const base = (process.env.PUBLIC_BASE_URL || 'https://getpretty.app').replace(/\/+$/, '');
 
+  // Placed right after the allergy block, which stays first because it is safety-critical.
+  const genericBlock = isGenericResult(analysis)
+    ? `<p style="color:#8a5a00;font-weight:bold;">&#9888; Generic result: the AI skin analysis was unavailable. The era and routine below are a standard template, not personalized for this client.</p>`
+    : '';
+
   return `
     ${allergyBlock}
+    ${genericBlock}
     <p><strong>${esc(name)}</strong> &middot; ${esc(email)} &middot; ${esc(phone)}</p>
     <p><strong>Skin Era:</strong> ${esc(eraName)}</p>
     <p><strong>Top concerns:</strong> ${esc(concerns)}</p>
@@ -144,7 +157,8 @@ async function notifyClinic(analysisOrId, { force = false, client } = {}) {
     await mail.sendEmail({
       From: from,
       To: CLINIC_TO,
-      Subject: `New GetPretty client: ${name} — ${eraName}`,
+      // Prefix so a generic (fallback) result is obvious from the inbox list alone.
+      Subject: `${isGenericResult(analysis) ? '[Generic result] ' : ''}New GetPretty client: ${name} — ${eraName}`,
       HtmlBody: buildClinicEmailHtml({ analysis, user }),
       MessageStream: MESSAGE_STREAM,
     });
@@ -159,4 +173,39 @@ async function notifyClinic(analysisOrId, { force = false, client } = {}) {
   return { sent: true };
 }
 
-module.exports = { notifyClinic, buildClinicEmailHtml, mailConfigError };
+/**
+ * Email the clinic that a user replied to an in-app message (owner decision: one email
+ * per reply, in addition to the dashboard badge). Fire-and-forget from the caller.
+ * When mail is not configured it logs and returns; it never throws for that reason,
+ * because a missing email must never fail the user's reply.
+ * @param {{ userId: string, body: string }} reply
+ * @param {object} [opts] { client } - injected Postmark-like client, for tests.
+ */
+async function notifyClinicOfReply({ userId, body }, { client } = {}) {
+  const mail = client || getClient();
+  const from = process.env.POSTMARK_SENDER_ADDRESS;
+  if (!mail || !from) {
+    console.warn(`clinicNotify: ${mailConfigError() || 'mail not configured'}; skipping reply notification`);
+    return { sent: false, reason: 'no-mail' };
+  }
+
+  const user = await User.findById(userId).select('firstName email').lean();
+  const name = (user && (user.firstName || user.email)) || 'A client';
+  const base = (process.env.PUBLIC_BASE_URL || 'https://getpretty.app').replace(/\/+$/, '');
+
+  await mail.sendEmail({
+    From: from,
+    To: CLINIC_TO,
+    // A subject is a single header line: strip line breaks from the user-supplied name.
+    Subject: `New GetPretty message from ${name}`.replace(/[\r\n]+/g, ' '),
+    HtmlBody: `
+      <p><strong>${esc(name)}</strong>${user && user.email ? ` (${esc(user.email)})` : ''} replied in the GetPretty app:</p>
+      <blockquote style="border-left:3px solid #cdb98f;margin:8px 0;padding:4px 12px;">${esc(body).replace(/\n/g, '<br>')}</blockquote>
+      <p><a href="${base}/admin/users/${esc(userId)}#messages">Open the conversation in the dashboard &rarr;</a></p>
+    `.trim(),
+    MessageStream: MESSAGE_STREAM,
+  });
+  return { sent: true };
+}
+
+module.exports = { notifyClinic, buildClinicEmailHtml, mailConfigError, notifyClinicOfReply };

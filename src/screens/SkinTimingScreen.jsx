@@ -12,7 +12,7 @@ const OPTIONS = [
 ];
 
 export default function SkinTimingScreen({ navigation }) {
-  const { user } = useApp();
+  const { user, setUser } = useApp();
   const [selected, setSelected] = useState(null);
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState(null);
@@ -23,6 +23,10 @@ export default function SkinTimingScreen({ navigation }) {
     setError(null);
     try {
       await api.patch('/api/profile', { skincareTiming: selected });
+      // Mirror the saved answer into the context user: ProfileScreen treats a user
+      // without skincareTiming as first-time, so a retake later in this same session
+      // must not send them through onboarding again.
+      setUser(prev => (prev ? { ...prev, skincareTiming: selected } : prev));
       navigation.navigate('SkinSelfie');
     } catch (err) {
       setError(err.message || 'Something went wrong. Please try again.');

@@ -1,0 +1,188 @@
+<%#
+  User page: one account and everything recorded for it.
+  Data from userDirectory.getUserDetail: user, analyses, checkIns, products, activity.
+  The newest analysis is the one the app shows (GET /api/analysis/latest).
+%>
+<%
+  function stamp(d) { return d ? new Date(d).toISOString().slice(0, 16).replace('T', ' ') : '—'; }
+  var displayName = user.firstName || user.email;
+%>
+<%- include('_head', { title: displayName }) %>
+<%- include('_nav', { active: 'users' }) %>
+<main>
+  <% if (locals.notice) { %>
+    <div class="notice <%= notice.error ? 'error' : '' %>"><%= notice.text %></div>
+  <% } %>
+
+  <div class="card">
+    <h2>Profile</h2>
+    <dl class="kv">
+      <dt>Sign-in</dt><dd><%= user.googleId ? 'Google' : 'Email + password' %></dd>
+      <dt>Signed up</dt><dd><%= stamp(user.createdAt) %></dd>
+      <dt>Timezone</dt><dd><%= user.timezone || '—' %></dd>
+      <dt>Consent version</dt><dd><%= user.consentVersion || '—' %></dd>
+    </dl>
+
+    <%# Editable fields. Posted as a plain form; see POST /admin/users/:id/profile. %>
+    <form method="post" action="/admin/users/<%= user._id %>/profile" style="margin-top: 12px;">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label for="firstName">First name</label>
+      <input type="text" id="firstName" name="firstName" maxlength="100" value="<%= user.firstName || '' %>">
+
+      <label for="email">Email</label>
+      <input type="email" id="email" name="email" required maxlength="254" value="<%= user.email %>">
+      <p class="muted">
+        <% if (user.googleId) { %>This person signs in with Google; changing the email here does not change their Google account, they can still sign in with it.
+        <% } else { %>This is the address they log in with. Tell them if you change it.<% } %>
+      </p>
+
+      <label for="skincareTiming">Routine timing</label>
+      <select id="skincareTiming" name="skincareTiming">
+        <% [['', 'Not set'], ['morning', 'Morning'], ['night', 'Night'], ['both', 'Both']].forEach(function (o) { %>
+          <option value="<%= o[0] %>" <%= (user.skincareTiming || '') === o[0] ? 'selected' : '' %>><%= o[1] %></option>
+        <% }); %>
+      </select>
+
+      <label for="city">City</label>
+      <input type="text" id="city" name="city" maxlength="160" value="<%= user.city || '' %>">
+
+      <label for="country">Country (2-letter code)</label>
+      <input type="text" id="country" name="country" maxlength="2" value="<%= user.country || '' %>" style="max-width: 90px;">
+
+      <p><button type="submit">Save profile</button></p>
+    </form>
+    <p class="muted" style="margin-top: 12px;"><a href="/admin/audit?user=<%= user._id %>">Admin changes to this user &rarr;</a></p>
+  </div>
+
+  <%# Two-way in-app messages. The user sees admin messages as "Your clinic" in the app's
+      Messages screen; which admin wrote each one is shown only here. %>
+  <div class="card" id="messages">
+    <h2>Messages</h2>
+    <% var msgs = locals.thread || []; %>
+    <% if (!msgs.length) { %>
+      <p class="muted">No messages yet.</p>
+    <% } else { %>
+      <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px;">
+        <% msgs.forEach(function (msg) { var mine = msg.from === 'admin'; %>
+          <div style="max-width: 80%; padding: 8px 12px; border-radius: 10px; <%= mine ? 'align-self: flex-end; background: #f6efe3;' : 'align-self: flex-start; background: #eef4ea;' %>">
+            <div class="muted" style="font-size: 12px;">
+              <%= mine ? (msg.adminEmail || 'Clinic') : (user.firstName || 'User') %> &middot; <%= stamp(msg.createdAt) %> UTC
+              <% if (mine) { %>&middot; <%= msg.readAt ? 'read by user' : 'not read yet' %><% } %>
+              <% if (!mine && !msg.readAt) { %><span class="pill no">new</span><% } %>
+            </div>
+            <div style="white-space: pre-wrap;"><%= msg.body %></div>
+          </div>
+        <% }); %>
+      </div>
+    <% } %>
+    <form method="post" action="/admin/users/<%= user._id %>/messages">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label for="message-body">Write to <%= user.firstName || user.email %></label>
+      <textarea id="message-body" name="body" required maxlength="<%= locals.maxMessage || 2000 %>" rows="3"></textarea>
+      <p><button type="submit">Send message</button></p>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Quiz completions (<%= analyses.length %>)</h2>
+    <% if (!analyses.length) { %>
+      <p class="muted">This user has not finished the quiz.</p>
+    <% } else { %>
+      <table>
+        <thead><tr><th>Completed</th><th>Skin Era</th><th>Clinic notified</th><th></th></tr></thead>
+        <tbody>
+          <% analyses.forEach(function (a, i) { %>
+            <tr>
+              <td><a href="/admin/customer/<%= a._id %>"><%= stamp(a.createdAt) %></a></td>
+              <td><%= (a.era && a.era.name) || a.eraId || '—' %></td>
+              <td><%= a.clinicNotifiedAt ? stamp(a.clinicNotifiedAt) : 'not sent' %></td>
+              <td><% if (i === 0) { %><span class="pill yes">shown in app</span><% } %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    <% } %>
+  </div>
+
+  <div class="card">
+    <h2>Check-ins (last <%= checkIns.length %>)</h2>
+    <% if (!checkIns.length) { %>
+      <p class="muted">No check-ins yet.</p>
+    <% } else { %>
+      <table>
+        <thead><tr><th>When (UTC)</th><th>Mood</th></tr></thead>
+        <tbody>
+          <% checkIns.forEach(function (c) { %>
+            <tr><td><%= stamp(c.date || c.createdAt) %></td><td><%= c.mood %></td></tr>
+          <% }); %>
+        </tbody>
+      </table>
+    <% } %>
+  </div>
+
+  <div class="card">
+    <h2>Logged products (<%= products.length %>)</h2>
+    <% if (!products.length) { %>
+      <p class="muted">No products logged yet.</p>
+    <% } else { %>
+      <table>
+        <thead><tr><th>Photo</th><th>Product</th><th>Category</th><th>Notes</th><th>Logged</th></tr></thead>
+        <tbody>
+          <% products.forEach(function (p) { %>
+            <tr>
+              <td>
+                <% if (p.uploadId) { %>
+                  <img src="/admin/users/<%= user._id %>/image/<%= p.uploadId %>" alt="product photo" loading="lazy"
+                       style="width: 72px; height: 72px; object-fit: cover; border-radius: 6px; border: 1px solid #eadfce;">
+                <% } else { %>—<% } %>
+              </td>
+              <td><%= p.productName || '—' %></td>
+              <td><%= p.category || '—' %></td>
+              <td><%= p.notes || '—' %></td>
+              <td><%= stamp(p.createdAt) %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    <% } %>
+  </div>
+
+  <div class="card">
+    <h2>Activity (last <%= activity.length %>)</h2>
+    <% if (!activity.length) { %>
+      <p class="muted">No activity recorded.</p>
+    <% } else { %>
+      <table>
+        <thead><tr><th>When (UTC)</th><th>Event</th><th>Location</th></tr></thead>
+        <tbody>
+          <% activity.forEach(function (e) { %>
+            <tr>
+              <td><%= stamp(e.createdAt) %></td>
+              <td><%= String(e.event).replace(/_/g, ' ') %></td>
+              <td><%= e.location ? [e.location.city, e.location.country].filter(Boolean).join(', ') || '—' : '—' %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    <% } %>
+  </div>
+
+  <%# Hard delete (services/deleteUser.js). Typing the email is the confirmation the
+      server checks; the browser confirm dialog (data-confirm) is a second, softer one. %>
+  <div class="card" id="delete" style="border-color: #e7b4ae;">
+    <h2 style="color: #9b3b30;">Delete account</h2>
+    <p>
+      Permanently deletes this account and everything stored for it: every skin reading,
+      photo, product log, check-in, routine tick, activity record and message. This cannot be undone.
+      The user is signed out of the app the next time it refreshes.
+    </p>
+    <form method="post" action="/admin/users/<%= user._id %>/delete"
+          data-confirm="Permanently delete <%= user.email %> and all of their data? This cannot be undone.">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label for="confirmEmail">Type <strong><%= user.email %></strong> to confirm</label>
+      <input type="text" id="confirmEmail" name="confirmEmail" required autocomplete="off" spellcheck="false">
+      <p><button type="submit" class="danger">Delete account and all data</button></p>
+    </form>
+  </div>
+</main>
+<%- include('_foot') %>

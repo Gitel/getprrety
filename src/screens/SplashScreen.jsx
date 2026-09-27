@@ -38,7 +38,9 @@ export default function SplashScreen({ navigation }) {
       return;
     }
     navigated.current = true;
-    navigation.replace(getWelcomeRef() ? 'Welcome' : 'QuizIntro');
+    // Login-first: a signed-out user starts on Login (create account, log in, or
+    // "Skip for now" into the anonymous quiz). The ?ref= is re-read from the URL later.
+    navigation.replace('Login');
   }, [authReady, gaveUp, user, analysis]);
 
   return (

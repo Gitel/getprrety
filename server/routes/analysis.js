@@ -4,9 +4,11 @@ const SkinAnalysis = require('../models/SkinAnalysis');
 const SkinScan = require('../models/SkinScan');
 const User = require('../models/User');
 const requireAuth = require('../middleware/auth');
-const { sanitizeQuizAnswers } = require('../services/sanitizeQuizAnswers');
+const { sanitizeQuizAnswers, sanitizeValue } = require('../services/sanitizeQuizAnswers');
 const { notifyClinic } = require('../services/clinicNotify');
 const { saveAnalysis } = require('../services/saveAnalysis');
+const { sanitizeSrProducts, sanitizeShelfAnalysis } = require('../services/analysisFields');
+const { scanView } = require('../services/skinScan/scanView');
 
 function locationFromQuizAnswers(answers) {
   const city = typeof answers?.city === 'string' ? answers.city.trim().slice(0, 160) : '';
@@ -28,13 +30,45 @@ function locationFromQuizAnswers(answers) {
   return { city, country, lat, lng, timezone };
 }
 
+// Reads the client's claim about where the result came from (see SkinAnalysis.source).
+// Anything unexpected is stored as null ("unknown") rather than rejected: this is
+// diagnostic metadata, and it must never be the reason an assessment fails to save.
+function analysisSourceFromBody(body) {
+  const source = body?.source === 'gemini' || body?.source === 'fallback' ? body.source : null;
+  // A reason only makes sense for a fallback; cap it so a long error cannot bloat the doc.
+  const fallbackReason = source === 'fallback' && typeof body.fallbackReason === 'string' && body.fallbackReason.trim()
+    ? body.fallbackReason.trim().slice(0, 200)
+    : null;
+  return { source, fallbackReason };
+}
+
+// The Gemini extras the client relays from the Railway response (see SkinAnalysis).
+// The server cannot validate their shape (Railway owns it), so each one is run through
+// the same sanitizer as quiz answers: drops data: URLs, strings over 5000 chars and
+// prototype keys, and caps array length, key count and nesting depth. Missing -> null.
+const GEMINI_EXTRA_FIELDS = ['srProducts', 'shelfAnalysis', 'safetyFlags', 'checkInPrompts', 'eventPrep'];
+function geminiExtrasFromBody(body) {
+  const extras = {};
+  for (const field of GEMINI_EXTRA_FIELDS) {
+    const value = body?.[field];
+    // Only objects/arrays are meaningful here; a bare string or number is dropped.
+    extras[field] = value && typeof value === 'object' ? (sanitizeValue(value) ?? null) : null;
+  }
+  return extras;
+}
+
 async function withSkinScan(doc, userId) {
   if (!doc) return null;
   const analysis = doc.toObject ? doc.toObject() : { ...doc };
+  // When the user's first reading happened: the Profile score section shows
+  // "Day N" = calendar days from it to this analysis (src/lib/scoreReading.js).
+  const first = await SkinAnalysis.findOne({ userId }).sort({ createdAt: 1 }).select('createdAt');
+  analysis.firstReadingAt = first?.createdAt || analysis.createdAt || null;
   if (!analysis.skinScanId) return analysis;
   const scan = await SkinScan.findOne({ _id: analysis.skinScanId, userId, status: 'complete' })
-    .select('merged fusion');
-  if (scan) analysis.skinScan = { merged: scan.merged, fusion: scan.fusion };
+    .select('merged fusion reading readingStatus');
+  // Same shape as GET /api/skin-scan/:id, so a reloaded analysis renders the score section too.
+  if (scan) analysis.skinScan = scanView(scan);
   return analysis;
 }
 
@@ -42,6 +76,7 @@ router.post('/', requireAuth, async (req, res) => {
   try {
     const {
       eraId, era, skinAnalysis, keyInsights, productAudit, routine, affirmation, quizAnswers, quizPhotoIds, skinScanId,
+      srProducts, shelfAnalysis,
     } = req.body;
     if (!eraId) return res.status(400).json({ error: 'eraId is required' });
 
@@ -77,6 +112,15 @@ router.post('/', requireAuth, async (req, res) => {
       quizPhotoIds: Array.isArray(quizPhotoIds) ? quizPhotoIds.slice(0, 20) : [],
       referralSource,
       clientRequestId,
+      ...analysisSourceFromBody(req.body),
+      // safetyFlags / checkInPrompts / eventPrep (generic sanitizer). It also returns
+      // srProducts / shelfAnalysis, which the two lines below deliberately override.
+      ...geminiExtrasFromBody(req.body),
+      // Same sanitizers the admin editors use: only the fields the app renders, capped.
+      // Older app builds do not send these; both become null (= "no section").
+      // Must stay AFTER the spread above so these stricter versions win (owner decision).
+      srProducts: sanitizeSrProducts(srProducts),
+      shelfAnalysis: sanitizeShelfAnalysis(shelfAnalysis),
     });
 
     if (created) {
@@ -134,3 +178,5 @@ router.get('/', requireAuth, async (req, res) => {
 
 module.exports = router;
 module.exports.locationFromQuizAnswers = locationFromQuizAnswers;
+module.exports.analysisSourceFromBody = analysisSourceFromBody;
+module.exports.geminiExtrasFromBody = geminiExtrasFromBody;

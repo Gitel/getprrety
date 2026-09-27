@@ -1,0 +1,66 @@
+<%#
+  Editor: the Profile screen "Your SR Ritual" section - bundle note, era hero product,
+  and Morning / Evening product steps.
+  Saves to POST /admin/customer/:id/edit/sr  (services/adminEdits.js SECTIONS.sr).
+  Saving it empty removes the section from the app.
+%>
+<%
+  var sr = analysis.srProducts || {};
+  var hero = sr.era_hero_product || {};
+  function srStepRow(step) { step = step || {}; %>
+    <div class="row">
+      <%- include('_rowTools') %>
+      <div class="grid2">
+        <div><label>Step (e.g. Cleanse, Serum, SPF)</label><input type="text" data-path="routine_category" maxlength="120" value="<%= step.routine_category || '' %>"></div>
+        <div><label>SR product name</label><input type="text" data-path="sr_product_name" maxlength="200" value="<%= step.sr_product_name || '' %>"></div>
+      </div>
+      <label>Key actives (comma separated, the app shows the first 3)</label>
+      <input type="text" data-path="key_actives_matched" data-split="," maxlength="700"
+             value="<%= (Array.isArray(step.key_actives_matched) ? step.key_actives_matched : []).join(', ') %>">
+      <label>How to use it</label>
+      <textarea data-path="use_instruction" maxlength="1000" rows="2"><%= step.use_instruction || '' %></textarea>
+      <label>Why this product</label>
+      <textarea data-path="match_reason" maxlength="1000" rows="2"><%= step.match_reason || '' %></textarea>
+      <label>Text shown when there is no SR product for this step</label>
+      <input type="text" data-path="no_match_note" maxlength="1000" value="<%= step.no_match_note || '' %>" placeholder="Source externally for this step.">
+      <%# Catalogue id from the analysis service. Kept as-is; with a product name and no id
+          the server stores a marker id so the name is shown (see analysisFields.js). %>
+      <input type="hidden" data-path="sr_product_id" value="<%= step.sr_product_id || '' %>">
+    </div>
+<% } %>
+<div class="card" id="sr">
+  <h2>SR Ritual (Profile screen)</h2>
+  <% if (!analysis.srProducts) { %>
+    <p class="muted">This reading has no SR Ritual yet (the analysis service returned none, or it was taken before these were saved). Anything you add here appears on the user's Profile screen.</p>
+  <% } %>
+  <form data-json-editor action="/admin/customer/<%= analysis._id %>/edit/sr">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+    <label>Bundle note</label>
+    <textarea data-path="srProducts.bundle_note" maxlength="1000" rows="2"><%= sr.bundle_note || '' %></textarea>
+
+    <fieldset>
+      <legend>Era hero product</legend>
+      <label>Product name</label>
+      <input type="text" data-path="srProducts.era_hero_product.sr_product_name" maxlength="200" value="<%= hero.sr_product_name || '' %>">
+      <label>Why it is the hero</label>
+      <textarea data-path="srProducts.era_hero_product.hero_reason" maxlength="1000" rows="2"><%= hero.hero_reason || '' %></textarea>
+    </fieldset>
+
+    <% [['am', 'Morning'], ['pm', 'Evening']].forEach(function (side) { %>
+      <fieldset>
+        <legend><%= side[1] %> steps</legend>
+        <div class="list-wrap">
+          <div data-list="srProducts.<%= side[0] %>">
+            <% (Array.isArray(sr[side[0]]) ? sr[side[0]] : []).forEach(function (s) { srStepRow(s); }); %>
+          </div>
+          <template><% srStepRow({}); %></template>
+          <button type="button" class="btn secondary small" data-row-action="add">+ Add <%= side[1].toLowerCase() %> step</button>
+        </div>
+      </fieldset>
+    <% }); %>
+
+    <p><button type="submit">Save SR Ritual</button></p>
+    <p class="editor-status muted"></p>
+  </form>
+</div>

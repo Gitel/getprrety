@@ -1,0 +1,52 @@
+<%#
+  Users list: one row per account (the Clients page is one row per quiz completion).
+  Includes people who signed up but never finished the quiz. Data from userDirectory.listUsers.
+%>
+<%
+  function stamp(d) { return d ? new Date(d).toISOString().slice(0, 16).replace('T', ' ') : '—'; }
+  // Builds a page link that keeps the current search term.
+  function pageHref(p) { return '/admin/users?page=' + p + (list.q ? '&q=' + encodeURIComponent(list.q) : ''); }
+%>
+<%- include('_head', { title: 'Users' }) %>
+<%- include('_nav', { active: 'users' }) %>
+<main>
+  <% if (locals.notice) { %>
+    <div class="notice <%= notice.error ? 'error' : '' %>"><%= notice.text %></div>
+  <% } %>
+  <form method="get" action="/admin/users" style="display: flex; gap: 8px; margin-bottom: 14px;">
+    <input type="search" name="q" value="<%= list.q %>" maxlength="100" placeholder="Search by email or first name">
+    <button type="submit">Search</button>
+  </form>
+
+  <p class="muted"><%= list.total %> user<%= list.total === 1 ? '' : 's' %><%= list.q ? ' matching "' + list.q + '"' : '' %></p>
+
+  <table>
+    <thead>
+      <tr><th>Name</th><th>Email</th><th>Signed up</th><th>Sign-in</th><th>Quiz completions</th><th>Latest Skin Era</th></tr>
+    </thead>
+    <tbody>
+      <% list.users.forEach(function (u) { %>
+        <tr>
+          <td><a href="/admin/users/<%= u._id %>"><%= u.firstName || '(no name)' %></a></td>
+          <td><%= u.email %></td>
+          <td><%= stamp(u.createdAt) %></td>
+          <td><%= u.googleId ? 'Google' : 'Email' %></td>
+          <td><%= u.analyses.count %></td>
+          <td><%= u.analyses.latestEraName || u.analyses.latestEraId || '—' %></td>
+        </tr>
+      <% }); %>
+      <% if (!list.users.length) { %>
+        <tr><td colspan="6" class="muted">No users found.</td></tr>
+      <% } %>
+    </tbody>
+  </table>
+
+  <% if (list.pages > 1) { %>
+    <p style="margin-top: 14px;">
+      <% if (list.page > 1) { %><a href="<%= pageHref(list.page - 1) %>">&larr; Newer</a> &nbsp;<% } %>
+      Page <%= list.page %> of <%= list.pages %>
+      <% if (list.page < list.pages) { %>&nbsp; <a href="<%= pageHref(list.page + 1) %>">Older &rarr;</a><% } %>
+    </p>
+  <% } %>
+</main>
+<%- include('_foot') %>

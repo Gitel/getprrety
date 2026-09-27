@@ -27,3 +27,10 @@ export function getWelcomeRef() {
     return null;
   }
 }
+
+// Screen where a user with no saved analysis starts the quiz: the clinic WelcomeScreen
+// when the app was opened with a known ?ref= (it is the only place the referral is
+// captured), otherwise the generic QuizIntro. Used by the login-first auth screens.
+export function quizEntryScreen() {
+  return getWelcomeRef() ? 'Welcome' : 'QuizIntro';
+}

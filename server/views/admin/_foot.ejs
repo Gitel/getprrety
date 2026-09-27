@@ -1,2 +1,12 @@
+<script>
+  // Any <form data-confirm="question"> asks before submitting. Done here with a listener
+  // because the CSP (helmet default script-src-attr 'none') blocks inline onsubmit=
+  // handlers, and reading the text from a data attribute keeps it out of JS code.
+  document.querySelectorAll('form[data-confirm]').forEach(function (form) {
+    form.addEventListener('submit', function (event) {
+      if (!window.confirm(form.getAttribute('data-confirm'))) event.preventDefault();
+    });
+  });
+</script>
 </body>
 </html>
