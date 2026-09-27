@@ -21,10 +21,10 @@ export function quizPhotoUris(answers) {
 // Single writer for POST /api/analysis. Used by both the authenticated LoadingScreen
 // path and the post-signup SignUpScreen path so the payload — quizPhotoIds included —
 // stays identical.
-// srProducts / shelfAnalysis come from the analysis service alongside `analysis` (they
-// live in separate context state). They are saved too so the Profile screen can show
-// them again after a restart and admins can edit them; the server sanitizes both.
-export async function persistAnalysis({ analysis, answers, srProducts = null, shelfAnalysis = null }) {
+// srProducts / shelfAnalysis travel on `analysis` itself (see analyzeWithRailway.js) and
+// are saved with it, so the Profile screen can show them again after a restart and
+// admins can edit them; the server sanitizes both.
+export async function persistAnalysis({ analysis, answers }) {
   if (!analysis) return;
 
   const scanClaimed = answers?.skinScanId && answers?.skinScanToken
@@ -61,12 +61,20 @@ export async function persistAnalysis({ analysis, answers, srProducts = null, sh
     productAudit: analysis.productAudit,
     routine:      analysis.routine,
     affirmation:  analysis.affirmation,
-    srProducts,
-    shelfAnalysis,
     quizAnswers:  sanitizeQuizAnswers(answers),
     quizPhotoIds,
     skinScanId:   scanClaimed ? answers.skinScanId : null,
     clientRequestId,
+    // 'gemini' | 'fallback' (+ why it failed). Lets the server mark generic results.
+    source:         analysis.source ?? null,
+    fallbackReason: analysis.fallbackReason ?? null,
+    // Extra Gemini output. Saved so the product routine and shelf audit survive a
+    // reload; null on a fallback. The server sanitizes these before storing them.
+    srProducts:     analysis.srProducts ?? null,
+    shelfAnalysis:  analysis.shelfAnalysis ?? null,
+    safetyFlags:    analysis.safetyFlags ?? null,
+    checkInPrompts: analysis.checkInPrompts ?? null,
+    eventPrep:      analysis.eventPrep ?? null,
   }));
   return response?.analysis || null;
 }

@@ -58,6 +58,15 @@
     </form>
   </div>
 
+  <%# Gemini failed for this client, so the Skin Era, analysis text and routine in the %>
+  <%# editors below are the canned template every such client receives - not a %>
+  <%# personalized reading. Shown above the editors so admins see it before editing. %>
+  <% if (analysis.source === 'fallback') { %>
+    <div class="warn">
+      &#9888; Generic result: the AI skin analysis was unavailable, so this client got the standard template, not a personalized reading.
+      <% if (analysis.fallbackReason) { %><br><code><%= analysis.fallbackReason %></code><% } %>
+    </div>
+  <% } %>
   <%- include('_edit_fields') %>
 
   <%- include('_edit_routine') %>

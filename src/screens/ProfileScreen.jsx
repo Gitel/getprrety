@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { C, fetchProductRecs } from '../constants';
 import { useApp } from '../context/AppContext';
 import { pollScan } from '../lib/skinScan';
+import FallbackBanner from '../components/FallbackBanner';
 
 const CONCERN_LABELS = {
   acne: 'Acne', pore: 'Pores', texture: 'Texture', redness: 'Redness',
@@ -22,17 +23,19 @@ const SEVERITY_META = [
 
 export default function ProfileScreen({ navigation, route }) {
   const {
-    analysis, setAnalysis, answers, user,
-    srProducts: sessionSrProducts, shelfAnalysis: sessionShelfAnalysis,
-    analysisSaveFailed, setAnalysisSaveFailed,
+    analysis, setAnalysis, answers, user, analysisSaveFailed, setAnalysisSaveFailed,
+    productRecsCache, setProductRecsCache,
   } = useApp();
-  // The SR Ritual / shelf saved ON the analysis (read back from the server) win over the
-  // in-memory copies from this session: they survive app restarts and include admin
-  // edits. The in-memory copies only cover the first view right after the quiz, when the
-  // analysis object comes straight from the analysis service and has no such keys yet.
-  const srProducts    = analysis?.srProducts    !== undefined ? analysis.srProducts    : sessionSrProducts;
-  const shelfAnalysis = analysis?.shelfAnalysis !== undefined ? analysis.shelfAnalysis : sessionShelfAnalysis;
+  // Opened from Home (the "My skin profile" header button or the "View my full analysis"
+  // card), not from the quiz reveal.
+  const openedFromHome = Boolean(route?.params?.fromHome);
   const era = analysis?.era;
+  // Product routine + shelf audit travel on the analysis itself, so a saved analysis
+  // loaded after a reload/login shows them too (null for fallbacks and older records).
+  // Right after the quiz they come straight from the analysis service on the same object;
+  // after a resume refresh they are the server copy, admin edits included.
+  const srProducts    = analysis?.srProducts;
+  const shelfAnalysis = analysis?.shelfAnalysis;
   const audit         = analysis?.productAudit || {};
 
   const replaceItems = audit.replace || [];
@@ -56,22 +59,39 @@ export default function ProfileScreen({ navigation, route }) {
   useEffect(() => {
     if (!user) return;
     // Picks edited by the clinic in the admin dashboard win: show exactly those and do
-    // not ask Claude. Without them, keep generating fresh picks on every open.
+    // not ask Claude. Without them, reuse this session's picks for the same audit (cache
+    // below), else ask Claude. Nothing is saved server-side, so a reload asks again.
     if (analysis?.productRecs) {
       setProductRecs(analysis.productRecs);
       setLoadingRecs(false);
       return;
     }
     if (!addItems.length && !replaceItems.length) return;
+    // Quiz answers are only in memory in the quiz session; a saved analysis (reopened
+    // after a reload) carries its own copy, so use that before the US default.
+    const c   = answers?.country || analysis?.quizAnswers?.country || 'United States';
+    const key = JSON.stringify([audit, c, era?.name || '']);
+    // Session cache: reopening Profile for the same audit reuses the earlier result
+    // instead of calling the paid, rate-limited recommendations endpoint again.
+    if (productRecsCache?.key === key) {
+      setCountry(productRecsCache.country);
+      setProductRecs(productRecsCache.recs);
+      // An earlier run of this effect may have been cancelled mid-request (its spinner
+      // is then never cleared by that run), so clear it here, like the admin-picks branch.
+      setLoadingRecs(false);
+      return;
+    }
     setLoadingRecs(true);
     // Set by the cleanup below when this effect re-runs (e.g. admin picks arrived) or the
     // screen closes, so a slow Claude answer can never overwrite newer picks.
     let cancelled = false;
     (async () => {
       try {
-        const c    = answers?.country || 'United States';
         setCountry(c);
         const recs = await fetchProductRecs(audit, c, era?.name || '');
+        // Cached even if this run was cancelled: the picks are still correct for `key`, so
+        // reopening Profile for the same audit reuses them instead of paying again.
+        setProductRecsCache({ key, recs, country: c });
         if (!cancelled) setProductRecs(recs);
       } catch (e) { console.warn('Product recs:', e.message); }
       if (!cancelled) setLoadingRecs(false);
@@ -122,6 +142,9 @@ export default function ProfileScreen({ navigation, route }) {
             </Pressable>
           </View>
         )}
+
+        {/* Generic-result warning + Try again / Retake (renders nothing for real results) */}
+        <FallbackBanner analysis={analysis} navigation={navigation} />
 
         {/* Era hero */}
         <View style={s.eraHero}>
@@ -386,9 +409,9 @@ export default function ProfileScreen({ navigation, route }) {
           //  - no user (took "Skip for now")          -> SignUp, which saves this analysis;
           //  - signed in, SkinTiming never answered    -> first-time onboarding chain;
           //  - signed in and onboarded (e.g. a retake) -> straight to Home.
-          //  - opened from Home's "My skin profile" button -> just go back to that Home
-          //    (navigating would stack a second Home on top of the first).
-          onPress={() => (route?.params?.fromHome
+          //  - opened from Home ("My skin profile" button or "View my full analysis" card)
+          //    -> just go back to that Home (navigating would stack a second Home on top).
+          onPress={() => (openedFromHome
             ? navigation.goBack()
             : navigation.navigate(!user ? 'SignUp' : user.skincareTiming ? 'Home' : 'SkinTiming'))}
         >

@@ -72,6 +72,13 @@ function renderRoutine(routine) {
   return body || '<p><em>See full profile in dashboard.</em></p>';
 }
 
+// A 'fallback' result is the canned buildFallback() template the app shows when the
+// Gemini analysis fails - the same text and routine for everyone. The clinic still gets
+// the email (so it knows a client signed up), but must not read it as personalized.
+function isGenericResult(analysis) {
+  return Boolean(analysis && analysis.source === 'fallback');
+}
+
 // customer here is a { analysis, user } pair — the app has no single "customer" document.
 function buildClinicEmailHtml({ analysis, user }) {
   const answers = (analysis && analysis.quizAnswers) || {};
@@ -93,8 +100,14 @@ function buildClinicEmailHtml({ analysis, user }) {
   const concerns = joinList(answers.skin_goals) || answers.top_concern || 'n/a';
   const base = (process.env.PUBLIC_BASE_URL || 'https://getpretty.app').replace(/\/+$/, '');
 
+  // Placed right after the allergy block, which stays first because it is safety-critical.
+  const genericBlock = isGenericResult(analysis)
+    ? `<p style="color:#8a5a00;font-weight:bold;">&#9888; Generic result: the AI skin analysis was unavailable. The era and routine below are a standard template, not personalized for this client.</p>`
+    : '';
+
   return `
     ${allergyBlock}
+    ${genericBlock}
     <p><strong>${esc(name)}</strong> &middot; ${esc(email)} &middot; ${esc(phone)}</p>
     <p><strong>Skin Era:</strong> ${esc(eraName)}</p>
     <p><strong>Top concerns:</strong> ${esc(concerns)}</p>
@@ -144,7 +157,8 @@ async function notifyClinic(analysisOrId, { force = false, client } = {}) {
     await mail.sendEmail({
       From: from,
       To: CLINIC_TO,
-      Subject: `New GetPretty client: ${name} — ${eraName}`,
+      // Prefix so a generic (fallback) result is obvious from the inbox list alone.
+      Subject: `${isGenericResult(analysis) ? '[Generic result] ' : ''}New GetPretty client: ${name} — ${eraName}`,
       HtmlBody: buildClinicEmailHtml({ analysis, user }),
       MessageStream: MESSAGE_STREAM,
     });

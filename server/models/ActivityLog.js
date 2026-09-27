@@ -4,7 +4,8 @@ const activityLogSchema = new mongoose.Schema({
   userId:  { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   event:   {
     type: String,
-    enum: ['signup', 'login', 'app_open', 'logout', 'checkin', 'analysis_complete', 'analysis_save_failed'],
+    // analysis_fallback: the Gemini analysis failed and the user got the generic template.
+    enum: ['signup', 'login', 'app_open', 'logout', 'checkin', 'analysis_complete', 'analysis_save_failed', 'analysis_fallback'],
     required: true,
   },
   location: {

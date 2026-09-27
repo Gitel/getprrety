@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, Pressable, ScrollView, Modal, StyleSheet,
 } from 'react-native';
@@ -7,29 +7,78 @@ import { C, MOODS, DONE_MSGS } from '../constants';
 import { useApp } from '../context/AppContext';
 import { api } from '../lib/api';
 import { logActivity } from '../lib/logActivity';
+import FallbackBanner from '../components/FallbackBanner';
+import { routineSteps, defaultRoutineTab, localDay, routineKeyFor, tickedIndices } from '../lib/homeRoutine';
 
 export default function HomeScreen({ navigation }) {
-  const { analysis, unreadMessages, refreshUnreadMessages } = useApp();
+  const { analysis, user, unreadMessages, refreshUnreadMessages } = useApp();
   const era     = analysis?.era;
+  const hour    = new Date().getHours();
 
   // Home is re-mounted every time the user comes back to it (only the top screen of the
   // stack is mounted), so this refreshes the message badge after login and after
   // leaving the Messages screen. App resumes are covered in AppContext.
+  // (The steps shown come from routineSteps() below, not analysis.routine directly.)
   useEffect(() => { refreshUnreadMessages(); }, []);
-  const routine = analysis?.routine || { am: [], pm: [] };
 
-  const [tab,       setTab]      = useState('am');
+  // Opens on the routine the user said they do (onboarding), else the next one by time.
+  const [tab,       setTab]      = useState(() => defaultRoutineTab(user?.skincareTiming, hour));
+  // Ticked steps as { am0: true, pm2: true, ... }; restored from / saved to the server.
   const [done,      setDone]     = useState({});
   const [ciOpen,    setCiOpen]   = useState(false);
   const [checkedIn, setCheckedIn]= useState(null);
   const [mood,      setMood]     = useState(null);
 
-  const steps     = tab === 'am' ? routine.am : routine.pm;
-  const doneCount = steps.filter((_, i) => done[tab + i]).length;
-  const allDone   = doneCount === steps.length && steps.length > 0;
-  const toggle    = i => setDone(p => ({ ...p, [tab + i]: !p[tab + i] }));
-  const hour      = new Date().getHours();
-  const greeting  = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  // Product routine when Railway matched products, else the generic routine (homeRoutine.js).
+  const amSteps    = routineSteps(analysis, 'am');
+  const pmSteps    = routineSteps(analysis, 'pm');
+  const steps      = tab === 'am' ? amSteps : pmSteps;
+  const routineKey = routineKeyFor(amSteps, pmSteps);
+  const today      = localDay();
+  const doneCount  = steps.filter((_, i) => done[tab + i]).length;
+  const allDone    = doneCount === steps.length && steps.length > 0;
+  const greeting   = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+
+  // Saves go out one after another, so they reach the server in tap order (last tap wins).
+  const saveChain = useRef(Promise.resolve());
+  // Once the user taps, a late-arriving server copy must not overwrite their taps.
+  const touched   = useRef(false);
+  // Always the latest ticks. toggle() builds on this instead of the `done` captured at
+  // render time, so two taps landing before a re-render cannot drop the first one, while
+  // the network call stays outside the (pure) state update.
+  const doneRef   = useRef({});
+  function applyDone(next) {
+    doneRef.current = next;
+    setDone(next);
+  }
+
+  // Restore today's ticks. Ignored if they were saved for a different routine (retake).
+  useEffect(() => {
+    if (!user || !analysis) return;
+    let cancelled = false;
+    api.get(`/api/routine-progress?date=${today}`)
+      .then(({ progress }) => {
+        if (cancelled || touched.current || !progress || progress.routineKey !== routineKey) return;
+        const restored = {};
+        progress.am.forEach(i => { restored['am' + i] = true; });
+        progress.pm.forEach(i => { restored['pm' + i] = true; });
+        applyDone(restored);
+      })
+      .catch(() => {}); // offline: start the day unticked, as before
+    return () => { cancelled = true; };
+  }, [Boolean(user), routineKey, today]);
+
+  function toggle(i) {
+    touched.current = true;
+    const current = doneRef.current;
+    const next = { ...current, [tab + i]: !current[tab + i] };
+    applyDone(next);
+    if (!user) return;
+    const body = { date: today, routineKey, am: tickedIndices(next, 'am'), pm: tickedIndices(next, 'pm') };
+    saveChain.current = saveChain.current
+      .then(() => api.put('/api/routine-progress', body))
+      .catch(err => console.warn('Routine progress not saved:', err?.message)); // tick stays on screen
+  }
 
   if (!analysis) {
     return (
@@ -83,6 +132,9 @@ export default function HomeScreen({ navigation }) {
             </Pressable>
           </View>
         </View>
+
+        {/* Generic-result warning + Try again / Retake (renders nothing for real results) */}
+        <FallbackBanner analysis={analysis} navigation={navigation} />
 
         {/* Check-in card */}
         {!checkedIn ? (
@@ -142,6 +194,8 @@ export default function HomeScreen({ navigation }) {
                 </Text>
               </View>
               <View style={{ flex: 1 }}>
+                {/* Product steps carry their routine slot (e.g. "cleanser") as a caption */}
+                {step.category ? <Text style={s.stepCategory}>{step.category}</Text> : null}
                 <Text style={[s.stepName, done[tab + i] && { textDecorationLine: 'line-through' }]}>{step.name}</Text>
                 <Text style={s.stepDesc}>{step.description}</Text>
               </View>
@@ -162,6 +216,20 @@ export default function HomeScreen({ navigation }) {
         <View style={[s.affirmCard, { borderColor: era.color + '25' }]}>
           <Text style={[s.affirmText, { color: '#6B5E57' }]}>"{analysis.affirmation || era.affirmation}"</Text>
         </View>
+
+        {/* Full analysis: Profile (analysis, insights, product audit, product routine,
+            shelf) used to be reachable only right after the quiz. */}
+        <Pressable
+          style={[s.productCta, { borderColor: era.color + '40', marginBottom: 12 }]}
+          onPress={() => navigation.navigate('Profile', { fromHome: true })}
+        >
+          <Text style={{ fontSize: 20 }}>🔬</Text>
+          <View style={{ flex: 1, marginLeft: 12 }}>
+            <Text style={s.productCtaTitle}>View my full analysis</Text>
+            <Text style={s.productCtaSub}>Your skin analysis, product audit and product routine</Text>
+          </View>
+          <Text style={[s.checkInArrow, { color: era.color }]}>→</Text>
+        </Pressable>
 
         {/* Product camera CTA */}
         <Pressable
@@ -256,6 +324,7 @@ const s = StyleSheet.create({
   stepCard:    { backgroundColor: C.card, borderWidth: 1, borderColor: C.border, borderRadius: 13, padding: 15, flexDirection: 'row', alignItems: 'flex-start', gap: 13 },
   stepNum:     { width: 28, height: 28, borderRadius: 14, backgroundColor: '#F0EBE5', alignItems: 'center', justifyContent: 'center' },
   stepNumText: { fontFamily: 'DMSans_500Medium', fontSize: 11, color: C.muted },
+  stepCategory:{ fontFamily: 'DMSans_400Regular', fontSize: 10, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 2 },
   stepName:    { fontFamily: 'DMSans_500Medium', fontSize: 14, color: C.text, marginBottom: 2 },
   stepDesc:    { fontFamily: 'DMSans_400Regular', fontSize: 12, color: C.muted, lineHeight: 18 },
   doneCard:    { borderWidth: 1.5, borderRadius: 16, padding: 20, marginBottom: 16, alignItems: 'center' },

@@ -9,13 +9,15 @@ const CheckIn = require('../models/CheckIn');
 const ProductLog = require('../models/ProductLog');
 const ActivityLog = require('../models/ActivityLog');
 const Message = require('../models/Message');
+// Home step ticks (one document per user per day), added by the Gemini wiring branch.
+const RoutineProgress = require('../models/RoutineProgress');
 
 // Every collection that stores a document per user, keyed by `userId`. When a new
 // per-user model is added, it must be added here too, or deleting a user leaves it behind.
 // Deliberately NOT here:
 //  - AdminAuditLog: the record that an admin deleted this user (it keeps only the id)
 //  - RateLimitBucket: anonymous counters that expire on their own (TTL index)
-const USER_DATA = { SkinAnalysis, SkinScan, Upload, CheckIn, ProductLog, ActivityLog, Message };
+const USER_DATA = { SkinAnalysis, SkinScan, Upload, CheckIn, ProductLog, ActivityLog, Message, RoutineProgress };
 
 /**
  * @param {string} id               The user's id.

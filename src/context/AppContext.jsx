@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { getToken, removeToken } from '../lib/auth';
+import { removeToken } from '../lib/auth';
+// Still needed by the resume refresh below (boot itself now goes through loadSession).
 import { api } from '../lib/api';
+import { loadSession } from '../lib/loadSession';
 import { logActivity } from '../lib/logActivity';
 import { onAppResume, nextAnalysis, keepIfEqual } from '../lib/resumeRefresh';
 import { fetchUnreadCount } from '../lib/messages';
@@ -9,15 +11,18 @@ const AppContext = createContext(null);
 const BOOTSTRAP_TIMEOUT_MS = 8000;
 
 export function AppProvider({ children }) {
+  // srProducts / shelfAnalysis live on `analysis` (see analyzeWithRailway.js), not here.
   const [analysis, setAnalysis] = useState(null);
-  const [srProducts, setSrProducts] = useState(null);
-  const [shelfAnalysis, setShelfAnalysis] = useState(null);
   const [answers, setAnswers] = useState(null);
   const [user, setUser] = useState(null);
   const [authReady, setAuthReady] = useState(false);
   const [analysisSaveFailed, setAnalysisSaveFailed] = useState(false);
   // Clinic messages the user has not opened yet (badge on Home's message button).
   const [unreadMessages, setUnreadMessages] = useState(0);
+  // Session cache for Profile's AI product recommendations: { key, recs, country } or null.
+  // Profile can now be reopened from Home, and each open used to call the paid,
+  // rate-limited (10/h) recommendations endpoint again. Memory only: a reload refetches.
+  const [productRecsCache, setProductRecsCache] = useState(null);
 
   // Re-read the unread count. Best-effort: a failure keeps the last known count.
   function refreshUnreadMessages() {
@@ -26,19 +31,14 @@ export function AppProvider({ children }) {
 
   useEffect(() => {
     (async () => {
-      const token = await getToken();
-      if (token) {
-        try {
-          const { user: signedInUser } = await api.get('/api/auth/me', { timeoutMs: BOOTSTRAP_TIMEOUT_MS });
-          setUser(signedInUser);
-          logActivity('app_open');
-
-          api.get('/api/analysis/latest', { timeoutMs: BOOTSTRAP_TIMEOUT_MS })
-            .then(({ analysis: saved }) => { if (saved) setAnalysis(saved); })
-            .catch(() => {});
-        } catch (error) {
-          if (error?.status === 401 || error?.status === 404) await removeToken();
-        }
+      // User AND saved analysis are both loaded before authReady flips, so SplashScreen
+      // can send a returning user straight to Home (see loadSession.js for the race this
+      // fixes). Worst case is one BOOTSTRAP_TIMEOUT_MS, under SplashScreen's 10 s ceiling.
+      const { user: signedInUser, analysis: saved } = await loadSession({ timeoutMs: BOOTSTRAP_TIMEOUT_MS });
+      if (saved) setAnalysis(saved);
+      if (signedInUser) {
+        setUser(signedInUser);
+        logActivity('app_open');
       }
       setAuthReady(true);
     })();
@@ -74,23 +74,21 @@ export function AppProvider({ children }) {
     await removeToken();
     setUser(null);
     setAnalysis(null);
-    setSrProducts(null);
-    setShelfAnalysis(null);
     setAnswers(null);
     setAnalysisSaveFailed(false);
     setUnreadMessages(0);
+    setProductRecsCache(null);
   }
 
   return (
     <AppContext.Provider value={{
       analysis, setAnalysis,
-      srProducts, setSrProducts,
-      shelfAnalysis, setShelfAnalysis,
       answers, setAnswers,
       user, setUser,
       authReady,
       analysisSaveFailed, setAnalysisSaveFailed,
       unreadMessages, setUnreadMessages, refreshUnreadMessages,
+      productRecsCache, setProductRecsCache,
       logout,
     }}>
       {children}

@@ -23,7 +23,8 @@ beforeEach(() => api.post.mockClear());
 test('sends srProducts and shelfAnalysis with the analysis', async () => {
   const srProducts = { bundle_note: 'Note', am: [], pm: [] };
   const shelfAnalysis = { identified_products: [{ product_name: 'Cleanser' }] };
-  await persistAnalysis({ analysis, answers: {}, srProducts, shelfAnalysis });
+  // Both travel on the analysis object itself (see analyzeWithRailway.js mapToAppFormat).
+  await persistAnalysis({ analysis: { ...analysis, srProducts, shelfAnalysis }, answers: {} });
   const [path, body] = api.post.mock.calls[0];
   expect(path).toBe('/api/analysis');
   expect(body.srProducts).toBe(srProducts);

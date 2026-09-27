@@ -27,7 +27,11 @@
           <td><%= email %></td>
           <td><%= qa.phone || '—' %></td>
           <td><%= stamp(r.createdAt) || '—' %></td>
-          <td><%= era %></td>
+          <td>
+            <%= era %>
+            <%# "generic" = Gemini failed and the client got the canned template; hover for why. %>
+            <% if (r.source === 'fallback') { %><span class="pill no" title="<%= r.fallbackReason || '' %>">generic</span><% } %>
+          </td>
           <td>
             <% if (r.clinicNotifiedAt) { %>
               <span class="pill yes"><%= stamp(r.clinicNotifiedAt) %></span>

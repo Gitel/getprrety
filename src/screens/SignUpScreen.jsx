@@ -25,7 +25,7 @@ function isValidEmail(v) {
 //    just-finished analysis is in context and is saved here once the account exists.
 // `analysis` tells the two apart and drives the copy and the next screen.
 export default function SignUpScreen({ navigation }) {
-  const { analysis, setAnalysis, answers, srProducts, shelfAnalysis, setUser, setAnalysisSaveFailed } = useApp();
+  const { analysis, setAnalysis, answers, setUser, setAnalysisSaveFailed } = useApp();
   const era = analysis?.era;
   const afterQuiz = Boolean(analysis);
 
@@ -56,7 +56,8 @@ export default function SignUpScreen({ navigation }) {
       return;
     }
     // Skip path: save the anonymous analysis to the new account, then onboarding.
-    persistAnalysis({ analysis, answers, srProducts, shelfAnalysis }).then(
+    // srProducts / shelfAnalysis are on `analysis` itself, so they are saved with it.
+    persistAnalysis({ analysis, answers }).then(
       saved => {
         setAnalysisSaveFailed(false);
         // Attach the saved `_id` so resume refresh can bring in clinic edits later.

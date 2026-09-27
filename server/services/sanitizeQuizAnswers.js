@@ -25,4 +25,6 @@ function sanitizeQuizAnswers(answers) {
   return sanitizeValue(answers) || {};
 }
 
-module.exports = { sanitizeQuizAnswers };
+// sanitizeValue is also used for the Gemini extras on POST /api/analysis (routes/analysis.js):
+// same threats (embedded data: URLs, huge strings, prototype keys, deep nesting).
+module.exports = { sanitizeQuizAnswers, sanitizeValue };

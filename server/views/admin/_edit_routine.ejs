@@ -1,6 +1,9 @@
 <%#
-  Editor: the Home screen routine - Morning (am) and Evening (pm) step lists, each step
-  { name, description }, in the order the user will do them.
+  Editor: the generic Home screen routine - Morning (am) and Evening (pm) step lists, each
+  step { name, description }, in the order the user will do them.
+  Home shows these steps only for a tab (am / pm) where the SR Ritual has no product steps;
+  otherwise Home shows the SR Ritual steps (src/lib/homeRoutine.js routineSteps), which are
+  edited in _edit_sr.ejs.
   Saves to POST /admin/customer/:id/edit/routine  (services/adminEdits.js SECTIONS.routine).
 %>
 <%
@@ -17,6 +20,7 @@
 <% } %>
 <div class="card" id="routine">
   <h2>Routine (Home screen)</h2>
+  <p class="muted">Shown on Home only when the SR Ritual below has no Morning / Evening product steps. If it has them, Home shows those instead: edit them in the SR Ritual section.</p>
   <form data-json-editor action="/admin/customer/<%= analysis._id %>/edit/routine">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
     <% [['am', 'Morning'], ['pm', 'Evening']].forEach(function (side) { %>
