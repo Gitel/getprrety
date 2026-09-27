@@ -16,6 +16,13 @@ describe('quizBaselineSeverity', () => {
   test('an unmentioned concern gets the neutral prior', () => {
     expect(quizBaselineSeverity('wrinkle', { skin_goals: ['acne'] })).toBe(1);
   });
+
+  test('firmness follows the aging goals and age_spot the pigmentation goals', () => {
+    const answers = { skin_goals: ['wrinkles', 'melasma'], top_concern: 'melasma' };
+    expect(quizBaselineSeverity('firmness', answers)).toBe(2);
+    expect(quizBaselineSeverity('age_spot', answers)).toBe(3);
+    expect(quizBaselineSeverity('firmness', { skin_goals: ['acne'] })).toBe(1);
+  });
 });
 
 describe('fuse — the API may move severity by at most one level', () => {
