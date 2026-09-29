@@ -454,7 +454,7 @@ const s = StyleSheet.create({
   countryBadge:{ flexDirection: 'row', alignItems: 'center', borderRadius: 10, paddingVertical: 3, paddingHorizontal: 9 },
   countryText: { fontFamily: 'DMSans_500Medium', fontSize: 11 },
   tabRow:      { marginBottom: 12 },
-  tabBtn:      { paddingVertical: 5, paddingHorizontal: 11, borderRadius: 18, borderWidth: 1.5, borderColor: C.border, marginRight: 6 },
+  tabBtn:      { paddingVertical: 5, paddingHorizontal: 11, borderRadius: 18, borderWidth: 1.5, borderColor: C.border, marginEnd: 6 },
   tabText:     { fontFamily: 'DMSans_400Regular', fontSize: 11, color: C.muted },
   auditItems:  { gap: 12 },
   auditCard:   { backgroundColor: C.card, borderRadius: 12, padding: 12, borderWidth: 1 },
@@ -465,7 +465,7 @@ const s = StyleSheet.create({
   addHeader:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 },
   auditProduct:{ fontFamily: 'DMSans_500Medium', fontSize: 13, color: C.text, flex: 1 },
   auditReason: { fontFamily: 'DMSans_400Regular', fontSize: 12, color: C.muted, lineHeight: 19 },
-  priorityBadge:{ borderRadius: 8, paddingVertical: 2, paddingHorizontal: 8, marginLeft: 8 },
+  priorityBadge:{ borderRadius: 8, paddingVertical: 2, paddingHorizontal: 8, marginStart: 8 },
   priorityText: { fontFamily: 'DMSans_500Medium', fontSize: 10 },
 
   productCard: { flexDirection: 'row', alignItems: 'center', gap: 11, backgroundColor: C.card, borderRadius: 11, padding: 11, borderWidth: 1, marginTop: 8 },
@@ -505,7 +505,7 @@ const s = StyleSheet.create({
   srUseInstruction: { fontFamily: 'DMSans_400Regular', fontSize: 13, color: '#4A4039', lineHeight: 20, marginBottom: 5 },
   srMatchReason:    { fontFamily: 'DMSans_400Regular', fontSize: 11, color: C.muted, lineHeight: 18, fontStyle: 'italic' },
   srNoMatch:        { fontFamily: 'DMSans_400Regular', fontSize: 12, color: C.muted, fontStyle: 'italic' },
-  shelfStatusPill:  { marginLeft: 'auto', borderRadius: 8, paddingVertical: 2, paddingHorizontal: 8 },
+  shelfStatusPill:  { marginStart: 'auto', borderRadius: 8, paddingVertical: 2, paddingHorizontal: 8 },
   shelfStatusText:  { fontFamily: 'DMSans_500Medium', fontSize: 10, textTransform: 'capitalize' },
 
   affirmation: { borderWidth: 1.5, borderRadius: 16, padding: 18, marginBottom: 24, alignItems: 'center' },
