@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { View, Text } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
+import { dirFor } from './src/lib/language';
 import { AppProvider } from './src/context/AppContext';
 import WelcomeScreen from './src/screens/WelcomeScreen';
 import SplashScreen from './src/screens/SplashScreen';
@@ -79,12 +81,24 @@ function AppNavigator() {
   return <Screen navigation={navigation} route={{ key: `${current.name}-${stack.length}`, name: current.name, params: current.params }} />;
 }
 
+// Sets the reading direction for everything inside it. react-native-web flips the logical style
+// props (marginStart, paddingEnd, start...) from the nearest `dir`, so Hebrew mirrors the layout.
+// useTranslation re-renders this when the language changes. flex:1 keeps it layout-neutral: it
+// just fills #root like the screens did before. Anything rendered next to the navigator later
+// (e.g. the side menu) must live inside this wrapper.
+function DirectionRoot({ children }) {
+  const { i18n } = useTranslation();
+  return <View dir={dirFor(i18n.language)} style={{ flex: 1 }}>{children}</View>;
+}
+
 export default function App() {
   return (
     <ErrorBoundary>
       <SafeAreaProvider>
         <AppProvider>
-          <AppNavigator />
+          <DirectionRoot>
+            <AppNavigator />
+          </DirectionRoot>
         </AppProvider>
       </SafeAreaProvider>
     </ErrorBoundary>

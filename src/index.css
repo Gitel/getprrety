@@ -42,6 +42,12 @@ body {
   flex-direction: column;
 }
 
+/* Letter-spacing breaks the joined shapes of Hebrew letters, so turn it off in RTL.
+   No effect in English (dir="ltr"). */
+html[dir="rtl"] * {
+  letter-spacing: normal !important;
+}
+
 h1,
 h2 {
   font-family: var(--heading);
