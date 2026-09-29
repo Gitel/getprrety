@@ -77,7 +77,7 @@ export default function ProductCameraScreen({ navigation }) {
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: C.bg },
   container: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
-  back: { position: 'absolute', top: 20, left: 24, zIndex: 1 },
+  back: { position: 'absolute', top: 20, start: 24, zIndex: 1 },
   backText: { fontFamily: 'DMSans_400Regular', fontSize: 14, color: C.accent },
   emoji: { fontSize: 52, marginBottom: 20 },
   title: { fontFamily: 'CormorantGaramond_500Medium', fontSize: 28, color: C.text, marginBottom: 14 },

@@ -50,7 +50,7 @@ export default function QuizIntroScreen({ navigation, route }) {
 
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: C.bg },
-  backBtn: { position: 'absolute', top: 8, left: 20, zIndex: 10, paddingVertical: 8, paddingHorizontal: 4 },
+  backBtn: { position: 'absolute', top: 8, start: 20, zIndex: 10, paddingVertical: 8, paddingHorizontal: 4 },
   backText: { fontFamily: 'DMSans_400Regular', fontSize: 14, color: C.accent },
   content: { flexGrow: 1, paddingHorizontal: 32, paddingTop: 40, paddingBottom: 40, alignItems: 'center', justifyContent: 'center' },
   moon: { fontSize: 44, marginBottom: 22 },
