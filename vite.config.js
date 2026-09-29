@@ -29,6 +29,7 @@ export default defineConfig(({ mode }) => {
       'process.env.VITE_PRIVACY_URL': definePublicValue(publicEnv.VITE_PRIVACY_URL),
       'process.env.VITE_CONSENT_VERSION': definePublicValue(publicEnv.VITE_CONSENT_VERSION),
       'process.env.VITE_GOOGLE_WEB_CLIENT_ID': definePublicValue(publicEnv.VITE_GOOGLE_WEB_CLIENT_ID),
+      'process.env.VITE_BOOKING_URL': definePublicValue(publicEnv.VITE_BOOKING_URL),
     },
   }
 })
