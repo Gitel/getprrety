@@ -134,8 +134,9 @@ function PotentialBar({ now, potential, color }) {
     <View style={s.potBar}>
       <View style={s.potTrack}>
         <View style={[s.potFill, { width: `${now}%`, backgroundColor: color }]} />
-        <View style={[s.potBand, { left: `${now}%`, width: `${potential - now}%` }]} />
-        <View style={[s.potNow, { left: `${now}%` }]} />
+        {/* start = left in English, right in Hebrew (RTL) */}
+        <View style={[s.potBand, { start: `${now}%`, width: `${potential - now}%` }]} />
+        <View style={[s.potNow, { start: `${now}%` }]} />
       </View>
       <View style={s.potCaps}>
         <Text style={s.potCap}>Today {DOT} {now}</Text>
@@ -336,7 +337,7 @@ const s = StyleSheet.create({
   dialNum:    { fontFamily: 'CormorantGaramond_500Medium', fontSize: 60, lineHeight: 56, fontWeight: '600', color: P.ink },
   dialLabel:  { fontFamily: 'DMSans_400Regular', fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: P.inkFaint, marginTop: 4 },
 
-  ageChip:    { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 16, backgroundColor: P.card, borderWidth: 1, borderColor: P.line, borderRadius: 100, paddingVertical: 8, paddingLeft: 12, paddingRight: 16 },
+  ageChip:    { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 16, backgroundColor: P.card, borderWidth: 1, borderColor: P.line, borderRadius: 100, paddingVertical: 8, paddingStart: 12, paddingEnd: 16 },
   ageIcon:    { width: 26, height: 26, borderRadius: 13, backgroundColor: P.resil + '22', alignItems: 'center', justifyContent: 'center' },
   ageIconText:{ fontSize: 14, color: P.resil },
   ageLabel:   { fontFamily: 'DMSans_400Regular', fontSize: 12.5, color: P.inkSoft },
@@ -378,9 +379,9 @@ const s = StyleSheet.create({
 
   potBar:     { marginBottom: 10 },
   potTrack:   { height: 8, borderRadius: 8, backgroundColor: P.paper2, position: 'relative' },
-  potFill:    { position: 'absolute', left: 0, top: 0, bottom: 0, borderRadius: 8 },
-  potBand:    { position: 'absolute', top: 0, bottom: 0, borderRadius: 8, backgroundColor: P.good + '40', borderRightWidth: 2, borderRightColor: P.good },
-  potNow:     { position: 'absolute', top: -2.5, width: 13, height: 13, marginLeft: -6.5, borderRadius: 7, backgroundColor: '#FFF', borderWidth: 3, borderColor: P.ink, zIndex: 2 },
+  potFill:    { position: 'absolute', start: 0, top: 0, bottom: 0, borderRadius: 8 },
+  potBand:    { position: 'absolute', top: 0, bottom: 0, borderRadius: 8, backgroundColor: P.good + '40', borderEndWidth: 2, borderEndColor: P.good }, // borderEnd = right border in English, left in Hebrew
+  potNow:     { position: 'absolute', top: -2.5, width: 13, height: 13, marginStart: -6.5, borderRadius: 7, backgroundColor: '#FFF', borderWidth: 3, borderColor: P.ink, zIndex: 2 },
   potCaps:    { flexDirection: 'row', justifyContent: 'space-between', marginTop: 9 },
   potCap:     { fontFamily: 'DMSans_400Regular', fontSize: 10.5, color: P.inkFaint },
   potGoal:    { color: P.good, fontWeight: '600' },

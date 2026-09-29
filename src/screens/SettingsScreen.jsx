@@ -190,7 +190,7 @@ function TimeRow({ label, icon, on, time, days, color, onToggle, onNudge, onDayT
     <View style={[tr.card, { borderColor: on ? color + '50' : C.border }]}>
       <View style={tr.topRow}>
         <Text style={{ fontSize: 20 }}>{icon}</Text>
-        <View style={{ flex: 1, marginLeft: 12 }}>
+        <View style={{ flex: 1, marginStart: 12 }}>
           <Text style={tr.label}>{label}</Text>
           <Text style={[tr.timeSmall, { color: on ? color : C.muted }]}>{on ? formatTime(time) : 'Off'}</Text>
         </View>

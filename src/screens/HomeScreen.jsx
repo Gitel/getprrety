@@ -156,7 +156,7 @@ export default function HomeScreen({ navigation }) {
             onPress={() => setCiOpen(true)}
           >
             <Text style={{ fontSize: 22 }}>🪞</Text>
-            <View style={{ flex: 1, marginLeft: 14 }}>
+            <View style={{ flex: 1, marginStart: 14 }}>
               <Text style={s.checkInTitle}>Daily skin check-in</Text>
               <Text style={s.checkInSub}>How does your skin feel today?</Text>
             </View>
@@ -237,7 +237,7 @@ export default function HomeScreen({ navigation }) {
           onPress={() => navigation.navigate('Profile', { fromHome: true })}
         >
           <Text style={{ fontSize: 20 }}>🔬</Text>
-          <View style={{ flex: 1, marginLeft: 12 }}>
+          <View style={{ flex: 1, marginStart: 12 }}>
             <Text style={s.productCtaTitle}>View my full analysis</Text>
             <Text style={s.productCtaSub}>Your skin analysis, product audit and product routine</Text>
           </View>
@@ -250,7 +250,7 @@ export default function HomeScreen({ navigation }) {
           onPress={() => navigation.navigate('ProductCamera')}
         >
           <Text style={{ fontSize: 20 }}>📦</Text>
-          <View style={{ flex: 1, marginLeft: 12 }}>
+          <View style={{ flex: 1, marginStart: 12 }}>
             <Text style={s.productCtaTitle}>Log your products</Text>
             <Text style={s.productCtaSub}>Save a product photo to track what you're using</Text>
           </View>
@@ -309,12 +309,12 @@ const s = StyleSheet.create({
   content:     { padding: 22, paddingTop: 22 },
   greetingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 22 },
   // Lets a long era name wrap instead of pushing the header buttons off-screen.
-  greetingBlock: { flexShrink: 1, marginRight: 10 },
+  greetingBlock: { flexShrink: 1, marginEnd: 10 }, // start/end = left/right in English, mirrored in Hebrew (RTL)
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   profileBtn:  { borderWidth: 1, borderRadius: 999, paddingVertical: 5, paddingHorizontal: 11, backgroundColor: C.card },
   profileBtnText: { fontFamily: 'DMSans_500Medium', fontSize: 12 },
   // Small red count pinned to the top-right of the message icon.
-  msgBadge:    { position: 'absolute', top: -5, right: -9, minWidth: 16, height: 16, borderRadius: 8, paddingHorizontal: 3, backgroundColor: '#C44B4B', alignItems: 'center', justifyContent: 'center' },
+  msgBadge:    { position: 'absolute', top: -5, end: -9, minWidth: 16, height: 16, borderRadius: 8, paddingHorizontal: 3, backgroundColor: '#C44B4B', alignItems: 'center', justifyContent: 'center' },
   msgBadgeText:{ fontFamily: 'DMSans_500Medium', fontSize: 9, color: '#FFFFFF' },
   greetingText:{ fontFamily: 'DMSans_400Regular', fontSize: 12, color: C.muted, marginBottom: 4 },
   eraTag:      { fontFamily: 'CormorantGaramond_500Medium', fontSize: 17 },
