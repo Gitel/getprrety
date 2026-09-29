@@ -117,9 +117,10 @@ const styles = StyleSheet.create({
   inputWrap: { position: 'relative' },
   input: {
     backgroundColor: C.card, borderWidth: 1.5, borderColor: C.border, borderRadius: 13,
-    padding: 14, paddingRight: 46, fontFamily: 'DMSans_400Regular', fontSize: 15, color: C.text,
+    // paddingEnd/end are logical: end = right in English, left in Hebrew (RTL)
+    padding: 14, paddingEnd: 46, fontFamily: 'DMSans_400Regular', fontSize: 15, color: C.text,
   },
-  spinner: { position: 'absolute', right: 14, top: 15 },
+  spinner: { position: 'absolute', end: 14, top: 15 },
   list: {
     backgroundColor: C.card, borderWidth: 1.5, borderColor: C.border, borderRadius: 13,
     marginTop: 6, overflow: 'hidden',

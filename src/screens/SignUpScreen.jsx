@@ -248,10 +248,11 @@ const s = StyleSheet.create({
   input:       { backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: '#E8DDD8', borderRadius: 12, paddingVertical: 13, paddingHorizontal: 14, fontFamily: 'DMSans_400Regular', fontSize: 14, color: '#2C2C2C' },
   inputError:  { borderColor: '#C9897A' },
   passwordRow: { position: 'relative' },
-  passwordInput:{ paddingRight: 48 },
-  eyeBtn:      { position: 'absolute', right: 14, top: 0, bottom: 0, justifyContent: 'center' },
+  // paddingEnd/end are logical: end = right in English, left in Hebrew (RTL)
+  passwordInput:{ paddingEnd: 48 },
+  eyeBtn:      { position: 'absolute', end: 14, top: 0, bottom: 0, justifyContent: 'center' },
   eyeIcon:     { fontSize: 16 },
-  error:       { fontFamily: 'DMSans_400Regular', fontSize: 12, color: '#C9897A', marginTop: 5, marginLeft: 4 },
+  error:       { fontFamily: 'DMSans_400Regular', fontSize: 12, color: '#C9897A', marginTop: 5, marginStart: 4 },
 
   consent:     { marginTop: 4, marginBottom: 12, paddingHorizontal: 4 },
   cta:         { backgroundColor: '#C9897A', borderRadius: 13, paddingVertical: 15, alignItems: 'center', marginTop: 8 },

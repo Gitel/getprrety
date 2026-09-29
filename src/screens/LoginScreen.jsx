@@ -201,8 +201,9 @@ const s = StyleSheet.create({
   fieldWrap:      { marginBottom: 12 },
   input:          { backgroundColor: C.card, borderWidth: 1.5, borderColor: C.border, borderRadius: 13, paddingVertical: 14, paddingHorizontal: 16, fontFamily: 'DMSans_400Regular', fontSize: 14, color: C.text },
   passwordRow:    { position: 'relative' },
-  passwordInput:  { paddingRight: 48 },
-  eyeBtn:         { position: 'absolute', right: 14, top: 0, bottom: 0, justifyContent: 'center' },
+  // paddingEnd/end are logical: end = right in English, left in Hebrew (RTL)
+  passwordInput:  { paddingEnd: 48 },
+  eyeBtn:         { position: 'absolute', end: 14, top: 0, bottom: 0, justifyContent: 'center' },
   eyeIcon:        { fontSize: 16 },
 
   forgotRow:      { alignItems: 'center', marginBottom: 20 },
