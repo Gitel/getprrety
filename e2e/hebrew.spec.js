@@ -81,7 +81,8 @@ test.describe('signed in, Hebrew', () => {
     await openMessages(page, t, 0);
 
     await expect(page.getByText(t('messages:subtitle'))).toBeVisible();
-    await expect(backButton(page, t)).toBeVisible();
+    // The Back text button was removed (edge swipe-back replaces it).
+    await expect(backButton(page, t)).toHaveCount(0);
 
     // Sender lines look like: RLM + who + " middle-dot " + FSI + time + PDI (see senderLine()).
     // Find them by their isolate marks; the RLM must be the very first character.
@@ -100,12 +101,13 @@ test.describe('signed in, Hebrew', () => {
     expect(all.some(x => x.includes(t('messages:clinic')))).toBe(true);
   });
 
-  test('Settings is in Hebrew including the Back label', async ({ page, t, mock }) => {
+  test('Settings is in Hebrew and has no Back control', async ({ page, t, mock }) => {
     mock.set({ unread: 0 });
     await openSettings(page, t);
 
     await expect(page.getByText(t('settings:remindersTitle'))).toBeVisible();
-    await expect(backButton(page, t)).toBeVisible();
+    // The Back text button was removed (edge swipe-back replaces it).
+    await expect(backButton(page, t)).toHaveCount(0);
   });
 });
 

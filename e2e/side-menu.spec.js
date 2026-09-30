@@ -7,7 +7,8 @@
 // keeps them apart from same-named things on the screen behind (e.g. Home's own message card).
 import { test, expect } from './support/test.js';
 import { makeT } from './support/i18n.js';
-import { openMenu, tapMenuItem, backButton, panelOf } from './support/nav.js';
+import { openMenu, tapMenuItem, panelOf } from './support/nav.js';
+import { edgeSwipe } from './support/touch.js';
 
 test.use({ signedIn: true });
 
@@ -128,11 +129,10 @@ test.describe('open and close', () => {
   });
 });
 
-test.describe('Back button (current behaviour, replaced by swipe-back in T-D0)', () => {
-  // Uses the Settings Back text, which the swipe-back change removes. The same navigation rule
-  // without the Back text is covered by '"My routine" from another screen pops back to Home'
-  // in the next describe block (Home -> Messages -> Settings, menu "My routine" lands on Home).
-  test('Home -> Messages -> Settings, then Settings Back lands on Home', async ({ page, t }) => {
+test.describe('edge swipe after menu navigation (swipe-back)', () => {
+  // Proves the "replace" rule with the gesture: Messages -> Settings through the menu REPLACES
+  // Messages (stack is [Home, Settings]), so one edge swipe lands on Home, not on Messages.
+  test('Home -> Messages -> Settings via the menu, then the edge swipe lands on Home', async ({ page, t }) => {
     await page.goto('/');
     await homeIsShowing(page, t);
 
@@ -147,8 +147,8 @@ test.describe('Back button (current behaviour, replaced by swipe-back in T-D0)',
     await tapMenuItem(page, t, 'menu:settings');
     await settingsIsShowing(page, t);
 
-    // Settings Back lands on Home, NOT on Messages (current behaviour of the replace rule).
-    await backButton(page, t).click();
+    // Edge swipe (English: left edge, drag right, 60% of the width) lands on Home, NOT on Messages.
+    await edgeSwipe(page, { lang: 'en', dx: 234 });
     await homeIsShowing(page, t);
     await expect(page.getByText(t('messages:title'), { exact: true })).toHaveCount(0);
   });

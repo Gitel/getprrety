@@ -6,6 +6,7 @@
 //   Settings  = hamburger button -> side menu -> "Settings"
 import { test, expect } from './support/test.js';
 import { openMessages, openSettings, openMenu, tapMenuItem, backButton } from './support/nav.js';
+import { edgeSwipe } from './support/touch.js';
 
 test.use({ signedIn: true });
 
@@ -198,18 +199,22 @@ test.describe('Settings', () => {
   });
 });
 
-// The Back button is replaced by swipe-back in T-D0; these two tests are expected to change then.
-test.describe('Back button (current behaviour, replaced by swipe-back in T-D0)', () => {
-  test('Messages Back returns to Home', async ({ page, t }) => {
+// Messages and Settings have no Back text button any more: the edge swipe replaces it.
+// The swipe gesture itself (both languages, thresholds, animation) is tested in swipe-back.spec.js;
+// here we only keep the "no Back control" assertions and one swipe per screen.
+test.describe('No Back button (swipe-back)', () => {
+  test('Messages has no Back control; the edge swipe returns to Home', async ({ page, t }) => {
     await openMessages(page, t);
-    await backButton(page, t).click();
+    await expect(backButton(page, t)).toHaveCount(0);
+    await edgeSwipe(page, { lang: 'en', dx: 234 });
     await expect(page.getByText(t('home:greeting.morning'))).toBeVisible();
     await expect(page.getByText(t('messages:title'), { exact: true })).toHaveCount(0);
   });
 
-  test('Settings Back returns to Home', async ({ page, t }) => {
+  test('Settings has no Back control; the edge swipe returns to Home', async ({ page, t }) => {
     await openSettings(page, t);
-    await backButton(page, t).click();
+    await expect(backButton(page, t)).toHaveCount(0);
+    await edgeSwipe(page, { lang: 'en', dx: 234 });
     await expect(page.getByText(t('home:greeting.morning'))).toBeVisible();
     await expect(page.getByText(t('settings:title'), { exact: true })).toHaveCount(0);
   });

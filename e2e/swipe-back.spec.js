@@ -1,0 +1,250 @@
+// Edge swipe-back (test-first: written BEFORE the feature exists).
+//
+// The rule being tested:
+//   - A one-finger touch that STARTS within 24 px of the screen edge and drags toward the
+//     screen's middle goes back one screen: left edge -> right in English (LTR), right edge ->
+//     left in Hebrew (RTL).
+//   - Release past 35% of the width, or a fast flick (> 0.5 px/ms and > 40 px), goes back.
+//     Anything else springs back and stays.
+//   - A drag that is not horizontal at first (vertical-first) is ignored.
+//   - Works on every screen with a screen beneath it, except Loading, Quiz, and a screen that
+//     has Loading directly beneath it (the first Profile after the quiz).
+//   - Messages and Settings no longer have a Back text button.
+//   - The open side menu is outside the swipe area: swiping while it is open does not go back.
+//   - Without reduced motion the screen follows the finger with an inline translateX, which is
+//     cleared 180 ms after release.
+// Gestures come from support/touch.js (real CDP touches in Chromium, synthetic events in WebKit).
+import { test, expect } from './support/test.js';
+import { FIRST_TIME_USER } from './support/fixtures-data.js';
+import {
+  openHome, openProfileFromHome, openMessages, openSettings, openSignUp, openMenu, panelOf, backButton,
+} from './support/nav.js';
+import { walkQuizToLoading, expectProfileAfterQuiz, finishOnboardingToHome } from './support/quiz.js';
+import {
+  edgeSwipe, oppositeEdgeSwipe, swipe, touchStart, touchEnd, dragAlong, edgeSwipePlan, VIEWPORT_WIDTH,
+} from './support/touch.js';
+
+const text = (page, value) => page.getByText(value, { exact: true });
+
+// Screen checks (same recognisers the other specs use).
+const homeShows = (page, t) => expect(page.getByText(t('home:greeting.morning'))).toBeVisible();
+const messagesShow = (page, t) => expect(text(page, t('messages:title'))).toBeVisible();
+
+// Proving "nothing happened" needs a real wait: give a wrongly-fired swipe time to navigate
+// (goBack is synchronous, so this is generous), then the caller asserts we are still here.
+const settle = page => page.waitForTimeout(400);
+
+// Every inline `transform: ...translateX(...)` under #root, as strings (empty list = none).
+const inlineTranslates = page => page.evaluate(() =>
+  [...document.querySelectorAll('#root *')]
+    .map(el => el.style.transform)
+    .filter(value => value && value.includes('translateX')));
+
+// First number in "translateX(123px)" (negative allowed).
+const pxOf = value => Number(/translateX\((-?[\d.]+)/.exec(value)[1]);
+
+const LONG = Math.round(VIEWPORT_WIDTH * 0.6); // a drag clearly past the 35% threshold (234 px)
+
+// ---- direction cases, both languages -------------------------------------------------------
+for (const lang of ['en', 'he']) {
+  test.describe(`edge swipe, ${lang === 'en' ? 'English (LTR)' : 'Hebrew (RTL)'}`, () => {
+    test.use({ signedIn: true, lang });
+
+    test('Messages has no Back control; the swipe returns to Home', async ({ page, t }) => {
+      await openMessages(page, t);
+      await expect(backButton(page, t)).toHaveCount(0);
+      await edgeSwipe(page, { lang, dx: LONG });
+      await homeShows(page, t);
+      await expect(text(page, t('messages:title'))).toHaveCount(0);
+    });
+
+    test('Settings has no Back control; the swipe returns to Home', async ({ page, t }) => {
+      await openSettings(page, t);
+      await expect(backButton(page, t)).toHaveCount(0);
+      await edgeSwipe(page, { lang, dx: LONG });
+      await homeShows(page, t);
+      await expect(text(page, t('settings:title'))).toHaveCount(0);
+    });
+
+    test('Profile opened from Home: the swipe returns to Home', async ({ page, t }) => {
+      await openProfileFromHome(page, t);
+      await edgeSwipe(page, { lang, dx: LONG });
+      await homeShows(page, t);
+      await expect(text(page, t('profile:audit.title'))).toHaveCount(0);
+    });
+
+    test('the opposite edge does nothing', async ({ page, t }) => {
+      await openMessages(page, t);
+      await oppositeEdgeSwipe(page, { lang, dx: LONG });
+      await settle(page);
+      await messagesShow(page, t);
+    });
+
+    test('a swipe starting about 100 px from the edge does nothing', async ({ page, t }) => {
+      await openMessages(page, t);
+      await edgeSwipe(page, { lang, dx: LONG, startInset: 100 });
+      await settle(page);
+      await messagesShow(page, t);
+    });
+
+    test('a short slow drag (60 px, 0.1 px/ms) springs back', async ({ page, t }) => {
+      await openMessages(page, t);
+      await edgeSwipe(page, { lang, dx: 60, steps: 10, stepDelayMs: 60 });
+      await settle(page);
+      await messagesShow(page, t);
+    });
+
+    test('a fast flick (60 px in 3 steps x 10 ms) goes back', async ({ page, t }) => {
+      await openMessages(page, t);
+      await edgeSwipe(page, { lang, dx: 60, steps: 3, stepDelayMs: 10 });
+      await homeShows(page, t);
+    });
+
+    test('a vertical-first drag from the edge does nothing', async ({ page, t }) => {
+      await openMessages(page, t);
+      // Each step moves 15 px sideways but 40 px down: the first 10 px are clearly vertical,
+      // so the gesture must be ignored even though the total sideways distance passes 35%.
+      const { from, to } = edgeSwipePlan({ lang, dx: 150, y: 200, dy: 400 });
+      await swipe(page, { from, to, steps: 10, stepDelayMs: 16 });
+      await settle(page);
+      await messagesShow(page, t);
+    });
+
+    test('Home (the root screen) does nothing', async ({ page, t }) => {
+      await openHome(page, t);
+      await edgeSwipe(page, { lang, dx: LONG });
+      await settle(page);
+      await homeShows(page, t);
+    });
+  });
+}
+
+// ---- flows, English only -------------------------------------------------------------------
+test.describe('swipe-back flows (English)', () => {
+  test.describe('signed out', () => {
+    test('Login -> SignUp -> swipe -> Login', async ({ page, t }) => {
+      await openSignUp(page, t);
+      await edgeSwipe(page, { lang: 'en', dx: LONG });
+      await expect(text(page, t('auth:login.cta'))).toBeVisible();
+      await expect(text(page, t('auth:signup.headline'))).toHaveCount(0);
+    });
+
+    test('Login -> Skip -> QuizIntro -> swipe -> Login', async ({ page, t }) => {
+      await page.goto('/');
+      await text(page, t('auth:login.skip')).click();
+      await expect(text(page, t('quiz:welcome.cta'))).toBeVisible();
+      await edgeSwipe(page, { lang: 'en', dx: LONG });
+      await expect(text(page, t('auth:login.cta'))).toBeVisible();
+      await expect(text(page, t('quiz:welcome.cta'))).toHaveCount(0);
+    });
+
+    test('the first Quiz question ignores the swipe', async ({ page, t }) => {
+      await page.goto('/');
+      await text(page, t('auth:login.skip')).click();
+      await text(page, t('quiz:welcome.cta')).click();
+      await expect(text(page, t('quiz:name.question'))).toBeVisible();
+      await edgeSwipe(page, { lang: 'en', dx: LONG });
+      await settle(page);
+      await expect(text(page, t('quiz:name.question'))).toBeVisible();
+    });
+  });
+
+  test.describe('signed in, first-time user', () => {
+    test.use({ signedIn: true });
+    // Walking the whole quiz is long (real timers); same budget as quiz-onboarding.spec.js.
+    test.setTimeout(180_000);
+
+    test('Loading ignores the swipe', async ({ page, mock, t }) => {
+      mock.set({ analysis: null, user: FIRST_TIME_USER });
+      mock.holdAnalysis(); // keeps the Loading screen on screen
+      await page.goto('/');
+      await expect(text(page, t('quiz:welcome.cta'))).toBeVisible();
+      await walkQuizToLoading(page, t);
+      await edgeSwipe(page, { lang: 'en', dx: LONG });
+      await settle(page);
+      await expect(text(page, t('quiz:loading.subtitle'))).toBeVisible();
+    });
+
+    test('the first Profile after the quiz (Loading beneath) ignores the swipe', async ({ page, mock, t }) => {
+      mock.set({ analysis: null, user: FIRST_TIME_USER });
+      mock.holdAnalysis();
+      await page.goto('/');
+      await walkQuizToLoading(page, t);
+      await mock.releaseAnalysis();
+      await expectProfileAfterQuiz(page, t);
+      await edgeSwipe(page, { lang: 'en', dx: LONG });
+      await settle(page);
+      await expect(text(page, t('profile:cta'))).toBeVisible();
+      await expect(text(page, t('quiz:loading.subtitle'))).toHaveCount(0);
+    });
+
+    test('after onboarding reaches Home, the swipe goes back to the Notifications setup screen', async ({ page, mock, t }) => {
+      mock.set({ analysis: null, user: FIRST_TIME_USER });
+      mock.holdAnalysis();
+      await page.goto('/');
+      await walkQuizToLoading(page, t);
+      await mock.releaseAnalysis();
+      await expectProfileAfterQuiz(page, t);
+      await finishOnboardingToHome(page, t);
+      await edgeSwipe(page, { lang: 'en', dx: LONG });
+      await expect(text(page, t('onboarding:notifications.title'))).toBeVisible();
+    });
+  });
+
+  test.describe('signed in, side menu', () => {
+    test.use({ signedIn: true });
+
+    test('a swipe while the menu is open does not navigate back', async ({ page, t }, testInfo) => {
+      await openMessages(page, t);
+      await openMenu(page, t);
+      await edgeSwipe(page, { lang: 'en', dx: LONG });
+      await settle(page);
+      // Not navigated back: Home never appears.
+      await expect(page.getByText(t('home:greeting.morning'))).toHaveCount(0);
+      // What the menu itself does (it is outside the swipe area, so the backdrop decides):
+      // recorded as an annotation so the observed behaviour shows in the report.
+      const menuStillOpen = await panelOf(page, t).isVisible();
+      testInfo.annotations.push({ type: 'menu after swipe', description: menuStillOpen ? 'menu stays open' : 'menu closed' });
+    });
+  });
+});
+
+// ---- animated behaviour (reduced motion OFF) ----------------------------------------------
+for (const lang of ['en', 'he']) {
+  test.describe(`drag animation, ${lang === 'en' ? 'English' : 'Hebrew'}`, () => {
+    test.use({ signedIn: true, lang, reducedMotion: 'no-preference' });
+
+    // +1 in English (content moves right), -1 in Hebrew (content moves left).
+    const sign = lang === 'en' ? 1 : -1;
+
+    test('mid-drag the screen carries an inline translateX with the right sign', async ({ page, t }) => {
+      await openMessages(page, t);
+      const { from, to } = edgeSwipePlan({ lang, dx: 100 });
+      await touchStart(page, from);
+      await dragAlong(page, from, to, { steps: 5, stepDelayMs: 16 }); // finger still down
+      await expect.poll(async () => {
+        const values = await inlineTranslates(page);
+        return values.length > 0 && values.every(value => Math.sign(pxOf(value)) === sign);
+      }).toBe(true);
+      await touchEnd(page, to); // release (short drag: springs back)
+    });
+
+    test('a short drag springs back: stays on the screen, no inline translateX remains', async ({ page, t }) => {
+      await openMessages(page, t);
+      const { from, to } = edgeSwipePlan({ lang, dx: 60 });
+      await touchStart(page, from);
+      await dragAlong(page, from, to, { steps: 10, stepDelayMs: 60 }); // slow and short
+      await touchEnd(page, to);
+      // The release animation lasts 180 ms; polling gives it that time plus margin.
+      await expect.poll(() => inlineTranslates(page), { timeout: 2000 }).toEqual([]);
+      await messagesShow(page, t);
+    });
+
+    test('a long drag returns to Home and no inline translateX remains', async ({ page, t }) => {
+      await openMessages(page, t);
+      await edgeSwipe(page, { lang, dx: LONG, steps: 10, stepDelayMs: 30 });
+      await homeShows(page, t);
+      await expect.poll(() => inlineTranslates(page), { timeout: 2000 }).toEqual([]);
+    });
+  });
+}
