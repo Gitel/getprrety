@@ -75,12 +75,9 @@ export default function MessagesScreen({ navigation }) {
   return (
     <SafeAreaView style={s.safe}>
       <View style={s.header}>
-        {/* Top row: [menu button] Back. A row mirrors automatically in RTL. */}
+        {/* Top row: [menu button]. Going back is the edge swipe (handled in App.jsx / SwipeBack), so there is no Back button. A row mirrors automatically in RTL. */}
         <View style={s.topRow}>
           <MenuButton onPress={navigation.openMenu} color={accent} />
-          <Pressable onPress={() => navigation.goBack()} hitSlop={10}>
-            <Text style={[s.backText, { color: accent }]}>{t('common:back')}</Text>
-          </Pressable>
         </View>
         <Text style={s.pageTitle}>{t('messages:title')}</Text>
         <Text style={s.subtitle}>{t('messages:subtitle')}</Text>
@@ -152,7 +149,6 @@ const s = StyleSheet.create({
   safe:        { flex: 1, backgroundColor: C.bg },
   header:      { paddingHorizontal: 24, paddingTop: 18, paddingBottom: 8 },
   topRow:      { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 16 },
-  backText:    { fontFamily: 'DMSans_400Regular', fontSize: 14 },
   pageTitle:   { fontFamily: 'CormorantGaramond_500Medium', fontSize: 26, color: C.text, marginBottom: 4 },
   subtitle:    { fontFamily: 'DMSans_400Regular', fontSize: 12, color: C.muted },
   threadScroll:{ flex: 1 },

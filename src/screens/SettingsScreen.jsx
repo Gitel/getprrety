@@ -98,12 +98,9 @@ export default function SettingsScreen({ navigation }) {
     <SafeAreaView style={s.safe}>
       <ScrollView contentContainerStyle={s.content}>
 
-        {/* Top row: [menu button] Back. A row mirrors automatically in RTL. */}
+        {/* Top row: [menu button]. Going back is the edge swipe (handled in App.jsx / SwipeBack), so there is no Back button. A row mirrors automatically in RTL. */}
         <View style={s.topRow}>
           <MenuButton onPress={navigation.openMenu} color={C.accent} />
-          <Pressable onPress={() => navigation.goBack()}>
-            <Text style={s.backText}>{t('common:back')}</Text>
-          </Pressable>
         </View>
 
         <Text style={s.pageTitle}>{t('settings:title')}</Text>
@@ -235,7 +232,6 @@ const s = StyleSheet.create({
   safe:      { flex: 1, backgroundColor: C.bg },
   content:   { padding: 24, paddingTop: 18 },
   topRow:    { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 16 },
-  backText:  { fontFamily: 'DMSans_400Regular', fontSize: 14, color: C.accent },
   pageTitle: { fontFamily: 'CormorantGaramond_500Medium', fontSize: 26, color: C.text, marginBottom: 20 },
   eraCard:   { borderWidth: 1.5, borderRadius: 16, padding: 20, alignItems: 'center', marginBottom: 28 },
   eraName:   { fontFamily: 'CormorantGaramond_500Medium', fontSize: 17, marginBottom: 4 },
