@@ -4,12 +4,8 @@ import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { isRTL } from '../lib/language';
 import {
-  SLOP_PX, SETTLE_MS, startsAtEdge, backDistance, shouldGoBack,
+  SLOP_PX, SETTLE_MS, VELOCITY_WINDOW_MS, startsAtEdge, backDistance, shouldGoBack, releaseVelocity,
 } from '../lib/swipeBack';
-
-// How far back (ms) the finger speed is measured when the finger lifts.
-const VELOCITY_WINDOW_MS = 150;
-const MIN_STEP_MS = 8;
 
 // True when the user asked the OS for less motion (copy of the check in SideMenu.jsx).
 function prefersReducedMotion() {
@@ -98,6 +94,10 @@ export default function SwipeBack({ enabled, onBack, screenKey, children }) {
     }
 
     function onStart(event) {
+      // A lost touchend (iOS can drop it when the touched node is removed) would leave the phase
+      // stuck. A fresh single-finger touch proves no finger is down, so start clean. A second
+      // finger has touches.length === 2, so it skips this and still aborts an active gesture.
+      if (event.touches.length === 1 && gesture.current.phase !== 'settling') resetGesture();
       const g = gesture.current;
       if (g.phase === 'undecided' || g.phase === 'swiping') {
         if (event.touches.length > 1) abort();
@@ -116,7 +116,6 @@ export default function SwipeBack({ enabled, onBack, screenKey, children }) {
         startY: touch.clientY,
         width: rect.width,
         distance: 0,
-        velocity: 0,
         samples: [{ d: 0, t: event.timeStamp || performance.now() }], // recent (distance, time) points
       };
     }
@@ -134,8 +133,10 @@ export default function SwipeBack({ enabled, onBack, screenKey, children }) {
       const dy = touch.clientY - g.startY;
 
       if (g.phase === 'undecided') {
-        // Claim horizontal movement right away so the browser cannot start a scroll instead.
-        if (Math.abs(dx) >= Math.abs(dy) && event.cancelable) event.preventDefault();
+        // Claim clearly horizontal movement toward the middle right away so the browser cannot
+        // start a scroll instead. Strict ">" so a zero or diagonal first move is NOT claimed:
+        // on iOS a prevented early touchmove can block native scrolling for the whole touch.
+        if (Math.abs(dx) > Math.abs(dy) && backDistance(dx, isRtl) > 0 && event.cancelable) event.preventDefault();
         if (Math.max(Math.abs(dx), Math.abs(dy)) <= SLOP_PX) return;
         // Past the slop: decide. Horizontal and toward the middle = ours, anything else is not.
         if (Math.abs(dx) >= Math.abs(dy) && backDistance(dx, isRtl) > 0) {
@@ -148,21 +149,12 @@ export default function SwipeBack({ enabled, onBack, screenKey, children }) {
 
       if (event.cancelable) event.preventDefault();
       g.distance = Math.min(Math.max(backDistance(dx, isRtl), 0), g.width);
-      // Finger speed in px/ms = the larger of (a) the average speed over the last
-      // VELOCITY_WINDOW_MS and (b) the fastest single step inside it. The average alone misses a
-      // quick flick followed by slow events; one step alone is noisy. Steps shorter than
-      // MIN_STEP_MS are skipped for (b) (timestamps are too coarse to divide by).
+      // Remember recent (distance, time) points. The speed itself is computed when the finger
+      // lifts (releaseVelocity), so a finger that stopped before lifting counts as slow. Points
+      // older than VELOCITY_WINDOW_MS are dropped (always keeping at least one).
       const now = event.timeStamp || performance.now();
       g.samples.push({ d: g.distance, t: now });
-      while (g.samples.length > 2 && now - g.samples[0].t > VELOCITY_WINDOW_MS) g.samples.shift();
-      const oldest = g.samples[0];
-      g.velocity = now > oldest.t ? (g.distance - oldest.d) / (now - oldest.t) : 0;
-      for (let i = 1; i < g.samples.length; i += 1) {
-        const step = g.samples[i].t - g.samples[i - 1].t;
-        if (step >= MIN_STEP_MS) {
-          g.velocity = Math.max(g.velocity, (g.samples[i].d - g.samples[i - 1].d) / step);
-        }
-      }
+      while (g.samples.length > 1 && now - g.samples[0].t > VELOCITY_WINDOW_MS) g.samples.shift();
 
       if (prefersReducedMotion()) return; // no following; the decision happens on release
       // translateX is NOT mirrored by react-native-web, so flip the sign ourselves in RTL.
@@ -171,10 +163,12 @@ export default function SwipeBack({ enabled, onBack, screenKey, children }) {
       node.style.overflow = 'hidden';
     }
 
-    function onEnd() {
+    function onEnd(event) {
       const g = gesture.current;
       if (g.phase === 'swiping') {
-        finish(shouldGoBack({ distance: g.distance, width: g.width, velocity: g.velocity }));
+        // Speed at the moment of lifting, measured over the last VELOCITY_WINDOW_MS.
+        const velocity = releaseVelocity(g.samples, event.timeStamp || performance.now());
+        finish(shouldGoBack({ distance: g.distance, width: g.width, velocity }));
       } else if (g.phase !== 'settling') {
         gesture.current = { phase: 'idle' };
       }
@@ -191,8 +185,8 @@ export default function SwipeBack({ enabled, onBack, screenKey, children }) {
     // must be non-passive so preventDefault() can stop the browser from scrolling.
     node.addEventListener('touchstart', onStart, { passive: true });
     node.addEventListener('touchmove', onMove, { passive: false });
-    node.addEventListener('touchend', onEnd);
-    node.addEventListener('touchcancel', onCancel);
+    node.addEventListener('touchend', onEnd, { passive: true });
+    node.addEventListener('touchcancel', onCancel, { passive: true });
     return () => {
       node.removeEventListener('touchstart', onStart);
       node.removeEventListener('touchmove', onMove);

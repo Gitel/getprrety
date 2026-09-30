@@ -86,17 +86,25 @@ function AppNavigator() {
   // Latest menuOpen for the Back listener below (registered once, so it cannot close over state).
   const menuOpenRef = useRef(menuOpen);
   menuOpenRef.current = menuOpen;
+  // Goes back one screen only when allowed (root screens, Loading and Quiz: does nothing).
+  // Used by BOTH the edge swipe and the Android Back listener so they follow the same rule.
+  // useCallback with [] keeps it stable, so the mount-only listener below never re-registers.
+  const popIfAllowed = useCallback(() => {
+    setStack(previous => (canSwipeBack(previous) ? previous.slice(0, -1) : previous));
+  }, []);
   // Android system Back (button and OS back gesture) goes back one screen, using the same rule
-  // as the edge swipe. Root screens, Loading and Quiz: Back does nothing (as before).
+  // as the edge swipe.
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return undefined;
     let handle;
     let cancelled = false;
     const onBackButton = () => {
-      // Menu open: SideMenu's own listener closes it. Both listeners run in the same tick, so
-      // this ref still says "open" here and we must not also pop a screen.
+      // Menu open: SideMenu's own listener closes it. This listener is registered at mount while
+      // SideMenu's is registered only when the menu opens, and Capacitor notifies listeners in
+      // registration order, so ours runs first while menuOpen is still true (the ref says
+      // "open") and we must not also pop a screen.
       if (menuOpenRef.current) return;
-      setStack(previous => (canSwipeBack(previous) ? previous.slice(0, -1) : previous));
+      popIfAllowed();
     };
     Promise.resolve(CapacitorApp.addListener('backButton', onBackButton)).then(h => {
       if (cancelled) h?.remove?.();
@@ -126,7 +134,7 @@ function AppNavigator() {
 
   return (
     <>
-      <SwipeBack enabled={canSwipeBack(stack)} onBack={navigation.goBack} screenKey={routeKey}>
+      <SwipeBack enabled={canSwipeBack(stack)} onBack={popIfAllowed} screenKey={routeKey}>
         <Screen navigation={navigation} route={{ key: routeKey, name: current.name, params: current.params }} />
       </SwipeBack>
       <SideMenu visible={menuOpen} onClose={closeMenu} navigation={navigation} currentScreen={current.name} />
