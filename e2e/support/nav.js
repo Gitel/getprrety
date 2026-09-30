@@ -8,7 +8,7 @@ import { expect } from './test.js';
 
 // The open side-menu panel. exact:true matters: the plain text "Menu" is also a substring of
 // the hamburger label "Open menu" / "Close menu".
-const panelOf = (page, t) => page.getByLabel(t('menu:panel'), { exact: true });
+export const panelOf = (page, t) => page.getByLabel(t('menu:panel'), { exact: true });
 
 // Opens the side menu with the hamburger button of the screen that is showing.
 export async function openMenu(page, t) {
@@ -25,11 +25,10 @@ export async function tapMenuItem(page, t, key) {
 // The Back control (the same text on every screen that has one).
 export const backButton = (page, t) => page.getByText(t('common:back'), { exact: true });
 
-// Boots the app and waits until Home is on screen (greeting + era name from the fixture).
+// Boots the app and waits until Home is on screen (the greeting only renders once an analysis exists).
 export async function openHome(page, t) {
   await page.goto('/');
   await expect(page.getByText(t('home:greeting.morning'))).toBeVisible();
-  await expect(page.getByText('Barrier Healing Era')).toBeVisible();
 }
 
 // Home -> "View my full analysis" -> Profile (opened with fromHome: true).
@@ -44,15 +43,15 @@ export async function openProfileFromHome(page, t) {
 export async function openMessages(page, t, unread = 1) {
   await page.goto('/');
   const label = unread ? t('home:messages.unread', { count: unread }) : t('home:messages.label');
-  await page.getByLabel(label).click();
+  await page.getByLabel(label, { exact: true }).click();
   await expect(page.getByText(t('messages:title'), { exact: true })).toBeVisible();
 }
 
 // Boots on Home and opens Settings through the side menu.
 export async function openSettings(page, t) {
   await page.goto('/');
-  await page.getByLabel(t('menu:open')).click();
-  await page.getByRole('button', { name: t('menu:settings') }).click();
+  await openMenu(page, t);
+  await tapMenuItem(page, t, 'menu:settings');
   await expect(page.getByText(t('settings:title'), { exact: true })).toBeVisible();
 }
 

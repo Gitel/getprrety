@@ -7,16 +7,12 @@
 // keeps them apart from same-named things on the screen behind (e.g. Home's own message card).
 import { test, expect } from './support/test.js';
 import { makeT } from './support/i18n.js';
-import { openMenu, tapMenuItem, backButton } from './support/nav.js';
+import { openMenu, tapMenuItem, backButton, panelOf } from './support/nav.js';
 
 test.use({ signedIn: true });
 
 // A translator for Hebrew, used after the language switch (the `t` fixture stays English).
 const tHe = makeT('he');
-
-// The open menu panel, in the given translator's language. exact:true matters: the plain text
-// "Menu" is also a substring of the hamburger label "Open menu" / "Close menu".
-const panelOf = (page, tr) => page.getByLabel(tr('menu:panel'), { exact: true });
 
 // Home is recognised by its morning greeting (fixed clock: 09:00 UTC, user prefers morning).
 const homeIsShowing = (page, t) => expect(page.getByText(t('home:greeting.morning'))).toBeVisible();

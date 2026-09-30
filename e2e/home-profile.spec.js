@@ -9,15 +9,18 @@
 //     ambiguous. Inside one screen, fixture strings are matched with exact: true, because
 //     Playwright's default text match is a case-insensitive substring.
 import { test, expect } from './support/test.js';
-import { TODAY } from './support/fixtures-data.js';
+import { TODAY, ANALYSIS } from './support/fixtures-data.js';
 import { openMenu, tapMenuItem, backButton, openHome, openProfileFromHome } from './support/nav.js';
 
 test.use({ signedIn: true });
 
 // The fixture's SR routine, as Home lists it (see fixtures-data.js srProducts).
-const AM_STEPS = ['Gentle Gel Cleanser', 'Barrier Repair Cream', 'Sunscreen'];
-const PM_STEPS = ['Gentle Gel Cleanser', 'Hydra Calm Serum', 'Barrier Repair Cream'];
-const NO_MATCH_NOTE = 'Use your own mineral SPF 30+ as the last morning step.';
+// Derived from the exported ANALYSIS fixture so the names cannot drift from it: a matched product
+// shows its product name, an unmatched slot shows its category name.
+const stepName = (s) => (s.sr_product_id ? s.sr_product_name : s.routine_category);
+const AM_STEPS = ANALYSIS.srProducts.am.map(stepName);
+const PM_STEPS = ANALYSIS.srProducts.pm.map(stepName);
+const NO_MATCH_NOTE = ANALYSIS.srProducts.am.find((s) => s.no_match_note).no_match_note;
 
 // The "Messages" button on Home, found by its accessibility label.
 const messagesButton = (page, t, count) =>
@@ -30,6 +33,7 @@ const progress = (t, done) => t('home:progress.steps', { count: 3, done, total: 
 test.describe('Home', () => {
   test('shows the morning greeting, the era name and opens on the Morning tab', async ({ page, t }) => {
     await openHome(page, t);
+    await expect(page.getByText('Barrier Healing Era')).toBeVisible();
     // skincareTiming 'morning' -> the AM steps are listed, the PM-only step is not.
     for (const name of AM_STEPS) await expect(page.getByText(name, { exact: true })).toBeVisible();
     await expect(page.getByText('Hydra Calm Serum', { exact: true })).toHaveCount(0);

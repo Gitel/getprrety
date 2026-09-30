@@ -113,7 +113,11 @@ test.describe('Messages', () => {
     // many count requests happened so far, then return to Home via the side menu ("My routine").
     const countCallsBefore = mock.callsTo('GET', '/api/messages/unread-count').length;
     await openMenu(page, t);
+    // Listen for the count answer BEFORE the tap, so the asserts below run after the refetched
+    // answer has come back (and can be applied to the badge).
+    const countAnswer = page.waitForResponse((r) => r.url().endsWith('/api/messages/unread-count'));
     await tapMenuItem(page, t, 'menu:myRoutine');
+    await countAnswer;
     // Home asks for the count again when it comes back: wait for that NEW request first.
     await expect.poll(() => mock.callsTo('GET', '/api/messages/unread-count').length).toBeGreaterThan(countCallsBefore);
     await expect(page.getByLabel(t('home:messages.label'), { exact: true })).toBeVisible();

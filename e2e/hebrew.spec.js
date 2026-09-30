@@ -7,7 +7,7 @@
 import { test, expect } from './support/test.js';
 import { USER } from './support/fixtures-data.js';
 import { makeT } from './support/i18n.js';
-import { openMenu, backButton, openMessages, openSettings, openSignUp } from './support/nav.js';
+import { openMenu, panelOf, backButton, openMessages, openSettings, openSignUp } from './support/nav.js';
 
 test.use({ lang: 'he' });
 
@@ -58,7 +58,7 @@ test.describe('signed in, Hebrew', () => {
     await expect(page.getByText(t('home:greeting.morning'))).toBeVisible();
     await openMenu(page, t);
 
-    const panel = page.getByLabel(t('menu:panel'), { exact: true });
+    const panel = panelOf(page, t);
     // Hebrew item labels.
     await expect(page.getByText(t('menu:myRoutine'), { exact: true })).toBeVisible();
     await expect(page.getByText(t('menu:settings'), { exact: true })).toBeVisible();
