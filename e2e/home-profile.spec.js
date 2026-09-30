@@ -3,38 +3,26 @@
 //
 // These lock in what the app does TODAY. Notes for a junior developer:
 //   - The app has no URLs: "navigation" is an in-memory stack, so we click through the UI.
-//   - The browser clock is frozen at 2026-09-29 09:00 UTC (morning), so Home says "Good morning",
+//   - The browser clock starts at 2026-09-29 09:00 UTC (morning) and keeps running, so Home says "Good morning",
 //     and the user's skincareTiming is 'morning', so Home opens on the Morning (AM) tab.
 //   - Only the TOP screen of the stack is mounted, so a text that exists on two screens is never
 //     ambiguous. Inside one screen, fixture strings are matched with exact: true, because
 //     Playwright's default text match is a case-insensitive substring.
 import { test, expect } from './support/test.js';
+import { TODAY } from './support/fixtures-data.js';
+import { openMenu, tapMenuItem, backButton, openHome, openProfileFromHome } from './support/nav.js';
 
 test.use({ signedIn: true });
 
 // The fixture's SR routine, as Home lists it (see fixtures-data.js srProducts).
 const AM_STEPS = ['Gentle Gel Cleanser', 'Barrier Repair Cream', 'Sunscreen'];
 const PM_STEPS = ['Gentle Gel Cleanser', 'Hydra Calm Serum', 'Barrier Repair Cream'];
-const TODAY = '2026-09-29';
 const NO_MATCH_NOTE = 'Use your own mineral SPF 30+ as the last morning step.';
-
-// Opens the app and waits until Home is on screen (greeting + era name from the fixture).
-async function openHome(page, t) {
-  await page.goto('/');
-  await expect(page.getByText(t('home:greeting.morning'))).toBeVisible();
-  await expect(page.getByText('Barrier Healing Era')).toBeVisible();
-}
-
-// Home -> "View my full analysis" -> Profile (opened with fromHome: true).
-async function openProfileFromHome(page, t) {
-  await openHome(page, t);
-  await page.getByText(t('home:viewAnalysis.title')).click();
-  await expect(page.getByText(t('profile:audit.title'))).toBeVisible();
-}
 
 // The "Messages" button on Home, found by its accessibility label.
 const messagesButton = (page, t, count) =>
-  page.getByLabel(count ? t('home:messages.unread', { count }) : t('home:messages.label'));
+  // exact: true, because the plain label "Messages" is a substring of "Messages, 1 unread".
+  page.getByLabel(count ? t('home:messages.unread', { count }) : t('home:messages.label'), { exact: true });
 
 // "1/3 steps complete" style progress line on Home.
 const progress = (t, done) => t('home:progress.steps', { count: 3, done, total: 3 });
@@ -182,23 +170,33 @@ test.describe('Home', () => {
 });
 
 test.describe('Home entry points', () => {
-  test('Messages button opens the Messages screen; Back returns to Home and refreshes the badge', async ({ page, t, mock }) => {
+  test('Messages button opens the Messages screen; returning Home refreshes the unread badge', async ({ page, t, mock }) => {
     await openHome(page, t);
     await messagesButton(page, t, 1).click();
     await expect(page.getByText(t('messages:subtitle'))).toBeVisible();
     // The fixture thread is shown.
     await expect(page.getByText('Hi Dana, welcome! Tell us if anything in your routine feels irritating.')).toBeVisible();
 
-    // The clinic thread was read: the server now says 0 unread. Home re-mounts on Back and asks again.
-    mock.set({ unread: 0 });
-    await page.getByText(t('common:back')).click();
+    // Opening the thread marks it read; wait for that call so it cannot overwrite our change below.
+    await expect.poll(() => mock.callsTo('POST', '/api/messages/read').length).toBeGreaterThan(0);
+    // While the user is away, 2 new messages arrive on the server.
+    mock.set({ unread: 2 });
+    const before = mock.callsTo('GET', '/api/messages/unread-count').length;
+
+    // Back to Home through the side menu ("My routine" does goBack). Home re-mounts and asks
+    // again, so the badge shows 2 (Messages screen had zeroed it locally, so 2 proves a refetch).
+    await openMenu(page, t);
+    await tapMenuItem(page, t, 'menu:myRoutine');
     await expect(page.getByText(t('home:greeting.morning'))).toBeVisible();
-    await expect(messagesButton(page, t, 0)).toBeVisible();
+    await expect(messagesButton(page, t, 2)).toBeVisible();
+    await expect.poll(() => mock.callsTo('GET', '/api/messages/unread-count').length).toBeGreaterThan(before);
   });
 
   test('"View my full analysis" opens Profile', async ({ page, t }) => {
     await openProfileFromHome(page, t);
     await expect(page.getByText(t('profile:analysisTitle'))).toBeVisible();
+    // Opened from Home: Profile has no Back control (its CTA / menu lead back).
+    await expect(backButton(page, t)).toHaveCount(0);
     // Home is gone (only the top screen is mounted).
     await expect(page.getByText(t('home:greeting.morning'))).toHaveCount(0);
   });
@@ -206,10 +204,11 @@ test.describe('Home entry points', () => {
   test('side menu "My skin profile" opens Profile (fromHome) with its menu button', async ({ page, t }) => {
     await openHome(page, t);
     // "My skin profile" lives in the side menu, not as a button on Home.
-    await page.getByRole('button', { name: t('menu:open') }).click();
+    await openMenu(page, t);
     await page.getByRole('button', { name: t('menu:mySkinProfile') }).click();
     await expect(page.getByText(t('profile:audit.title'))).toBeVisible();
     await expect(page.getByRole('button', { name: t('menu:open') })).toBeVisible();
+    await expect(backButton(page, t)).toHaveCount(0);
   });
 
   test('"Log your products" card opens the product camera', async ({ page, t }) => {
@@ -222,9 +221,14 @@ test.describe('Home entry points', () => {
 
   test('side menu "Log my products" opens the product camera', async ({ page, t }) => {
     await openHome(page, t);
-    await page.getByRole('button', { name: t('menu:open') }).click();
+    await openMenu(page, t);
     await page.getByRole('button', { name: t('menu:logProducts') }).click();
     await expect(page.getByText(t('camera:title'))).toBeVisible();
+  });
+
+  test('Home itself has no Back control', async ({ page, t }) => {
+    await openHome(page, t);
+    await expect(backButton(page, t)).toHaveCount(0);
   });
 });
 
@@ -321,6 +325,7 @@ test.describe('Profile (opened from Home)', () => {
     await expect(page.getByText(t('profile:audit.title'))).toHaveCount(0);
     // One Home only: a single greeting, and Home works (tabs still switch).
     await expect(page.getByText(t('home:greeting.morning'))).toHaveCount(1);
+    await expect(backButton(page, t)).toHaveCount(0);
     await page.getByText(t('home:tabs.pm'), { exact: true }).click();
     await expect(page.getByText('Hydra Calm Serum', { exact: true })).toBeVisible();
     // NOTE: the stack depth itself (no second Home pushed) is not observable on web: the app has
@@ -333,7 +338,17 @@ test.describe('ProductCamera', () => {
     await openHome(page, t);
     await page.getByText(t('home:logProducts.title')).click();
     await expect(page.getByText(t('camera:title'))).toBeVisible();
-    await page.getByText(t('common:back')).click();
+    await backButton(page, t).click();
+    await expect(page.getByText(t('home:greeting.morning'))).toBeVisible();
+    await expect(page.getByText(t('camera:title'))).toHaveCount(0);
+  });
+
+  test('opened from the side menu, Back also returns to Home', async ({ page, t }) => {
+    await openHome(page, t);
+    await openMenu(page, t);
+    await page.getByRole('button', { name: t('menu:logProducts') }).click();
+    await expect(page.getByText(t('camera:title'))).toBeVisible();
+    await backButton(page, t).click();
     await expect(page.getByText(t('home:greeting.morning'))).toBeVisible();
     await expect(page.getByText(t('camera:title'))).toHaveCount(0);
   });
