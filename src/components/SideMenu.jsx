@@ -13,6 +13,9 @@ import { openInAppBrowser } from '../lib/inAppBrowser';
 import { openLegal, TERMS_URL, PRIVACY_URL } from '../lib/consent';
 import { startRetake } from '../lib/retake';
 import { logActivity } from '../lib/logActivity';
+import { saveLanguage } from '../lib/languageSync';
+import { rescheduleReminders } from '../lib/notifications';
+import { eraText } from '../lib/eraText';
 
 // Slide-in length in milliseconds.
 const SLIDE_MS = 200;
@@ -60,6 +63,41 @@ function Item({ icon, label, onPress, current, role = 'button', a11yLabel, badge
         </View>
       ) : null}
     </Pressable>
+  );
+}
+
+// The two languages the switch offers. Each option is drawn in ITS OWN language (English shows
+// "English", Hebrew shows its own name), whatever language the UI is in now. getFixedT(lang)
+// reads the `languageName` key of that language file, so no Hebrew text is needed in this file.
+const LANGUAGES = ['en', 'he'];
+
+// The language row at the bottom of the menu: a label plus one button per language.
+//   current  the UI language now ('en' or 'he'); that option is shown as selected
+//   onPick   called with the language the user tapped (never with the current one)
+function LanguageRow({ current, onPick }) {
+  const { t, i18n } = useTranslation();
+  return (
+    <View style={s.langRow}>
+      <Text style={s.langLabel}>{t('menu:language')}</Text>
+      {LANGUAGES.map(lang => {
+        const selected = lang === current;
+        const name = i18n.getFixedT(lang)('menu:languageName');
+        return (
+          <Pressable
+            key={lang}
+            // Tapping the language already in use does nothing.
+            onPress={selected ? undefined : () => onPick(lang)}
+            style={s.langOption}
+            accessibilityRole="button"
+            accessibilityLabel={name}
+            // react-native-web passes aria-* props through to the DOM.
+            aria-selected={selected}
+          >
+            <Text style={[s.langText, selected && s.langTextSelected]}>{name}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
   );
 }
 
@@ -147,6 +185,15 @@ export default function SideMenu({ visible, onClose, navigation, currentScreen }
     startRetake({ navigation, user, setAnalysis, setAnswers });
   }
 
+  // Switches the app language. saveLanguage changes the UI at once (the menu re-renders in the
+  // new direction and stays open), stores the choice on the device and sends it to the account
+  // in the background. rescheduleReminders re-creates the local reminders so their text follows
+  // the new language. Both never throw. We do not call setUser: the account copy is refreshed on
+  // the next resume, and a new user object would re-run Profile's paid product-picks effect.
+  function handleLanguage(lang) {
+    saveLanguage(lang).then(() => rescheduleReminders());
+  }
+
   async function handleLogout() {
     onClose();
     await logActivity('logout');
@@ -173,7 +220,7 @@ export default function SideMenu({ visible, onClose, navigation, currentScreen }
                 <View style={s.headerText}>
                   <Text style={s.brand}>Get Pretty</Text>
                   <Text style={s.greeting}>{greeting}</Text>
-                  {era ? <Text style={s.era}>{era.emoji} {era.name}</Text> : null}
+                  {era ? <Text style={s.era}>{era.emoji} {eraText(era, 'name', i18n.language)}</Text> : null}
                 </View>
                 <Pressable
                   onPress={onClose}
@@ -236,6 +283,10 @@ export default function SideMenu({ visible, onClose, navigation, currentScreen }
               <View style={s.divider} />
 
               <Item icon={'\uD83D\uDEAA'} label={t('menu:logout')} onPress={handleLogout} />
+
+              <View style={s.divider} />
+
+              <LanguageRow current={i18n.language} onPick={handleLanguage} />
             </ScrollView>
           </SafeAreaView>
         </Animated.View>
@@ -279,5 +330,10 @@ const s = StyleSheet.create({
   confirmBtnPrimary: { backgroundColor: C.accent, borderColor: C.accent, marginEnd: 0 },
   confirmBtnText: { fontFamily: 'DMSans_500Medium', fontSize: 14, color: C.text },
   confirmBtnPrimaryText: { color: '#fff' },
+  langRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10 },
+  langLabel: { flex: 1, fontFamily: 'DMSans_400Regular', fontSize: 14, color: C.muted, textAlign: 'start' },
+  langOption: { paddingVertical: 6, paddingHorizontal: 10, marginStart: 4 },
+  langText: { fontFamily: 'DMSans_400Regular', fontSize: 15, color: C.text },
+  langTextSelected: { color: C.accent, fontFamily: 'DMSans_700Bold', fontWeight: '700' },
   divider: { height: 1, backgroundColor: C.border, marginVertical: 8 },
 });
