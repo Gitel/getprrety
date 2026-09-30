@@ -1,1 +1,38 @@
-{}
+{
+  "saveFailed": "לא הצלחנו לשמור את ההערכה הזו, ייתכן שהיא לא תופיע בפעם הבאה שתפתחו את האפליקציה.",
+  "eraEyebrow": "התקופה הנוכחית של העור שלכם",
+  "analysisTitle": "🔬 ניתוח העור",
+  "insightsTitle": "💡 תובנות מרכזיות",
+  "audit": {
+    "title": "🧴 בדיקת מוצרים",
+    "remove": "🚫 להסיר ({{count}})",
+    "replace": "🔄 להחליף ({{count}})",
+    "add": "➕ להוסיף ({{count}})",
+    "keep": "✅ לשמור ({{count}})",
+    "priority": {
+      "essential": "חיוני",
+      "recommended": "מומלץ"
+    }
+  },
+  "sr": {
+    "title": "🧴 טקס SR שלכם",
+    "heroBadge": "גיבור התקופה",
+    "morning": "☀️ בוקר",
+    "evening": "🌙 ערב",
+    "noMatch": "את המוצר לשלב הזה יש להשיג במקור אחר."
+  },
+  "shelf": {
+    "title": "📸 המדף הנוכחי שלכם",
+    "status": {
+      "compatible": "מתאים",
+      "conflicting": "מתנגש",
+      "borderline": "גבולי"
+    },
+    "swap": "← החליפו ב-{{name}}",
+    "startHere": "התחילו כאן: <product>{{product}}</product>"
+  },
+  "affirmLabel": "המשפט המחזק שלכם",
+  "cta": "לשגרה שלי ←",
+  "ctaHint": "התקופה שלכם מתעדכנת ככל שהעור שלכם משתנה.",
+  "shop": "לרכישה ←"
+}

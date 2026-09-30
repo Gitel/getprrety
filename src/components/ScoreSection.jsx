@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, Pressable, Linking, StyleSheet } from 'react-native';
+import { useTranslation, Trans } from 'react-i18next';
 import { dayNumber } from '../lib/scoreReading';
 
 // Top section of the Profile screen: Daniel's "Your skin reading" mockup
@@ -27,34 +28,23 @@ const SIGNAL_COLORS = {
   barrier: '#7C9A92', clarity: '#B8734F', tone: '#C39A57', resilience: '#A5738A',
 };
 
-// Non-ASCII characters of the mockup copy, spelled as escapes to keep this file ASCII.
-const DOT = '·';      // middle dot
-const DASH = '—';     // em dash
-const ARROW = '→';    // ->
-const UP = '↗';       // north-east arrow
-const ELLIPSIS = '…';
+// All visible text lives in src/locales/{en,he}/score.json (namespace "score") and is resolved
+// at render time with t() / <Trans>, so it follows the language. The static copy is verbatim from
+// the mockup (owner decision D7). No text constants here: a constant would be frozen in the
+// language that was active when the file loaded.
 
-// Static copy, verbatim from the mockup (owner decision D7).
-const COPY = {
-  title: 'Where your skin is speaking from today',
-  baseline: 'Baseline',
-  notFixed: `Not fixed ${DASH} this comes down as your signals rise.`,
-  howScored: 'How is this scored?',
-  howScoredBody: `Your reading blends an objective read of your selfie with what you told us in your quiz. It's a starting line to move from ${DASH} not a grade. We show your true score, never an inflated one.`,
-  leverage: `${UP} Your single highest-leverage move`,
-  signalsTitle: 'Your four signals',
-  signalsIntro: `Not scores to raise for their own sake ${DASH} each one has something dragging it, and something that moves it.`,
-  signalsTap: 'Tap to see how far it can go.',
-  footnote: `Projections show what's typically possible with consistent use over the time shown ${DASH} not a guarantee, and not past history. This is a self-care reading, not a medical diagnosis.`,
-  reading: `Reading your skin${ELLIPSIS}`,
-};
-
-// The three explanation blocks inside an open signal card, in mockup order.
+// The three explanation blocks inside an open signal card, in mockup order. `label` is a
+// translation key (resolved when rendered), never the text itself.
 const BLOCKS = [
-  { field: 'driver', label: `◔ What's dragging it` },
-  { field: 'why',    label: '✦ Why (from your quiz)' },
-  { field: 'lever',  label: `${UP} What moves it` },
+  { field: 'driver', label: 'score:blocks.driver' },
+  { field: 'why',    label: 'score:blocks.why' },
+  { field: 'lever',  label: 'score:blocks.lever' },
 ];
+
+// U+2068 / U+2069 (first-strong isolate) around a value that is interpolated into a sentence, so
+// a Latin value (e.g. the English text Railway sends) cannot reorder the surrounding Hebrew.
+// Invisible in English.
+const isolate = v => '\u2068' + v + '\u2069';
 
 function prefersReducedMotion() {
   try {
@@ -86,6 +76,7 @@ function Ring({ size, radius, stroke, value, color, animated }) {
 // The big overall-score dial: the arc sweeps in and the number counts up (1.2 s ease-out),
 // both skipped when the device asks for reduced motion.
 function Dial({ score }) {
+  const { t } = useTranslation();
   const [reduce] = useState(prefersReducedMotion);
   const [shown, setShown] = useState(reduce ? score : 0);
   const [arcValue, setArcValue] = useState(reduce ? score : 0);
@@ -112,7 +103,7 @@ function Dial({ score }) {
       <Ring size={168} radius={74} stroke={9} value={arcValue} color={P.clay} animated={!reduce} />
       <View style={s.dialCenter}>
         <Text style={s.dialNum}>{shown}</Text>
-        <Text style={s.dialLabel}>{COPY.baseline}</Text>
+        <Text style={s.dialLabel}>{t('score:baseline')}</Text>
       </View>
     </View>
   );
@@ -130,6 +121,7 @@ function Chevron({ open }) {
 
 // Today vs. "possible" bar: filled to today's score, striped band up to the potential.
 function PotentialBar({ now, potential, color }) {
+  const { t } = useTranslation();
   return (
     <View style={s.potBar}>
       <View style={s.potTrack}>
@@ -139,8 +131,8 @@ function PotentialBar({ now, potential, color }) {
         <View style={[s.potNow, { start: `${now}%` }]} />
       </View>
       <View style={s.potCaps}>
-        <Text style={s.potCap}>Today {DOT} {now}</Text>
-        <Text style={[s.potCap, s.potGoal]}>Possible {DOT} ~{potential}</Text>
+        <Text style={s.potCap}>{t('score:potential.today', { now })}</Text>
+        <Text style={[s.potCap, s.potGoal]}>{t('score:potential.possible', { potential })}</Text>
       </View>
     </View>
   );
@@ -149,6 +141,7 @@ function PotentialBar({ now, potential, color }) {
 // One of the four signal cards. `copy` is Railway's entry for this signal (or undefined):
 // without it the card shows its number only and does not open.
 function SignalCard({ signal, copy }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const color = SIGNAL_COLORS[signal.key] || P.clay;
   const hasPotential = typeof copy?.potential === 'number';
@@ -177,11 +170,18 @@ function SignalCard({ signal, copy }) {
         <View style={s.sigMid}>
           <View style={s.sigNameRow}>
             <View style={[s.sigIcon, { backgroundColor: color }]} />
-            <Text style={s.sigName}>{signal.name}</Text>
+            {/* Translated by the server's signal key; the server's English name is only a fallback for an unknown key. */}
+            <Text style={s.sigName}>{t(`score:signals.${signal.key}`, { defaultValue: signal.name })}</Text>
           </View>
           <Text style={s.sigPotLine}>
-            Today {signal.score}
-            {hasPotential && <Text style={s.sigUp}>{` ${ARROW} ~${copy.potential} possible`}</Text>}
+            {hasPotential ? (
+              // The " -> ~80 possible" part is styled, so <Trans> lets each language place it freely.
+              <Trans
+                i18nKey="score:signalPotential"
+                values={{ score: signal.score, potential: copy.potential, arrow: t('common:arrowNext') }}
+                components={{ up: <Text style={s.sigUp} /> }}
+              />
+            ) : t('score:signalToday', { score: signal.score })}
           </Text>
         </View>
         {expandable && <Chevron open={open} />}
@@ -191,11 +191,11 @@ function SignalCard({ signal, copy }) {
         <View style={s.sigBody}>
           <View style={s.rule} />
           {hasPotential && <PotentialBar now={signal.score} potential={copy.potential} color={color} />}
-          {copy.weeks && <Text style={s.horizon}>typically {copy.weeks} with consistency</Text>}
+          {copy.weeks && <Text style={s.horizon}>{t('score:horizon', { weeks: isolate(copy.weeks) })}</Text>}
 
           {BLOCKS.filter(b => copy[b.field]).map(b => (
             <View key={b.field} style={s.block}>
-              <Text style={[s.blockLabel, { color }]}>{b.label}</Text>
+              <Text style={[s.blockLabel, { color }]}>{t(b.label)}</Text>
               <Text style={s.blockText}>{copy[b.field]}</Text>
             </View>
           ))}
@@ -222,7 +222,7 @@ function SignalCard({ signal, copy }) {
                   style={s.productAdd}
                   onPress={() => Linking.openURL(productUrl).catch(() => {})}
                   accessibilityRole="link"
-                  accessibilityLabel={`Open ${copy.product.name}`}
+                  accessibilityLabel={t('score:openProduct', { name: isolate(copy.product.name) })}
                 >
                   <Text style={s.productAddText}>+</Text>
                 </Pressable>
@@ -238,6 +238,7 @@ function SignalCard({ signal, copy }) {
 // analysis: the Profile analysis (skinScan, createdAt, firstReadingAt).
 // polling: ProfileScreen is still polling the scan (drives the placeholder / skeleton).
 export default function ScoreSection({ analysis, polling }) {
+  const { t } = useTranslation();
   const [howOpen, setHowOpen] = useState(false);
   const scan = analysis?.skinScan;
   const view = scan?.signals;
@@ -246,7 +247,7 @@ export default function ScoreSection({ analysis, polling }) {
   if (!view) {
     return polling ? (
       <View style={s.placeholder}>
-        <Text style={s.placeholderText}>{COPY.reading}</Text>
+        <Text style={s.placeholderText}>{t('score:reading')}</Text>
       </View>
     ) : null;
   }
@@ -265,26 +266,33 @@ export default function ScoreSection({ analysis, polling }) {
     <View style={s.section}>
       {/* Hero: eyebrow, title, dial, skin age */}
       <View style={s.hero}>
-        <Text style={s.eyebrow}>Your skin reading {DOT} Day {day}</Text>
-        <Text style={s.title}>{COPY.title}</Text>
+        <Text style={s.eyebrow}>{t('score:eyebrow', { day })}</Text>
+        <Text style={s.title}>{t('score:title')}</Text>
         {view.overall != null && <Dial score={view.overall} />}
 
         {view.skinAge != null && (
           <>
             <View style={s.ageChip}>
               <View style={s.ageIcon}><Text style={s.ageIconText}>{'◷'}</Text></View>
-              <Text style={s.ageLabel}>Skin age <Text style={s.ageValue}>{view.skinAge}</Text></Text>
+              <Text style={s.ageLabel}>
+                {/* The age number is styled, so <Trans> lets each language place it freely. */}
+                <Trans
+                  i18nKey="score:skinAge"
+                  values={{ age: view.skinAge }}
+                  components={{ age: <Text style={s.ageValue} /> }}
+                />
+              </Text>
             </View>
-            <Text style={s.notFixed}>{COPY.notFixed}</Text>
+            <Text style={s.notFixed}>{t('score:notFixed')}</Text>
           </>
         )}
 
         <Pressable onPress={() => setHowOpen(o => !o)} accessibilityRole="button" hitSlop={8}>
-          <Text style={s.howBtn}>{howOpen ? 'Hide' : COPY.howScored}</Text>
+          <Text style={s.howBtn}>{howOpen ? t('score:hide') : t('score:howScored')}</Text>
         </Pressable>
         {howOpen && (
           <View style={s.howBody}>
-            <Text style={s.howText}>{COPY.howScoredBody}</Text>
+            <Text style={s.howText}>{t('score:howScoredBody')}</Text>
           </View>
         )}
       </View>
@@ -294,10 +302,10 @@ export default function ScoreSection({ analysis, polling }) {
       {/* Start here: Railway's single highest-leverage habit */}
       {reading?.startHere ? (
         <View style={s.startHere}>
-          <View style={s.startTag}><Text style={s.startTagText}>Start here</Text></View>
+          <View style={s.startTag}><Text style={s.startTagText}>{t('score:startHere')}</Text></View>
           <Text style={s.startTitle}>{reading.startHere.title}</Text>
           <Text style={s.startBody}>{reading.startHere.body}</Text>
-          <Text style={s.startImpact}>{COPY.leverage}</Text>
+          <Text style={s.startImpact}>{t('score:leverage')}</Text>
         </View>
       ) : copyLoading ? (
         <View style={[s.startHere, s.skeletonCard]}>
@@ -310,15 +318,15 @@ export default function ScoreSection({ analysis, polling }) {
       {/* The four signals */}
       {signals.length > 0 && (
         <>
-          <Text style={s.secTitle}>{COPY.signalsTitle}</Text>
+          <Text style={s.secTitle}>{t('score:signalsTitle')}</Text>
           <Text style={s.secSub}>
-            {COPY.signalsIntro}{anyExpandable ? ` ${COPY.signalsTap}` : ''}
+            {t('score:signalsIntro')}{anyExpandable ? ` ${t('score:signalsTap')}` : ''}
           </Text>
           {signals.map(sig => <SignalCard key={sig.key} signal={sig} copy={copyByKey[sig.key]} />)}
         </>
       )}
 
-      <Text style={s.footnote}>{COPY.footnote}</Text>
+      <Text style={s.footnote}>{t('score:footnote')}</Text>
     </View>
   );
 }
