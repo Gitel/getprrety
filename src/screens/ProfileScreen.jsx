@@ -226,8 +226,10 @@ export default function ProfileScreen({ navigation, route }) {
                   style={[s.tabBtn, auditTab === tab.key && { borderColor: tab.color, backgroundColor: tab.color + '18' }]}
                 >
                   <Text style={[s.tabText, auditTab === tab.key && { color: tab.color, fontFamily: 'DMSans_500Medium' }]}>
-                    {/* e.g. "Replace (2)": the label and the count are one translated string */}
-                    {t(`profile:audit.${tab.key}`, { count: tab.items.length })}
+                    {/* e.g. "Replace (2)": one translated string, drawn as separate pieces
+                        ("Replace", " (", "2", ")") exactly like the old hard-coded JSX did, so the
+                        English pixels stay identical. Hebrew keeps its own word order. */}
+                    {t(`profile:audit.${tab.key}`, { count: tab.items.length }).split(/( [(]|\d+)/).filter(Boolean)}
                   </Text>
                 </Pressable>
               ))}
