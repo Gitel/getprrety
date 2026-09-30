@@ -116,11 +116,16 @@ describe('buildReadingRequest', () => {
       accessTokenHash: 'secret', requestIpHash: 'ip', userId: 'u1',
     };
     const body = buildReadingRequest(scan);
-    expect(Object.keys(body)).toEqual(['quizAnswers', 'scan']);
+    expect(Object.keys(body)).toEqual(['quizAnswers', 'language', 'scan']);
     expect(body.quizAnswers).toEqual({ routine_products: ['cleanser'], pregnancy_caution: false });
     expect(body.scan).toMatchObject({ overall: 76, skinAge: 37, skinType: { whole: 'Combination' } });
     expect(body.scan.signals.map(s => [s.key, s.score])).toEqual([['barrier', 56], ['clarity', 78], ['tone', 72], ['resilience', 80]]);
     expect(JSON.stringify(body)).not.toMatch(/secret|"ip"|u1/);
+  });
+
+  test('sends the scan language; an old scan without the field sends en', () => {
+    expect(buildReadingRequest({ merged, quizSnapshot: null, language: 'he' }).language).toBe('he');
+    expect(buildReadingRequest({ merged, quizSnapshot: null }).language).toBe('en');
   });
 
   test('signals without a score are left out', () => {

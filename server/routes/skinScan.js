@@ -80,6 +80,9 @@ router.post('/init', async (req, res) => {
   let scan;
   try {
     const { photos, quizAnswers } = req.body;
+    // Optional app language. Only exactly 'he' (trimmed, any case) is kept; anything else (missing,
+    // unknown, wrong type) becomes 'en' and never fails the scan.
+    const language = typeof req.body.language === 'string' && req.body.language.trim().toLowerCase() === 'he' ? 'he' : 'en';
     if (!Array.isArray(photos) || photos.length < 1 || photos.length > ANGLES.length) {
       return res.status(400).json({ error: 'One to three photos are required' });
     }
@@ -110,6 +113,7 @@ router.post('/init', async (req, res) => {
       accessTokenHash: sha256(accessToken),
       requestIpHash,
       quizSnapshot: sanitizeQuizAnswers(quizAnswers),
+      language,
       sidePhotoAnalysisEnabled: process.env.SIDE_PHOTO_ANALYSIS_ENABLED !== 'false',
       tasks: valid.map(p => ({ angle: p.angle, status: 'pending' })),
     });
