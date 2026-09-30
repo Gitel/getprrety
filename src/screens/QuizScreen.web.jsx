@@ -4,7 +4,9 @@ import {
   StyleSheet, Animated, Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { C, QUESTIONS, SKIN_TONES } from '../constants';
+import { monthNames } from '../lib/formatting';
 import { useApp } from '../context/AppContext';
 import { initAndStartScan, scanQuizAnswers } from '../lib/skinScan';
 import LocationQuestion from '../components/LocationQuestion';
@@ -12,15 +14,15 @@ import LocationQuestion from '../components/LocationQuestion';
 const START_IDX = QUESTIONS.findIndex(q => q.id === 'name');
 const PROGRESS_QUESTIONS = QUESTIONS.filter(q => q.countsInProgress !== false);
 
+// The photo angles, in order. `key` is also the answers key of the stored photo, so it must not
+// change. The label/hint texts are looked up at render time: quiz:photoAngles.<key>.label / .hint
 const PHOTO_ANGLES = [
-  { key: 'front',   label: 'Straight on',        hint: 'Face forward, chin slightly down' },
-  { key: 'left',    label: 'Left side of face',  hint: 'Turn your left cheek toward the light' },
-  { key: 'right',   label: 'Right side of face', hint: 'Turn your right cheek toward the light' },
-  { key: 'closeup', label: 'Close-up',           hint: 'Move closer — fill the frame with your skin texture' },
-  { key: 'neck',    label: 'Neck',               hint: 'Tilt your chin up slightly to show your neck' },
+  { key: 'front' },
+  { key: 'left' },
+  { key: 'right' },
+  { key: 'closeup' },
+  { key: 'neck' },
 ];
-
-const text = (v, name) => typeof v === 'function' ? v(name) : v;
 
 // Skip forward over any question whose showIf(answers) is false (hormones, top_concern, event_date).
 function advance(fromIdx, answers) {
@@ -44,14 +46,16 @@ function GreetingScreen({ text: greetText, onDone, autoAdvanceMs }) {
 }
 
 // ─── Chapter interstitial (auto-advance chapter transition) ─────────────────
-function ChapterInterstitial({ chapterNumber, totalChapters, chapterName, headline, onDone }) {
+function ChapterInterstitial({ chapterNumber, totalChapters, headline, onDone }) {
+  const { t } = useTranslation();
   useEffect(() => {
-    const t = setTimeout(onDone, 2200);
-    return () => clearTimeout(t);
+    const timer = setTimeout(onDone, 2200);
+    return () => clearTimeout(timer);
   }, []);
   return (
     <View style={s.interWrap}>
-      <Text style={s.interEyebrow}>Chapter {chapterNumber} · {chapterName}</Text>
+      {/* "Chapter 2 · Your Skin": the chapter name comes from quiz:chapters.<n> */}
+      <Text style={s.interEyebrow}>{t('quiz:ui.chapterEyebrow', { n: chapterNumber, chapter: t(`quiz:chapters.${chapterNumber}`) })}</Text>
       <Text style={s.interHeadline}>{headline}</Text>
       <View style={s.interDots}>
         {Array.from({ length: totalChapters }, (_, i) => (
@@ -64,8 +68,6 @@ function ChapterInterstitial({ chapterNumber, totalChapters, chapterName, headli
 
 // ─── Drum Date Picker ────────────────────────────────────────────────────────
 const ITEM_H      = 52;
-const MONTHS_LIST = ['January','February','March','April','May','June',
-                     'July','August','September','October','November','December'];
 const DAYS_LIST   = Array.from({ length: 31 }, (_, i) => String(i + 1));
 
 function WheelColumn({ data, defaultIdx = 0, onSelect, flex = 1 }) {
@@ -117,6 +119,10 @@ function WheelColumn({ data, defaultIdx = 0, onSelect, flex = 1 }) {
 }
 
 function DrumDatePicker({ value, onChange, yearsFrom = 1924, yearsTo = 2006 }) {
+  const { i18n } = useTranslation();
+  // Month names for the wheel in the current language (English list is exactly the old one).
+  // Only the display changes: emit() below still stores the month as a zero-padded number.
+  const MONTHS_LIST = useMemo(() => monthNames(i18n.language), [i18n.language]);
   const YEARS_LIST = Array.from({ length: yearsTo - yearsFrom + 1 }, (_, i) => String(yearsFrom + i));
 
   const parseVal = () => {
@@ -164,6 +170,7 @@ const dp = StyleSheet.create({
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function QuizScreen({ navigation, route }) {
+  const { t, i18n } = useTranslation();
   const { setAnswers: saveAnswers } = useApp();
   const [idx, setIdx]     = useState(START_IDX);
   const [answers, setAns] = useState(() => ({
@@ -180,6 +187,29 @@ export default function QuizScreen({ navigation, route }) {
 
   const progressIdx        = PROGRESS_QUESTIONS.findIndex(pq => pq.id === q.id) + 1;
   const totalProgressSteps = PROGRESS_QUESTIONS.length;
+
+  // ── Quiz text lookup ──────────────────────────────────────────────────────
+  // All quiz text lives in src/locales/<lang>/quiz.json under the question id (see constants.js).
+  // The user's first name is wrapped in Unicode isolates (U+2068 ... U+2069) so a Latin name
+  // inside a Hebrew sentence (or the reverse) cannot scramble the punctuation around it.
+  const personName = (answers.name || '').trim();
+  const nameVars   = personName ? { name: '\u2068' + personName + '\u2069' } : {};
+
+  // Text of one field ('question', 'why', 'hint', ...) of a question, or null when that
+  // question has no such text. Texts that mention the name have a "<field>NoName" twin that is
+  // used when the user left the name empty, so "undefined" can never be shown.
+  function tq(id, field) {
+    const base = `quiz:${id}.${field}`;
+    const key  = !personName && i18n.exists(`${base}NoName`) ? `${base}NoName` : base;
+    return i18n.exists(key) ? t(key, nameVars) : null;
+  }
+  // Same, for a list of texts (checklist). Returns [] when the question has none.
+  function tqList(id, field) {
+    const list = i18n.exists(`quiz:${id}.${field}`) ? t(`quiz:${id}.${field}`, { returnObjects: true }) : null;
+    return Array.isArray(list) ? list : [];
+  }
+  // Label (or 'desc') of one option of a question; group options are keyed the same way.
+  const optText = (id, value, field = 'label') => t(`quiz:${id}.options.${value}.${field}`);
 
   // Hidden file input refs — all created unconditionally (no hooks in loops)
   const photoInputRefs   = { front: useRef(null), left: useRef(null), right: useRef(null), closeup: useRef(null), neck: useRef(null) };
@@ -314,7 +344,7 @@ export default function QuizScreen({ navigation, route }) {
   if (q.type === 'greeting') {
     return (
       <SafeAreaView style={s.safe}>
-        <GreetingScreen text={text(q.text, answers.name)} autoAdvanceMs={q.autoAdvanceMs}
+        <GreetingScreen text={tq(q.id, 'text')} autoAdvanceMs={q.autoAdvanceMs}
           onDone={() => goTo(advance(idx, answers))} />
       </SafeAreaView>
     );
@@ -324,19 +354,31 @@ export default function QuizScreen({ navigation, route }) {
       <SafeAreaView style={s.safe}>
         <ChapterInterstitial
           chapterNumber={q.chapterNumber} totalChapters={q.totalChapters}
-          chapterName={q.chapterName} headline={q.headline}
+          headline={tq(q.id, 'headline')}
           onDone={() => goTo(advance(idx, answers))}
         />
       </SafeAreaView>
     );
   }
 
+  // "Step 3 of 26". The translated sentence is split at the numbers so it is drawn as separate
+  // pieces ("Step ", "3", " of ", "26"), exactly like the old hard-coded JSX did; this keeps the
+  // English pixels identical. It works for any language: the numbers just move within the sentence.
+  const stepCounterParts = t('quiz:ui.stepCounter', { n: progressIdx, total: totalProgressSteps })
+    .split(/(\d+)/).filter(Boolean);
+
+  // Optional texts of the current question (null / [] when it has none).
+  const hint      = tq(q.id, 'hint');
+  const why       = tq(q.id, 'why');
+  const fact      = tq(q.id, 'fact');
+  const checklist = tqList(q.id, 'checklist');
+
   return (
     <SafeAreaView style={s.safe}>
       {/* Header */}
       <View style={s.header}>
         <Text style={s.logo}>Get Pretty</Text>
-        {progressIdx > 0 && <Text style={s.counter}>Step {progressIdx} of {totalProgressSteps}</Text>}
+        {progressIdx > 0 && <Text style={s.counter}>{stepCounterParts}</Text>}
       </View>
       {progressIdx > 0 && (
         <View style={s.progressTrack}>
@@ -345,13 +387,13 @@ export default function QuizScreen({ navigation, route }) {
       )}
 
       <Animated.ScrollView style={[s.scroll, { opacity: fadeAnim }]} contentContainerStyle={s.content}>
-        {q.chapter && <Text style={s.chapterLabel}>{q.chapter}</Text>}
+        {q.chapterNumber && <Text style={s.chapterLabel}>{t(`quiz:chapters.${q.chapterNumber}`)}</Text>}
         <Text style={s.emoji}>{q.emoji}</Text>
-        <Text style={s.question}>{text(q.question, answers.name)}</Text>
-        {q.hint && <Text style={s.hint}>{q.hint}</Text>}
-        {q.why && <Text style={s.why}>{text(q.why, answers.name)}</Text>}
-        {q.fact && <Text style={s.fact}>💡 {q.fact}</Text>}
-        {q.checklist && <Text style={s.checklistText}>{q.checklist.map(c => `✔ ${c}`).join('   ')}</Text>}
+        <Text style={s.question}>{tq(q.id, 'question')}</Text>
+        {hint && <Text style={s.hint}>{hint}</Text>}
+        {why && <Text style={s.why}>{why}</Text>}
+        {fact && <Text style={s.fact}>💡 {fact}</Text>}
+        {checklist.length > 0 && <Text style={s.checklistText}>{checklist.map(c => `✔ ${c}`).join('   ')}</Text>}
 
         {/* SINGLE SELECT (standard) */}
         {q.type === 'single' && !q.cardStyle && (
@@ -363,14 +405,14 @@ export default function QuizScreen({ navigation, route }) {
                 style={[s.optionCard, sel === o.value && s.optionCardSelected]}
               >
                 <View>
-                  <Text style={[s.optionLabel, sel === o.value && s.optionLabelSelected]}>{o.label}</Text>
+                  <Text style={[s.optionLabel, sel === o.value && s.optionLabelSelected]}>{optText(q.id, o.value)}</Text>
                   {o.sub && <Text style={s.optionSub}>{o.sub}</Text>}
                 </View>
                 {sel === o.value && <Text style={s.check}>✓</Text>}
               </Pressable>
             ))}
-            <Btn onPress={next} disabled={!sel} label={isLast ? 'Create My Profile →' : 'Continue →'} />
-            <Text style={s.footnote}>No wrong answers. Your skin has no judgment.</Text>
+            <Btn onPress={next} disabled={!sel} label={isLast ? t('quiz:ui.createProfile') : t('quiz:ui.continue')} />
+            <Text style={s.footnote}>{t('quiz:ui.noWrongAnswers')}</Text>
           </>
         )}
 
@@ -384,14 +426,14 @@ export default function QuizScreen({ navigation, route }) {
                   style={[s.genderCard, active && s.genderCardActive]}>
                   <Text style={s.genderIcon}>{o.icon}</Text>
                   <View style={{ flex: 1 }}>
-                    <Text style={s.genderLabel}>{o.label}</Text>
-                    <Text style={s.genderDesc}>{o.desc}</Text>
+                    <Text style={s.genderLabel}>{optText(q.id, o.value)}</Text>
+                    <Text style={s.genderDesc}>{optText(q.id, o.value, 'desc')}</Text>
                   </View>
                   {active && <Text style={s.check}>✓</Text>}
                 </Pressable>
               );
             })}
-            <Btn onPress={next} disabled={!answers[q.id]} label="Next →" />
+            <Btn onPress={next} disabled={!answers[q.id]} label={t('quiz:ui.next')} />
           </>
         )}
 
@@ -399,19 +441,19 @@ export default function QuizScreen({ navigation, route }) {
         {q.type === 'tone' && (
           <>
             <View style={s.toneGrid}>
-              {SKIN_TONES.map(t => (
+              {SKIN_TONES.map(tone => (
                 <Pressable
-                  key={t.value}
-                  onPress={() => setSel(t.value)}
-                  style={[s.toneCard, sel === t.value && { borderColor: C.accent, backgroundColor: C.accentLight }]}
+                  key={tone.value}
+                  onPress={() => setSel(tone.value)}
+                  style={[s.toneCard, sel === tone.value && { borderColor: C.accent, backgroundColor: C.accentLight }]}
                 >
-                  <View style={[s.toneSwatch, { backgroundColor: t.swatch }]} />
-                  <Text style={[s.toneLabel, sel === t.value && { color: C.accent }]}>{t.label}</Text>
-                  <Text style={s.toneSub}>{t.sub}</Text>
+                  <View style={[s.toneSwatch, { backgroundColor: tone.swatch }]} />
+                  <Text style={[s.toneLabel, sel === tone.value && { color: C.accent }]}>{optText('tone', tone.value)}</Text>
+                  <Text style={s.toneSub}>{optText('tone', tone.value, 'sub')}</Text>
                 </Pressable>
               ))}
             </View>
-            <Btn onPress={next} disabled={!sel} label="Continue →" />
+            <Btn onPress={next} disabled={!sel} label={t('quiz:ui.continue')} />
           </>
         )}
 
@@ -427,7 +469,7 @@ export default function QuizScreen({ navigation, route }) {
                     onPress={() => toggleMulti(o.value)}
                     style={[s.chip, active && s.chipActive]}
                   >
-                    <Text style={[s.chipText, active && s.chipTextActive]}>{o.label}</Text>
+                    <Text style={[s.chipText, active && s.chipTextActive]}>{optText(q.id, o.value)}</Text>
                     {o.sub && <Text style={[s.chipSub, active && { color: 'rgba(255,255,255,0.75)' }]}>{o.sub}</Text>}
                   </Pressable>
                 );
@@ -436,29 +478,29 @@ export default function QuizScreen({ navigation, route }) {
             {q.options.some(o => o.freeText && multi.includes(o.value)) && (
               <TextInput
                 style={s.input}
-                placeholder="Tell us more"
+                placeholder={t('quiz:ui.tellUsMore')}
                 placeholderTextColor={C.muted}
                 value={answers[`${q.id}_other`] || ''}
                 onChangeText={t => setAns(a => ({ ...a, [`${q.id}_other`]: t }))}
               />
             )}
-            <Btn onPress={next} disabled={multi.length === 0} label="Continue →" />
+            <Btn onPress={next} disabled={multi.length === 0} label={t('quiz:ui.continue')} />
           </>
         )}
 
         {/* MULTI SELECT (grouped — skin_goals, allergies) */}
         {q.type === 'multi' && q.groups && (
           <>
-            {q.groups.map(g => (
-              <View key={g.label}>
-                <Text style={s.groupLabel}>{g.label}</Text>
+            {q.groups.map((g, gi) => (
+              <View key={gi}>
+                <Text style={s.groupLabel}>{t(`quiz:${q.id}.groups.${gi}`)}</Text>
                 <View style={s.chipRow}>
                   {g.options.map(o => {
                     const active = multi.includes(o.value);
                     return (
                       <Pressable key={o.value} onPress={() => toggleMulti(o.value)}
                         style={[s.chip, active && s.chipActive]}>
-                        <Text style={[s.chipText, active && s.chipTextActive]}>{o.emoji ? `${o.emoji} ` : ''}{o.label}</Text>
+                        <Text style={[s.chipText, active && s.chipTextActive]}>{o.emoji ? `${o.emoji} ` : ''}{optText(q.id, o.value)}</Text>
                       </Pressable>
                     );
                   })}
@@ -472,7 +514,7 @@ export default function QuizScreen({ navigation, route }) {
                   return (
                     <Pressable key={o.value} onPress={() => toggleMulti(o.value)}
                       style={[s.chip, active && s.chipActive]}>
-                      <Text style={[s.chipText, active && s.chipTextActive]}>{o.label}</Text>
+                      <Text style={[s.chipText, active && s.chipTextActive]}>{t(`quiz:${q.id}.extraOptions.${o.value}.label`)}</Text>
                     </Pressable>
                   );
                 })}
@@ -482,13 +524,13 @@ export default function QuizScreen({ navigation, route }) {
               .some(o => o.freeText && multi.includes(o.value)) && (
               <TextInput
                 style={s.input}
-                placeholder="Tell us more"
+                placeholder={t('quiz:ui.tellUsMore')}
                 placeholderTextColor={C.muted}
                 value={answers[`${q.id}_other`] || ''}
                 onChangeText={t => setAns(a => ({ ...a, [`${q.id}_other`]: t }))}
               />
             )}
-            <Btn onPress={next} disabled={multi.length === 0} label="Next →" />
+            <Btn onPress={next} disabled={multi.length === 0} label={t('quiz:ui.next')} />
           </>
         )}
 
@@ -505,12 +547,12 @@ export default function QuizScreen({ navigation, route }) {
                 return (
                   <Pressable key={o.value} onPress={() => setAns(a => ({ ...a, top_concern: o.value }))}
                     style={[s.optionCard, active && s.optionCardSelected]}>
-                    <Text style={[s.optionLabel, active && s.optionLabelSelected]}>{o.label}</Text>
+                    <Text style={[s.optionLabel, active && s.optionLabelSelected]}>{optText('skin_goals', o.value)}</Text>
                     {active && <Text style={s.check}>✓</Text>}
                   </Pressable>
                 );
               })}
-              <Btn onPress={next} disabled={!answers.top_concern} label="Next →" />
+              <Btn onPress={next} disabled={!answers.top_concern} label={t('quiz:ui.next')} />
             </>
           );
         })()}
@@ -522,7 +564,7 @@ export default function QuizScreen({ navigation, route }) {
               value={answers}
               onChange={location => setAns(a => ({ ...a, ...location }))}
             />
-            <Btn onPress={next} disabled={!answers.city?.trim()} label="Continue →" />
+            <Btn onPress={next} disabled={!answers.city?.trim()} label={t('quiz:ui.continue')} />
           </>
         )}
 
@@ -549,8 +591,8 @@ export default function QuizScreen({ navigation, route }) {
                 );
               })}
             </View>
-            {q.labels && answers[q.id] && <Text style={s.stressLabel}>{q.labels[String(answers[q.id])]}</Text>}
-            <Btn onPress={next} disabled={!answers[q.id]} label="Continue →" />
+            {answers[q.id] && <Text style={s.stressLabel}>{t(`quiz:${q.id}.labels.${answers[q.id]}`)}</Text>}
+            <Btn onPress={next} disabled={!answers[q.id]} label={t('quiz:ui.continue')} />
           </>
         )}
 
@@ -559,7 +601,7 @@ export default function QuizScreen({ navigation, route }) {
           <>
             {q.fields.map(f => (
               <View key={f.key} style={{ marginBottom: 18 }}>
-                <Text style={s.hormoneLabel}>{f.label}</Text>
+                <Text style={s.hormoneLabel}>{t(`quiz:${q.id}.fields.${f.key}.label`)}</Text>
                 <View style={s.chipRow}>
                   {f.options.map(o => {
                     const active = (answers.hormones || {})[f.key] === o.value;
@@ -569,14 +611,14 @@ export default function QuizScreen({ navigation, route }) {
                         onPress={() => setAns(a => ({ ...a, hormones: { ...(a.hormones || {}), [f.key]: o.value } }))}
                         style={[s.chip, active && s.chipActive]}
                       >
-                        <Text style={[s.chipText, active && s.chipTextActive]}>{o.label}</Text>
+                        <Text style={[s.chipText, active && s.chipTextActive]}>{t(`quiz:${q.id}.fields.${f.key}.options.${o.value}.label`)}</Text>
                       </Pressable>
                     );
                   })}
                 </View>
               </View>
             ))}
-            <Btn onPress={next} label="Continue →" />
+            <Btn onPress={next} label={t('quiz:ui.continue')} />
           </>
         )}
 
@@ -595,23 +637,23 @@ export default function QuizScreen({ navigation, route }) {
                       }
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={[s.photoLabel, done && { color: '#7A9E6E' }]}>{p.label}</Text>
-                      <Text style={s.photoHint}>{done ? 'Photo added ✓' : p.hint}</Text>
+                      <Text style={[s.photoLabel, done && { color: '#7A9E6E' }]}>{t(`quiz:photoAngles.${p.key}.label`)}</Text>
+                      <Text style={s.photoHint}>{done ? t('quiz:ui.photoAdded') : t(`quiz:photoAngles.${p.key}.hint`)}</Text>
                     </View>
                   </View>
                   {!done ? (
                     <View style={s.photoActions}>
                       <Pressable style={s.photoBtn} onPress={() => takePhoto(p.key)}>
-                        <Text style={s.photoBtnText}>📷 Take photo</Text>
+                        <Text style={s.photoBtnText}>{t('quiz:ui.takePhoto')}</Text>
                       </Pressable>
                       <View style={s.photoDivider} />
                       <Pressable style={s.photoBtn} onPress={() => pickPhoto(p.key)}>
-                        <Text style={s.photoBtnText}>🖼 Upload</Text>
+                        <Text style={s.photoBtnText}>{t('quiz:ui.upload')}</Text>
                       </Pressable>
                     </View>
                   ) : (
                     <Pressable onPress={() => setAns(a => { const n = { ...a }; delete n[p.key]; return n; })}>
-                      <Text style={s.retake}>Remove & retake</Text>
+                      <Text style={s.retake}>{t('quiz:ui.removeRetake')}</Text>
                     </Pressable>
                   )}
                 </View>
@@ -620,13 +662,10 @@ export default function QuizScreen({ navigation, route }) {
             <Btn
               onPress={next}
               accent
-              label={PHOTO_ANGLES.some(p => answers[p.key]) ? 'Continue →' : 'Skip for now →'}
+              label={PHOTO_ANGLES.some(p => answers[p.key]) ? t('quiz:ui.continue') : t('quiz:ui.skipForNow')}
             />
-            <Text style={s.footnote}>We see skin texture, not judgment</Text>
-            <Text style={s.footnote}>
-              🔒 Your front-facing photo is also sent to our AI skin-analysis partner (PerfectCorp) to
-              enrich your results. It's never shared beyond that.
-            </Text>
+            <Text style={s.footnote}>{t('quiz:ui.photoFootnote')}</Text>
+            <Text style={s.footnote}>{t('quiz:ui.photoPrivacy')}</Text>
           </>
         )}
 
@@ -664,7 +703,7 @@ export default function QuizScreen({ navigation, route }) {
                 return <View key={i} style={s.shelfSlotEmpty} />;
               })}
             </View>
-            <Btn onPress={next} accent label={(answers.shelf_photos || []).length > 0 ? 'Continue →' : 'Skip for now →'} />
+            <Btn onPress={next} accent label={(answers.shelf_photos || []).length > 0 ? t('quiz:ui.continue') : t('quiz:ui.skipForNow')} />
           </>
         )}
 
@@ -677,7 +716,7 @@ export default function QuizScreen({ navigation, route }) {
               yearsFrom={1924}
               yearsTo={new Date().getFullYear() - 10}
             />
-            <Btn onPress={next} label="Continue →" />
+            <Btn onPress={next} label={t('quiz:ui.continue')} />
           </>
         )}
 
@@ -686,13 +725,13 @@ export default function QuizScreen({ navigation, route }) {
           <>
             <TextInput
               style={s.input}
-              placeholder={q.placeholder}
+              placeholder={tq(q.id, 'placeholder')}
               placeholderTextColor={C.muted}
               autoCapitalize="words"
               value={answers[q.id] || ''}
               onChangeText={t => setAns(a => ({ ...a, [q.id]: t }))}
             />
-            <Btn onPress={next} label="Continue →" />
+            <Btn onPress={next} label={t('quiz:ui.continue')} />
           </>
         )}
 
@@ -709,12 +748,12 @@ export default function QuizScreen({ navigation, route }) {
                   <View style={s.optionIconCircle}>
                     <Text style={{ fontSize: 16 }}>{o.icon}</Text>
                   </View>
-                  <Text style={[s.optionLabel, sel === o.value && s.optionLabelSelected]}>{o.label}</Text>
+                  <Text style={[s.optionLabel, sel === o.value && s.optionLabelSelected]}>{optText(q.id, o.value)}</Text>
                 </View>
                 {sel === o.value && <Text style={s.check}>✓</Text>}
               </Pressable>
             ))}
-            <Btn onPress={next} disabled={!sel} label="Continue →" />
+            <Btn onPress={next} disabled={!sel} label={t('quiz:ui.continue')} />
           </>
         )}
 
@@ -727,7 +766,7 @@ export default function QuizScreen({ navigation, route }) {
               yearsFrom={new Date().getFullYear()}
               yearsTo={new Date().getFullYear() + 3}
             />
-            <Btn onPress={next} label="Continue →" />
+            <Btn onPress={next} label={t('quiz:ui.continue')} />
             <Pressable
               onPress={() => {
                 setAns(a => ({ ...a, event_date: null }));
@@ -735,7 +774,7 @@ export default function QuizScreen({ navigation, route }) {
               }}
               style={s.ghostBtn}
             >
-              <Text style={s.ghostText}>Skip this question</Text>
+              <Text style={s.ghostText}>{t('quiz:ui.skipQuestion')}</Text>
             </Pressable>
           </>
         )}
@@ -744,9 +783,9 @@ export default function QuizScreen({ navigation, route }) {
         {q.type === 'completion' && (
           <View style={s.completionBlock}>
             <Text style={s.completionEmoji}>🌿</Text>
-            <Text style={s.completionHeading}>{text(q.headline, answers.name)}</Text>
-            <Text style={s.completionSub}>We're analyzing your answers to build your personalized routine.</Text>
-            <Btn onPress={next} accent label="See my Skin Era →" />
+            <Text style={s.completionHeading}>{tq(q.id, 'headline')}</Text>
+            <Text style={s.completionSub}>{t('quiz:ui.completionSub')}</Text>
+            <Btn onPress={next} accent label={t('quiz:ui.seeEra')} />
           </View>
         )}
 
@@ -849,7 +888,7 @@ const s = StyleSheet.create({
   shelfSlotFilled: { backgroundColor: '#7A9E6E20', borderWidth: 1.5, borderColor: '#7A9E6E50' },
   shelfSlotNext:   { width: '30%', aspectRatio: 1, borderRadius: 12, borderWidth: 1.5, borderColor: C.border, overflow: 'hidden' },
   shelfSlotEmpty:  { width: '30%', aspectRatio: 1, borderRadius: 12, borderWidth: 1.5, borderColor: C.border, backgroundColor: '#F9F7F4' },
-  shelfRemove:     { position: 'absolute', top: 4, right: 4 },
+  shelfRemove:     { position: 'absolute', top: 4, end: 4 },
   shelfRemoveBadge:{ width: 18, height: 18, borderRadius: 9, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' },
   shelfAdd:   { flex: 1, alignItems: 'center', justifyContent: 'center', borderBottomWidth: 0.5, borderBottomColor: C.border },
   shelfAddText:{ fontSize: 18 },

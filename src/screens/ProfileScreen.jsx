@@ -4,13 +4,30 @@ import {
   StyleSheet, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation, Trans } from 'react-i18next';
 import { C, fetchProductRecs } from '../constants';
 import { useApp } from '../context/AppContext';
 import { pollScan } from '../lib/skinScan';
 import FallbackBanner from '../components/FallbackBanner';
 import ScoreSection from '../components/ScoreSection';
+import { MenuButton } from '../components/SideMenu';
+import { eraText, analysisAffirmation } from '../lib/eraText';
+
+// U+2068 / U+2069 (first-strong isolate) around a value interpolated into a sentence, so a Latin
+// value cannot reorder the surrounding Hebrew. Invisible in English.
+const isolate = v => '\u2068' + v + '\u2069';
+
+// Label for a raw server value (audit priority, shelf status). `prefix` is a key path such as
+// 'profile:audit.priority'. Unknown values (or anything that is not a plain word) show as received.
+function enumLabel(t, prefix, value) {
+  return typeof value === 'string' && /^[a-z_]+$/i.test(value)
+    ? t(`${prefix}.${value}`, { defaultValue: value })
+    : value;
+}
 
 export default function ProfileScreen({ navigation, route }) {
+  // t() resolves text at render time, so it follows the current language.
+  const { t, i18n } = useTranslation();
   const {
     analysis, setAnalysis, answers, user, analysisSaveFailed, setAnalysisSaveFailed,
     productRecsCache, setProductRecsCache,
@@ -33,11 +50,11 @@ export default function ProfileScreen({ navigation, route }) {
   const auditPickKey = JSON.stringify([addItems, replaceItems]);
 
   const auditTabs = [
-    { key:'remove',  label:'🚫 Remove',  color:'#C44B4B', items: audit.remove  || [] },
-    { key:'replace', label:'🔄 Replace', color:'#B8924A', items: replaceItems },
-    { key:'add',     label:'➕ Add',     color:'#7A9E6E', items: addItems },
-    { key:'keep',    label:'✅ Keep',    color:'#6A98B0', items: audit.keep    || [] },
-  ].filter(t => t.items.length > 0);
+    { key:'remove',  color:'#C44B4B', items: audit.remove  || [] },
+    { key:'replace', color:'#B8924A', items: replaceItems },
+    { key:'add',     color:'#7A9E6E', items: addItems },
+    { key:'keep',    color:'#6A98B0', items: audit.keep    || [] },
+  ].filter(tab => tab.items.length > 0);
 
   const [auditTab,    setAuditTab]    = useState(auditTabs[0]?.key || 'add');
   const [srTab,       setSrTab]       = useState('am');
@@ -131,16 +148,23 @@ export default function ProfileScreen({ navigation, route }) {
 
   if (!analysis) return null;
 
-  const currentTab = auditTabs.find(t => t.key === auditTab);
+  const currentTab = auditTabs.find(tab => tab.key === auditTab);
 
   return (
     <SafeAreaView style={[s.safe, { backgroundColor: era.bg }]}>
       <ScrollView contentContainerStyle={s.content}>
 
+        {/* Menu button only when opened from Home / the menu; the first view after the quiz has no menu. */}
+        {openedFromHome && (
+          <View style={s.menuRow}>
+            <MenuButton onPress={navigation.openMenu} color={era.color} />
+          </View>
+        )}
+
         {analysisSaveFailed && (
           <View style={s.saveWarnBanner}>
             <Text style={s.saveWarnText}>
-              We couldn't save this assessment — it may not appear next time you open the app.
+              {t('profile:saveFailed')}
             </Text>
             <Pressable onPress={() => setAnalysisSaveFailed(false)} hitSlop={8}>
               <Text style={s.saveWarnDismiss}>✕</Text>
@@ -158,20 +182,20 @@ export default function ProfileScreen({ navigation, route }) {
         {/* Era hero */}
         <View style={s.eraHero}>
           <Text style={s.eraEmoji}>{era.emoji}</Text>
-          <Text style={s.eraEyebrow}>Your skin is in</Text>
-          <Text style={[s.eraName, { color: era.color }]}>{era.name}</Text>
-          <Text style={s.eraTagline}>"{era.tagline}"</Text>
+          <Text style={s.eraEyebrow}>{t('profile:eraEyebrow')}</Text>
+          <Text style={[s.eraName, { color: era.color }]}>{eraText(era, 'name', i18n.language)}</Text>
+          <Text style={s.eraTagline}>"{eraText(era, 'tagline', i18n.language)}"</Text>
         </View>
         <View style={[s.divider, { backgroundColor: era.color + '30' }]} />
 
         {/* Analysis */}
         <View style={s.card}>
-          <Text style={s.cardLabel}>🔬 Skin Analysis</Text>
+          <Text style={s.cardLabel}>{t('profile:analysisTitle')}</Text>
           <Text style={s.cardBody}>{analysis.skinAnalysis}</Text>
         </View>
 
         {/* Key Insights */}
-        <Text style={s.sectionLabel}>💡 Key Insights</Text>
+        <Text style={s.sectionLabel}>{t('profile:insightsTitle')}</Text>
         <View style={s.insightList}>
           {(analysis.keyInsights || []).map((ins, i) => (
             <View key={i} style={s.insightRow}>
@@ -187,7 +211,7 @@ export default function ProfileScreen({ navigation, route }) {
         {auditTabs.length > 0 && (
           <View style={s.auditSection}>
             <View style={s.auditHeader}>
-              <Text style={s.sectionLabel}>🧴 Product Audit</Text>
+              <Text style={s.sectionLabel}>{t('profile:audit.title')}</Text>
               {country && (
                 <View style={[s.countryBadge, { backgroundColor: era.color + '15' }]}>
                   <Text style={[s.countryText, { color: era.color }]}>📍 {country}</Text>
@@ -195,14 +219,17 @@ export default function ProfileScreen({ navigation, route }) {
               )}
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.tabRow}>
-              {auditTabs.map(t => (
+              {auditTabs.map(tab => (
                 <Pressable
-                  key={t.key}
-                  onPress={() => setAuditTab(t.key)}
-                  style={[s.tabBtn, auditTab === t.key && { borderColor: t.color, backgroundColor: t.color + '18' }]}
+                  key={tab.key}
+                  onPress={() => setAuditTab(tab.key)}
+                  style={[s.tabBtn, auditTab === tab.key && { borderColor: tab.color, backgroundColor: tab.color + '18' }]}
                 >
-                  <Text style={[s.tabText, auditTab === t.key && { color: t.color, fontFamily: 'DMSans_500Medium' }]}>
-                    {t.label} ({t.items.length})
+                  <Text style={[s.tabText, auditTab === tab.key && { color: tab.color, fontFamily: 'DMSans_500Medium' }]}>
+                    {/* e.g. "Replace (2)": one translated string, drawn as separate pieces
+                        ("Replace", " (", "2", ")") exactly like the old hard-coded JSX did, so the
+                        English pixels stay identical. Hebrew keeps its own word order. */}
+                    {t(`profile:audit.${tab.key}`, { count: tab.items.length }).split(/( [(]|\d+)/).filter(Boolean)}
                   </Text>
                 </Pressable>
               ))}
@@ -221,7 +248,7 @@ export default function ProfileScreen({ navigation, route }) {
                           <>
                             <View style={s.replaceRow}>
                               <Text style={s.replaceFrom}>{item.from}</Text>
-                              {item.to ? <Text style={s.replaceArrow}>→</Text> : null}
+                              {item.to ? <Text style={s.replaceArrow}>{t('common:arrowNext')}</Text> : null}
                               {item.to ? <Text style={s.replaceTo}>{item.to}</Text> : null}
                             </View>
                             <Text style={s.auditReason}>{item.reason}</Text>
@@ -232,7 +259,7 @@ export default function ProfileScreen({ navigation, route }) {
                               <Text style={s.auditProduct}>{item.product}</Text>
                               {item.priority && (
                                 <View style={[s.priorityBadge, { backgroundColor: item.priority === 'essential' ? '#C44B4B18' : '#B8924A15' }]}>
-                                  <Text style={[s.priorityText, { color: item.priority === 'essential' ? '#C44B4B' : '#B8924A' }]}>{item.priority}</Text>
+                                  <Text style={[s.priorityText, { color: item.priority === 'essential' ? '#C44B4B' : '#B8924A' }]}>{enumLabel(t, 'profile:audit.priority', item.priority)}</Text>
                                 </View>
                               )}
                             </View>
@@ -261,7 +288,7 @@ export default function ProfileScreen({ navigation, route }) {
         {/* SR Ritual */}
         {srProducts && (
           <View style={s.srSection}>
-            <Text style={s.sectionLabel}>🧴 Your SR Ritual</Text>
+            <Text style={s.sectionLabel}>{t('profile:sr.title')}</Text>
             {srProducts.bundle_note && (
               <Text style={s.srBundleNote}>{srProducts.bundle_note}</Text>
             )}
@@ -270,7 +297,7 @@ export default function ProfileScreen({ navigation, route }) {
             {srProducts.era_hero_product?.sr_product_name && (
               <View style={[s.srHeroCard, { borderColor: era.color + '40', backgroundColor: era.color + '0C' }]}>
                 <View style={s.srHeroBadge}>
-                  <Text style={[s.srHeroBadgeText, { color: era.color }]}>ERA HERO</Text>
+                  <Text style={[s.srHeroBadgeText, { color: era.color }]}>{t('profile:sr.heroBadge')}</Text>
                 </View>
                 <Text style={[s.srHeroName, { color: era.color }]}>{srProducts.era_hero_product.sr_product_name}</Text>
                 <Text style={s.srHeroReason}>{srProducts.era_hero_product.hero_reason}</Text>
@@ -279,14 +306,14 @@ export default function ProfileScreen({ navigation, route }) {
 
             {/* AM / PM tabs */}
             <View style={s.srTabRow}>
-              {['am', 'pm'].map(t => (
+              {['am', 'pm'].map(tabKey => (
                 <Pressable
-                  key={t}
-                  onPress={() => setSrTab(t)}
-                  style={[s.srTabBtn, srTab === t && { borderColor: era.color, backgroundColor: era.color + '18' }]}
+                  key={tabKey}
+                  onPress={() => setSrTab(tabKey)}
+                  style={[s.srTabBtn, srTab === tabKey && { borderColor: era.color, backgroundColor: era.color + '18' }]}
                 >
-                  <Text style={[s.srTabText, srTab === t && { color: era.color, fontFamily: 'DMSans_500Medium' }]}>
-                    {t === 'am' ? '☀️ Morning' : '🌙 Evening'}
+                  <Text style={[s.srTabText, srTab === tabKey && { color: era.color, fontFamily: 'DMSans_500Medium' }]}>
+                    {tabKey === 'am' ? t('profile:sr.morning') : t('profile:sr.evening')}
                   </Text>
                 </Pressable>
               ))}
@@ -317,7 +344,7 @@ export default function ProfileScreen({ navigation, route }) {
                       <Text style={s.srMatchReason}>{step.match_reason}</Text>
                     </>
                   ) : (
-                    <Text style={s.srNoMatch}>{step.no_match_note || 'Source externally for this step.'}</Text>
+                    <Text style={s.srNoMatch}>{step.no_match_note || t('profile:sr.noMatch')}</Text>
                   )}
                 </View>
               ))}
@@ -328,7 +355,7 @@ export default function ProfileScreen({ navigation, route }) {
         {/* Current Shelf (from product photos) */}
         {shelfAnalysis?.identified_products?.length > 0 && (
           <View style={s.srSection}>
-            <Text style={s.sectionLabel}>📸 Your Current Shelf</Text>
+            <Text style={s.sectionLabel}>{t('profile:shelf.title')}</Text>
             {shelfAnalysis.shelf_summary?.overall_note && (
               <Text style={s.srBundleNote}>{shelfAnalysis.shelf_summary.overall_note}</Text>
             )}
@@ -342,13 +369,13 @@ export default function ProfileScreen({ navigation, route }) {
                     <View style={s.srStepHeader}>
                       <Text style={s.srStepCategory}>{[p.brand, p.product_name].filter(Boolean).join(' · ') || p.category}</Text>
                       <View style={[s.shelfStatusPill, { backgroundColor: statusColor + '18' }]}>
-                        <Text style={[s.shelfStatusText, { color: statusColor }]}>{p.status}</Text>
+                        <Text style={[s.shelfStatusText, { color: statusColor }]}>{enumLabel(t, 'profile:shelf.status', p.status)}</Text>
                       </View>
                     </View>
                     {p.status_reason ? <Text style={s.srMatchReason}>{p.status_reason}</Text> : null}
                     {p.use_instruction ? <Text style={s.srUseInstruction}>{p.use_instruction}</Text> : null}
                     {p.sr_substitute_name ? (
-                      <Text style={[s.srProductName, { color: era.color }]}>→ Swap with {p.sr_substitute_name}</Text>
+                      <Text style={[s.srProductName, { color: era.color }]}>{t('profile:shelf.swap', { name: isolate(p.sr_substitute_name) })}</Text>
                     ) : null}
                   </View>
                 );
@@ -356,7 +383,12 @@ export default function ProfileScreen({ navigation, route }) {
             </View>
             {shelfAnalysis.transition_plan?.first_sr_purchase && (
               <Text style={s.srMatchReason}>
-                Start here: <Text style={{ color: era.color }}>{shelfAnalysis.transition_plan.first_sr_purchase}</Text>
+                {/* The product name is styled, so <Trans> lets each language place it freely. */}
+                <Trans
+                  i18nKey="profile:shelf.startHere"
+                  values={{ product: isolate(shelfAnalysis.transition_plan.first_sr_purchase) }}
+                  components={{ product: <Text style={{ color: era.color }} /> }}
+                />
               </Text>
             )}
           </View>
@@ -364,8 +396,9 @@ export default function ProfileScreen({ navigation, route }) {
 
         {/* Affirmation */}
         <View style={[s.affirmation, { borderColor: era.color + '50' }]}>
-          <Text style={s.affirmLabel}>YOUR AFFIRMATION</Text>
-          <Text style={[s.affirmText, { color: era.color }]}>"{analysis.affirmation || era.affirmation}"</Text>
+          <Text style={s.affirmLabel}>{t('profile:affirmLabel')}</Text>
+          {/* The affirmation is usually AI text (English), so it is isolated inside the quotes. */}
+          <Text style={[s.affirmText, { color: era.color }]}>"{isolate(analysisAffirmation(analysis, i18n.language))}"</Text>
         </View>
 
         <Pressable
@@ -380,9 +413,9 @@ export default function ProfileScreen({ navigation, route }) {
             ? navigation.goBack()
             : navigation.navigate(!user ? 'SignUp' : user.skincareTiming ? 'Home' : 'SkinTiming'))}
         >
-          <Text style={s.ctaText}>See My Routine →</Text>
+          <Text style={s.ctaText}>{t('profile:cta')}</Text>
         </Pressable>
-        <Text style={s.ctaHint}>Your era updates as your skin evolves.</Text>
+        <Text style={s.ctaHint}>{t('profile:ctaHint')}</Text>
 
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -391,6 +424,7 @@ export default function ProfileScreen({ navigation, route }) {
 }
 
 function ProductCard({ rec, color }) {
+  const { t } = useTranslation();
   return (
     <Pressable
       style={[s.productCard, { borderColor: color + '25' }]}
@@ -405,7 +439,7 @@ function ProductCard({ rec, color }) {
         </View>
       </View>
       <View style={[s.shopBtn, { backgroundColor: color }]}>
-        <Text style={s.shopBtnText}>Shop →</Text>
+        <Text style={s.shopBtnText}>{t('profile:shop')}</Text>
       </View>
     </Pressable>
   );
@@ -427,6 +461,7 @@ function ProductSkeleton() {
 const s = StyleSheet.create({
   safe:      { flex: 1 },
   content:   { padding: 24, paddingTop: 28 },
+  menuRow:   { flexDirection: 'row', marginBottom: 16 },
   saveWarnBanner: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#FBEEE9', borderWidth: 1, borderColor: '#E4B7A6', borderRadius: 12, paddingVertical: 10, paddingHorizontal: 14, marginBottom: 18 },
   saveWarnText:   { flex: 1, fontFamily: 'DMSans_400Regular', fontSize: 12, color: '#9A5B44', lineHeight: 17 },
   saveWarnDismiss:{ fontFamily: 'DMSans_500Medium', fontSize: 13, color: '#9A5B44' },
@@ -454,7 +489,7 @@ const s = StyleSheet.create({
   countryBadge:{ flexDirection: 'row', alignItems: 'center', borderRadius: 10, paddingVertical: 3, paddingHorizontal: 9 },
   countryText: { fontFamily: 'DMSans_500Medium', fontSize: 11 },
   tabRow:      { marginBottom: 12 },
-  tabBtn:      { paddingVertical: 5, paddingHorizontal: 11, borderRadius: 18, borderWidth: 1.5, borderColor: C.border, marginRight: 6 },
+  tabBtn:      { paddingVertical: 5, paddingHorizontal: 11, borderRadius: 18, borderWidth: 1.5, borderColor: C.border, marginEnd: 6 },
   tabText:     { fontFamily: 'DMSans_400Regular', fontSize: 11, color: C.muted },
   auditItems:  { gap: 12 },
   auditCard:   { backgroundColor: C.card, borderRadius: 12, padding: 12, borderWidth: 1 },
@@ -465,7 +500,7 @@ const s = StyleSheet.create({
   addHeader:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 },
   auditProduct:{ fontFamily: 'DMSans_500Medium', fontSize: 13, color: C.text, flex: 1 },
   auditReason: { fontFamily: 'DMSans_400Regular', fontSize: 12, color: C.muted, lineHeight: 19 },
-  priorityBadge:{ borderRadius: 8, paddingVertical: 2, paddingHorizontal: 8, marginLeft: 8 },
+  priorityBadge:{ borderRadius: 8, paddingVertical: 2, paddingHorizontal: 8, marginStart: 8 },
   priorityText: { fontFamily: 'DMSans_500Medium', fontSize: 10 },
 
   productCard: { flexDirection: 'row', alignItems: 'center', gap: 11, backgroundColor: C.card, borderRadius: 11, padding: 11, borderWidth: 1, marginTop: 8 },
@@ -505,7 +540,7 @@ const s = StyleSheet.create({
   srUseInstruction: { fontFamily: 'DMSans_400Regular', fontSize: 13, color: '#4A4039', lineHeight: 20, marginBottom: 5 },
   srMatchReason:    { fontFamily: 'DMSans_400Regular', fontSize: 11, color: C.muted, lineHeight: 18, fontStyle: 'italic' },
   srNoMatch:        { fontFamily: 'DMSans_400Regular', fontSize: 12, color: C.muted, fontStyle: 'italic' },
-  shelfStatusPill:  { marginLeft: 'auto', borderRadius: 8, paddingVertical: 2, paddingHorizontal: 8 },
+  shelfStatusPill:  { marginStart: 'auto', borderRadius: 8, paddingVertical: 2, paddingHorizontal: 8 },
   shelfStatusText:  { fontFamily: 'DMSans_500Medium', fontSize: 10, textTransform: 'capitalize' },
 
   affirmation: { borderWidth: 1.5, borderRadius: 16, padding: 18, marginBottom: 24, alignItems: 'center' },

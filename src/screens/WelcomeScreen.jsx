@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { C } from '../constants';
 import { WELCOME_VARIANTS, getWelcomeRef } from '../lib/welcomeVariants';
 
@@ -11,6 +12,7 @@ import { WELCOME_VARIANTS, getWelcomeRef } from '../lib/welcomeVariants';
 // screen only forwards the stamp "Skip for now" put in the route params (anonymous
 // users); signed-in users arrive without one.
 export default function WelcomeScreen({ navigation, route }) {
+  const { t } = useTranslation();
   const ref = route?.params?.ref || getWelcomeRef();
   const variant = ref ? WELCOME_VARIANTS[ref] : null;
 
@@ -32,14 +34,15 @@ export default function WelcomeScreen({ navigation, route }) {
     <SafeAreaView style={s.safe}>
       <View style={s.container}>
         <Text style={s.emoji}>{variant.emoji}</Text>
-        <Text style={s.title}>{variant.title}</Text>
-        <Text style={s.desc}>{variant.desc}</Text>
+        {/* Texts are looked up by the ref, e.g. onboarding:welcome.lu_clinic.title (run-time key on purpose) */}
+        <Text style={s.title}>{t(`onboarding:welcome.${ref}.title`)}</Text>
+        <Text style={s.desc}>{t(`onboarding:welcome.${ref}.desc`)}</Text>
 
         <Pressable
           style={({ pressed }) => [s.cta, pressed && s.ctaPressed]}
           onPress={begin}
         >
-          <Text style={s.ctaText}>{variant.cta} →</Text>
+          <Text style={s.ctaText}>{t(`onboarding:welcome.${ref}.cta`)}</Text>
         </Pressable>
       </View>
     </SafeAreaView>

@@ -1,0 +1,54 @@
+{
+  "welcome": {
+    "lu_clinic": {
+      "title": "You're in the right place",
+      "desc": "Before your appointment with Lu, let's get to know your skin. Takes about 5 minutes — Lu will have your Skin Era and routine ready when you walk in.",
+      "cta": "Start my Skin Reading →"
+    },
+    "website": {
+      "title": "Let's find your Skin Era",
+      "desc": "Answer a few questions about your skin — takes about 5 minutes. We'll build your personalized routine right after.",
+      "cta": "Start my Skin Reading →"
+    }
+  },
+  "timing": {
+    "headline": "One last thing —",
+    "sub": "when do you usually do your skincare?",
+    "morning": "Morning person",
+    "night": "Night owl",
+    "both": "Both",
+    "cta": "Let's go →",
+    "failed": "Something went wrong. Please try again."
+  },
+  "selfie": {
+    "title": "Skin selfie",
+    "desc": "Camera access works best in the mobile app.\n\nYou can skip this step for now and complete it on your phone.",
+    "cta": "Continue →"
+  },
+  "shelf": {
+    "title": "Your product shelf",
+    "sub": "Share what you're currently using · optional, up to 5",
+    "continue": "Continue →",
+    "skip": "Skip for now →"
+  },
+  "notifications": {
+    "title": "Stay on track",
+    "subtitle": "Get Pretty will remind you before your morning and evening rituals — gently, not aggressively.",
+    "permTitle": "Enable ritual reminders",
+    "permDesc": "We'll only notify you at the times you choose. No spam, ever.",
+    "permBtn": "Allow notifications",
+    "morning": "Morning ritual",
+    "evening": "Evening ritual",
+    "off": "Off",
+    "nudgeHint": "tap − / + to adjust by 15 min",
+    "repeat": "REPEAT",
+    "everyDay": "Every day",
+    "noDays": "No days selected",
+    "ctaSave": "Save & See My Routine →",
+    "ctaLater": "Set up later →",
+    "hint": "You can always enable reminders from Settings"
+  },
+  "errorBoundary": {
+    "title": "Something went wrong"
+  }
+}

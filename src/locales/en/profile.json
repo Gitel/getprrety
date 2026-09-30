@@ -1,0 +1,38 @@
+{
+  "saveFailed": "We couldn't save this assessment — it may not appear next time you open the app.",
+  "eraEyebrow": "Your skin is in",
+  "analysisTitle": "🔬 Skin Analysis",
+  "insightsTitle": "💡 Key Insights",
+  "audit": {
+    "title": "🧴 Product Audit",
+    "remove": "🚫 Remove ({{count}})",
+    "replace": "🔄 Replace ({{count}})",
+    "add": "➕ Add ({{count}})",
+    "keep": "✅ Keep ({{count}})",
+    "priority": {
+      "essential": "essential",
+      "recommended": "recommended"
+    }
+  },
+  "sr": {
+    "title": "🧴 Your SR Ritual",
+    "heroBadge": "ERA HERO",
+    "morning": "☀️ Morning",
+    "evening": "🌙 Evening",
+    "noMatch": "Source externally for this step."
+  },
+  "shelf": {
+    "title": "📸 Your Current Shelf",
+    "status": {
+      "compatible": "compatible",
+      "conflicting": "conflicting",
+      "borderline": "borderline"
+    },
+    "swap": "→ Swap with {{name}}",
+    "startHere": "Start here: <product>{{product}}</product>"
+  },
+  "affirmLabel": "YOUR AFFIRMATION",
+  "cta": "See My Routine →",
+  "ctaHint": "Your era updates as your skin evolves.",
+  "shop": "Shop →"
+}

@@ -32,6 +32,9 @@ const skinScanSchema = new mongoose.Schema({
   reading: { type: mongoose.Schema.Types.Mixed, default: null },
   readingStatus: { type: String, enum: ['pending', 'ready', 'failed'], default: null },
   readingRequestedAt: { type: Date, default: null },
+  // The app language when the scan was started. Scans are anonymous until sign-up, so the language is
+  // captured here (not looked up on the user). The reading copy from Railway is generated once, in this language.
+  language: { type: String, enum: ['en', 'he'], default: 'en' },
   sidePhotoAnalysisEnabled: { type: Boolean, default: true },
   bandsVersion: { type: String, default: 'v1' },
   fusionVersion: { type: String, default: '1.0' },

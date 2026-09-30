@@ -4,8 +4,11 @@ import {
   KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { api } from '../lib/api';
+import { errorText } from '../lib/errorText';
 import { storeToken } from '../lib/auth';
+import { applyAccountLanguage } from '../lib/languageSync';
 import { logActivity } from '../lib/logActivity';
 import { C } from '../constants';
 import { useApp } from '../context/AppContext';
@@ -19,6 +22,9 @@ import { quizEntryScreen } from '../lib/welcomeVariants';
 // anonymous flow, where an account is still required later to see the routine.
 export default function LoginScreen({ navigation }) {
   const { analysis, setAnalysis, setUser, authReady, user } = useApp();
+  // All visible text comes from src/locales/<lang>/auth.json.
+  // (Called before the early return below: hooks must run in the same order every render.)
+  const { t } = useTranslation();
   const [email,    setEmail]    = useState('');
   const [password, setPassword] = useState('');
   const [showPw,   setShowPw]   = useState(false);
@@ -42,7 +48,7 @@ export default function LoginScreen({ navigation }) {
 
   async function handleLogin() {
     if (!email.trim() || !password) {
-      setError('Please enter your email and password.');
+      setError(t('auth:login.missingFields'));
       return;
     }
     setError(null);
@@ -59,11 +65,14 @@ export default function LoginScreen({ navigation }) {
         saved = response.analysis || null;
       } catch { /* users without an assessment continue to onboarding */ }
       setAnalysis(saved);
+      await applyAccountLanguage(user); // UI language = pending ?? account ?? device ?? 'en'
       setUser(user);
       logActivity('login');
       navigation.replace(saved ? 'Home' : quizEntryScreen());
     } catch (err) {
-      setError(err.message || 'Login failed. Please try again.');
+      // errorText maps the server's error code to a translated sentence, so a Hebrew
+      // user never sees the server's English message.
+      setError(errorText(err, t, 'auth:login.failed'));
     } finally {
       setLoading(false);
     }
@@ -83,11 +92,12 @@ export default function LoginScreen({ navigation }) {
         saved = response.analysis || null;
       } catch { /* users without an assessment continue to onboarding */ }
       setAnalysis(saved);
+      await applyAccountLanguage(user); // UI language = pending ?? account ?? device ?? 'en'
       setUser(user);
       logActivity('login');
       navigation.replace(saved ? 'Home' : quizEntryScreen());
     } catch (err) {
-      setError(err.message || 'Google sign-in failed. Please try again.');
+      setError(errorText(err, t, 'auth:login.googleFailed'));
     } finally {
       setGoogleLoading(false);
     }
@@ -113,15 +123,15 @@ export default function LoginScreen({ navigation }) {
           <View style={s.headBlock}>
             <Text style={s.leaf}>🌿</Text>
             <Text style={s.logo}>Get Pretty</Text>
-            <Text style={s.tagline}>SKIN INTELLIGENCE</Text>
+            <Text style={s.tagline}>{t('auth:login.tagline')}</Text>
           </View>
 
           <View style={s.fieldWrap}>
             <TextInput
-              placeholder="Email address"
+              placeholder={t('auth:login.emailPlaceholder')}
               placeholderTextColor={C.muted}
               value={email}
-              onChangeText={t => { setEmail(t); setError(null); }}
+              onChangeText={v => { setEmail(v); setError(null); }}
               style={s.input}
               keyboardType="email-address"
               autoCapitalize="none"
@@ -133,10 +143,10 @@ export default function LoginScreen({ navigation }) {
           <View style={s.fieldWrap}>
             <View style={s.passwordRow}>
               <TextInput
-                placeholder="Password"
+                placeholder={t('auth:login.passwordPlaceholder')}
                 placeholderTextColor={C.muted}
                 value={password}
-                onChangeText={t => { setPassword(t); setError(null); }}
+                onChangeText={v => { setPassword(v); setError(null); }}
                 style={[s.input, s.passwordInput]}
                 secureTextEntry={!showPw}
                 returnKeyType="done"
@@ -157,20 +167,20 @@ export default function LoginScreen({ navigation }) {
           >
             {loading
               ? <ActivityIndicator color={C.bg} size="small" />
-              : <Text style={s.ctaText}>LOG IN</Text>
+              : <Text style={s.ctaText}>{t('auth:login.cta')}</Text>
             }
           </Pressable>
 
           <View style={s.dividerRow}>
             <View style={s.dividerLine} />
-            <Text style={s.dividerText}>or</Text>
+            <Text style={s.dividerText}>{t('auth:login.or')}</Text>
             <View style={s.dividerLine} />
           </View>
 
           <GoogleSignInButton onToken={handleGoogleToken} onError={setError} loading={googleLoading} />
 
           <Pressable onPress={() => navigation.navigate('SignUp')} style={s.greenBtn}>
-            <Text style={s.greenBtnText}>✦ Create an account</Text>
+            <Text style={s.greenBtnText}>{t('auth:login.createAccount')}</Text>
           </Pressable>
 
           {/* Binding Terms/Privacy notice: accepted by Google sign-in (new account) or
@@ -180,7 +190,7 @@ export default function LoginScreen({ navigation }) {
           {/* Existing anonymous flow: quiz + results without an account. SignUp is still
               required at ProfileScreen's "See My Routine" before the routine (Home). */}
           <Pressable disabled={!LEGAL_READY} onPress={skipLogin} style={s.skipBtn} hitSlop={10}>
-            <Text style={[s.skipText, !LEGAL_READY && s.skipTextDisabled]}>Skip for now</Text>
+            <Text style={[s.skipText, !LEGAL_READY && s.skipTextDisabled]}>{t('auth:login.skip')}</Text>
           </Pressable>
 
         </ScrollView>
@@ -201,8 +211,9 @@ const s = StyleSheet.create({
   fieldWrap:      { marginBottom: 12 },
   input:          { backgroundColor: C.card, borderWidth: 1.5, borderColor: C.border, borderRadius: 13, paddingVertical: 14, paddingHorizontal: 16, fontFamily: 'DMSans_400Regular', fontSize: 14, color: C.text },
   passwordRow:    { position: 'relative' },
-  passwordInput:  { paddingRight: 48 },
-  eyeBtn:         { position: 'absolute', right: 14, top: 0, bottom: 0, justifyContent: 'center' },
+  // paddingEnd/end are logical: end = right in English, left in Hebrew (RTL)
+  passwordInput:  { paddingEnd: 48 },
+  eyeBtn:         { position: 'absolute', end: 14, top: 0, bottom: 0, justifyContent: 'center' },
   eyeIcon:        { fontSize: 16 },
 
   forgotRow:      { alignItems: 'center', marginBottom: 20 },

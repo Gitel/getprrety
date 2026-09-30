@@ -1,14 +1,16 @@
 import React from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { C, QUESTIONS } from '../constants';
-
-const Q = QUESTIONS.find(q => q.id === 'welcome');
+import { useTranslation } from 'react-i18next';
+import { C } from '../constants';
 
 // Login-first: the Terms/Privacy consent now lives on LoginScreen / SignUpScreen, so
 // this screen no longer shows or stamps it. It only forwards the stamp that "Skip for
 // now" put in the route params (anonymous users); signed-in users arrive without one.
 export default function QuizIntroScreen({ navigation, route }) {
+  const { t } = useTranslation();
+  // The intro copy lives in quiz.json under the "welcome" question id (quiz:welcome.*). The checklist is a list, so its key uses backticks: the static-key test only checks plain-string keys.
+  const checklist = t(`quiz:welcome.checklist`, { returnObjects: true });
   function begin() {
     navigation.navigate('Quiz', {
       consentAcceptedAt: route?.params?.consentAcceptedAt || null,
@@ -21,15 +23,15 @@ export default function QuizIntroScreen({ navigation, route }) {
     <SafeAreaView style={s.safe}>
       {navigation.canGoBack() && (
         <Pressable onPress={() => navigation.goBack()} style={s.backBtn} hitSlop={10}>
-          <Text style={s.backText}>← Back</Text>
+          <Text style={s.backText}>{t('common:back')}</Text>
         </Pressable>
       )}
       <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
         <Text style={s.moon}>🌙</Text>
         <View style={s.heroBlock}>
-          <Text style={s.heading}>{Q.header}</Text>
-          <Text style={s.sub}>{Q.body}</Text>
-          <Text style={s.time}>{Q.timeNote}</Text>
+          <Text style={s.heading}>{t('quiz:welcome.header')}</Text>
+          <Text style={s.sub}>{t('quiz:welcome.body')}</Text>
+          <Text style={s.time}>{t('quiz:welcome.timeNote')}</Text>
         </View>
 
         <View style={s.actions}>
@@ -37,12 +39,12 @@ export default function QuizIntroScreen({ navigation, route }) {
             style={({ pressed }) => [s.cta, pressed && { opacity: 0.88 }]}
             onPress={begin}
           >
-            <Text style={s.ctaText}>{Q.cta}</Text>
+            <Text style={s.ctaText}>{t('quiz:welcome.cta')}</Text>
           </Pressable>
         </View>
 
-        <Text style={s.checklist}>{Q.checklist.map(c => `✔ ${c}`).join('   ')}</Text>
-        <Text style={s.footer}>{Q.footer}</Text>
+        <Text style={s.checklist}>{checklist.map(c => `✔ ${c}`).join('   ')}</Text>
+        <Text style={s.footer}>{t('quiz:welcome.footer')}</Text>
       </ScrollView>
     </SafeAreaView>
   );
@@ -50,7 +52,7 @@ export default function QuizIntroScreen({ navigation, route }) {
 
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: C.bg },
-  backBtn: { position: 'absolute', top: 8, left: 20, zIndex: 10, paddingVertical: 8, paddingHorizontal: 4 },
+  backBtn: { position: 'absolute', top: 8, start: 20, zIndex: 10, paddingVertical: 8, paddingHorizontal: 4 },
   backText: { fontFamily: 'DMSans_400Regular', fontSize: 14, color: C.accent },
   content: { flexGrow: 1, paddingHorizontal: 32, paddingTop: 40, paddingBottom: 40, alignItems: 'center', justifyContent: 'center' },
   moon: { fontSize: 44, marginBottom: 22 },

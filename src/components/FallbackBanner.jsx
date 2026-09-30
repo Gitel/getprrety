@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { useApp } from '../context/AppContext';
 import { startRetake } from '../lib/retake';
 
@@ -12,6 +13,7 @@ import { startRetake } from '../lib/retake';
 //    analysis on LoadingScreen with the same answers, no re-quiz;
 //  - otherwise (e.g. a saved fallback loaded after a reload)   -> "Retake assessment".
 export default function FallbackBanner({ analysis, navigation }) {
+  const { t } = useTranslation();
   const { answers, user, setAnalysis, setAnswers } = useApp();
   if (analysis?.source !== 'fallback') return null;
 
@@ -29,12 +31,12 @@ export default function FallbackBanner({ analysis, navigation }) {
 
   return (
     <View style={s.banner}>
-      <Text style={s.title}>We couldn't personalize your plan right now</Text>
+      <Text style={s.title}>{t('home:fallbackBanner.title')}</Text>
       <Text style={s.body}>
-        This is our general starter plan, not a reading of your skin. Please try again in a little while.
+        {t('home:fallbackBanner.body')}
       </Text>
       <Pressable onPress={onPress} style={s.btn} hitSlop={6}>
-        <Text style={s.btnText}>{canRetry ? 'Try again' : 'Retake assessment'}</Text>
+        <Text style={s.btnText}>{canRetry ? t('common:tryAgain') : t('home:fallbackBanner.retake')}</Text>
       </Pressable>
     </View>
   );

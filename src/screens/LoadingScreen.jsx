@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { C, QUESTIONS, buildFallback } from '../constants';
 import { analyzeWithRailway } from '../lib/analyzeWithRailway';
 import { pollScan } from '../lib/skinScan';
@@ -8,29 +9,32 @@ import { persistAnalysis, withSavedId, skipRetrySave } from '../lib/persistAnaly
 import { logActivity } from '../lib/logActivity';
 import { useApp } from '../context/AppContext';
 
-const COMPLETION = QUESTIONS.find(q => q.id === 'completion');
-const STAGES     = COMPLETION.stages;
-const STAGE_MS   = 1400;
+// Number of loading stages: stageCount of the completion entry in constants.js. The stage texts
+// (quiz:completion.stages.0 ...) are looked up at render time so they follow the current language.
+const STAGE_COUNT = QUESTIONS.find(q => q.id === 'completion').stageCount;
+const STAGE_MS    = 1400;
 
 // Once the Era analysis is in, give the PerfectCorp skin scan a limited extra window to land before
 // moving on — the Era must never wait on a vendor. If it lands late, it's simply left off this
 // analysis; ProfileScreen only renders the AI Skin Scan card when present.
 const SCAN_SOFT_TIMEOUT_MS = 25000;
 const SCAN_POLL_MS         = 1500;
+// Scan-wait messages. `key` is looked up at render time: quiz:loading.scanWait.<key>.
 const SCAN_WAIT_COPY = [
-  { until: 3000,  label: 'Reading your skin…' },
-  { until: 8000,  label: 'Looking at texture and hydration…' },
-  { until: 15000, label: 'Checking your barrier…' },
-  { until: Infinity, label: 'Almost there — putting your plan together…' },
+  { until: 3000,  key: 'reading' },
+  { until: 8000,  key: 'texture' },
+  { until: 15000, key: 'barrier' },
+  { until: Infinity, key: 'almost' },
 ];
 
 export default function LoadingScreen({ navigation, route }) {
+  const { t } = useTranslation();
   // Set by FallbackBanner's "Try again": a re-run of an analysis that already fell back.
   const isRetry = Boolean(route?.params?.retry);
   const { answers, user, setAnalysis, analysisSaveFailed, setAnalysisSaveFailed } = useApp();
   const [step, setStep]               = useState(0);
   const [complete, setComplete]       = useState(false);
-  const [scanWaitLabel, setScanWaitLabel] = useState(null);
+  const [scanWaitLabel, setScanWaitLabel] = useState(null); // a SCAN_WAIT_COPY key, not text
   const called                        = useRef(false);
   // Latest "first save failed" flag for finish(), which runs inside the mount-time effect
   // below and would otherwise see the value from mount. On a retry, the first save can
@@ -104,7 +108,7 @@ export default function LoadingScreen({ navigation, route }) {
       function tick() {
         if (settled) return;
         const elapsed = Date.now() - start;
-        setScanWaitLabel(SCAN_WAIT_COPY.find(c => elapsed < c.until).label);
+        setScanWaitLabel(SCAN_WAIT_COPY.find(c => elapsed < c.until).key);
 
         pollScan(scanId, answers?.skinScanToken).then(result => {
           if (settled) return;
@@ -129,7 +133,7 @@ export default function LoadingScreen({ navigation, route }) {
     function advanceStage(i) {
       stepRef.current = i;
       setStep(i);
-      if (i < STAGES.length - 1) {
+      if (i < STAGE_COUNT - 1) {
         setTimeout(() => advanceStage(i + 1), STAGE_MS);
       } else if (apiRef.done) {
         finishWithScan();
@@ -152,19 +156,27 @@ export default function LoadingScreen({ navigation, route }) {
       })
       .finally(() => {
         apiRef.done = true;
-        if (stepRef.current === STAGES.length - 1) finishWithScan();
+        if (stepRef.current === STAGE_COUNT - 1) finishWithScan();
       });
   }, []);
+
+  // Stage texts and the headline (with the user's name, wrapped in Unicode isolates so a name
+  // in the other script cannot scramble the punctuation; no name -> the "NoName" text).
+  const stages = t(`quiz:completion.stages`, { returnObjects: true }) /* a list of texts, see quiz.json */;
+  const personName = (answers?.name || '').trim();
+  const title = personName
+    ? t('quiz:completion.headline', { name: '\u2068' + personName + '\u2069' })
+    : t('quiz:completion.headlineNoName');
 
   return (
     <SafeAreaView style={s.safe}>
       <View style={s.container}>
         <Text style={s.emoji}>🌙</Text>
-        <Text style={s.title}>{typeof COMPLETION.headline === 'function' ? COMPLETION.headline(answers?.name) : COMPLETION.headline}</Text>
-        <Text style={s.subtitle}>Our cosmetology engine is reading every signal you shared</Text>
+        <Text style={s.title}>{title}</Text>
+        <Text style={s.subtitle}>{t('quiz:loading.subtitle')}</Text>
 
         <View style={s.steps}>
-          {STAGES.map((label, i) => {
+          {stages.map((label, i) => {
             const isActive = i === step && !complete;
             const isDone   = i < step || complete;
             return (
@@ -173,19 +185,19 @@ export default function LoadingScreen({ navigation, route }) {
                   <Text style={s.dotText}>{isDone ? '✓' : isActive ? '◐' : ''}</Text>
                 </View>
                 <Text style={[s.stepLabel, (isDone || isActive) && { color: C.text }]}>{label}</Text>
-                {isActive && <Text style={s.inProgress}>in progress</Text>}
+                {isActive && <Text style={s.inProgress}>{t('quiz:loading.inProgress')}</Text>}
               </View>
             );
           })}
         </View>
 
         {!complete && scanWaitLabel && (
-          <Text style={s.scanWaitLabel}>✨ {scanWaitLabel}</Text>
+          <Text style={s.scanWaitLabel}>✨ {t(`quiz:loading.scanWait.${scanWaitLabel}`)}</Text>
         )}
 
         {complete && (
           <View style={s.doneBadge}>
-            <Text style={s.doneText}>✓ Analysis complete — revealing your Skin Era</Text>
+            <Text style={s.doneText}>{t('quiz:loading.done')}</Text>
           </View>
         )}
       </View>

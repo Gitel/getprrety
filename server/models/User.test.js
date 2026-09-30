@@ -31,3 +31,9 @@ test('a Google signup still stores its id', () => {
 
   expect(doc.googleId).toBe('sub-123');
 });
+
+test('language defaults to null and only accepts en / he / null', () => {
+  expect(new User({ email: 'l@example.com' }).language).toBeNull();
+  expect(new User({ email: 'l@example.com', passwordHash: 'x', language: 'he' }).validateSync()).toBeUndefined();
+  expect(new User({ email: 'l@example.com', passwordHash: 'x', language: 'fr' }).validateSync().errors.language).toBeDefined();
+});

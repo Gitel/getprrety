@@ -1,0 +1,791 @@
+{
+  "chapters": {
+    "1": "About You",
+    "2": "Your Skin",
+    "3": "Health Picture",
+    "4": "Your Lifestyle",
+    "5": "Your Routine"
+  },
+  "welcome": {
+    "header": "Imagine waking up knowing exactly what your skin needs.",
+    "body": "No guessing. No wasted money. Just healthy, glowing skin — backed by science and built around you.",
+    "timeNote": "⏱ Takes about 5 minutes",
+    "cta": "Create My Skin Longevity Plan →",
+    "footer": "🔒 Your answers stay private and are used only to personalize your plan.",
+    "checklist": [
+      "Personalized routine",
+      "Product audit",
+      "Skin analysis",
+      "Lifestyle insights"
+    ]
+  },
+  "name": {
+    "question": "Let's get acquainted. What's your first name?",
+    "why": "We'll personalize your skin journey — and celebrate your progress — by name.",
+    "placeholder": "Your name"
+  },
+  "greeting": {
+    "text": "👋 Hi, {{name}}. So glad you're here. Let's take a quiet moment to focus on you.",
+    "textNoName": "👋 Hi there. So glad you're here. Let's take a quiet moment to focus on you."
+  },
+  "birthday": {
+    "question": "When's your birthday, {{name}}?",
+    "questionNoName": "When's your birthday?",
+    "why": "Your skin's needs change with each decade — we calibrate ingredient strength and priorities to where you are now."
+  },
+  "gender": {
+    "question": "Who are we creating this plan for?",
+    "why": "Biology shapes your skin's needs — this helps us calibrate correctly.",
+    "options": {
+      "she": {
+        "label": "Woman",
+        "desc": "Tailored to female skin biology and hormonal patterns"
+      },
+      "he": {
+        "label": "Man",
+        "desc": "Tailored to male skin characteristics"
+      }
+    }
+  },
+  "location": {
+    "question": "Where do you live?",
+    "why": "Climate, UV, and humidity all shape what your skin needs. We use your location to personalize your recommendations.",
+    "fact": "People in humid climates often need a very different routine than those in dry climates.",
+    "fields": {
+      "city": {
+        "placeholder": "City"
+      },
+      "country": {
+        "placeholder": "Country"
+      }
+    },
+    "input": {
+      "placeholder": "Start typing your city",
+      "label": "City",
+      "selected": "Selected: {{city}}, {{country}}",
+      "noMatch": "No match found — you can still continue with this city."
+    }
+  },
+  "work_environment": {
+    "question": "Tell us about your day.",
+    "why": "Your skin faces different challenges depending on where you spend your time — UV, air conditioning, pollution, dehydration.",
+    "fact": "Air conditioning can increase skin dehydration, while outdoor work raises UV exposure and pigmentation risk.",
+    "options": {
+      "office": {
+        "label": "Office or remote work"
+      },
+      "outdoors": {
+        "label": "Mostly outdoors"
+      },
+      "driving": {
+        "label": "Driving most of the day"
+      },
+      "ac_workplace": {
+        "label": "Air-conditioned workplace"
+      },
+      "polluted": {
+        "label": "Dusty or polluted environment"
+      },
+      "home_kids": {
+        "label": "At home with kids"
+      },
+      "travel": {
+        "label": "I travel frequently"
+      }
+    }
+  },
+  "chapter_2": {
+    "headline": "Now let's understand your skin's story."
+  },
+  "interests": {
+    "question": "What would you love to achieve for your skin?",
+    "hint": "Choose all that apply.",
+    "options": {
+      "routine_that_works": {
+        "label": "Build a routine that actually works"
+      },
+      "healthier_glow": {
+        "label": "Get healthier, glowing skin"
+      },
+      "stop_wasting_money": {
+        "label": "Stop wasting money on products that don't work"
+      },
+      "discover_needs": {
+        "label": "Discover what my skin really needs"
+      },
+      "use_what_i_own": {
+        "label": "Make better use of what I already own"
+      },
+      "track_progress": {
+        "label": "Track my progress over time"
+      },
+      "prevent_concerns": {
+        "label": "Prevent future skin concerns"
+      }
+    }
+  },
+  "tone": {
+    "question": "Let's find your Fitzpatrick skin type.",
+    "why": "This helps us personalize your SPF, pigmentation prevention, and treatment safety.",
+    "options": {
+      "I": {
+        "label": "Porcelain Glow",
+        "sub": "Very fair, burns easily"
+      },
+      "II": {
+        "label": "Fair & Sensitive",
+        "sub": "Fair, usually burns"
+      },
+      "III": {
+        "label": "Warm Beige",
+        "sub": "Medium, sometimes burns"
+      },
+      "IV": {
+        "label": "Golden Olive",
+        "sub": "Olive toned, tans easily"
+      },
+      "V": {
+        "label": "Rich Bronze",
+        "sub": "Brown, rarely burns"
+      },
+      "VI": {
+        "label": "Deep Ebony",
+        "sub": "Dark brown/black"
+      }
+    }
+  },
+  "post_cleanse_feel": {
+    "question": "How does your skin feel 30 minutes after cleansing?",
+    "why": "This reveals your natural skin type — and tells us which cleanser and moisturizer are right for you.",
+    "tip": "For the most accurate answer, cleanse gently and wait 30 minutes without applying anything.",
+    "options": {
+      "dry": {
+        "label": "Feels tight or uncomfortable"
+      },
+      "comfortable": {
+        "label": "Comfortable and balanced"
+      },
+      "oily": {
+        "label": "Looks shiny all over"
+      },
+      "oily_tzone": {
+        "label": "Only my T-zone gets oily"
+      },
+      "tight_then_oily": {
+        "label": "Starts tight, then becomes oily"
+      },
+      "not_sure": {
+        "label": "Help me figure it out"
+      }
+    }
+  },
+  "irritants": {
+    "question": "What tends to trigger your skin?",
+    "why": "We'll steer your plan away from ingredients and treatments likely to set your skin off.",
+    "fact": "Sensitive skin isn't a skin type — it describes how your skin reacts to triggers.",
+    "hint": "Choose everything you've noticed.",
+    "options": {
+      "sun": {
+        "label": "Sun"
+      },
+      "heat": {
+        "label": "Heat"
+      },
+      "wind": {
+        "label": "Wind"
+      },
+      "cold": {
+        "label": "Cold weather"
+      },
+      "hot_water": {
+        "label": "Hot water"
+      },
+      "fragrance": {
+        "label": "Fragrance"
+      },
+      "essential_oils": {
+        "label": "Essential oils"
+      },
+      "acids": {
+        "label": "Exfoliating acids"
+      },
+      "retinoids": {
+        "label": "Retinoids"
+      },
+      "stress": {
+        "label": "Stress"
+      },
+      "lack_of_sleep": {
+        "label": "Lack of sleep"
+      },
+      "hormonal": {
+        "label": "Hormonal changes"
+      },
+      "hard_water": {
+        "label": "Hard water"
+      },
+      "nothing": {
+        "label": "Nothing I've noticed"
+      },
+      "other": {
+        "label": "Other"
+      }
+    }
+  },
+  "skin_goals": {
+    "question": "Which skin concerns do you have right now?",
+    "why": "We'll build your plan around these — in the right order, at the right pace.",
+    "groups": [
+      "Texture & Aging",
+      "Tone",
+      "Skin Health",
+      "Eyes"
+    ],
+    "options": {
+      "fine_lines": {
+        "label": "Fine lines"
+      },
+      "wrinkles": {
+        "label": "Wrinkles"
+      },
+      "neck_aging": {
+        "label": "Neck aging"
+      },
+      "large_pores": {
+        "label": "Enlarged pores"
+      },
+      "uneven_texture": {
+        "label": "Uneven texture"
+      },
+      "pigmentation": {
+        "label": "Pigmentation"
+      },
+      "melasma": {
+        "label": "Melasma"
+      },
+      "dull_skin": {
+        "label": "Dull skin"
+      },
+      "acne": {
+        "label": "Acne"
+      },
+      "acne_scars": {
+        "label": "Acne scars"
+      },
+      "sensitive": {
+        "label": "Sensitive skin"
+      },
+      "redness": {
+        "label": "Redness"
+      },
+      "rosacea": {
+        "label": "Rosacea"
+      },
+      "dryness": {
+        "label": "Dryness"
+      },
+      "dehydration": {
+        "label": "Dehydration"
+      },
+      "oiliness": {
+        "label": "Oiliness"
+      },
+      "barrier_damage": {
+        "label": "Barrier damage"
+      },
+      "dark_circles": {
+        "label": "Under-eye dark circles"
+      },
+      "puffy_eyes": {
+        "label": "Puffy eyes"
+      }
+    }
+  },
+  "top_concern": {
+    "question": "{{name}}, which one should we focus on first?",
+    "questionNoName": "Which one should we focus on first?",
+    "why": "Your plan will target this first — the rest follow in the right sequence.",
+    "fact": "Treating concerns in the right order — barrier first — is how results stick."
+  },
+  "chapter_3": {
+    "headline": "A little about your health — this stays private."
+  },
+  "diagnosed_conditions": {
+    "question": "Have you ever been diagnosed with any of these skin conditions?",
+    "why": "This helps us recommend safer products and treatments for your skin.",
+    "options": {
+      "acne": {
+        "label": "Acne"
+      },
+      "rosacea": {
+        "label": "Rosacea"
+      },
+      "melasma": {
+        "label": "Melasma"
+      },
+      "eczema": {
+        "label": "Eczema"
+      },
+      "psoriasis": {
+        "label": "Psoriasis"
+      },
+      "seborrheic_dermatitis": {
+        "label": "Seborrheic dermatitis"
+      },
+      "hyperpigmentation": {
+        "label": "Hyperpigmentation"
+      },
+      "none": {
+        "label": "None"
+      },
+      "not_sure": {
+        "label": "Not sure"
+      },
+      "other": {
+        "label": "Other"
+      }
+    }
+  },
+  "health_conditions": {
+    "question": "Some health conditions can influence your skin. Do any of these apply?",
+    "why": "Skin health starts inside the body — this helps us understand internal factors affecting yours.",
+    "footer": "🔒 Private, and used only to personalize your recommendations.",
+    "options": {
+      "pcos": {
+        "label": "PCOS"
+      },
+      "diabetes": {
+        "label": "Diabetes"
+      },
+      "thyroid": {
+        "label": "Thyroid disorder"
+      },
+      "digestive": {
+        "label": "Digestive disorder"
+      },
+      "autoimmune": {
+        "label": "Autoimmune condition"
+      },
+      "none": {
+        "label": "None"
+      },
+      "prefer_not_to_answer": {
+        "label": "Prefer not to answer"
+      }
+    }
+  },
+  "allergies": {
+    "question": "Are there any ingredients or products your skin reacts to?",
+    "why": "We'll never recommend these.",
+    "extraOptions": {
+      "other": {
+        "label": "Other"
+      },
+      "none": {
+        "label": "No known allergies or sensitivities"
+      }
+    },
+    "groups": [
+      "Allergies",
+      "Skincare sensitivities"
+    ],
+    "options": {
+      "meds": {
+        "label": "Medications"
+      },
+      "iodine": {
+        "label": "Iodine"
+      },
+      "foods": {
+        "label": "Certain foods"
+      },
+      "latex": {
+        "label": "Latex"
+      },
+      "fragrance": {
+        "label": "Fragrance"
+      },
+      "essential_oils": {
+        "label": "Essential oils"
+      },
+      "ahas_bhas": {
+        "label": "AHAs/BHAs"
+      },
+      "retinoids": {
+        "label": "Retinoids"
+      },
+      "sulfates": {
+        "label": "Sulfates"
+      },
+      "lanolin": {
+        "label": "Lanolin"
+      },
+      "sunscreen": {
+        "label": "Sunscreens"
+      },
+      "cosmetics": {
+        "label": "Cosmetics"
+      }
+    }
+  },
+  "hormones": {
+    "question": "{{name}}, a few hormone questions — this is where skincare gets truly personal.",
+    "questionNoName": "A few hormone questions — this is where skincare gets truly personal.",
+    "why": "Hormones influence oil production, pigmentation, sensitivity, and which ingredients are safe for you.",
+    "footer": "🔒 Private, and used only to personalize your plan.",
+    "fields": {
+      "pregnant": {
+        "label": "Pregnant?",
+        "options": {
+          "yes": {
+            "label": "Yes"
+          },
+          "no": {
+            "label": "No"
+          }
+        }
+      },
+      "breastfeeding": {
+        "label": "Breastfeeding?",
+        "options": {
+          "yes": {
+            "label": "Yes"
+          },
+          "no": {
+            "label": "No"
+          }
+        }
+      },
+      "trying_to_conceive": {
+        "label": "Trying to conceive?",
+        "options": {
+          "yes": {
+            "label": "Yes"
+          },
+          "no": {
+            "label": "No"
+          }
+        }
+      },
+      "regular_cycle": {
+        "label": "Regular menstrual cycle?",
+        "options": {
+          "yes": {
+            "label": "Yes"
+          },
+          "no": {
+            "label": "No"
+          },
+          "not_sure": {
+            "label": "Not sure"
+          }
+        }
+      },
+      "menopause": {
+        "label": "Menopause?",
+        "options": {
+          "yes": {
+            "label": "Yes"
+          },
+          "no": {
+            "label": "No"
+          }
+        }
+      },
+      "hormonal_birth_control": {
+        "label": "Hormonal birth control?",
+        "options": {
+          "yes": {
+            "label": "Yes"
+          },
+          "no": {
+            "label": "No"
+          }
+        }
+      },
+      "hormone_therapy": {
+        "label": "Hormone therapy?",
+        "options": {
+          "yes": {
+            "label": "Yes"
+          },
+          "no": {
+            "label": "No"
+          }
+        }
+      }
+    }
+  },
+  "chapter_4": {
+    "headline": "Your skin doesn't exist in a vacuum. Let's look at the whole picture."
+  },
+  "sleep": {
+    "question": "How many hours do you sleep?",
+    "why": "Sleep drives skin repair, collagen production, and your barrier's overnight recovery.",
+    "fact": "Most skin repair and collagen production happens while you sleep.",
+    "options": {
+      "less_5": {
+        "label": "Less than 5 hours"
+      },
+      "5_6": {
+        "label": "5–6 hours"
+      },
+      "6_7": {
+        "label": "6–7 hours"
+      },
+      "7_8": {
+        "label": "7–8 hours"
+      },
+      "more_8": {
+        "label": "More than 8 hours"
+      }
+    }
+  },
+  "stress": {
+    "question": "How stressed have you been lately?",
+    "why": "Stress can affect breakouts, redness, healing, and premature aging.",
+    "fact": "Stress raises cortisol, which can affect oil production, inflammation, and your skin barrier.",
+    "labels": {
+      "1": "Very calm",
+      "2": "Very calm",
+      "3": "Mostly relaxed",
+      "4": "Mostly relaxed",
+      "5": "Moderate",
+      "6": "Moderate",
+      "7": "High",
+      "8": "High",
+      "9": "Very high",
+      "10": "Very high"
+    }
+  },
+  "water_intake": {
+    "question": "How much water do you drink daily?",
+    "why": "Hydration supports overall health and can influence how your skin feels — especially if it runs dry.",
+    "options": {
+      "less_1l": {
+        "label": "Less than 1L"
+      },
+      "1_1_5l": {
+        "label": "1–1.5L"
+      },
+      "1_5_2l": {
+        "label": "1.5–2L"
+      },
+      "more_2l": {
+        "label": "More than 2L"
+      },
+      "not_sure": {
+        "label": "I'm not sure"
+      }
+    }
+  },
+  "alcohol": {
+    "question": "How often do you drink alcohol?",
+    "why": "Alcohol can affect hydration, inflammation, sleep quality, and skin recovery.",
+    "fact": "Alcohol can worsen dehydration and redness in some people — especially with rosacea or sensitive skin.",
+    "options": {
+      "never": {
+        "label": "Never"
+      },
+      "few_year": {
+        "label": "A few times a year"
+      },
+      "1_3_month": {
+        "label": "1–3 times a month"
+      },
+      "1_2_week": {
+        "label": "1–2 times a week"
+      },
+      "3_5_week": {
+        "label": "3–5 times a week"
+      },
+      "daily": {
+        "label": "Daily"
+      }
+    }
+  },
+  "smoke": {
+    "question": "Do you smoke?",
+    "why": "Smoking affects collagen, healing speed, and skin oxygen supply — it changes what your routine should prioritize.",
+    "options": {
+      "never": {
+        "label": "Never"
+      },
+      "occasionally": {
+        "label": "Occasionally"
+      },
+      "daily": {
+        "label": "Daily"
+      }
+    }
+  },
+  "exercise": {
+    "question": "How often do you move your body?",
+    "why": "Exercise boosts circulation and skin oxygenation — and tells us how sweat fits into your routine.",
+    "options": {
+      "never": {
+        "label": "Never"
+      },
+      "1_2_week": {
+        "label": "1–2x a week"
+      },
+      "3_5_week": {
+        "label": "3–5x a week"
+      },
+      "daily": {
+        "label": "Daily"
+      }
+    }
+  },
+  "chapter_5": {
+    "headline": "Last step — let's see what you're working with."
+  },
+  "routine_products": {
+    "question": "What's in your routine right now?",
+    "why": "We'll tell you what to keep, replace, or retire.",
+    "hint": "No judgment — tap everything you use.",
+    "options": {
+      "cleanser": {
+        "label": "Cleanser"
+      },
+      "toner": {
+        "label": "Toner"
+      },
+      "serum": {
+        "label": "Serum"
+      },
+      "moisturizer": {
+        "label": "Moisturizer"
+      },
+      "eye_cream": {
+        "label": "Eye cream"
+      },
+      "sunscreen": {
+        "label": "Sunscreen"
+      },
+      "retinol": {
+        "label": "Retinol"
+      },
+      "exfoliant": {
+        "label": "Exfoliant"
+      },
+      "face_oil": {
+        "label": "Face oil"
+      },
+      "mask": {
+        "label": "Mask"
+      },
+      "none": {
+        "label": "None"
+      }
+    }
+  },
+  "event": {
+    "question": "Getting ready for something special?",
+    "why": "A real deadline lets us pace your plan to peak exactly on time.",
+    "options": {
+      "trip": {
+        "label": "Trip"
+      },
+      "wedding": {
+        "label": "Wedding"
+      },
+      "beach": {
+        "label": "Beach Vacation"
+      },
+      "family": {
+        "label": "Family Gathering"
+      },
+      "party": {
+        "label": "Party"
+      },
+      "no_event": {
+        "label": "No special event"
+      }
+    }
+  },
+  "event_date": {
+    "question": "When's the big day?",
+    "why": "We'll build your plan to peak right on time."
+  },
+  "photos": {
+    "question": "{{name}}, let's see your skin.",
+    "questionNoName": "Let's see your skin.",
+    "why": "Your photos become your baseline — the starting point we'll measure every week of progress against.",
+    "cta": "Start My Skin Scan →",
+    "footer": "🔒 Photos are private and only used for your analysis.",
+    "checklist": [
+      "No makeup",
+      "Natural daylight",
+      "Hair tied back",
+      "No filters, neutral expression"
+    ]
+  },
+  "shelf": {
+    "question": "Now, show us your shelf.",
+    "why": "We'll audit every product — ingredient quality, compatibility, duplicates, correct order — and flag anything working against your skin.",
+    "hint": "Optional, up to 9 photos."
+  },
+  "completion": {
+    "headline": "{{name}}, your Skin Longevity Plan is ready.",
+    "headlineNoName": "Your Skin Longevity Plan is ready.",
+    "stages": [
+      "Reading your skin profile",
+      "Cross-checking 10 safety rules…",
+      "Auditing your products",
+      "Building your personalized plan"
+    ]
+  },
+  "ui": {
+    "stepCounter": "Step {{n}} of {{total}}",
+    "chapterEyebrow": "Chapter {{n}} · {{chapter}}",
+    "continue": "Continue →",
+    "next": "Next →",
+    "createProfile": "Create My Profile →",
+    "skipForNow": "Skip for now →",
+    "skipQuestion": "Skip this question",
+    "seeEra": "See my Skin Era →",
+    "tellUsMore": "Tell us more",
+    "noWrongAnswers": "No wrong answers. Your skin has no judgment.",
+    "photoAdded": "Photo added ✓",
+    "takePhoto": "📷 Take photo",
+    "upload": "🖼 Upload",
+    "removeRetake": "Remove & retake",
+    "photoFootnote": "We see skin texture, not judgment",
+    "photoPrivacy": "🔒 Your front-facing photo is also sent to our AI skin-analysis partner (PerfectCorp) to enrich your results. It's never shared beyond that.",
+    "completionSub": "We're analyzing your answers to build your personalized routine."
+  },
+  "photoAngles": {
+    "front": {
+      "label": "Straight on",
+      "hint": "Face forward, chin slightly down"
+    },
+    "left": {
+      "label": "Left side of face",
+      "hint": "Turn your left cheek toward the light"
+    },
+    "right": {
+      "label": "Right side of face",
+      "hint": "Turn your right cheek toward the light"
+    },
+    "closeup": {
+      "label": "Close-up",
+      "hint": "Move closer — fill the frame with your skin texture"
+    },
+    "neck": {
+      "label": "Neck",
+      "hint": "Tilt your chin up slightly to show your neck"
+    }
+  },
+  "loading": {
+    "subtitle": "Our cosmetology engine is reading every signal you shared",
+    "inProgress": "in progress",
+    "done": "✓ Analysis complete — revealing your Skin Era",
+    "scanWait": {
+      "reading": "Reading your skin…",
+      "texture": "Looking at texture and hydration…",
+      "barrier": "Checking your barrier…",
+      "almost": "Almost there — putting your plan together…"
+    }
+  }
+}

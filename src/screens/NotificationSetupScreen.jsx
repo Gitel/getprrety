@@ -1,12 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, View, Text, Pressable, StyleSheet, Switch } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { C } from '../constants';
 import { useApp } from '../context/AppContext';
+import { formatTime, weekdayLetters, weekdayNames } from '../lib/formatting';
 import { loadReminderSchedule, requestNotificationPermission, saveReminderSchedule, supportsNotifications } from '../lib/notifications';
-
-const DAYS      = ['S','M','T','W','T','F','S'];
-const DAY_FULL  = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
 function nudgeTime(time, dir) {
   const [h, m] = time.split(':').map(Number);
@@ -14,16 +13,11 @@ function nudgeTime(time, dir) {
   const nh = Math.floor(total / 60), nm = total % 60;
   return `${String(nh).padStart(2,'0')}:${String(nm).padStart(2,'0')}`;
 }
-function formatTime(time) {
-  const [h, m] = time.split(':').map(Number);
-  if (h === 0)  return `12:${String(m).padStart(2,'0')} AM`;
-  if (h < 12)  return `${h}:${String(m).padStart(2,'0')} AM`;
-  if (h === 12) return `12:${String(m).padStart(2,'0')} PM`;
-  return `${h - 12}:${String(m).padStart(2,'0')} PM`;
-}
 
 export default function NotificationSetupScreen({ navigation }) {
   const { analysis } = useApp();
+  // Texts: src/locales/<lang>/onboarding.json (notifications.*). Times/days: src/lib/formatting.js.
+  const { t } = useTranslation();
   const era = analysis?.era;
 
   const [granted,    setGranted]    = useState(false);
@@ -88,43 +82,41 @@ export default function NotificationSetupScreen({ navigation }) {
 
         {navigation.canGoBack() && (
           <Pressable onPress={() => navigation.goBack()} style={s.backBtn} hitSlop={10}>
-            <Text style={s.backText}>← Back</Text>
+            <Text style={s.backText}>{t('common:back')}</Text>
           </Pressable>
         )}
 
         <View style={s.header}>
           <Text style={s.emoji}>🔔</Text>
-          <Text style={s.title}>Stay on track</Text>
-          <Text style={s.subtitle}>
-            Get Pretty will remind you before your morning and evening rituals — gently, not aggressively.
-          </Text>
+          <Text style={s.title}>{t('onboarding:notifications.title')}</Text>
+          <Text style={s.subtitle}>{t('onboarding:notifications.subtitle')}</Text>
         </View>
 
         {!granted ? (
           <View style={[s.permCard, { backgroundColor: era?.bg, borderColor: (era?.color || C.accent) + '40' }]}>
-            <Text style={[s.permTitle, { color: era?.color || C.accent }]}>Enable ritual reminders</Text>
-            <Text style={s.permDesc}>We'll only notify you at the times you choose. No spam, ever.</Text>
+            <Text style={[s.permTitle, { color: era?.color || C.accent }]}>{t('onboarding:notifications.permTitle')}</Text>
+            <Text style={s.permDesc}>{t('onboarding:notifications.permDesc')}</Text>
             <Pressable
               style={[s.permBtn, { backgroundColor: era?.color || C.accent }]}
               onPress={enableNotifications}
             >
-              <Text style={s.permBtnText}>Allow notifications</Text>
+              <Text style={s.permBtnText}>{t('onboarding:notifications.permBtn')}</Text>
             </Pressable>
           </View>
         ) : (
           <View style={s.pickers}>
             <TimeRow
-              label="Morning ritual" icon="☀️"
+              label={t('onboarding:notifications.morning')} icon="☀️"
               on={amOn} time={amTime} days={amDays} color="#B8924A"
               onToggle={() => setAmOn(v => !v)}
-              onNudge={dir => setAmTime(t => nudgeTime(t, dir))}
+              onNudge={dir => setAmTime(prev => nudgeTime(prev, dir))}
               onDayToggle={i => toggleDay(setAmDays, amDays, i)}
             />
             <TimeRow
-              label="Evening ritual" icon="🌙"
+              label={t('onboarding:notifications.evening')} icon="🌙"
               on={pmOn} time={pmTime} days={pmDays} color="#9B85B8"
               onToggle={() => setPmOn(v => !v)}
-              onNudge={dir => setPmTime(t => nudgeTime(t, dir))}
+              onNudge={dir => setPmTime(prev => nudgeTime(prev, dir))}
               onDayToggle={i => toggleDay(setPmDays, pmDays, i)}
             />
           </View>
@@ -139,9 +131,9 @@ export default function NotificationSetupScreen({ navigation }) {
         >
           {saving
             ? <ActivityIndicator color="#FFF" />
-            : <Text style={s.ctaText}>{granted ? 'Save & See My Routine →' : 'Set up later →'}</Text>}
+            : <Text style={s.ctaText}>{granted ? t('onboarding:notifications.ctaSave') : t('onboarding:notifications.ctaLater')}</Text>}
         </Pressable>
-        {!granted && <Text style={s.hint}>You can always enable reminders from Settings</Text>}
+        {!granted && <Text style={s.hint}>{t('onboarding:notifications.hint')}</Text>}
 
         <View style={{ height: 20 }} />
       </View>
@@ -151,13 +143,17 @@ export default function NotificationSetupScreen({ navigation }) {
 }
 
 function TimeRow({ label, icon, on, time, days, color, onToggle, onNudge, onDayToggle }) {
+  const { t, i18n } = useTranslation();
+  // Weekday chips / names in the current language (Sunday first; index = day number used by the schedule).
+  const DAYS     = weekdayLetters(i18n.language);
+  const DAY_FULL = weekdayNames(i18n.language);
   return (
     <View style={[tr.card, { borderColor: on ? color + '50' : C.border }]}>
       <View style={tr.topRow}>
         <Text style={{ fontSize: 20 }}>{icon}</Text>
-        <View style={{ flex: 1, marginLeft: 12 }}>
+        <View style={{ flex: 1, marginStart: 12 }}>
           <Text style={tr.label}>{label}</Text>
-          <Text style={[tr.timeSmall, { color: on ? color : C.muted }]}>{on ? formatTime(time) : 'Off'}</Text>
+          <Text style={[tr.timeSmall, { color: on ? color : C.muted }]}>{on ? formatTime(time, i18n.language) : t('onboarding:notifications.off')}</Text>
         </View>
         <Switch value={on} onValueChange={onToggle} trackColor={{ true: color }} thumbColor="#FFF" />
       </View>
@@ -167,14 +163,14 @@ function TimeRow({ label, icon, on, time, days, color, onToggle, onNudge, onDayT
           <View style={tr.nudgeRow}>
             <Pressable style={tr.nudgeBtn} onPress={() => onNudge(-1)}><Text style={tr.nudgeTxt}>−</Text></Pressable>
             <View style={{ alignItems: 'center' }}>
-              <Text style={[tr.timeLarge, { color }]}>{formatTime(time)}</Text>
-              <Text style={tr.nudgeHint}>tap − / + to adjust by 15 min</Text>
+              <Text style={[tr.timeLarge, { color }]}>{formatTime(time, i18n.language)}</Text>
+              <Text style={tr.nudgeHint}>{t('onboarding:notifications.nudgeHint')}</Text>
             </View>
             <Pressable style={tr.nudgeBtn} onPress={() => onNudge(1)}><Text style={tr.nudgeTxt}>+</Text></Pressable>
           </View>
           <View style={tr.sep} />
           <View style={tr.daysSection}>
-            <Text style={tr.repeatLabel}>REPEAT</Text>
+            <Text style={tr.repeatLabel}>{t('onboarding:notifications.repeat')}</Text>
             <View style={tr.daysRow}>
               {DAYS.map((d, i) => {
                 const on2 = days.includes(i);
@@ -186,7 +182,7 @@ function TimeRow({ label, icon, on, time, days, color, onToggle, onNudge, onDayT
               })}
             </View>
             <Text style={tr.daysLabel}>
-              {days.length === 7 ? 'Every day' : days.length === 0 ? 'No days selected' : days.map(d => DAY_FULL[d]).join(', ')}
+              {days.length === 7 ? t('onboarding:notifications.everyDay') : days.length === 0 ? t('onboarding:notifications.noDays') : days.map(d => DAY_FULL[d]).join(', ')}
             </Text>
           </View>
         </>

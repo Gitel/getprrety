@@ -6,6 +6,8 @@ import { loadSession } from '../lib/loadSession';
 import { logActivity } from '../lib/logActivity';
 import { onAppResume, nextAnalysis, keepIfEqual } from '../lib/resumeRefresh';
 import { fetchUnreadCount } from '../lib/messages';
+// Language rule (device / account / pending) lives in languageSync.js; this file only calls it.
+import { bootLanguage, retryPendingLanguage, clearPendingOnLogout } from '../lib/languageSync';
 
 const AppContext = createContext(null);
 const BOOTSTRAP_TIMEOUT_MS = 8000;
@@ -34,7 +36,11 @@ export function AppProvider({ children }) {
       // User AND saved analysis are both loaded before authReady flips, so SplashScreen
       // can send a returning user straight to Home (see loadSession.js for the race this
       // fixes). Worst case is one BOOTSTRAP_TIMEOUT_MS, under SplashScreen's 10 s ceiling.
-      const { user: signedInUser, analysis: saved } = await loadSession({ timeoutMs: BOOTSTRAP_TIMEOUT_MS });
+      // bootLanguage reads the stored language, runs loadSession, then sets the UI language,
+      // so the first screen is already in the right language when authReady flips.
+      const { user: signedInUser, analysis: saved } = await bootLanguage(
+        () => loadSession({ timeoutMs: BOOTSTRAP_TIMEOUT_MS }),
+      );
       if (saved) setAnalysis(saved);
       if (signedInUser) {
         setUser(signedInUser);
@@ -56,6 +62,8 @@ export function AppProvider({ children }) {
       try {
         const { user: fresh } = await api.get('/api/auth/me', { timeoutMs: BOOTSTRAP_TIMEOUT_MS });
         setUser(prev => keepIfEqual(prev, fresh));
+        // Retry a language choice that could not be saved earlier. Never changes the UI language.
+        retryPendingLanguage();
       } catch (error) {
         // Same rule as at boot: a revoked token or a deleted account (an admin can delete
         // accounts) signs the user out. Anything else (offline, timeout) is ignored.
@@ -72,6 +80,8 @@ export function AppProvider({ children }) {
 
   async function logout() {
     await removeToken();
+    // Drop an unsaved language choice and show the device language (shared-tablet safety).
+    await clearPendingOnLogout();
     setUser(null);
     setAnalysis(null);
     setAnswers(null);

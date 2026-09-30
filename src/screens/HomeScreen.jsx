@@ -3,14 +3,29 @@ import {
   View, Text, Pressable, ScrollView, Modal, StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { C, MOODS, DONE_MSGS } from '../constants';
+import { useTranslation } from 'react-i18next';
+import { C, MOODS } from '../constants';
+import { eraText, analysisAffirmation } from '../lib/eraText';
 import { useApp } from '../context/AppContext';
 import { api } from '../lib/api';
 import { logActivity } from '../lib/logActivity';
 import FallbackBanner from '../components/FallbackBanner';
+import { MenuButton } from '../components/SideMenu';
 import { routineSteps, defaultRoutineTab, localDay, routineKeyFor, tickedIndices } from '../lib/homeRoutine';
 
+// The English text homeRoutine.js puts on a routine step when Railway matched no product for it.
+// homeRoutine must stay language-independent (its steps feed routineKeyFor, which names the day's
+// ticks), so the translation happens here in the JSX, only for this exact English string.
+const SOURCE_EXTERNALLY_EN = 'Source externally for this step.';
+
+// Invisible Unicode "isolate" marks: text between them keeps its own direction, so a Latin text
+// (AI output, always English) inside a Hebrew sentence cannot scramble the surrounding text.
+const FSI = '\u2068';
+const PDI = '\u2069';
+
 export default function HomeScreen({ navigation }) {
+  const { t, i18n } = useTranslation();
+  const lang = i18n.language;
   const { analysis, user, unreadMessages, refreshUnreadMessages } = useApp();
   const era     = analysis?.era;
   const hour    = new Date().getHours();
@@ -37,7 +52,11 @@ export default function HomeScreen({ navigation }) {
   const today      = localDay();
   const doneCount  = steps.filter((_, i) => done[tab + i]).length;
   const allDone    = doneCount === steps.length && steps.length > 0;
-  const greeting   = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const greeting   = hour < 12 ? t('home:greeting.morning') : hour < 17 ? t('home:greeting.afternoon') : t('home:greeting.evening');
+  // Keys built at run time use a template literal (the static-keys test only checks quoted keys;
+  // quizValues/home tests check every mood id exists).
+  // Display text of a mood. The STORED value stays the English m.label (check-in POST + lookup).
+  const moodText  = m => (m ? t(`home:moods.${m.id}`) : '');
 
   // Saves go out one after another, so they reach the server in tap order (last tap wins).
   const saveChain = useRef(Promise.resolve());
@@ -98,10 +117,10 @@ export default function HomeScreen({ navigation }) {
       <SafeAreaView style={[s.safe, { backgroundColor: C.bg }]}>
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28 }}>
           <Text style={{ fontSize: 42, marginBottom: 16 }}>🌿</Text>
-          <Text style={[s.doneTitleText, { color: C.text, marginBottom: 10 }]}>Your routine is not ready yet</Text>
-          <Text style={[s.doneMsg, { marginBottom: 22 }]}>Complete the skin assessment to build your personalized routine.</Text>
+          <Text style={[s.doneTitleText, { color: C.text, marginBottom: 10 }]}>{t('home:empty.title')}</Text>
+          <Text style={[s.doneMsg, { marginBottom: 22 }]}>{t('home:empty.body')}</Text>
           <Pressable style={[s.productCta, { borderColor: C.accent }]} onPress={() => navigation.navigate('QuizIntro')}>
-            <Text style={s.productCtaTitle}>Start assessment →</Text>
+            <Text style={s.productCtaTitle}>{t('home:empty.cta')}</Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -114,15 +133,21 @@ export default function HomeScreen({ navigation }) {
 
         {/* Greeting row */}
         <View style={s.greetingRow}>
-          <View style={s.greetingBlock}>
-            <Text style={s.greetingText}>{greeting}</Text>
-            <Text style={[s.eraTag, { color: era.color }]}>{era.emoji} {era.name}</Text>
+          {/* Menu button first: top-left in English, top-right in Hebrew (a row mirrors in RTL). */}
+          <View style={s.greetingLeft}>
+            <View style={s.menuBtnWrap}>
+              <MenuButton onPress={navigation.openMenu} color={era.color} />
+            </View>
+            <View style={s.greetingBlock}>
+              <Text style={s.greetingText}>{greeting}</Text>
+              <Text style={[s.eraTag, { color: era.color }]}>{era.emoji} {eraText(era, 'name', lang)}</Text>
+            </View>
           </View>
           <View style={s.headerActions}>
             {/* Messages with the clinic; the badge counts clinic messages not opened yet. */}
             <Pressable
               onPress={() => navigation.navigate('Messages')}
-              accessibilityLabel={unreadMessages ? `Messages, ${unreadMessages} unread` : 'Messages'}
+              accessibilityLabel={unreadMessages ? t('home:messages.unread', { count: unreadMessages }) : t('home:messages.label')}
             >
               <Text style={{ fontSize: 19 }}>💬</Text>
               {unreadMessages > 0 && (
@@ -131,18 +156,7 @@ export default function HomeScreen({ navigation }) {
                 </View>
               )}
             </Pressable>
-            {/* Re-opens the saved analysis (skin analysis, product audit, SR Ritual, shelf),
-                including anything the clinic edited. Before this, the Profile screen was
-                reachable only once, straight after the quiz. */}
-            <Pressable
-              style={[s.profileBtn, { borderColor: era.color + '60' }]}
-              onPress={() => navigation.navigate('Profile', { fromHome: true })}
-            >
-              <Text style={[s.profileBtnText, { color: era.color }]}>My skin profile</Text>
-            </Pressable>
-            <Pressable onPress={() => navigation.navigate('Settings')}>
-              <Text style={{ fontSize: 20 }}>⚙️</Text>
-            </Pressable>
+            {/* "My skin profile" and Settings now live in the side menu. */}
           </View>
         </View>
 
@@ -156,39 +170,39 @@ export default function HomeScreen({ navigation }) {
             onPress={() => setCiOpen(true)}
           >
             <Text style={{ fontSize: 22 }}>🪞</Text>
-            <View style={{ flex: 1, marginLeft: 14 }}>
-              <Text style={s.checkInTitle}>Daily skin check-in</Text>
-              <Text style={s.checkInSub}>How does your skin feel today?</Text>
+            <View style={{ flex: 1, marginStart: 14 }}>
+              <Text style={s.checkInTitle}>{t('home:checkIn.title')}</Text>
+              <Text style={s.checkInSub}>{t('home:checkIn.subtitle')}</Text>
             </View>
-            <Text style={[s.checkInArrow, { color: era.color }]}>→</Text>
+            <Text style={[s.checkInArrow, { color: era.color }]}>{t('common:arrowNext')}</Text>
           </Pressable>
         ) : (
           <View style={[s.checkInDone, { borderColor: era.color + '40' }]}>
             <Text style={s.checkInDoneText}>
-              {MOODS.find(m => m.label === checkedIn)?.emoji} Check-in complete · {checkedIn}
+              {MOODS.find(m => m.label === checkedIn)?.emoji} {t('home:checkIn.complete', { mood: moodText(MOODS.find(m => m.label === checkedIn)) || checkedIn })}
             </Text>
           </View>
         )}
 
         {/* Progress */}
         <View style={s.progressRow}>
-          <Text style={s.progressLabel}>{doneCount}/{steps.length} steps complete</Text>
-          {allDone && <Text style={[s.progressDone, { color: era.color }]}>✓ Ritual complete</Text>}
+          <Text style={s.progressLabel}>{t('home:progress.steps', { count: steps.length, done: doneCount, total: steps.length })}</Text>
+          {allDone && <Text style={[s.progressDone, { color: era.color }]}>{t('home:progress.ritualComplete')}</Text>}
         </View>
         <View style={s.progressTrack}>
           <View style={[s.progressFill, { width: steps.length ? `${(doneCount / steps.length) * 100}%` : '0%', backgroundColor: era.color }]} />
         </View>
-        <Text style={s.progressHint}>Check off each step once you've completed it</Text>
+        <Text style={s.progressHint}>{t('home:progress.hint')}</Text>
 
         {/* AM / PM tabs */}
         <View style={s.tabs}>
-          {[{ key:'am', label:'☀️ Morning' }, { key:'pm', label:'🌙 Evening' }].map(t => (
+          {[{ key:'am', label: t('home:tabs.am') }, { key:'pm', label: t('home:tabs.pm') }].map(tb => (
             <Pressable
-              key={t.key}
-              onPress={() => setTab(t.key)}
-              style={[s.tabBtn, tab === t.key && { borderBottomColor: era.color }]}
+              key={tb.key}
+              onPress={() => setTab(tb.key)}
+              style={[s.tabBtn, tab === tb.key && { borderBottomColor: era.color }]}
             >
-              <Text style={[s.tabText, tab === t.key && { color: era.color, fontFamily: 'DMSans_500Medium' }]}>{t.label}</Text>
+              <Text style={[s.tabText, tab === tb.key && { color: era.color, fontFamily: 'DMSans_500Medium' }]}>{tb.label}</Text>
             </Pressable>
           ))}
         </View>
@@ -210,7 +224,7 @@ export default function HomeScreen({ navigation }) {
                 {/* Product steps carry their routine slot (e.g. "cleanser") as a caption */}
                 {step.category ? <Text style={s.stepCategory}>{step.category}</Text> : null}
                 <Text style={[s.stepName, done[tab + i] && { textDecorationLine: 'line-through' }]}>{step.name}</Text>
-                <Text style={s.stepDesc}>{step.description}</Text>
+                <Text style={s.stepDesc}>{step.description === SOURCE_EXTERNALLY_EN ? t('home:routine.sourceExternally') : step.description}</Text>
               </View>
             </Pressable>
           ))}
@@ -220,14 +234,16 @@ export default function HomeScreen({ navigation }) {
         {allDone && (
           <View style={[s.doneCard, { backgroundColor: era.color + '15', borderColor: era.color + '40' }]}>
             <Text style={{ fontSize: 32, marginBottom: 10 }}>🎉</Text>
-            <Text style={[s.doneTitleText, { color: era.color }]}>Well done!</Text>
-            <Text style={s.doneMsg}>{DONE_MSGS[era.id]}</Text>
+            <Text style={[s.doneTitleText, { color: era.color }]}>{t('home:done.title')}</Text>
+            {/* Looked up by era id; an unknown id shows nothing (as before). */}
+            <Text style={s.doneMsg}>{t(`content:doneMsgs.${era.id}`, { defaultValue: '' })}</Text>
           </View>
         )}
 
         {/* Affirmation */}
         <View style={[s.affirmCard, { borderColor: era.color + '25' }]}>
-          <Text style={[s.affirmText, { color: '#6B5E57' }]}>"{analysis.affirmation || era.affirmation}"</Text>
+          {/* The affirmation is usually AI text (English), so it is isolated inside the quotes. */}
+          <Text style={[s.affirmText, { color: '#6B5E57' }]}>"{FSI}{analysisAffirmation(analysis, lang)}{PDI}"</Text>
         </View>
 
         {/* Full analysis: Profile (analysis, insights, product audit, product routine,
@@ -237,11 +253,11 @@ export default function HomeScreen({ navigation }) {
           onPress={() => navigation.navigate('Profile', { fromHome: true })}
         >
           <Text style={{ fontSize: 20 }}>🔬</Text>
-          <View style={{ flex: 1, marginLeft: 12 }}>
-            <Text style={s.productCtaTitle}>View my full analysis</Text>
-            <Text style={s.productCtaSub}>Your skin analysis, product audit and product routine</Text>
+          <View style={{ flex: 1, marginStart: 12 }}>
+            <Text style={s.productCtaTitle}>{t('home:viewAnalysis.title')}</Text>
+            <Text style={s.productCtaSub}>{t('home:viewAnalysis.subtitle')}</Text>
           </View>
-          <Text style={[s.checkInArrow, { color: era.color }]}>→</Text>
+          <Text style={[s.checkInArrow, { color: era.color }]}>{t('common:arrowNext')}</Text>
         </Pressable>
 
         {/* Product camera CTA */}
@@ -250,11 +266,11 @@ export default function HomeScreen({ navigation }) {
           onPress={() => navigation.navigate('ProductCamera')}
         >
           <Text style={{ fontSize: 20 }}>📦</Text>
-          <View style={{ flex: 1, marginLeft: 12 }}>
-            <Text style={s.productCtaTitle}>Log your products</Text>
-            <Text style={s.productCtaSub}>Save a product photo to track what you're using</Text>
+          <View style={{ flex: 1, marginStart: 12 }}>
+            <Text style={s.productCtaTitle}>{t('home:logProducts.title')}</Text>
+            <Text style={s.productCtaSub}>{t('home:logProducts.subtitle')}</Text>
           </View>
-          <Text style={[s.checkInArrow, { color: era.color }]}>→</Text>
+          <Text style={[s.checkInArrow, { color: era.color }]}>{t('common:arrowNext')}</Text>
         </Pressable>
 
         <View style={{ height: 40 }} />
@@ -265,12 +281,12 @@ export default function HomeScreen({ navigation }) {
         <View style={s.modalOverlay}>
           <View style={s.modalSheet}>
             <View style={s.modalHeader}>
-              <Text style={s.modalTitle}>Skin check-in</Text>
+              <Text style={s.modalTitle}>{t('home:checkIn.modalTitle')}</Text>
               <Pressable onPress={() => setCiOpen(false)}>
                 <Text style={{ fontSize: 18, color: C.muted }}>✕</Text>
               </Pressable>
             </View>
-            <Text style={s.modalQuestion}>How does your skin feel right now?</Text>
+            <Text style={s.modalQuestion}>{t('home:checkIn.question')}</Text>
             <View style={s.moodRow}>
               {MOODS.map(m => (
                 <Pressable
@@ -279,7 +295,7 @@ export default function HomeScreen({ navigation }) {
                   style={[s.moodBtn, mood === m.label && { borderColor: era.color, backgroundColor: era.bg }]}
                 >
                   <Text style={{ fontSize: 20 }}>{m.emoji}</Text>
-                  <Text style={[s.moodLabel, mood === m.label && { color: era.color }]}>{m.label}</Text>
+                  <Text style={[s.moodLabel, mood === m.label && { color: era.color }]}>{moodText(m)}</Text>
                 </Pressable>
               ))}
             </View>
@@ -295,7 +311,7 @@ export default function HomeScreen({ navigation }) {
               disabled={!mood}
               style={[s.moodCta, { backgroundColor: mood ? era.color : '#D4CBC4' }]}
             >
-              <Text style={s.moodCtaText}>Save check-in</Text>
+              <Text style={s.moodCtaText}>{t('home:checkIn.save')}</Text>
             </Pressable>
           </View>
         </View>
@@ -309,12 +325,13 @@ const s = StyleSheet.create({
   content:     { padding: 22, paddingTop: 22 },
   greetingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 22 },
   // Lets a long era name wrap instead of pushing the header buttons off-screen.
-  greetingBlock: { flexShrink: 1, marginRight: 10 },
+  // Menu button + greeting text, grouped so the Messages button stays on the far side.
+  greetingLeft: { flexDirection: 'row', alignItems: 'flex-start', flexShrink: 1, marginEnd: 10 },
+  menuBtnWrap: { marginEnd: 14, paddingTop: 2 },
+  greetingBlock: { flexShrink: 1 }, // start/end = left/right in English, mirrored in Hebrew (RTL)
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  profileBtn:  { borderWidth: 1, borderRadius: 999, paddingVertical: 5, paddingHorizontal: 11, backgroundColor: C.card },
-  profileBtnText: { fontFamily: 'DMSans_500Medium', fontSize: 12 },
   // Small red count pinned to the top-right of the message icon.
-  msgBadge:    { position: 'absolute', top: -5, right: -9, minWidth: 16, height: 16, borderRadius: 8, paddingHorizontal: 3, backgroundColor: '#C44B4B', alignItems: 'center', justifyContent: 'center' },
+  msgBadge:    { position: 'absolute', top: -5, end: -9, minWidth: 16, height: 16, borderRadius: 8, paddingHorizontal: 3, backgroundColor: '#C44B4B', alignItems: 'center', justifyContent: 'center' },
   msgBadgeText:{ fontFamily: 'DMSans_500Medium', fontSize: 9, color: '#FFFFFF' },
   greetingText:{ fontFamily: 'DMSans_400Regular', fontSize: 12, color: C.muted, marginBottom: 4 },
   eraTag:      { fontFamily: 'CormorantGaramond_500Medium', fontSize: 17 },

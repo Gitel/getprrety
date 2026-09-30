@@ -72,3 +72,39 @@ test('a successful response resolves with the parsed body', async () => {
 
   await expect(api.get('/api/thing')).resolves.toEqual({ id: 'abc', name: 'ok' });
 });
+
+test('a non-ok response carries the server code and params', async () => {
+  global.fetch = jest.fn().mockResolvedValue(
+    jsonResponse(400, { error: 'Password must be at least 8 characters', code: 'password_too_short', params: { min: 8 } })
+  );
+
+  await expect(api.post('/api/auth/signup', {})).rejects.toMatchObject({
+    message: 'Password must be at least 8 characters',
+    status: 400,
+    code: 'password_too_short',
+    params: { min: 8 },
+  });
+});
+
+test('a non-ok response without a code (old server) has no code', async () => {
+  global.fetch = jest.fn().mockResolvedValue(jsonResponse(400, { error: 'Nope' }));
+
+  const err = await api.get('/api/x').catch(e => e);
+  expect(err.message).toBe('Nope');
+  expect(err.code).toBeUndefined();
+});
+
+test('a timeout carries code "timeout"', async () => {
+  jest.useFakeTimers();
+  global.fetch = hangingFetch();
+
+  const assertion = expect(api.get('/api/slow')).rejects.toMatchObject({ status: 408, code: 'timeout' });
+  await jest.advanceTimersByTimeAsync(15000);
+  await assertion;
+});
+
+test('a fetch TypeError (network down) carries code "network"', async () => {
+  global.fetch = jest.fn().mockRejectedValue(new TypeError('Failed to fetch'));
+
+  await expect(api.get('/api/x')).rejects.toMatchObject({ code: 'network' });
+});

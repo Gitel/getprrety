@@ -2,12 +2,14 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View,
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { C } from '../constants';
 import { api } from '../lib/api';
 
 const EMPTY_METADATA = { country: null, lat: null, lng: null, timezone: null };
 
 export default function LocationQuestion({ value = {}, onChange }) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState(value.city || '');
   const [suggestions, setSuggestions] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -71,13 +73,13 @@ export default function LocationQuestion({ value = {}, onChange }) {
       <View style={styles.inputWrap}>
         <TextInput
           style={styles.input}
-          placeholder="Start typing your city"
+          placeholder={t('quiz:location.input.placeholder')}
           placeholderTextColor={C.muted}
           autoCapitalize="words"
           autoCorrect={false}
           value={query}
           onChangeText={handleTextChange}
-          accessibilityLabel="City"
+          accessibilityLabel={t('quiz:location.input.label')}
         />
         {loading && <ActivityIndicator style={styles.spinner} size="small" color={C.accent} />}
       </View>
@@ -103,10 +105,13 @@ export default function LocationQuestion({ value = {}, onChange }) {
       )}
 
       {value.country && selectedCity.current === query && (
-        <Text style={styles.selected}>Selected: {value.city}, {value.country}</Text>
+        <Text style={styles.selected}>
+          {/* city/country come from the user or the city search: isolate them (U+2068/U+2069) */}
+          {t('quiz:location.input.selected', { city: '\u2068' + value.city + '\u2069', country: '\u2068' + value.country + '\u2069' })}
+        </Text>
       )}
       {!loading && searched && suggestions.length === 0 && query.trim().length >= 2 && (
-        <Text style={styles.noResults}>No match found — you can still continue with this city.</Text>
+        <Text style={styles.noResults}>{t('quiz:location.input.noMatch')}</Text>
       )}
     </View>
   );
@@ -117,9 +122,10 @@ const styles = StyleSheet.create({
   inputWrap: { position: 'relative' },
   input: {
     backgroundColor: C.card, borderWidth: 1.5, borderColor: C.border, borderRadius: 13,
-    padding: 14, paddingRight: 46, fontFamily: 'DMSans_400Regular', fontSize: 15, color: C.text,
+    // paddingEnd/end are logical: end = right in English, left in Hebrew (RTL)
+    padding: 14, paddingEnd: 46, fontFamily: 'DMSans_400Regular', fontSize: 15, color: C.text,
   },
-  spinner: { position: 'absolute', right: 14, top: 15 },
+  spinner: { position: 'absolute', end: 14, top: 15 },
   list: {
     backgroundColor: C.card, borderWidth: 1.5, borderColor: C.border, borderRadius: 13,
     marginTop: 6, overflow: 'hidden',

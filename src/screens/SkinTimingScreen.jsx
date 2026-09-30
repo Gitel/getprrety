@@ -1,18 +1,22 @@
 import React, { useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { api } from '../lib/api';
+import { errorText } from '../lib/errorText';
 import { C } from '../constants';
 import { useApp } from '../context/AppContext';
 
-const OPTIONS = [
-  { value: 'morning', emoji: '🌅', label: 'Morning person' },
-  { value: 'night',   emoji: '🌙', label: 'Night owl' },
-  { value: 'both',    emoji: '✨', label: 'Both' },
-];
-
 export default function SkinTimingScreen({ navigation }) {
   const { user, setUser } = useApp();
+  const { t } = useTranslation();
+  // The saved values ('morning' | 'night' | 'both') are language-independent; only the label is translated.
+  // Built inside the component (not at module level) so the labels follow the current language.
+  const OPTIONS = [
+    { value: 'morning', emoji: '🌅', label: t('onboarding:timing.morning') },
+    { value: 'night',   emoji: '🌙', label: t('onboarding:timing.night') },
+    { value: 'both',    emoji: '✨', label: t('onboarding:timing.both') },
+  ];
   const [selected, setSelected] = useState(null);
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState(null);
@@ -29,7 +33,8 @@ export default function SkinTimingScreen({ navigation }) {
       setUser(prev => (prev ? { ...prev, skincareTiming: selected } : prev));
       navigation.navigate('SkinSelfie');
     } catch (err) {
-      setError(err.message || 'Something went wrong. Please try again.');
+      // Translated from the server's error code (never the server's raw English message).
+      setError(errorText(err, t, 'onboarding:timing.failed'));
     } finally {
       setLoading(false);
     }
@@ -41,13 +46,13 @@ export default function SkinTimingScreen({ navigation }) {
 
         {navigation.canGoBack() && (
           <Pressable onPress={() => navigation.goBack()} style={s.backBtn} hitSlop={10}>
-            <Text style={s.backText}>← Back</Text>
+            <Text style={s.backText}>{t('common:back')}</Text>
           </Pressable>
         )}
 
         <View style={s.headlineBlock}>
-          <Text style={s.headline}>One last thing —</Text>
-          <Text style={s.sub}>when do you usually do your skincare?</Text>
+          <Text style={s.headline}>{t('onboarding:timing.headline')}</Text>
+          <Text style={s.sub}>{t('onboarding:timing.sub')}</Text>
         </View>
 
         <View style={s.cards}>
@@ -71,7 +76,7 @@ export default function SkinTimingScreen({ navigation }) {
         >
           {loading
             ? <ActivityIndicator color={C.bg} size="small" />
-            : <Text style={s.ctaText}>Let's go →</Text>
+            : <Text style={s.ctaText}>{t('onboarding:timing.cta')}</Text>
           }
         </Pressable>
       </View>

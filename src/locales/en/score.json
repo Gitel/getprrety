@@ -1,0 +1,36 @@
+{
+  "eyebrow": "Your skin reading · Day {{day}}",
+  "title": "Where your skin is speaking from today",
+  "baseline": "Baseline",
+  "skinAge": "Skin age <age>{{age}}</age>",
+  "notFixed": "Not fixed — this comes down as your signals rise.",
+  "howScored": "How is this scored?",
+  "hide": "Hide",
+  "howScoredBody": "Your reading blends an objective read of your selfie with what you told us in your quiz. It's a starting line to move from — not a grade. We show your true score, never an inflated one.",
+  "startHere": "Start here",
+  "leverage": "↗ Your single highest-leverage move",
+  "signalsTitle": "Your four signals",
+  "signalsIntro": "Not scores to raise for their own sake — each one has something dragging it, and something that moves it.",
+  "signalsTap": "Tap to see how far it can go.",
+  "footnote": "Projections show what's typically possible with consistent use over the time shown — not a guarantee, and not past history. This is a self-care reading, not a medical diagnosis.",
+  "reading": "Reading your skin…",
+  "signals": {
+    "barrier": "Barrier & Moisture",
+    "clarity": "Clarity & Texture",
+    "tone": "Tone & Radiance",
+    "resilience": "Resilience"
+  },
+  "signalToday": "Today {{score}}",
+  "signalPotential": "Today {{score}}<up> {{arrow}} ~{{potential}} possible</up>",
+  "potential": {
+    "today": "Today · {{now}}",
+    "possible": "Possible · ~{{potential}}"
+  },
+  "horizon": "typically {{weeks}} with consistency",
+  "blocks": {
+    "driver": "◔ What's dragging it",
+    "why": "✦ Why (from your quiz)",
+    "lever": "↗ What moves it"
+  },
+  "openProduct": "Open {{name}}"
+}

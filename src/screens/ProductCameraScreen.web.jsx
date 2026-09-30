@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { ActivityIndicator, Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { C } from '../constants';
 import { api } from '../lib/api';
 import { uploadImage } from '../lib/uploadImage';
 
 export default function ProductCameraScreen({ navigation }) {
+  const { t } = useTranslation();
   const [photo, setPhoto] = useState(null);
   const [saving, setSaving] = useState(false);
 
@@ -44,10 +46,10 @@ export default function ProductCameraScreen({ navigation }) {
         <Image source={{ uri: photo }} style={s.image} resizeMode="contain" />
         <SafeAreaView style={s.previewActions}>
           <Pressable style={s.retake} onPress={() => setPhoto(null)} disabled={saving}>
-            <Text style={s.retakeText}>Retake</Text>
+            <Text style={s.retakeText}>{t('camera:retake')}</Text>
           </Pressable>
           <Pressable style={s.save} onPress={saveProduct} disabled={saving}>
-            {saving ? <ActivityIndicator color="#FFF" /> : <Text style={s.saveText}>Save product</Text>}
+            {saving ? <ActivityIndicator color="#FFF" /> : <Text style={s.saveText}>{t('camera:saveProduct')}</Text>}
           </Pressable>
         </SafeAreaView>
       </View>
@@ -57,17 +59,17 @@ export default function ProductCameraScreen({ navigation }) {
   return (
     <SafeAreaView style={s.safe}>
       <Pressable onPress={() => navigation.goBack()} style={s.back}>
-        <Text style={s.backText}>← Back</Text>
+        <Text style={s.backText}>{t('common:back')}</Text>
       </Pressable>
       <View style={s.container}>
         <Text style={s.emoji}>📦</Text>
-        <Text style={s.title}>Scan a product</Text>
-        <Text style={s.description}>Take a clear photo of the product label, or choose one from your library.</Text>
+        <Text style={s.title}>{t('camera:title')}</Text>
+        <Text style={s.description}>{t('camera:description')}</Text>
         <Pressable style={s.cameraButton} onPress={() => selectPhoto(CameraSource.Camera)}>
-          <Text style={s.cameraText}>Take a photo</Text>
+          <Text style={s.cameraText}>{t('camera:takePhoto')}</Text>
         </Pressable>
         <Pressable style={s.libraryButton} onPress={() => selectPhoto(CameraSource.Photos)}>
-          <Text style={s.libraryText}>Choose from library</Text>
+          <Text style={s.libraryText}>{t('camera:chooseLibrary')}</Text>
         </Pressable>
       </View>
     </SafeAreaView>
@@ -77,7 +79,7 @@ export default function ProductCameraScreen({ navigation }) {
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: C.bg },
   container: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
-  back: { position: 'absolute', top: 20, left: 24, zIndex: 1 },
+  back: { position: 'absolute', top: 20, start: 24, zIndex: 1 },
   backText: { fontFamily: 'DMSans_400Regular', fontSize: 14, color: C.accent },
   emoji: { fontSize: 52, marginBottom: 20 },
   title: { fontFamily: 'CormorantGaramond_500Medium', fontSize: 28, color: C.text, marginBottom: 14 },

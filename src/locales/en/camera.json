@@ -1,0 +1,8 @@
+{
+  "title": "Scan a product",
+  "description": "Take a clear photo of the product label, or choose one from your library.",
+  "takePhoto": "Take a photo",
+  "chooseLibrary": "Choose from library",
+  "retake": "Retake",
+  "saveProduct": "Save product"
+}
