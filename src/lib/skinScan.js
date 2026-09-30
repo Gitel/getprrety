@@ -48,14 +48,14 @@ export function scanQuizAnswers(answers = {}, today = new Date()) {
   return picked;
 }
 
-// Fires the PerfectCorp scan in the background as soon as the front photo is captured. Never throws —
-// a failure here must never block the quiz, same as every other photo-analysis failure mode today.
 // The language the UI shows right now, as 'en' or 'he'. Sent at scan init so the server can write
 // the reading in that language (D14: saved readings keep the language they were made in).
 export function scanLanguage() {
   return normalizeLanguage(i18n.language) || DEFAULT_LANGUAGE;
 }
 
+// Fires the PerfectCorp scan in the background as soon as the front photo is captured. Never throws —
+// a failure here must never block the quiz, same as every other photo-analysis failure mode today.
 export async function initAndStartScan({ front, left, right, quizAnswers }) {
   const photos = [['front', front], ['left', left], ['right', right]]
     .map(([angle, uri]) => {
