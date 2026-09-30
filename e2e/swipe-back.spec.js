@@ -21,7 +21,7 @@ import {
 } from './support/nav.js';
 import { walkQuizToLoading, expectProfileAfterQuiz, finishOnboardingToHome } from './support/quiz.js';
 import {
-  edgeSwipe, oppositeEdgeSwipe, swipe, touchStart, touchEnd, dragAlong, edgeSwipePlan, VIEWPORT_WIDTH,
+  edgeSwipe, oppositeEdgeSwipe, swipe, touchStart, touchMove, touchEnd, dragAlong, edgeSwipePlan, VIEWPORT_WIDTH,
 } from './support/touch.js';
 
 const text = (page, value) => page.getByText(value, { exact: true });
@@ -94,10 +94,65 @@ for (const lang of ['en', 'he']) {
       await messagesShow(page, t);
     });
 
-    test('a fast flick (60 px in 3 steps x 10 ms) goes back', async ({ page, t }) => {
+    test('a fast flick (90 px, 2 steps, no delay) goes back', async ({ page, t }) => {
       await openMessages(page, t);
-      await edgeSwipe(page, { lang, dx: 60, steps: 3, stepDelayMs: 10 });
+      // 90 px is above the 40 px flick minimum but below 35% of 390 (136.5 px), so only the
+      // speed can make this go back. Steps are sent back to back (no wait) for a genuine flick.
+      await edgeSwipe(page, { lang, dx: 90, steps: 2, stepDelayMs: 0 });
       await homeShows(page, t);
+    });
+
+    test('a quick drag that stops before release springs back', async ({ page, t }) => {
+      await openMessages(page, t);
+      const { from, to } = edgeSwipePlan({ lang, dx: 100 });
+      await touchStart(page, from);
+      await dragAlong(page, from, to, { steps: 2, stepDelayMs: 0 }); // fast movement...
+      await page.waitForTimeout(300); // ...then the finger rests, so its release speed is ~0
+      await touchEnd(page, to);
+      await settle(page);
+      await messagesShow(page, t); // 100 px < 35% and no speed at release: stays
+    });
+
+    test('35% boundary: a slow 120 px drag stays, a slow 160 px drag goes back', async ({ page, t }) => {
+      await openMessages(page, t);
+      // 35% of 390 = 136.5 px. Both drags are slow (~0.2 to 0.27 px/ms), so only distance decides.
+      await edgeSwipe(page, { lang, dx: 120, steps: 10, stepDelayMs: 60 });
+      await settle(page);
+      await messagesShow(page, t);
+      await edgeSwipe(page, { lang, dx: 160, steps: 10, stepDelayMs: 60 });
+      await homeShows(page, t);
+    });
+
+    test('reduced motion: the screen does not slide mid-drag, then a long release goes back', async ({ page, t }) => {
+      await openMessages(page, t);
+      // Force the preference explicitly: the project-level `reducedMotion: 'reduce'` was observed
+      // NOT to reach the page (matchMedia reported no-preference), so do not rely on it here.
+      await page.emulateMedia({ reducedMotion: 'reduce' });
+      const { from, to } = edgeSwipePlan({ lang, dx: 100 });
+      await touchStart(page, from);
+      await dragAlong(page, from, to, { steps: 5, stepDelayMs: 16 }); // well past the slop, finger down
+      // Reduced motion: nothing under #root may carry an inline translateX while dragging.
+      expect(await inlineTranslates(page)).toEqual([]);
+      const far = edgeSwipePlan({ lang, dx: LONG }).to;
+      await dragAlong(page, to, far, { steps: 5, stepDelayMs: 16 }); // continue past 35%
+      await touchEnd(page, far);
+      await homeShows(page, t);
+    });
+
+    test('dragging toward the edge first, then the back way, does nothing', async ({ page, t }) => {
+      await openMessages(page, t);
+      // Start 20 px in from the correct edge, go 16 px TOWARD the edge (past the slop), then
+      // 250 px the back way. The first decision was "not a back swipe", so the rest is ignored.
+      // Geometry (width 390): en 20 -> 4 -> 254, he 370 -> 386 -> 136; all inside the viewport.
+      const { from, to: edgeward } = edgeSwipePlan({ lang, dx: -16, startInset: 20 });
+      // 250 px the back way from the edgeward point = 234 px from the start.
+      const end = edgeSwipePlan({ lang, dx: 250 - 16, startInset: 20 }).to;
+      await touchStart(page, from);
+      await dragAlong(page, from, edgeward, { steps: 2, stepDelayMs: 16 });
+      await dragAlong(page, edgeward, end, { steps: 10, stepDelayMs: 16 });
+      await touchEnd(page, end);
+      await settle(page);
+      await messagesShow(page, t);
     });
 
     test('a vertical-first drag from the edge does nothing', async ({ page, t }) => {
@@ -229,7 +284,7 @@ for (const lang of ['en', 'he']) {
       await touchEnd(page, to); // release (short drag: springs back)
     });
 
-    test('a short drag springs back: stays on the screen, no inline translateX remains', async ({ page, t }) => {
+    test('a short slow drag springs back: stays on Messages, no inline translateX remains', async ({ page, t }) => {
       await openMessages(page, t);
       const { from, to } = edgeSwipePlan({ lang, dx: 60 });
       await touchStart(page, from);
@@ -238,6 +293,18 @@ for (const lang of ['en', 'he']) {
       // The release animation lasts 180 ms; polling gives it that time plus margin.
       await expect.poll(() => inlineTranslates(page), { timeout: 2000 }).toEqual([]);
       await messagesShow(page, t);
+    });
+
+    test('a quick drag that stops before release springs back (no inline translateX remains)', async ({ page, t }) => {
+      await openMessages(page, t);
+      const { from, to } = edgeSwipePlan({ lang, dx: 100 });
+      await touchStart(page, from);
+      await dragAlong(page, from, to, { steps: 2, stepDelayMs: 0 });
+      await page.waitForTimeout(300); // the finger rests, so its release speed is ~0
+      await touchEnd(page, to);
+      await settle(page);
+      await messagesShow(page, t);
+      expect(await inlineTranslates(page)).toEqual([]);
     });
 
     test('a long drag returns to Home and no inline translateX remains', async ({ page, t }) => {

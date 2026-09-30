@@ -130,7 +130,8 @@ export function edgeSwipePlan({ lang, dx, y = 400, startInset = 8, startX, dy = 
 
 // Swipe in the back direction of `lang`, starting `startInset` px from the matching screen edge.
 // Pass `startX` to start somewhere else (e.g. away from the edge or at the opposite edge).
-// Pass `dir: -1` to drag the WRONG way (against the back direction).
+// NOTE on WebKit: its touches are synthetic events. They never scroll the page and never produce
+// a click, so iOS tap / scroll behaviour cannot be proven here and needs a check on a real device.
 export async function edgeSwipe(page, { lang, dx, y = 400, steps = 10, stepDelayMs = 16, startInset = 8, startX, dy = 0 }) {
   await swipe(page, { ...edgeSwipePlan({ lang, dx, y, startInset, startX, dy }), steps, stepDelayMs });
 }
