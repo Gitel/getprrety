@@ -1,6 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { Preferences } from '@capacitor/preferences';
+import i18n from './i18n';
 
 const SETTINGS_KEY = 'ritualReminderSettings';
 const IDS_KEY = 'ritualReminderNotificationIds';
@@ -8,12 +9,16 @@ const CHANNEL_ID = 'ritual-reminders';
 
 export const supportsNotifications = () => Capacitor.isNativePlatform();
 
+// The channel name/description are the texts Android shows in its notification settings. They are
+// read with i18n.t HERE (inside the function, never at module level) so they use the language that
+// is active when the reminders are scheduled. Calling createChannel again with the same id updates
+// the name and description of the existing channel.
 async function ensureChannel() {
   if (Capacitor.getPlatform() !== 'android') return;
   await LocalNotifications.createChannel({
     id: CHANNEL_ID,
-    name: 'Ritual reminders',
-    description: 'Get Pretty skincare ritual reminders',
+    name: i18n.t('notifications:channelName'),
+    description: i18n.t('notifications:channelDescription'),
     importance: 3,
     visibility: 1,
     sound: 'default',
@@ -58,9 +63,11 @@ export async function saveReminderSchedule(settings) {
   }
 
   const notifications = [];
+  // Notification titles/bodies are translated now, at scheduling time, in the current language
+  // (the OS shows exactly this text later; it cannot be translated when it fires).
   const schedules = [
-    { enabled: settings.amOn, time: settings.amTime, days: settings.amDays, idBase: 1000, title: 'Morning ritual', body: 'A gentle reminder for your morning skincare ritual.' },
-    { enabled: settings.pmOn, time: settings.pmTime, days: settings.pmDays, idBase: 2000, title: 'Evening ritual', body: 'Time to wind down with your evening skincare ritual.' },
+    { enabled: settings.amOn, time: settings.amTime, days: settings.amDays, idBase: 1000, title: i18n.t('notifications:morningTitle'), body: i18n.t('notifications:morningBody') },
+    { enabled: settings.pmOn, time: settings.pmTime, days: settings.pmDays, idBase: 2000, title: i18n.t('notifications:eveningTitle'), body: i18n.t('notifications:eveningBody') },
   ];
 
   for (const reminder of schedules) {
@@ -88,4 +95,22 @@ export async function saveReminderSchedule(settings) {
     Preferences.set({ key: IDS_KEY, value: JSON.stringify(ids) }),
   ]);
   return ids.length;
+}
+
+// Schedules the saved reminders again so their texts follow the CURRENT language. The language
+// switch in the side menu calls this after changing the language (already-scheduled notifications
+// keep the text they were created with, so they must be replaced).
+// Does nothing (returns false) on the web, when no reminders are saved or switched on, or when
+// notification permission is off. It never throws: a failure must not break a language switch.
+// Returns true when the reminders were scheduled again.
+export async function rescheduleReminders() {
+  try {
+    if (!supportsNotifications()) return false;
+    const { granted, settings } = await loadReminderSchedule();
+    if (!granted || !settings || !(settings.amOn || settings.pmOn)) return false;
+    await saveReminderSchedule(settings);
+    return true;
+  } catch {
+    return false;
+  }
 }

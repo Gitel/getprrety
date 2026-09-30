@@ -1,1 +1,8 @@
-{}
+{
+  "channelName": "תזכורות לשגרה",
+  "channelDescription": "תזכורות לשגרת הטיפוח של Get Pretty",
+  "morningTitle": "שגרת הבוקר",
+  "morningBody": "תזכורת עדינה לשגרת הטיפוח של הבוקר.",
+  "eveningTitle": "שגרת הערב",
+  "eveningBody": "הזמן להירגע עם שגרת הטיפוח של הערב."
+}

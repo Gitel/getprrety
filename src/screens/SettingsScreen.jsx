@@ -3,15 +3,15 @@ import {
   ActivityIndicator, Alert, Linking, Platform, View, Text, Pressable, ScrollView, Switch, StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { C } from '../constants';
 import { MenuButton } from '../components/SideMenu';
 import { useApp } from '../context/AppContext';
+import { eraText } from '../lib/eraText';
+import { formatTime, weekdayLetters, weekdayNames } from '../lib/formatting';
 import { logActivity } from '../lib/logActivity';
 import { loadReminderSchedule, requestNotificationPermission, saveReminderSchedule } from '../lib/notifications';
 import { startRetake } from '../lib/retake';
-
-const DAYS     = ['S','M','T','W','T','F','S'];
-const DAY_FULL = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
 function nudgeTime(time, dir) {
   const [h, m] = time.split(':').map(Number);
@@ -19,15 +19,10 @@ function nudgeTime(time, dir) {
   const nh = Math.floor(total / 60), nm = total % 60;
   return `${String(nh).padStart(2,'0')}:${String(nm).padStart(2,'0')}`;
 }
-function formatTime(time) {
-  const [h, m] = time.split(':').map(Number);
-  if (h === 0)  return `12:${String(m).padStart(2,'0')} AM`;
-  if (h < 12)  return `${h}:${String(m).padStart(2,'0')} AM`;
-  if (h === 12) return `12:${String(m).padStart(2,'0')} PM`;
-  return `${h - 12}:${String(m).padStart(2,'0')} PM`;
-}
 
 export default function SettingsScreen({ navigation }) {
+  // t = translate at render time; i18n.language picks era text, time and weekday styles.
+  const { t, i18n } = useTranslation();
   const { analysis, setAnalysis, setAnswers, user, logout } = useApp();
   const era = analysis?.era;
 
@@ -107,40 +102,40 @@ export default function SettingsScreen({ navigation }) {
         <View style={s.topRow}>
           <MenuButton onPress={navigation.openMenu} color={C.accent} />
           <Pressable onPress={() => navigation.goBack()}>
-            <Text style={s.backText}>← Back</Text>
+            <Text style={s.backText}>{t('common:back')}</Text>
           </Pressable>
         </View>
 
-        <Text style={s.pageTitle}>Settings</Text>
+        <Text style={s.pageTitle}>{t('settings:title')}</Text>
 
         {/* Era card */}
         {era && (
           <View style={[s.eraCard, { backgroundColor: era.bg, borderColor: era.color + '40' }]}>
             <Text style={{ fontSize: 32, marginBottom: 8 }}>{era.emoji}</Text>
-            <Text style={[s.eraName, { color: era.color }]}>{era.name}</Text>
-            <Text style={s.eraSub}>Your current skin era</Text>
+            <Text style={[s.eraName, { color: era.color }]}>{eraText(era, 'name', i18n.language)}</Text>
+            <Text style={s.eraSub}>{t('settings:eraSub')}</Text>
           </View>
         )}
 
         {/* Reminders */}
-        <Text style={s.section}>Ritual Reminders</Text>
+        <Text style={s.section}>{t('settings:remindersTitle')}</Text>
 
         {!granted ? (
           <Pressable style={s.enableCard} onPress={enableNotifications}>
-            <Text style={s.enableText}>Enable notifications to set reminders</Text>
-            <Text style={[s.enableAction, { color: era?.color || C.accent }]}>Enable →</Text>
+            <Text style={s.enableText}>{t('settings:enableText')}</Text>
+            <Text style={[s.enableAction, { color: era?.color || C.accent }]}>{t('settings:enableAction')}</Text>
           </Pressable>
         ) : (
           <>
             <TimeRow
-              label="Morning ritual" icon="☀️"
+              label={t('settings:morning')} icon="☀️"
               on={amOn} time={amTime} days={amDays} color="#B8924A"
               onToggle={() => handleToggle('am')}
               onNudge={dir => setAmTime(t => nudgeTime(t, dir))}
               onDayToggle={i => toggleDay(setAmDays, amDays, i)}
             />
             <TimeRow
-              label="Evening ritual" icon="🌙"
+              label={t('settings:evening')} icon="🌙"
               on={pmOn} time={pmTime} days={pmDays} color="#9B85B8"
               onToggle={() => handleToggle('pm')}
               onNudge={dir => setPmTime(t => nudgeTime(t, dir))}
@@ -153,7 +148,7 @@ export default function SettingsScreen({ navigation }) {
             >
               {saving
                 ? <ActivityIndicator color="#FAF8F5" />
-                : <Text style={s.saveBtnText}>{saved ? '✓ Saved!' : 'Save Reminders'}</Text>}
+                : <Text style={s.saveBtnText}>{saved ? t('settings:saved') : t('settings:saveReminders')}</Text>}
             </Pressable>
           </>
         )}
@@ -161,24 +156,24 @@ export default function SettingsScreen({ navigation }) {
         <View style={s.divider} />
 
         {/* Reassess */}
-        <Text style={s.section}>Reassess Your Skin</Text>
-        <Text style={s.reassessDesc}>Skin changes. Retake monthly to update your era and routine.</Text>
+        <Text style={s.section}>{t('settings:reassessTitle')}</Text>
+        <Text style={s.reassessDesc}>{t('settings:reassessDesc')}</Text>
         <Pressable style={s.retakeBtn} onPress={retake}>
-          <Text style={s.retakeBtnText}>Retake Skin Era Quiz</Text>
+          <Text style={s.retakeBtnText}>{t('settings:retake')}</Text>
         </Pressable>
 
         <Pressable style={s.logoutBtn} onPress={handleLogout}>
-          <Text style={s.logoutBtnText}>Log out</Text>
+          <Text style={s.logoutBtnText}>{t('settings:logout')}</Text>
         </Pressable>
 
         <View style={s.footer}>
           <Text style={s.footerLogo}>Get Pretty</Text>
-          <Text style={s.footerSub}>Intelligent skincare — for the era you're in.</Text>
+          <Text style={s.footerSub}>{t('settings:tagline')}</Text>
           <Pressable
             onPress={() => Linking.openURL('https://www.geonames.org/')}
             accessibilityRole="link"
           >
-            <Text style={s.dataCredit}>City data © GeoNames, CC BY 4.0</Text>
+            <Text style={s.dataCredit}>{t('settings:dataCredit')}</Text>
           </Pressable>
         </View>
 
@@ -190,13 +185,15 @@ export default function SettingsScreen({ navigation }) {
 }
 
 function TimeRow({ label, icon, on, time, days, color, onToggle, onNudge, onDayToggle }) {
+  const { t, i18n } = useTranslation();
+  const lang = i18n.language;
   return (
     <View style={[tr.card, { borderColor: on ? color + '50' : C.border }]}>
       <View style={tr.topRow}>
         <Text style={{ fontSize: 20 }}>{icon}</Text>
         <View style={{ flex: 1, marginStart: 12 }}>
           <Text style={tr.label}>{label}</Text>
-          <Text style={[tr.timeSmall, { color: on ? color : C.muted }]}>{on ? formatTime(time) : 'Off'}</Text>
+          <Text style={[tr.timeSmall, { color: on ? color : C.muted }]}>{on ? formatTime(time, lang) : t('settings:off')}</Text>
         </View>
         <Switch value={on} onValueChange={onToggle} trackColor={{ true: color }} thumbColor="#FFF" />
       </View>
@@ -206,16 +203,16 @@ function TimeRow({ label, icon, on, time, days, color, onToggle, onNudge, onDayT
           <View style={tr.nudgeRow}>
             <Pressable style={tr.nudgeBtn} onPress={() => onNudge(-1)}><Text style={tr.nudgeTxt}>−</Text></Pressable>
             <View style={{ alignItems: 'center' }}>
-              <Text style={[tr.timeLarge, { color }]}>{formatTime(time)}</Text>
-              <Text style={tr.nudgeHint}>tap − / + to adjust by 15 min</Text>
+              <Text style={[tr.timeLarge, { color }]}>{formatTime(time, lang)}</Text>
+              <Text style={tr.nudgeHint}>{t('settings:nudgeHint')}</Text>
             </View>
             <Pressable style={tr.nudgeBtn} onPress={() => onNudge(1)}><Text style={tr.nudgeTxt}>+</Text></Pressable>
           </View>
           <View style={tr.sep} />
           <View style={tr.daysSection}>
-            <Text style={tr.repeatLabel}>REPEAT</Text>
+            <Text style={tr.repeatLabel}>{t('settings:repeat')}</Text>
             <View style={tr.daysRow}>
-              {DAYS.map((d, i) => {
+              {weekdayLetters(lang).map((d, i) => {
                 const on2 = days.includes(i);
                 return (
                   <Pressable key={i} onPress={() => onDayToggle(i)} style={[tr.dayBtn, on2 && { backgroundColor: color }]}>
@@ -225,7 +222,7 @@ function TimeRow({ label, icon, on, time, days, color, onToggle, onNudge, onDayT
               })}
             </View>
             <Text style={tr.daysLabel}>
-              {days.length === 7 ? 'Every day' : days.length === 0 ? 'No days selected' : days.map(d => DAY_FULL[d]).join(', ')}
+              {days.length === 7 ? t('settings:everyDay') : days.length === 0 ? t('settings:noDays') : days.map(d => weekdayNames(lang)[d]).join(', ')}
             </Text>
           </View>
         </>

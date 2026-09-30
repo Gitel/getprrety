@@ -1,1 +1,22 @@
-{}
+{
+  "title": "Settings",
+  "eraSub": "Your current skin era",
+  "remindersTitle": "Ritual Reminders",
+  "enableText": "Enable notifications to set reminders",
+  "enableAction": "Enable →",
+  "morning": "Morning ritual",
+  "evening": "Evening ritual",
+  "off": "Off",
+  "nudgeHint": "tap − / + to adjust by 15 min",
+  "repeat": "REPEAT",
+  "everyDay": "Every day",
+  "noDays": "No days selected",
+  "saveReminders": "Save Reminders",
+  "saved": "✓ Saved!",
+  "reassessTitle": "Reassess Your Skin",
+  "reassessDesc": "Skin changes. Retake monthly to update your era and routine.",
+  "retake": "Retake Skin Era Quiz",
+  "logout": "Log out",
+  "tagline": "Intelligent skincare — for the era you're in.",
+  "dataCredit": "City data © GeoNames, CC BY 4.0"
+}
