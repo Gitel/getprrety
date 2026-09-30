@@ -6,6 +6,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { api } from '../lib/api';
 import { storeToken } from '../lib/auth';
+import { applyAccountLanguage } from '../lib/languageSync';
 import { logActivity } from '../lib/logActivity';
 import { C } from '../constants';
 import { useApp } from '../context/AppContext';
@@ -60,6 +61,7 @@ export default function LoginScreen({ navigation }) {
       } catch { /* users without an assessment continue to onboarding */ }
       setAnalysis(saved);
       setUser(user);
+      await applyAccountLanguage(user); // UI language = pending ?? account ?? device ?? 'en'
       logActivity('login');
       navigation.replace(saved ? 'Home' : quizEntryScreen());
     } catch (err) {
@@ -84,6 +86,7 @@ export default function LoginScreen({ navigation }) {
       } catch { /* users without an assessment continue to onboarding */ }
       setAnalysis(saved);
       setUser(user);
+      await applyAccountLanguage(user); // UI language = pending ?? account ?? device ?? 'en'
       logActivity('login');
       navigation.replace(saved ? 'Home' : quizEntryScreen());
     } catch (err) {

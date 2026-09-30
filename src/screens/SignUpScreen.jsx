@@ -6,6 +6,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { api } from '../lib/api';
 import { storeToken } from '../lib/auth';
+import { applyAccountLanguage } from '../lib/languageSync';
 import { persistAnalysis, withSavedId } from '../lib/persistAnalysis';
 import { logActivity } from '../lib/logActivity';
 import { C } from '../constants';
@@ -92,6 +93,7 @@ export default function SignUpScreen({ navigation }) {
       });
       await storeToken(token);
       setUser(u);
+      await applyAccountLanguage(u); // UI language = pending ?? account ?? device ?? 'en'
       continueAfterSignup();
     } catch (err) {
       setErrors({ submit: err.message || 'Sign up failed. Please try again.' });
@@ -108,6 +110,7 @@ export default function SignUpScreen({ navigation }) {
       const { token, user: u } = await api.post('/api/auth/google', { idToken, ...(consentParams() || {}) });
       await storeToken(token);
       setUser(u);
+      await applyAccountLanguage(u); // UI language = pending ?? account ?? device ?? 'en'
       continueAfterSignup();
     } catch (err) {
       setErrors({ submit: err.message || 'Google sign-in failed. Please try again.' });
