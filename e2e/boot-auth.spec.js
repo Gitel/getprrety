@@ -1,27 +1,8 @@
 // T-B1: boot routing + authentication, locked in as the app behaves TODAY.
 // Covers: Splash routing (with and without ?ref=), Login, Sign up, "Skip for now", Log out.
-// The backend is the shared mock (support/mock-api.js); error responses are overridden locally.
+// The backend is the shared mock (support/mock-api.js); error responses use mock.override.
 import { test, expect } from './support/test.js';
-
-const API = 'http://api.e2e.test';
-
-// CORS headers copied from support/mock-api.js so a locally overridden route behaves like the
-// shared mock (the API lives on another origin than the app).
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, content-type',
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
-};
-
-// Makes one API endpoint answer with a fixed error. Page routes win over the context router, so
-// the shared mock never sees these requests (and does not log them in mock.calls).
-async function failWith(page, method, path, status, body) {
-  await page.route(`${API}${path}`, route => {
-    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS });
-    if (route.request().method() !== method) return route.fallback();
-    return route.fulfill({ status, headers: CORS, contentType: 'application/json', body: JSON.stringify(body) });
-  });
-}
+import { openSignUp, openMenu, tapMenuItem, backButton } from './support/nav.js';
 
 // The app's inputs have no labels, only placeholders.
 const field = (page, placeholder) => page.getByPlaceholder(placeholder, { exact: true });
@@ -86,9 +67,9 @@ test.describe('Splash routing, signed in', () => {
     await expect(clinicWelcome(page, t)).toHaveCount(0);
   });
 
-  test('an invalid stored token (401) is dropped and the user lands on Login', async ({ page, t }) => {
+  test('an invalid stored token (401) is dropped and the user lands on Login', async ({ page, mock, t }) => {
     // /me answers 401 -> loadSession removes the token -> Splash sees no user -> Login.
-    await failWith(page, 'GET', '/api/auth/me', 401, { error: 'Invalid or expired token', code: 'auth_invalid' });
+    mock.override('GET', '/api/auth/me', 401, { error: 'Invalid or expired token', code: 'auth_invalid' });
     await page.goto('/');
     await expect(loginScreen(page, t)).toBeVisible();
     // The token was removed, so a reload also stays on Login.
@@ -146,9 +127,9 @@ test.describe('Login', () => {
     await expect(error).toHaveCount(0);
   });
 
-  test('wrong credentials show the translated error for the server code', async ({ page, t }) => {
+  test('wrong credentials show the translated error for the server code', async ({ page, mock, t }) => {
     // Same shape as server/routes/auth.js: 401 + { error, code }.
-    await failWith(page, 'POST', '/api/auth/login', 401, { error: 'Invalid email or password', code: 'invalid_credentials' });
+    mock.override('POST', '/api/auth/login', 401, { error: 'Invalid email or password', code: 'invalid_credentials' });
     await page.goto('/');
     await logIn(page, t, 'dana@example.com', 'wrong-pass');
     await expect(page.getByText(t('errors:invalid_credentials'), { exact: true })).toBeVisible();
@@ -156,15 +137,15 @@ test.describe('Login', () => {
     await expect(loginScreen(page, t)).toBeVisible();
   });
 
-  test('a server error without a known code shows the generic "our side" message', async ({ page, t }) => {
-    await failWith(page, 'POST', '/api/auth/login', 500, {});
+  test('a server error without a known code shows the generic "our side" message', async ({ page, mock, t }) => {
+    mock.override('POST', '/api/auth/login', 500, {});
     await page.goto('/');
     await logIn(page, t, 'dana@example.com', 'secret-pass');
     await expect(page.getByText(t('errors:server_error'), { exact: true })).toBeVisible();
   });
 
-  test('a 4xx with an unknown code shows the screen fallback text', async ({ page, t }) => {
-    await failWith(page, 'POST', '/api/auth/login', 400, { error: 'whatever', code: 'not_a_real_code' });
+  test('a 4xx with an unknown code shows the screen fallback text', async ({ page, mock, t }) => {
+    mock.override('POST', '/api/auth/login', 400, { error: 'whatever', code: 'not_a_real_code' });
     await page.goto('/');
     await logIn(page, t, 'dana@example.com', 'secret-pass');
     await expect(page.getByText(t('auth:login.failed'), { exact: true })).toBeVisible();
@@ -191,23 +172,10 @@ test.describe('Login', () => {
 });
 
 test.describe('Create an account / Sign up', () => {
-  // Opens the Sign up page from Login.
-  async function openSignUp(page, t) {
-    await page.goto('/');
-    await page.getByText(t('auth:login.createAccount'), { exact: true }).click();
-    await expect(page.getByText(t('auth:signup.headline'), { exact: true })).toBeVisible();
-  }
-
   test('"Create an account" opens the pre-quiz Sign up page', async ({ page, t }) => {
     await openSignUp(page, t);
     await expect(page.getByText(t('auth:signup.sub'), { exact: true })).toBeVisible();
     await expect(page.getByText(t('auth:signup.cta'), { exact: true })).toBeVisible();
-  });
-
-  test('Back returns to Login', async ({ page, t }) => {
-    await openSignUp(page, t);
-    await page.getByText(t('common:back'), { exact: true }).click();
-    await expect(loginScreen(page, t)).toBeVisible();
   });
 
   test('empty submit shows email and password required, no API call', async ({ page, mock, t }) => {
@@ -251,7 +219,7 @@ test.describe('Create an account / Sign up', () => {
     // Consent is stamped at tap time from the test clock (fixed at 2026-09-29 09:00 UTC, then running).
     expect(body.consentAcceptedAt).toMatch(/^2026-09-29T09:/);
     // The quiz intro was opened with navigation.reset(): no Back button to the auth screens.
-    await expect(page.getByText(t('common:back'), { exact: true })).toHaveCount(0);
+    await expect(backButton(page, t)).toHaveCount(0);
   });
 
   test('sign up leaves out an empty first name and keeps the email as typed', async ({ page, mock, t }) => {
@@ -262,14 +230,14 @@ test.describe('Create an account / Sign up', () => {
     await expect(quizIntro(page, t)).toBeVisible();
     const body = mock.lastCall('POST', '/api/auth/signup').body;
     expect(body).not.toHaveProperty('firstName');
-    // CURRENT BEHAVIOUR - possible bug: unlike Login (which trims + lower-cases the email),
-    // Sign up sends the email exactly as typed (no trim, no lower-casing). Whether the server
-    // normalises it was not checked here.
+    // CURRENT BEHAVIOUR: unlike Login, the client sends the email exactly as typed. This is not a
+    // bug: the server normalises it (server/routes/auth.js trims + lower-cases, and the User
+    // model's email field is lowercase + trim).
     expect(body.email).toBe('Dana@Example.com');
   });
 
-  test('a taken email shows the translated server error', async ({ page, t }) => {
-    await failWith(page, 'POST', '/api/auth/signup', 409, { error: 'Email already registered', code: 'email_taken' });
+  test('a taken email shows the translated server error', async ({ page, mock, t }) => {
+    mock.override('POST', '/api/auth/signup', 409, { error: 'Email already registered', code: 'email_taken' });
     await openSignUp(page, t);
     await field(page, t('auth:signup.emailPlaceholder')).fill('dana@example.com');
     await field(page, t('auth:signup.passwordPlaceholder')).fill('longenough1');
@@ -285,18 +253,19 @@ test.describe('Create an account / Sign up', () => {
 });
 
 test.describe('Skip for now', () => {
-  test('opens the generic quiz intro, whose Back returns to Login', async ({ page, t }) => {
+  test('opens the generic quiz intro', async ({ page, t }) => {
     await page.goto('/');
     await page.getByText(t('auth:login.skip'), { exact: true }).click();
     await expect(quizIntro(page, t)).toBeVisible();
-    await page.getByText(t('common:back'), { exact: true }).click();
-    await expect(loginScreen(page, t)).toBeVisible();
+    // (Its Back-to-Login behaviour is covered in quiz-onboarding.spec.js.)
   });
 
   test('opens the clinic Welcome screen when the URL has a known ?ref=', async ({ page, t }) => {
     await page.goto('/?ref=lu_clinic');
     await page.getByText(t('auth:login.skip'), { exact: true }).click();
     await expect(clinicWelcome(page, t)).toBeVisible();
+    // Welcome has no Back control, even though it sits on top of Login.
+    await expect(backButton(page, t)).toHaveCount(0);
   });
 
   test('makes no API calls (anonymous flow)', async ({ page, mock, t }) => {
@@ -313,8 +282,8 @@ test.describe('Log out', () => {
   test('side menu "Log out" returns to Login and a reload stays signed out', async ({ page, mock, t }) => {
     await page.goto('/');
     await expect(page.getByText(t('home:greeting.morning'))).toBeVisible();
-    await page.getByLabel(t('menu:open')).click();
-    await page.getByText(t('menu:logout'), { exact: true }).click();
+    await openMenu(page, t);
+    await tapMenuItem(page, t, 'menu:logout');
 
     await expect(loginScreen(page, t)).toBeVisible();
 
