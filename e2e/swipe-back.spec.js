@@ -21,7 +21,7 @@ import {
 } from './support/nav.js';
 import { walkQuizToLoading, expectProfileAfterQuiz, finishOnboardingToHome } from './support/quiz.js';
 import {
-  edgeSwipe, oppositeEdgeSwipe, swipe, touchStart, touchMove, touchEnd, dragAlong, edgeSwipePlan, VIEWPORT_WIDTH,
+  edgeSwipe, oppositeEdgeSwipe, swipe, touchStart, touchMove, touchEnd, dragAlong, edgeSwipePlan, flickInPage, VIEWPORT_WIDTH,
 } from './support/touch.js';
 
 const text = (page, value) => page.getByText(value, { exact: true });
@@ -97,8 +97,14 @@ for (const lang of ['en', 'he']) {
     test('a fast flick (90 px, 2 steps, no delay) goes back', async ({ page, t }) => {
       await openMessages(page, t);
       // 90 px is above the 40 px flick minimum but below 35% of 390 (136.5 px), so only the
-      // speed can make this go back. Steps are sent back to back (no wait) for a genuine flick.
-      await edgeSwipe(page, { lang, dx: 90, steps: 2, stepDelayMs: 0 });
+      // speed can make this go back.
+      // Why in-page dispatch with explicit timestamps: the rule under test is SPEED, which the app
+      // reads from event.timeStamp over the last 150 ms. With one test-process round trip per touch
+      // event, machine load can delay the release by >150 ms and the app rightly sees "finger
+      // rested". flickInPage sends the whole gesture in one evaluate with fixed timestamps
+      // (90 px in 16 ms, release 8 ms later), so the result no longer depends on load.
+      const { from, to } = edgeSwipePlan({ lang, dx: 90 });
+      await flickInPage(page, { from, to, steps: 2, stepMs: 8 });
       await homeShows(page, t);
     });
 

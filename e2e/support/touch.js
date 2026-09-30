@@ -112,6 +112,55 @@ export async function swipe(page, { from, to, steps = 10, stepDelayMs = 16 }) {
   await touchEnd(page, to);
 }
 
+// Whole flick inside ONE page.evaluate, with EXPLICIT event timestamps (used by the flick test).
+// Why: the app measures release speed from event.timeStamp over the last 150 ms. When every touch
+// event is its own round trip from the test process, a loaded machine can put more than 150 ms
+// between the last move and the release, and the app (correctly) reads "finger rested". Here all
+// events are dispatched synchronously in the page and each one is given its own timeStamp
+// (base + i * stepMs), so the app always sees the same gesture: e.g. 90 px over 16 ms, released 8 ms
+// after the last move, whatever the machine load. These are synthetic (untrusted) events in BOTH
+// browsers, which is fine because the rule under test is speed, not trusted input.
+export async function flickInPage(page, { from, to, steps = 2, stepMs = 8 }) {
+  await page.evaluate(({ from, to, steps, stepMs, id }) => {
+    const target = document.elementFromPoint(from.x, from.y);
+    // Build a one-finger touch list at (x, y). Chromium has `new Touch()`; WebKit throws "Illegal
+    // constructor" there, so fall back to the legacy document.createTouch / createTouchList.
+    const listAt = (x, y) => {
+      try {
+        return [new Touch({ identifier: id, target, clientX: x, clientY: y, pageX: x, pageY: y, screenX: x, screenY: y })];
+      } catch (error) {
+        return document.createTouchList(document.createTouch(window, target, id, x, y, x, y));
+      }
+    };
+    const base = performance.now();
+    let index = 0;
+    // Dispatches one event whose timeStamp is forced to base + index * stepMs.
+    const fire = (type, x, y) => {
+      const list = listAt(x, y);
+      const ending = type === 'touchend';
+      // On touchend the finger is gone: touches / targetTouches are empty, changedTouches has it.
+      const none = Array.isArray(list) ? [] : document.createTouchList();
+      const event = new TouchEvent(type, {
+        touches: ending ? none : list,
+        targetTouches: ending ? none : list,
+        changedTouches: list,
+        bubbles: true,
+        cancelable: true,
+      });
+      Object.defineProperty(event, 'timeStamp', { value: base + index * stepMs });
+      index += 1;
+      target.dispatchEvent(event);
+    };
+    fire('touchstart', from.x, from.y);
+    let last = from;
+    for (let i = 1; i <= steps; i++) {
+      last = { x: from.x + ((to.x - from.x) * i) / steps, y: from.y + ((to.y - from.y) * i) / steps };
+      fire('touchmove', last.x, last.y);
+    }
+    fire('touchend', last.x, last.y); // released one stepMs after the last move
+  }, { from, to, steps, stepMs, id: TOUCH_ID });
+}
+
 // Back-direction geometry for a language: English goes left -> right, Hebrew right -> left.
 // Returns the start x (startInset px from the correct edge, or `startX` if given) and the
 // signed direction of the drag (+1 right, -1 left).
