@@ -5,51 +5,15 @@
 //   Messages  = the message button on Home (its accessible name is the "Messages" label)
 //   Settings  = hamburger button -> side menu -> "Settings"
 import { test, expect } from './support/test.js';
+import { openMessages, openSettings, openMenu, tapMenuItem, backButton } from './support/nav.js';
 
 test.use({ signedIn: true });
-
-// Same CORS headers as e2e/support/mock-api.js. Needed when a spec answers a request itself:
-// the API is on another origin than the app, so the browser checks these headers.
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, content-type',
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
-};
-const MESSAGES_URL = 'http://api.e2e.test/api/messages';
-
-// Replaces the answer of ONE method on /api/messages. Other methods fall through to the shared
-// mock. Preflights (OPTIONS) are answered here with 204 because a page route hides the
-// context router for this URL.
-async function overrideMessages(page, method, status, body) {
-  await page.route(MESSAGES_URL, async route => {
-    const request = route.request();
-    if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS });
-    if (request.method() !== method) return route.fallback();
-    return route.fulfill({ status, headers: CORS, contentType: 'application/json', body: JSON.stringify(body) });
-  });
-}
-
-// Boots on Home and opens Messages with the Home message button (label depends on the badge).
-async function openMessages(page, t, unread = 1) {
-  await page.goto('/');
-  const label = unread ? t('home:messages.unread', { count: unread }) : t('home:messages.label');
-  await page.getByLabel(label).click();
-  await expect(page.getByText(t('messages:title'), { exact: true })).toBeVisible();
-}
 
 // The Send button is a react-native-web Pressable: a div that carries aria-disabled="true" while
 // disabled (it has no button role and no native disabled attribute), so we look for that attribute.
 async function expectSendDisabled(page, t, disabled) {
   const disabledSend = page.locator('[aria-disabled="true"]').filter({ hasText: t('messages:send') });
   await expect(disabledSend).toHaveCount(disabled ? 1 : 0);
-}
-
-// Boots on Home and opens Settings through the side menu.
-async function openSettings(page, t) {
-  await page.goto('/');
-  await page.getByLabel(t('menu:open')).click();
-  await page.getByRole('button', { name: t('menu:settings') }).click();
-  await expect(page.getByText(t('settings:title'), { exact: true })).toBeVisible();
 }
 
 test.describe('Messages', () => {
@@ -74,8 +38,8 @@ test.describe('Messages', () => {
     await expect(page.getByText(t('messages:empty'))).toBeVisible();
   });
 
-  test('shows the load-failed text when the thread cannot be loaded', async ({ page, t }) => {
-    await overrideMessages(page, 'GET', 500, { error: 'Unable to load messages', code: 'messages_load_failed' });
+  test('shows the load-failed text when the thread cannot be loaded', async ({ page, mock, t }) => {
+    mock.override('GET', '/api/messages', 500, { error: 'Unable to load messages', code: 'messages_load_failed' });
     await openMessages(page, t);
     await expect(page.getByText(t('messages:loadFailed'))).toBeVisible();
     // The empty-thread text is NOT shown for a failed load.
@@ -123,8 +87,8 @@ test.describe('Messages', () => {
     { name: 'unknown 500 (server_error text)', status: 500, payload: { error: 'boom' }, text: t => t('errors:server_error') },
   ];
   for (const c of sendErrors) {
-    test(`send error: ${c.name}`, async ({ page, t }) => {
-      await overrideMessages(page, 'POST', c.status, c.payload);
+    test(`send error: ${c.name}`, async ({ page, mock, t }) => {
+      mock.override('POST', '/api/messages', c.status, c.payload);
       await openMessages(page, t);
       const input = page.getByPlaceholder(t('messages:placeholder'));
       await input.fill('Will this work?');
@@ -145,11 +109,14 @@ test.describe('Messages', () => {
     // The fixture has an unread clinic message, so the app posts "read" (with an empty body).
     await expect.poll(() => mock.callsTo('POST', '/api/messages/read').length).toBe(1);
     expect(mock.lastCall('POST', '/api/messages/read').body).toEqual({});
-    // The shared mock does not flip its own unread counter when "read" is posted, so we do what
-    // the real server does: the count becomes 0. Home re-reads the count when it comes back.
-    mock.set({ unread: 0 });
-    await page.getByText(t('common:back')).click();
-    await expect(page.getByLabel(t('home:messages.label'))).toBeVisible();
+    // The mock zeroes its unread counter when "read" is posted (like the server). Remember how
+    // many count requests happened so far, then return to Home via the side menu ("My routine").
+    const countCallsBefore = mock.callsTo('GET', '/api/messages/unread-count').length;
+    await openMenu(page, t);
+    await tapMenuItem(page, t, 'menu:myRoutine');
+    // Home asks for the count again when it comes back: wait for that NEW request first.
+    await expect.poll(() => mock.callsTo('GET', '/api/messages/unread-count').length).toBeGreaterThan(countCallsBefore);
+    await expect(page.getByLabel(t('home:messages.label'), { exact: true })).toBeVisible();
     await expect(page.getByLabel(t('home:messages.unread', { count: 1 }))).toHaveCount(0);
   });
 
@@ -164,6 +131,10 @@ test.describe('Messages', () => {
     });
     await openMessages(page, t, 0);
     await expect(page.getByText('All read here')).toBeVisible();
+    // Go back to Home first: by then the screen has had all the time it needs to post "read".
+    await openMenu(page, t);
+    await tapMenuItem(page, t, 'menu:myRoutine');
+    await expect(page.getByText(t('home:greeting.morning'))).toBeVisible();
     expect(mock.callsTo('POST', '/api/messages/read')).toHaveLength(0);
   });
 });
@@ -199,7 +170,7 @@ test.describe('Settings', () => {
     expect(mock.callsTo('PATCH', '/api/profile')).toHaveLength(0);
   });
 
-  test('Retake goes to the quiz with the stored consent and clears the analysis', async ({ page, mock, t }) => {
+  test('Retake goes to the quiz with the stored consent (skips the intro)', async ({ page, mock, t }) => {
     await openSettings(page, t);
     await page.getByText(t('settings:retake')).click();
     // The fixture user already accepted the terms, so the app skips the intro and shows the
@@ -215,8 +186,11 @@ test.describe('Settings', () => {
     await page.getByText(t('settings:logout')).click();
     await expect(page.getByText(t('auth:login.tagline'))).toBeVisible();
     // logActivity('logout') is posted before the token is removed.
-    await expect.poll(() => mock.callsTo('POST', '/api/activity').length).toBeGreaterThan(0);
-    expect(mock.lastCall('POST', '/api/activity').body.event).toBe('logout');
+    // (An "app_open" activity is also posted at boot, so only count the "logout" events.)
+    const logoutCalls = () => mock.callsTo('POST', '/api/activity').filter(c => c.body && c.body.event === 'logout');
+    await expect.poll(() => logoutCalls().length).toBe(1);
+    // The call carried the token: it was sent before the token was removed.
+    expect(logoutCalls()[0].authed).toBe(true);
   });
 });
 
@@ -224,14 +198,14 @@ test.describe('Settings', () => {
 test.describe('Back button (current behaviour, replaced by swipe-back in T-D0)', () => {
   test('Messages Back returns to Home', async ({ page, t }) => {
     await openMessages(page, t);
-    await page.getByText(t('common:back')).click();
+    await backButton(page, t).click();
     await expect(page.getByText(t('home:greeting.morning'))).toBeVisible();
     await expect(page.getByText(t('messages:title'), { exact: true })).toHaveCount(0);
   });
 
   test('Settings Back returns to Home', async ({ page, t }) => {
     await openSettings(page, t);
-    await page.getByText(t('common:back')).click();
+    await backButton(page, t).click();
     await expect(page.getByText(t('home:greeting.morning'))).toBeVisible();
     await expect(page.getByText(t('settings:title'), { exact: true })).toHaveCount(0);
   });
