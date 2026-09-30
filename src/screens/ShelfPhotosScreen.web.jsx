@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { View, Text, Pressable, StyleSheet, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { C } from '../constants';
 import { api } from '../lib/api';
 import { uploadAll } from '../lib/uploadImage';
 
 export default function ShelfPhotosScreen({ navigation }) {
+  const { t } = useTranslation();
   const [photos, setPhotos] = useState([]);
   const [saving, setSaving] = useState(false);
 
@@ -40,8 +42,8 @@ export default function ShelfPhotosScreen({ navigation }) {
     <SafeAreaView style={s.safe}>
       <View style={s.container}>
         <Text style={s.emoji}>🧴</Text>
-        <Text style={s.title}>Your product shelf</Text>
-        <Text style={s.sub}>Share what you're currently using · optional, up to 5</Text>
+        <Text style={s.title}>{t('onboarding:shelf.title')}</Text>
+        <Text style={s.sub}>{t('onboarding:shelf.sub')}</Text>
 
         <View style={s.grid}>
           {Array.from({ length: 5 }).map((_, i) => {
@@ -79,7 +81,7 @@ export default function ShelfPhotosScreen({ navigation }) {
           disabled={saving}
           onPress={handleContinue}
         >
-          <Text style={s.ctaText}>{photos.length > 0 ? 'Continue →' : 'Skip for now →'}</Text>
+          <Text style={s.ctaText}>{photos.length > 0 ? t('onboarding:shelf.continue') : t('onboarding:shelf.skip')}</Text>
         </Pressable>
       </View>
 

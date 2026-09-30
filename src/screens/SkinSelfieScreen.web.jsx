@@ -1,20 +1,21 @@
 import React from 'react';
 import { Text, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { C } from '../constants';
 
 export default function SkinSelfieScreen({ navigation }) {
+  const { t } = useTranslation();
   return (
     <SafeAreaView style={s.safe}>
       {/* The bounded scroll area keeps the CTA reachable when a compact viewport cannot fit this step. */}
       <ScrollView style={s.scroll} contentContainerStyle={s.container}>
         <Text style={s.emoji}>📸</Text>
-        <Text style={s.title}>Skin selfie</Text>
-        <Text style={s.desc}>
-          {'Camera access works best in the mobile app.\n\nYou can skip this step for now and complete it on your phone.'}
-        </Text>
+        <Text style={s.title}>{t('onboarding:selfie.title')}</Text>
+        {/* The translation has a blank line between the two sentences */}
+        <Text style={s.desc}>{t('onboarding:selfie.desc')}</Text>
         <Pressable style={s.btn} onPress={() => navigation.navigate('ShelfPhotos')}>
-          <Text style={s.btnText}>Continue →</Text>
+          <Text style={s.btnText}>{t('onboarding:selfie.cta')}</Text>
         </Pressable>
       </ScrollView>
     </SafeAreaView>
