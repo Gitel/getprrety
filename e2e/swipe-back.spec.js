@@ -282,12 +282,12 @@ for (const lang of ['en', 'he']) {
       await openMessages(page, t);
       const { from, to } = edgeSwipePlan({ lang, dx: 100 });
       await touchStart(page, from);
-      await dragAlong(page, from, to, { steps: 5, stepDelayMs: 16 }); // finger still down
+      await dragAlong(page, from, to, { steps: 5, stepDelayMs: 60 }); // finger still down; slow so the release is far below the flick speed
       await expect.poll(async () => {
         const values = await inlineTranslates(page);
         return values.length > 0 && values.every(value => Math.sign(pxOf(value)) === sign);
       }).toBe(true);
-      await touchEnd(page, to); // release (short drag: springs back)
+      await touchEnd(page, to); // release: slow and short, so it springs back (not asserted here)
     });
 
     test('a short slow drag springs back: stays on Messages, no inline translateX remains', async ({ page, t }) => {
