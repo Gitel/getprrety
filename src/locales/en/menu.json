@@ -1,1 +1,21 @@
-{}
+{
+  "open": "Open menu",
+  "close": "Close menu",
+  "panel": "Menu",
+  "greeting": "Hi, {{name}}",
+  "greetingNoName": "Hi there",
+  "myRoutine": "My routine",
+  "mySkinProfile": "My skin profile",
+  "messages": "Messages",
+  "messagesUnread": "Messages, {{count}} unread",
+  "book": "Book a consultation",
+  "bookingError": "Could not open the booking page. Please try again.",
+  "logProducts": "Log my products",
+  "settings": "Settings",
+  "retake": "Retake skin quiz",
+  "retakeConfirm": "Retaking the quiz replaces your current results. Are you sure?",
+  "retakeYes": "Retake",
+  "terms": "Terms of Use",
+  "privacy": "Privacy Policy",
+  "logout": "Log out"
+}
