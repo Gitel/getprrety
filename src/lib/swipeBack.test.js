@@ -4,6 +4,7 @@ import {
   startsAtEdge,
   backDistance,
   shouldGoBack,
+  releaseVelocity,
 } from './swipeBack';
 
 const s = (...names) => names.map(name => ({ name, params: {} }));
@@ -75,4 +76,30 @@ describe('shouldGoBack', () => {
   test('fast and > 40 px is true', () => expect(shouldGoBack({ distance: 41, width, velocity: 0.6 })).toBe(true));
   test('slow and long is true', () => expect(shouldGoBack({ distance: 200, width, velocity: 0.1 })).toBe(true));
   test('slow and short is false', () => expect(shouldGoBack({ distance: 60, width, velocity: 0.1 })).toBe(false));
+  // The flick threshold is strict (>): exactly 0.5 px/ms is not a flick.
+  test('flick boundary: velocity 0.5 is false, 0.51 is true', () => {
+    expect(shouldGoBack({ distance: 60, width, velocity: 0.5 })).toBe(false);
+    expect(shouldGoBack({ distance: 60, width, velocity: 0.51 })).toBe(true);
+  });
+});
+
+describe('releaseVelocity', () => {
+  test('fast flick released right away is > 0.5', () => {
+    const samples = [{ d: 0, t: 0 }, { d: 90, t: 40 }];
+    expect(releaseVelocity(samples, 45)).toBeGreaterThan(0.5);
+  });
+  test('same samples released 300 ms later is 0 (finger was still)', () => {
+    const samples = [{ d: 0, t: 0 }, { d: 90, t: 40 }];
+    expect(releaseVelocity(samples, 340)).toBe(0);
+  });
+  test('steady 0.3 px/ms drag with one short spike stays < 0.5', () => {
+    const samples = [];
+    for (let t = 0; t <= 200; t += 8) samples.push({ d: 0.3 * t, t });
+    // One 12 px jump in 8 ms (1.5 px/ms) in the middle of the drag.
+    const spikeAt = 96;
+    const spiked = samples.map(s => (s.t > spikeAt ? { d: s.d + 12 - 2.4, t: s.t } : s));
+    expect(releaseVelocity(spiked, 200)).toBeLessThan(0.5);
+  });
+  test('empty samples is 0', () => expect(releaseVelocity([], 100)).toBe(0));
+  test('single sample is 0', () => expect(releaseVelocity([{ d: 50, t: 10 }], 15)).toBe(0));
 });

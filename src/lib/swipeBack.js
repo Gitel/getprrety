@@ -14,6 +14,10 @@ export const DISTANCE_RATIO = 0.35;
 export const FLICK_VELOCITY = 0.5;
 // A flick must still travel at least this far, otherwise a fast tap would count as a flick.
 export const FLICK_MIN_PX = 40;
+// The flick speed is the average speed over the last 150 ms before the finger lifts.
+// A shorter window measured the test-harness flick at ~0.45-0.55 px/ms (flaky around the
+// 0.5 threshold), and per-step speeds are too noisy on real phones.
+export const VELOCITY_WINDOW_MS = 150;
 // Length (ms) of the slide-out / spring-back animation.
 export const SETTLE_MS = 180;
 
@@ -40,6 +44,19 @@ export function startsAtEdge(x, width, rtl) {
 // Pixels moved in the "back" direction: to the right in English, to the left in Hebrew.
 export function backDistance(dx, rtl) {
   return rtl ? -dx : dx;
+}
+
+// Average speed (px per ms) in the back direction over the last VELOCITY_WINDOW_MS before release.
+// samples: [{ d, t }] oldest first, d = px moved in the back direction, t = timestamp in ms.
+// endTime: the release timestamp in ms.
+// Measuring up to the release time (not up to the last sample) means a finger that stopped
+// before lifting gives ~0, so an old fast movement never counts as a flick (no stale speed).
+export function releaseVelocity(samples, endTime) {
+  if (!samples.length) return 0;
+  const last = samples[samples.length - 1];
+  // Oldest sample still inside the window; none inside = the finger was still, so use the last one.
+  const anchor = samples.find(s => endTime - s.t <= VELOCITY_WINDOW_MS) || last;
+  return endTime > anchor.t ? (last.d - anchor.d) / (endTime - anchor.t) : 0;
 }
 
 // Decides on release whether to complete the back navigation or spring back.
