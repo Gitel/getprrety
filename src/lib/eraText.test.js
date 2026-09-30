@@ -32,6 +32,13 @@ describe('eraText', () => {
     expect(eraText(ERAS.acne_reset, 'name', 'fr')).toBe(ERAS.acne_reset.name);
   });
 
+  test('an id that is an Object.prototype name never returns a prototype value', () => {
+    for (const id of ['constructor', 'toString', '__proto__', 'hasOwnProperty']) {
+      expect(eraText({ id, name: 'Stored' }, 'name', 'he')).toBe('Stored');
+      expect(eraText({ id }, 'tagline', 'he')).toBe('');
+    }
+  });
+
   test('null/undefined era gives an empty string', () => {
     expect(eraText(null, 'name', 'he')).toBe('');
     expect(eraText(undefined, 'tagline', 'en')).toBe('');

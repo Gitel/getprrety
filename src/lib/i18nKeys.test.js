@@ -25,10 +25,14 @@ function sourceFiles(dir, out = []) {
 // Matches t('...'), t("..."), i18n.t('...') and i18next.t('...'); \b keeps out e.g. split('x').
 const CALL_RE = /(?:^|[^\w$.])(?:(?:i18n|i18next)\.)?t\(\s*(['"])((?:(?!\1)[^\\\n])*)\1/g;
 
+// Matches the literal fallback key of errorText(err, t, 'ns:key') (third argument).
+const ERROR_TEXT_RE = /\berrorText\(\s*[^,()]+,\s*[^,()]+,\s*(['"])((?:(?!\1)[^\\\n])*)\1/g;
+
 // Returns every literal key used in a file's text.
 function literalKeys(text) {
   const keys = [];
   for (const m of text.matchAll(CALL_RE)) keys.push(m[2]);
+  for (const m of text.matchAll(ERROR_TEXT_RE)) keys.push(m[2]);
   return keys;
 }
 
@@ -43,6 +47,10 @@ function existsIn(obj, key) {
 describe('literal t() keys', () => {
   test('the scanner finds calls and ignores lookalikes', () => {
     expect(literalKeys("t('a:b') t(\"c:d.e\") i18n.t('f:g') foo.split('x') sprint('y')")).toEqual(['a:b', 'c:d.e', 'f:g']);
+  });
+
+  test('the scanner also finds the literal fallback key of errorText()', () => {
+    expect(literalKeys("errorText(err, t, 'auth:x.y') errorText(err, t) errorText(e, t, 'errors:generic')")).toEqual(['auth:x.y', 'errors:generic']);
   });
 
   test('every literal key has a namespace and exists in the English resources', () => {

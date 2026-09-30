@@ -65,8 +65,8 @@ export default function LoginScreen({ navigation }) {
         saved = response.analysis || null;
       } catch { /* users without an assessment continue to onboarding */ }
       setAnalysis(saved);
-      setUser(user);
       await applyAccountLanguage(user); // UI language = pending ?? account ?? device ?? 'en'
+      setUser(user);
       logActivity('login');
       navigation.replace(saved ? 'Home' : quizEntryScreen());
     } catch (err) {
@@ -92,8 +92,8 @@ export default function LoginScreen({ navigation }) {
         saved = response.analysis || null;
       } catch { /* users without an assessment continue to onboarding */ }
       setAnalysis(saved);
-      setUser(user);
       await applyAccountLanguage(user); // UI language = pending ?? account ?? device ?? 'en'
+      setUser(user);
       logActivity('login');
       navigation.replace(saved ? 'Home' : quizEntryScreen());
     } catch (err) {

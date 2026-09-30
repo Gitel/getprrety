@@ -91,7 +91,7 @@ function LanguageRow({ current, onPick }) {
             accessibilityRole="button"
             accessibilityLabel={name}
             // react-native-web passes aria-* props through to the DOM.
-            aria-selected={selected}
+            aria-pressed={selected}
           >
             <Text style={[s.langText, selected && s.langTextSelected]}>{name}</Text>
           </Pressable>

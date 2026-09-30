@@ -43,7 +43,9 @@ function setup({ stored = {}, language = 'en', patch } = {}) {
   const storage = fakeStorage(stored);
   const i18n = fakeI18n(language);
   const api = fakeApi(patch);
-  return { storage, i18n, api, deps: { storage, i18n, api } };
+  // getToken defaults to 'a token is stored'; boot tests override it.
+  const getToken = jest.fn(async () => 'tok');
+  return { storage, i18n, api, getToken, deps: { storage, i18n, api, getToken } };
 }
 
 describe('resolveLanguage - pending ?? account ?? device ?? en', () => {
@@ -258,5 +260,79 @@ describe('shared device', () => {
     storage.remove.mockRejectedValue(new Error('x'));
     storage.failReads = true;
     await expect(clearPendingOnLogout(deps)).resolves.toBeUndefined();
+  });
+});
+
+describe('boot with a revoked token (shared device)', () => {
+  test('token removed by loadSession: pending is cleared, the next account does not inherit it', async () => {
+    const { deps, storage, api, i18n, getToken } = setup({ stored: { [DEVICE_KEY]: 'en', [PENDING_KEY]: 'he' } });
+    getToken.mockResolvedValue(null); // loadSession removed the token after a 401/404
+    await bootLanguage(session(null), deps);
+    expect(storage.data[PENDING_KEY]).toBeUndefined();
+    expect(storage.data[DEVICE_KEY]).toBe('en');
+
+    // Another person signs in; their account has language en.
+    await applyAccountLanguage({ language: 'en' }, deps);
+    expect(i18n.language).toBe('en');
+    await retryPendingLanguage(deps);
+    await flush();
+    expect(api.patch).not.toHaveBeenCalled();
+  });
+
+  test('offline boot (token still stored, no user): pending is kept', async () => {
+    const { deps, storage } = setup({ stored: { [PENDING_KEY]: 'he' } });
+    await bootLanguage(session(null), deps); // getToken still returns a token
+    expect(storage.data[PENDING_KEY]).toBe('he');
+  });
+
+  test('an unreadable token keeps pending', async () => {
+    const { deps, storage, getToken } = setup({ stored: { [PENDING_KEY]: 'he' } });
+    getToken.mockRejectedValue(new Error('x'));
+    await bootLanguage(session(null), deps);
+    expect(storage.data[PENDING_KEY]).toBe('he');
+  });
+});
+
+describe('PATCH ordering', () => {
+  test('he then en quickly: the last PATCH sent is en and pending is cleared', async () => {
+    const { deps, api, storage } = setup();
+    await saveLanguage('he', deps);
+    await saveLanguage('en', deps);
+    await flush();
+    const sent = api.patch.mock.calls.map(c => c[1].language);
+    expect(sent[sent.length - 1]).toBe('en');
+    expect(storage.data[PENDING_KEY]).toBeUndefined();
+  });
+
+  test('a slow first PATCH finishing after the second was requested does not leave the account on the old value', async () => {
+    const release = [];
+    const sent = [];
+    const { deps, storage } = setup({
+      patch: (path, body) => new Promise(res => { sent.push(body.language); release.push(res); }),
+    });
+    await saveLanguage('he', deps); // PATCH he in flight (slow)
+    await saveLanguage('en', deps); // must wait: nothing sent in parallel
+    await flush();
+    expect(sent).toEqual(['he']);
+    release[0]({}); // he finishes; the account is on he, but the choice is now en
+    await flush();
+    expect(sent).toEqual(['he', 'en']); // en is sent after he, never before
+    expect(storage.data[PENDING_KEY]).toBe('en'); // not cleared until en is saved
+    release[1]({});
+    await flush();
+    expect(storage.data[PENDING_KEY]).toBeUndefined();
+    expect(sent[sent.length - 1]).toBe('en');
+  });
+
+  test('a failed PATCH in the chain keeps pending and does not block the next one', async () => {
+    let n = 0;
+    const { deps, storage, api } = setup({ patch: async () => { n += 1; if (n === 1) throw new Error('down'); return {}; } });
+    await saveLanguage('he', deps);
+    await flush();
+    expect(storage.data[PENDING_KEY]).toBe('he');
+    await saveLanguage('en', deps);
+    await flush();
+    expect(api.patch).toHaveBeenLastCalledWith('/api/profile', { language: 'en' });
+    expect(storage.data[PENDING_KEY]).toBeUndefined();
   });
 });

@@ -10,12 +10,16 @@
 //  - Signed out there is no account: the UI is device ?? 'en'.
 //  - Logout drops the pending value, so one person's choice is never pushed onto the next
 //    person's account on a shared (clinic) tablet.
+//  - Boot does the same when the session ended because the stored token was removed (revoked).
+//  - Account saves (PATCH) are sent one at a time, in order, and the account always ends on the
+//    device's latest choice.
 //  - Coming back to the app (resume) may retry a pending save, but NEVER changes the UI language.
 //
 // Every function takes optional injectable dependencies ({ storage, api, i18n }) so the tests can
 // run in node with fakes. The app calls them without arguments and gets the real ones.
 import { Preferences } from '@capacitor/preferences';
 import { api as realApi } from './api';
+import { getToken as realGetToken } from './auth';
 import realI18n from './i18n';
 import { DEFAULT_LANGUAGE, normalizeLanguage } from './language';
 
@@ -34,6 +38,7 @@ function withDefaults(deps = {}) {
     storage: deps.storage || realStorage,
     api: deps.api || realApi,
     i18n: deps.i18n || realI18n,
+    getToken: deps.getToken || realGetToken,
   };
 }
 
@@ -62,19 +67,66 @@ async function applyUi(i18n, lang) {
   } catch { /* the UI keeps its current language */ }
 }
 
-// Tries to save `lang` on the account. On success the pending marker is removed, but only if it
-// still holds this same value (the user may have switched again while the request was running).
-// Never throws.
-async function patchAccount(lang, { storage, api }) {
+// All account PATCHes go through ONE promise chain per storage, so they reach the server in the
+// order they were started (two parallel requests could otherwise finish in the wrong order and
+// leave the account on the older language). Keyed by storage so tests do not share a chain.
+const chains = new WeakMap();
+function enqueue(storage, job) {
+  const previous = chains.get(storage) || Promise.resolve();
+  const next = previous.then(job); // `job` never rejects, so the chain never breaks
+  chains.set(storage, next);
+  return next;
+}
+
+// The newest choice made in THIS app run, kept in memory. saveLanguage sets it synchronously, before
+// any storage write, so a save that is about to remove the pending marker can tell "the user just
+// picked something else" even though the new marker is not on disk yet (storage has no
+// compare-and-delete, so read-then-remove alone could delete a newer marker).
+const latestChoice = new WeakMap();
+
+// Reads the pending marker. On the first read a broken storage falls back to `fallback` (the value
+// the caller wants saved); later reads treat a broken storage as "nothing pending".
+async function readPending(storage, fallback) {
   try {
-    await api.patch('/api/profile', { language: lang });
+    return normalizeLanguage(await storage.get(PENDING_KEY));
   } catch {
-    return false; // offline or server error: the pending marker stays for the next retry
+    return fallback;
   }
-  try {
-    if (await readKey(storage, PENDING_KEY) === lang) await storage.remove(PENDING_KEY);
-  } catch { /* a leftover marker only causes one harmless extra PATCH later */ }
-  return true;
+}
+
+// Saves the device's latest choice (the pending marker) on the account, never throwing.
+//  - If the marker is already gone, an earlier queued job saved it (or logout dropped it): send nothing.
+//  - After each successful PATCH the marker is read again: if the user switched meanwhile, the newer
+//    value is sent too, so the account ends on the latest choice. Only when the marker equals the
+//    value just saved is it removed.
+//  - A failed PATCH (offline / server error) leaves the marker for the next retry.
+// `fallback` is used only when storage cannot be read (see readPending).
+async function sendPending(fallback, { storage, api }) {
+  let sent = null;
+  for (;;) {
+    const pending = latestChoice.get(storage) || await readPending(storage, sent === null ? fallback : null);
+    if (sent !== null && pending === sent) {
+      // Checked in the same tick as the remove() call below: if a newer choice arrived while we
+      // were reading, go around again and send it instead of deleting its marker.
+      const newer = latestChoice.get(storage);
+      if (newer && newer !== sent) continue;
+      try { await storage.remove(PENDING_KEY); } catch { /* a leftover marker only causes one harmless extra PATCH later */ }
+      if (latestChoice.get(storage) === sent) latestChoice.delete(storage); // fully saved
+      return true;
+    }
+    if (!pending) return sent !== null; // nothing (more) to save
+    try {
+      await api.patch('/api/profile', { language: pending });
+    } catch {
+      return false; // the marker stays for the next retry
+    }
+    sent = pending;
+  }
+}
+
+// Queues a save of the latest choice. Never rejects.
+function patchAccount(lang, d) {
+  return enqueue(d.storage, () => sendPending(lang, d).catch(() => false));
 }
 
 // One retry at a time: boot and resume could otherwise both send the same PATCH.
@@ -122,7 +174,17 @@ export async function bootLanguage(loadSession, deps) {
   const session = await loadSession();
   const user = session && session.user;
 
-  // Signed out: there is no account and no pending choice to honour.
+  // Signed out: there is no account and no pending choice to honour. If the token is gone too
+  // (loadSession removed it on a 401/404), the unsaved choice belongs to a dead session, so drop it
+  // like logout does; otherwise the next person to sign in on this device would inherit it. With a
+  // token still stored (offline boot) the user is coming back, so pending is kept.
+  if (!user) {
+    let token = 'unknown'; // if the token cannot be read we do not know, so we keep pending
+    try { token = await d.getToken(); } catch { /* keep pending */ }
+    if (!token) {
+      try { await d.storage.remove(PENDING_KEY); } catch { /* ignore */ }
+    }
+  }
   const lang = user
     ? resolveLanguage({ pending, account: user.language, device })
     : resolveLanguage({ device });
@@ -139,6 +201,7 @@ export async function saveLanguage(lang, deps) {
   const d = withDefaults(deps);
   const chosen = normalizeLanguage(lang);
   if (!chosen) return false;
+  latestChoice.set(d.storage, chosen); // before any await, see latestChoice
   await applyUi(d.i18n, chosen);
   try {
     await d.storage.set(DEVICE_KEY, chosen);
@@ -151,6 +214,7 @@ export async function saveLanguage(lang, deps) {
 // Called on logout: forget any unsaved choice and show the device language (or English).
 export async function clearPendingOnLogout(deps) {
   const d = withDefaults(deps);
+  latestChoice.delete(d.storage); // the unsaved choice is dropped with the session
   try { await d.storage.remove(PENDING_KEY); } catch { /* ignore */ }
   const device = await readKey(d.storage, DEVICE_KEY);
   await applyUi(d.i18n, resolveLanguage({ device }));
