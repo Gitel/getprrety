@@ -18,7 +18,8 @@ function englishText(era, field) {
 
 // Hebrew text for the era id, or '' when there is none (unknown id, missing field).
 function hebrewText(era, field) {
-  if (!era?.id || !FIELDS.includes(field)) return '';
+  // Only ids that exist in ERAS: an id like "constructor" must not reach the resource lookup.
+  if (!era?.id || !Object.prototype.hasOwnProperty.call(ERAS, era.id) || !FIELDS.includes(field)) return '';
   const text = i18n.getResource('he', 'eras', `${era.id}.${field}`);
   return typeof text === 'string' ? text : '';
 }

@@ -1,8 +1,9 @@
 // The ONE i18next instance for the whole app. It initialises synchronously when imported
 // (src/main.jsx imports it before rendering), so `t()` works on the very first render.
 //
-// Not here on purpose: saving the chosen language and switching it from the UI. Those come in
-// later tasks; for now the app always starts in English.
+// Not here on purpose: choosing and saving the language. The switch lives in the side menu
+// (src/components/SideMenu.jsx) and the persistence (device + account) in src/lib/languageSync.js,
+// which picks the language at boot / sign-in. This file starts in English and gets switched later.
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import { resources, NAMESPACES } from '../locales';

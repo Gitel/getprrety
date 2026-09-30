@@ -74,3 +74,25 @@ test('never returns the server English text', () => {
 test('works with a missing error object', () => {
   expect(errorText(undefined, t)).toBe(enCodes.generic);
 });
+
+describe('params safety', () => {
+  test('reserved i18next option names from the server are ignored', () => {
+    const err = { code: 'password_too_short', params: { min: 8, lng: 'he', ns: 'nope', defaultValue: 'X', returnObjects: true, interpolation: { prefix: '[' } } };
+    expect(errorText(err, t)).toBe('Password must be at least 8 characters'); // still English, still interpolated
+  });
+  test('only own string/number values are passed on', () => {
+    const spy = jest.fn(() => 'ok');
+    const inherited = Object.create({ min: 99 });
+    inherited.name = 'x';
+    const err = { code: 'password_too_short', params: Object.assign(inherited, { min: 8, obj: {}, list: [1], flag: true, count: '3', lng: 'he' }) };
+    errorText(err, spy);
+    expect(spy).toHaveBeenCalledWith('errors:password_too_short', { name: 'x', min: 8 });
+  });
+  test('a numeric count is allowed, non-object params give {}', () => {
+    const spy = jest.fn(() => 'ok');
+    errorText({ code: 'password_too_short', params: { count: 2 } }, spy);
+    expect(spy).toHaveBeenCalledWith('errors:password_too_short', { count: 2 });
+    errorText({ code: 'password_too_short', params: 'str' }, spy);
+    expect(spy).toHaveBeenLastCalledWith('errors:password_too_short', {});
+  });
+});

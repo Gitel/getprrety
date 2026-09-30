@@ -97,8 +97,8 @@ export default function SignUpScreen({ navigation }) {
         ...consent,
       });
       await storeToken(token);
-      setUser(u);
       await applyAccountLanguage(u); // UI language = pending ?? account ?? device ?? 'en'
+      setUser(u);
       continueAfterSignup();
     } catch (err) {
       // errorText turns the server's error code into a translated sentence (never raw English).
@@ -115,8 +115,8 @@ export default function SignUpScreen({ navigation }) {
       // A new Google account needs the same fresh consent stamp as email sign-up.
       const { token, user: u } = await api.post('/api/auth/google', { idToken, ...(consentParams() || {}) });
       await storeToken(token);
-      setUser(u);
       await applyAccountLanguage(u); // UI language = pending ?? account ?? device ?? 'en'
+      setUser(u);
       continueAfterSignup();
     } catch (err) {
       setErrors({ submit: errorText(err, t, 'auth:signup.googleFailed') });
