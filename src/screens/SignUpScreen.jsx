@@ -4,7 +4,10 @@ import {
   KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation, Trans } from 'react-i18next';
 import { api } from '../lib/api';
+import { errorText } from '../lib/errorText';
+import { eraText } from '../lib/eraText';
 import { storeToken } from '../lib/auth';
 import { applyAccountLanguage } from '../lib/languageSync';
 import { persistAnalysis, withSavedId } from '../lib/persistAnalysis';
@@ -27,6 +30,8 @@ function isValidEmail(v) {
 // `analysis` tells the two apart and drives the copy and the next screen.
 export default function SignUpScreen({ navigation }) {
   const { analysis, setAnalysis, answers, setUser, setAnalysisSaveFailed } = useApp();
+  // All visible text comes from src/locales/<lang>/auth.json.
+  const { t, i18n } = useTranslation();
   const era = analysis?.era;
   const afterQuiz = Boolean(analysis);
 
@@ -40,10 +45,10 @@ export default function SignUpScreen({ navigation }) {
 
   function validate() {
     const e = {};
-    if (!email.trim())             e.email = 'Email is required.';
-    else if (!isValidEmail(email)) e.email = 'Enter a valid email address.';
-    if (!password)                 e.password = 'Password is required.';
-    else if (password.length < 8)  e.password = 'Password must be at least 8 characters.';
+    if (!email.trim())             e.email = t('auth:signup.emailRequired');
+    else if (!isValidEmail(email)) e.email = t('auth:signup.emailInvalid');
+    if (!password)                 e.password = t('auth:signup.passwordRequired');
+    else if (password.length < 8)  e.password = t('auth:signup.passwordTooShort');
     return e;
   }
 
@@ -96,7 +101,8 @@ export default function SignUpScreen({ navigation }) {
       await applyAccountLanguage(u); // UI language = pending ?? account ?? device ?? 'en'
       continueAfterSignup();
     } catch (err) {
-      setErrors({ submit: err.message || 'Sign up failed. Please try again.' });
+      // errorText turns the server's error code into a translated sentence (never raw English).
+      setErrors({ submit: errorText(err, t, 'auth:signup.failed') });
     } finally {
       setLoading(false);
     }
@@ -113,13 +119,15 @@ export default function SignUpScreen({ navigation }) {
       await applyAccountLanguage(u); // UI language = pending ?? account ?? device ?? 'en'
       continueAfterSignup();
     } catch (err) {
-      setErrors({ submit: err.message || 'Google sign-in failed. Please try again.' });
+      setErrors({ submit: errorText(err, t, 'auth:signup.googleFailed') });
     } finally {
       setGoogleLoading(false);
     }
   }
 
-  const eraName = era?.name || 'Your Era';
+  // The era name in the current language (Hebrew by era id, English otherwise). Wrapped in
+  // Unicode isolates (U+2068 ... U+2069) so an English name inside Hebrew text keeps its own direction.
+  const eraName = '\u2068' + (eraText(era, 'name', i18n.language) || t('auth:signup.defaultEra')) + '\u2069';
 
   return (
     <SafeAreaView style={s.safe}>
@@ -132,7 +140,7 @@ export default function SignUpScreen({ navigation }) {
           {/* Back */}
           {navigation.canGoBack() && (
             <Pressable onPress={() => navigation.goBack()} style={s.backBtn} hitSlop={10}>
-              <Text style={s.backText}>← Back</Text>
+              <Text style={s.backText}>{t('common:back')}</Text>
             </Pressable>
           )}
 
@@ -140,14 +148,19 @@ export default function SignUpScreen({ navigation }) {
           {afterQuiz ? (
             <View style={s.headlineBlock}>
               <Text style={s.headline}>
-                Your <Text style={{ color: C.accent }}>{eraName}</Text> routine is ready.
+                {/* <Trans> lets the translation place the coloured era name anywhere in the sentence */}
+                <Trans
+                  i18nKey="auth:signup.headlineAfterQuiz"
+                  values={{ eraName }}
+                  components={{ accent: <Text style={{ color: C.accent }} /> }}
+                />
               </Text>
-              <Text style={s.sub}>Create your account to unlock it — and track your skin journey.</Text>
+              <Text style={s.sub}>{t('auth:signup.subAfterQuiz')}</Text>
             </View>
           ) : (
             <View style={s.headlineBlock}>
-              <Text style={s.headline}>Create your account</Text>
-              <Text style={s.sub}>Save your skin assessment and track your journey.</Text>
+              <Text style={s.headline}>{t('auth:signup.headline')}</Text>
+              <Text style={s.sub}>{t('auth:signup.sub')}</Text>
             </View>
           )}
 
@@ -155,14 +168,14 @@ export default function SignUpScreen({ navigation }) {
 
           <View style={s.dividerRow}>
             <View style={s.dividerLine} />
-            <Text style={s.dividerText}>or continue with email</Text>
+            <Text style={s.dividerText}>{t('auth:signup.orEmail')}</Text>
             <View style={s.dividerLine} />
           </View>
 
           {/* First name (optional) */}
           <View style={s.fieldWrap}>
             <TextInput
-              placeholder="First name (optional)"
+              placeholder={t('auth:signup.firstNamePlaceholder')}
               placeholderTextColor={C.muted}
               value={firstName}
               onChangeText={setFirstName}
@@ -175,10 +188,10 @@ export default function SignUpScreen({ navigation }) {
           {/* Email */}
           <View style={s.fieldWrap}>
             <TextInput
-              placeholder="Email address"
+              placeholder={t('auth:signup.emailPlaceholder')}
               placeholderTextColor={C.muted}
               value={email}
-              onChangeText={t => { setEmail(t); setErrors(v => ({ ...v, email: undefined })); }}
+              onChangeText={text => { setEmail(text); setErrors(v => ({ ...v, email: undefined })); }}
               style={[s.input, errors.email && s.inputError]}
               keyboardType="email-address"
               autoCapitalize="none"
@@ -191,10 +204,10 @@ export default function SignUpScreen({ navigation }) {
           <View style={s.fieldWrap}>
             <View style={s.passwordRow}>
               <TextInput
-                placeholder="Password (min. 8 characters)"
+                placeholder={t('auth:signup.passwordPlaceholder')}
                 placeholderTextColor={C.muted}
                 value={password}
-                onChangeText={t => { setPassword(t); setErrors(v => ({ ...v, password: undefined })); }}
+                onChangeText={text => { setPassword(text); setErrors(v => ({ ...v, password: undefined })); }}
                 style={[s.input, s.passwordInput, errors.password && s.inputError]}
                 secureTextEntry={!showPw}
                 returnKeyType="done"
@@ -221,7 +234,7 @@ export default function SignUpScreen({ navigation }) {
           >
             {loading
               ? <ActivityIndicator color={C.bg} size="small" />
-              : <Text style={s.ctaText}>{afterQuiz ? 'Enter my Era →' : 'Create account'}</Text>
+              : <Text style={s.ctaText}>{afterQuiz ? t('auth:signup.ctaAfterQuiz') : t('auth:signup.cta')}</Text>
             }
           </Pressable>
 

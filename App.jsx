@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
+import i18nInstance from './src/lib/i18n';
 import { dirFor } from './src/lib/language';
 import { AppProvider } from './src/context/AppContext';
 import WelcomeScreen from './src/screens/WelcomeScreen';
@@ -52,7 +53,7 @@ class ErrorBoundary extends React.Component {
     if (this.state.error) {
       return (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: '#FAF8F5' }}>
-          <Text style={{ fontSize: 16, color: '#C9897A', marginBottom: 12, fontWeight: '600' }}>Something went wrong</Text>
+          <Text style={{ fontSize: 16, color: '#C9897A', marginBottom: 12, fontWeight: '600' }}>{i18nInstance.t('onboarding:errorBoundary.title')}</Text>
           <Text style={{ fontSize: 12, color: '#9B8E85', textAlign: 'center' }}>{this.state.error.message}</Text>
         </View>
       );
