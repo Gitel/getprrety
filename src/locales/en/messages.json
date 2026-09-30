@@ -6,7 +6,6 @@
   "empty": "No messages yet. Write to your clinic below.",
   "you": "You",
   "clinic": "Your clinic",
-  "senderLine": "{{who}} · {{time}}",
   "placeholder": "Write a message",
   "send": "Send",
   "sendFailed": "Could not send your message. Please try again."

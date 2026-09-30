@@ -7,6 +7,7 @@ import { MenuButton } from '../components/SideMenu';
 import { useApp } from '../context/AppContext';
 import { errorText } from '../lib/errorText';
 import { formatDateTime } from '../lib/formatting';
+import { isRTL } from '../lib/language';
 import {
   fetchThread, markThreadRead, sendReply, MAX_MESSAGE_LENGTH, MESSAGES_POLL_MS,
 } from '../lib/messages';
@@ -100,7 +101,7 @@ export default function MessagesScreen({ navigation }) {
           const mine = m.from === 'user';
           return (
             <View key={m.id} style={[s.bubble, mine ? [s.mine, { backgroundColor: accent + '22' }] : s.theirs]}>
-              <Text style={s.sender}>{t('messages:senderLine', { who: mine ? t('messages:you') : t('messages:clinic'), time: formatTime(m.createdAt, i18n.language) })}</Text>
+              <Text style={s.sender}>{senderLine(mine ? t('messages:you') : t('messages:clinic'), formatTime(m.createdAt, i18n.language), i18n.language)}</Text>
               <Text style={s.body}>{m.body}</Text>
             </View>
           );
@@ -130,6 +131,14 @@ export default function MessagesScreen({ navigation }) {
       </View>
     </SafeAreaView>
   );
+}
+
+// "You \u00B7 24/09/2026, 14:05". In Hebrew the line starts with a right-to-left mark (\u200F) so it
+// aligns right, and the date is wrapped in isolate marks (\u2068 ... \u2069) so its digits and
+// punctuation cannot reorder the words around it. English is left exactly as it was.
+function senderLine(who, time, lang) {
+  if (!isRTL(lang)) return `${who} \u00B7 ${time}`;
+  return `\u200F${who} \u00B7 \u2068${time}\u2069`;
 }
 
 // Short local date + time, e.g. "24/09/2026, 14:05". The style follows the app language
