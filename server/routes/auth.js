@@ -8,7 +8,9 @@ const { allowAuthAttempt, releaseAuthAttempt } = require('../services/authRateLi
 const { isDuplicateEmail } = require('../services/duplicateKey');
 const { consentError } = require('../services/consent');
 
-const TOO_MANY = { error: 'Too many attempts. Please wait a few minutes and try again.' };
+// Every error body carries the English `error` (old app versions read it) plus a
+// machine-readable `code` that the client translates into the user's language.
+const TOO_MANY = { error: 'Too many attempts. Please wait a few minutes and try again.', code: 'too_many_attempts' };
 
 const googleClient = new OAuth2Client();
 
@@ -22,8 +24,9 @@ function signToken(user) {
 
 // skincareTiming is included so the client can tell a first-time user (not yet through
 // the SkinTiming onboarding screen) from a returning one right after login/signup.
+// language is the saved app language ('en' | 'he'), or null when the user never chose.
 function toPublicUser(user) {
-  return { id: user._id, firstName: user.firstName, email: user.email, termsAcceptedAt: user.termsAcceptedAt, consentVersion: user.consentVersion, skincareTiming: user.skincareTiming };
+  return { id: user._id, firstName: user.firstName, email: user.email, termsAcceptedAt: user.termsAcceptedAt, consentVersion: user.consentVersion, skincareTiming: user.skincareTiming, language: user.language ?? null };
 }
 
 // Fire-and-forget: a refund that fails must never turn a successful signup into a
@@ -38,20 +41,20 @@ router.post('/signup', async (req, res) => {
     if (!await allowAuthAttempt(req, 'signup')) return res.status(429).json(TOO_MANY);
     const { email, password, firstName, consentAcceptedAt, consentVersion } = req.body;
     if (typeof email !== 'string' || typeof password !== 'string' || !email.trim() || !password)
-      return res.status(400).json({ error: 'Email and password are required' });
+      return res.status(400).json({ error: 'Email and password are required', code: 'email_password_required' });
     if (password.length < 8)
-      return res.status(400).json({ error: 'Password must be at least 8 characters' });
+      return res.status(400).json({ error: 'Password must be at least 8 characters', code: 'password_too_short', params: { min: 8 } });
     // Same consent rule as a new Google account (services/consent.js).
     const now = new Date();
     const consentProblem = consentError({ consentAcceptedAt, consentVersion }, now);
-    if (consentProblem) return res.status(consentProblem.status).json({ error: consentProblem.error });
+    if (consentProblem) return res.status(consentProblem.status).json({ error: consentProblem.error, code: consentProblem.code });
     const activeConsentVersion = process.env.CONSENT_VERSION;
 
     const normalizedEmail = email.trim().toLowerCase();
     if (normalizedEmail.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail))
-      return res.status(400).json({ error: 'Enter a valid email address' });
+      return res.status(400).json({ error: 'Enter a valid email address', code: 'invalid_email' });
     const exists = await User.findOne({ email: normalizedEmail });
-    if (exists) return res.status(409).json({ error: 'Email already registered' });
+    if (exists) return res.status(409).json({ error: 'Email already registered', code: 'email_taken' });
 
     const passwordHash = await bcrypt.hash(password, 12);
     const user = await User.create({
@@ -69,12 +72,12 @@ router.post('/signup', async (req, res) => {
     // (raised to 30) absorbs the clinic shared-IP case on its own instead.
     res.status(201).json({ token: signToken(user), user: toPublicUser(user) });
   } catch (err) {
-    if (isDuplicateEmail(err)) return res.status(409).json({ error: 'Email already registered' });
+    if (isDuplicateEmail(err)) return res.status(409).json({ error: 'Email already registered', code: 'email_taken' });
     // A duplicate on some other unique index is our problem, not the caller's email.
     // Telling them an unused address is taken is what hid a googleId_1 collision for
     // as long as it did, so log which index it actually was.
     if (err.code === 11000) console.error('Signup duplicate key on a non-email index:', err.keyPattern || err.message);
-    res.status(500).json({ error: 'Unable to create account' });
+    res.status(500).json({ error: 'Unable to create account', code: 'signup_failed' });
   }
 });
 
@@ -87,21 +90,21 @@ router.post('/google', async (req, res) => {
     if (!await allowAuthAttempt(req, 'google')) return res.status(429).json(TOO_MANY);
     const { idToken } = req.body;
     if (typeof idToken !== 'string' || !idToken)
-      return res.status(400).json({ error: 'idToken is required' });
+      return res.status(400).json({ error: 'idToken is required', code: 'google_token_required' });
 
     const audience = (process.env.GOOGLE_CLIENT_IDS || '').split(',').map(v => v.trim()).filter(Boolean);
-    if (!audience.length) return res.status(503).json({ error: 'Google sign-in is temporarily unavailable' });
+    if (!audience.length) return res.status(503).json({ error: 'Google sign-in is temporarily unavailable', code: 'google_unavailable' });
 
     let payload;
     try {
       const ticket = await googleClient.verifyIdToken({ idToken, audience });
       payload = ticket.getPayload();
     } catch {
-      return res.status(401).json({ error: 'Invalid Google sign-in token' });
+      return res.status(401).json({ error: 'Invalid Google sign-in token', code: 'google_token_invalid' });
     }
 
     if (!payload?.email || payload.email_verified === false)
-      return res.status(400).json({ error: 'Google account has no verified email' });
+      return res.status(400).json({ error: 'Google account has no verified email', code: 'google_email_unverified' });
 
     const googleId = payload.sub;
     const normalizedEmail = payload.email.trim().toLowerCase();
@@ -117,7 +120,7 @@ router.post('/google', async (req, res) => {
       // Existing users (the branch above) log in without it, exactly as before.
       const now = new Date();
       const consentProblem = consentError(req.body, now);
-      if (consentProblem) return res.status(consentProblem.status).json({ error: consentProblem.error });
+      if (consentProblem) return res.status(consentProblem.status).json({ error: consentProblem.error, code: consentProblem.code });
       user = await User.create({
         googleId,
         email: normalizedEmail,
@@ -131,9 +134,9 @@ router.post('/google', async (req, res) => {
     releaseQuietly(req, 'google');
     res.json({ token: signToken(user), user: toPublicUser(user) });
   } catch (err) {
-    if (isDuplicateEmail(err)) return res.status(409).json({ error: 'Email already registered' });
+    if (isDuplicateEmail(err)) return res.status(409).json({ error: 'Email already registered', code: 'email_taken' });
     if (err.code === 11000) console.error('Google sign-in duplicate key on a non-email index:', err.keyPattern || err.message);
-    res.status(500).json({ error: 'Unable to sign in with Google' });
+    res.status(500).json({ error: 'Unable to sign in with Google', code: 'google_signin_failed' });
   }
 });
 
@@ -143,17 +146,17 @@ router.post('/login', async (req, res) => {
     if (!await allowAuthAttempt(req, 'login')) return res.status(429).json(TOO_MANY);
     const { email, password } = req.body;
     if (typeof email !== 'string' || typeof password !== 'string' || !email.trim() || !password)
-      return res.status(400).json({ error: 'Email and password are required' });
+      return res.status(400).json({ error: 'Email and password are required', code: 'email_password_required' });
     const user = await User.findOne({ email: String(email).trim().toLowerCase() });
-    if (!user || !user.passwordHash) return res.status(401).json({ error: 'Invalid email or password' });
+    if (!user || !user.passwordHash) return res.status(401).json({ error: 'Invalid email or password', code: 'invalid_credentials' });
 
     const match = await bcrypt.compare(password, user.passwordHash);
-    if (!match) return res.status(401).json({ error: 'Invalid email or password' });
+    if (!match) return res.status(401).json({ error: 'Invalid email or password', code: 'invalid_credentials' });
 
     releaseQuietly(req, 'login');
     res.json({ token: signToken(user), user: toPublicUser(user) });
   } catch (err) {
-    res.status(500).json({ error: 'Unable to log in' });
+    res.status(500).json({ error: 'Unable to log in', code: 'login_failed' });
   }
 });
 
@@ -161,10 +164,10 @@ router.post('/login', async (req, res) => {
 router.get('/me', requireAuth, async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select('-passwordHash');
-    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (!user) return res.status(404).json({ error: 'User not found', code: 'user_not_found' });
     res.json({ user });
   } catch (err) {
-    res.status(500).json({ error: 'Unable to load account' });
+    res.status(500).json({ error: 'Unable to load account', code: 'account_load_failed' });
   }
 });
 

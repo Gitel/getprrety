@@ -9,6 +9,9 @@ const userSchema = new mongoose.Schema({
   googleId:       { type: String },
   skinEra:        { type: String, default: null },
   skincareTiming:  { type: String, enum: ['morning', 'night', 'both', null], default: null },
+  // The user's chosen app language. null = never chosen; the app (not the server) decides
+  // which UI language to show in that case (see the i18n plan's language rule).
+  language:        { type: String, enum: ['en', 'he', null], default: null },
   selfiePhotoIds:  { type: [String], default: [] },
   shelfPhotoIds:   { type: [String], default: [] },
   termsAcceptedAt: { type: Date, default: null },
