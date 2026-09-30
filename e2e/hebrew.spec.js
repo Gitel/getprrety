@@ -5,43 +5,21 @@
 //   UI language = pending ?? account (user.language) ?? device ?? 'en'.
 // The default fixture user has NO `language`, so the device language ('he') wins.
 import { test, expect } from './support/test.js';
+import { USER } from './support/fixtures-data.js';
+import { makeT } from './support/i18n.js';
+import { openMenu, backButton, openMessages, openSettings, openSignUp } from './support/nav.js';
 
 test.use({ lang: 'he' });
 
-// Same CORS headers as e2e/support/mock-api.js (needed because the API is on another origin).
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, content-type',
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
-};
+// Feeds the shared mock a user whose account carries its own language (GET /api/auth/me).
+// Call it BEFORE page.goto('/').
+const accountSaysLanguage = (mock, language) => mock.set({ user: { ...USER, language } });
 
-// Local override of GET /api/auth/me so the account carries its own language.
-// (The shared mock's user has no `language`.) Page routes win over the context router.
-async function accountSaysLanguage(page, language) {
-  await page.route('http://api.e2e.test/api/auth/me', async route => {
-    const request = route.request();
-    if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS });
-    if (request.method() !== 'GET') return route.fallback();
-    // Same user as the shared fixture, plus the account language.
-    return route.fulfill({
-      status: 200,
-      headers: CORS,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        user: {
-          _id: 'user-1',
-          id: 'user-1',
-          firstName: 'Dana',
-          email: 'dana@example.test',
-          termsAcceptedAt: '2026-09-15T08:00:00.000Z',
-          consentVersion: 'v1',
-          skincareTiming: 'morning',
-          language,
-        },
-      }),
-    });
-  });
-}
+// Unicode direction marks, built from char codes so this file stays plain ASCII.
+const RLM = String.fromCharCode(0x200f); // right-to-left mark: first char of a sender line
+const FSI = String.fromCharCode(0x2068); // first-strong isolate: opens the isolated time
+const PDI = String.fromCharCode(0x2069); // pop directional isolate: closes it
+const MIDDLE_DOT = ' ' + String.fromCharCode(0x00b7) + ' '; // separator between who and time
 
 test.describe('signed out, Hebrew', () => {
   test('html is rtl/he and the Login screen is in Hebrew', async ({ page, t }) => {
@@ -58,9 +36,8 @@ test.describe('signed out, Hebrew', () => {
   });
 
   test('the Sign up screen shows the Hebrew Back label', async ({ page, t }) => {
-    await page.goto('/');
-    await page.getByText(t('auth:login.createAccount')).click();
-    await expect(page.getByText(t('common:back'))).toBeVisible();
+    await openSignUp(page, t);
+    await expect(backButton(page, t)).toBeVisible();
   });
 });
 
@@ -79,16 +56,16 @@ test.describe('signed in, Hebrew', () => {
     mock.set({ unread: 0 }); // no unread badge, so the item label is the plain one
     await page.goto('/');
     await expect(page.getByText(t('home:greeting.morning'))).toBeVisible();
-    await page.getByRole('button', { name: t('menu:open') }).click();
+    await openMenu(page, t);
 
     const panel = page.getByLabel(t('menu:panel'), { exact: true });
-    await expect(panel).toBeVisible();
     // Hebrew item labels.
     await expect(page.getByText(t('menu:myRoutine'), { exact: true })).toBeVisible();
     await expect(page.getByText(t('menu:settings'), { exact: true })).toBeVisible();
 
-    // Mirroring proof: the panel slides in from the right, so once the 200 ms slide has
-    // finished its right edge touches the viewport's right edge (and it is not at the left).
+    // Mirroring proof: the panel opens on the right side, so its right edge touches the
+    // viewport's right edge (and it is not at the left). The e2e browser uses reduced motion, so
+    // the panel appears instantly (SideMenu.jsx prefersReducedMotion); poll() is just a safe net.
     const viewportWidth = page.viewportSize().width;
     await expect
       .poll(async () => {
@@ -101,25 +78,22 @@ test.describe('signed in, Hebrew', () => {
 
   test('Messages: Hebrew title/subtitle and an RTL-marked sender line', async ({ page, t, mock }) => {
     mock.set({ unread: 0 });
-    await page.goto('/');
-    await expect(page.getByText(t('home:greeting.morning'))).toBeVisible();
-    await page.getByRole('button', { name: t('menu:open') }).click();
-    await page.getByRole('button', { name: t('menu:messages'), exact: true }).click();
+    await openMessages(page, t, 0);
 
-    await expect(page.getByText(t('messages:title'), { exact: true }).first()).toBeVisible();
     await expect(page.getByText(t('messages:subtitle'))).toBeVisible();
-    await expect(page.getByText(t('common:back'))).toBeVisible();
+    await expect(backButton(page, t)).toBeVisible();
 
     // Sender lines look like: RLM + who + " middle-dot " + FSI + time + PDI (see senderLine()).
     // Find them by their isolate marks; the RLM must be the very first character.
-    const senderLines = page.getByText(/⁨.*⁩/);
+    const senderLines = page.getByText(new RegExp(FSI + '.*' + PDI));
     await expect(senderLines.first()).toBeVisible();
     const all = await senderLines.allTextContents();
     expect(all.length).toBeGreaterThan(0);
     for (const line of all) {
-      expect(line.startsWith('‏')).toBe(true);
-      expect(line).toContain(' · ');
-      expect(line).toMatch(/⁨[^⁩]+⁩$/); // a non-empty, isolated time at the end
+      expect(line.startsWith(RLM)).toBe(true);
+      expect(line).toContain(MIDDLE_DOT);
+      // a non-empty, isolated time at the very end
+      expect(line).toMatch(new RegExp(FSI + '[^' + PDI + ']+' + PDI + '$'));
     }
     // Both speakers use the Hebrew words for "you" / "the clinic".
     expect(all.some(x => x.includes(t('messages:you')))).toBe(true);
@@ -128,14 +102,10 @@ test.describe('signed in, Hebrew', () => {
 
   test('Settings is in Hebrew including the Back label', async ({ page, t, mock }) => {
     mock.set({ unread: 0 });
-    await page.goto('/');
-    await expect(page.getByText(t('home:greeting.morning'))).toBeVisible();
-    await page.getByRole('button', { name: t('menu:open') }).click();
-    await page.getByRole('button', { name: t('menu:settings'), exact: true }).click();
+    await openSettings(page, t);
 
-    await expect(page.getByText(t('settings:title'), { exact: true })).toBeVisible();
     await expect(page.getByText(t('settings:remindersTitle'))).toBeVisible();
-    await expect(page.getByText(t('common:back'))).toBeVisible();
+    await expect(backButton(page, t)).toBeVisible();
   });
 });
 
@@ -143,28 +113,32 @@ test.describe('signed in, Hebrew', () => {
 test.describe('device language he vs account language', () => {
   test.use({ signedIn: true });
 
-  test('account language en wins over the device he (UI turns English, device key is kept)', async ({ page, t }) => {
-    await accountSaysLanguage(page, 'en');
+  test('account language en wins over the device he (UI turns English, device key is kept)', async ({ page, t, mock }) => {
+    const tEn = makeT('en');
+    accountSaysLanguage(mock, 'en');
     await page.goto('/');
-    // The `t` fixture reads Hebrew here, so we prove "English" by html attributes and by the
-    // Hebrew greeting being absent.
+    // FIRST wait for the ENGLISH Home greeting. Until the account loads, the Splash spinner is
+    // showing and <html> is already lang=en/dir=ltr (index.html default), so the html checks
+    // below would pass vacuously. The English greeting appears only once the account won.
+    await expect(page.getByText(tEn('home:greeting.morning'))).toBeVisible();
     await expect(page.locator('html')).toHaveAttribute('dir', 'ltr');
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+    // The Hebrew greeting is absent (the `t` fixture reads Hebrew in this file).
     await expect(page.getByText(t('home:greeting.morning'))).toHaveCount(0);
     // Booting never overwrites the stored device choice (languageSync: "writes nothing").
     const stored = await page.evaluate(() => localStorage.getItem('CapacitorStorage.app.language'));
     expect(stored).toBe('he');
   });
 
-  test('account language he agrees with the device: Hebrew', async ({ page, t }) => {
-    await accountSaysLanguage(page, 'he');
+  test('account language he agrees with the device: Hebrew', async ({ page, t, mock }) => {
+    accountSaysLanguage(mock, 'he');
     await page.goto('/');
     await expect(page.getByText(t('home:greeting.morning'))).toBeVisible();
     await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
   });
 
-  test('an account with no language falls back to the device language: Hebrew', async ({ page, t }) => {
-    await accountSaysLanguage(page, null);
+  test('an account with no language falls back to the device language: Hebrew', async ({ page, t, mock }) => {
+    accountSaysLanguage(mock, null);
     await page.goto('/');
     await expect(page.getByText(t('home:greeting.morning'))).toBeVisible();
     await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
