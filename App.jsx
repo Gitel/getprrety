@@ -1,6 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { Capacitor } from '@capacitor/core';
+import { App as CapacitorApp } from '@capacitor/app';
 import { useTranslation } from 'react-i18next';
 import i18nInstance from './src/lib/i18n';
 import { dirFor } from './src/lib/language';
@@ -22,6 +24,8 @@ import SettingsScreen from './src/screens/SettingsScreen';
 import ProductCameraScreen from './src/screens/ProductCameraScreen';
 import MessagesScreen from './src/screens/MessagesScreen';
 import SideMenu from './src/components/SideMenu';
+import SwipeBack from './src/components/SwipeBack';
+import { canSwipeBack } from './src/lib/swipeBack';
 
 const screens = {
   Welcome: WelcomeScreen,
@@ -79,6 +83,31 @@ function AppNavigator() {
   // retake...), so the menu can never stay open over a different screen.
   useEffect(() => { setMenuOpen(false); }, [stack]);
 
+  // Latest menuOpen for the Back listener below (registered once, so it cannot close over state).
+  const menuOpenRef = useRef(menuOpen);
+  menuOpenRef.current = menuOpen;
+  // Android system Back (button and OS back gesture) goes back one screen, using the same rule
+  // as the edge swipe. Root screens, Loading and Quiz: Back does nothing (as before).
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return undefined;
+    let handle;
+    let cancelled = false;
+    const onBackButton = () => {
+      // Menu open: SideMenu's own listener closes it. Both listeners run in the same tick, so
+      // this ref still says "open" here and we must not also pop a screen.
+      if (menuOpenRef.current) return;
+      setStack(previous => (canSwipeBack(previous) ? previous.slice(0, -1) : previous));
+    };
+    Promise.resolve(CapacitorApp.addListener('backButton', onBackButton)).then(h => {
+      if (cancelled) h?.remove?.();
+      else handle = h;
+    });
+    return () => {
+      cancelled = true;
+      handle?.remove?.();
+    };
+  }, []);
+
   const navigation = {
     // Screens call this from their menu (hamburger) button.
     openMenu: () => setMenuOpen(true),
@@ -92,9 +121,14 @@ function AppNavigator() {
     },
   };
 
+  // Changes on every navigation; also tells SwipeBack when the screen changed.
+  const routeKey = `${current.name}-${stack.length}`;
+
   return (
     <>
-      <Screen navigation={navigation} route={{ key: `${current.name}-${stack.length}`, name: current.name, params: current.params }} />
+      <SwipeBack enabled={canSwipeBack(stack)} onBack={navigation.goBack} screenKey={routeKey}>
+        <Screen navigation={navigation} route={{ key: routeKey, name: current.name, params: current.params }} />
+      </SwipeBack>
       <SideMenu visible={menuOpen} onClose={closeMenu} navigation={navigation} currentScreen={current.name} />
     </>
   );
