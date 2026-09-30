@@ -1,5 +1,6 @@
 import { ERAS, fallbackEra } from '../constants';
 import { downscaleDataUrl } from './downscaleImage';
+import i18n from './i18n';
 
 const RAILWAY_URL = 'https://getpretty-api-production.up.railway.app';
 
@@ -190,7 +191,7 @@ export function mapToAppFormat(railwayResponse, answers) {
                             }));
   const add = [];
   if (auditData.most_urgent_gap) {
-    add.push({ product: auditData.most_urgent_gap, reason: 'Most urgent addition for your era', priority: 'essential' });
+    add.push({ product: auditData.most_urgent_gap, reason: i18n.t('content:railway.urgentAddition'), priority: 'essential' });
   }
   assessment.filter(p => p.verdict === 'missing').forEach(p => {
     if (p.product_type !== auditData.most_urgent_gap) {

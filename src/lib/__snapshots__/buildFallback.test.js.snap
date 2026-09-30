@@ -1,0 +1,549 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`buildFallback (English) is unchanged: acneNoProducts 1`] = `
+{
+  "affirmation": "I listen to my skin instead of fighting it.",
+  "era": {
+    "affirmation": "I listen to my skin instead of fighting it.",
+    "bg": "#EEF4F8",
+    "color": "#6A98B0",
+    "emoji": "🧊",
+    "id": "acne_reset",
+    "name": "Acne Reset Era",
+    "tagline": "Your skin isn't struggling — it's communicating.",
+  },
+  "eraId": "acne_reset",
+  "keyInsights": [
+    "Your skin's current reactivity suggests a compromised barrier — this is the first thing to address",
+    "Lifestyle factors are directly amplifying your skin concerns and need to be managed alongside your routine",
+    "Starting with a clean, minimal routine will reset your skin baseline effectively",
+  ],
+  "productAudit": {
+    "add": [
+      {
+        "priority": "essential",
+        "product": "Ceramide serum or moisturizer",
+        "reason": "The single most important product for barrier repair",
+      },
+      {
+        "priority": "essential",
+        "product": "Mineral SPF 30+",
+        "reason": "UV damage is the #1 barrier aggressor — non-negotiable daily",
+      },
+      {
+        "priority": "recommended",
+        "product": "Centella asiatica essence",
+        "reason": "Powerfully anti-inflammatory, speeds barrier recovery",
+      },
+    ],
+    "keep": [],
+    "remove": [],
+    "replace": [],
+  },
+  "routine": {
+    "am": [
+      {
+        "description": "Skip cleanser in AM — let your skin keep its overnight oils",
+        "name": "Cool water rinse",
+      },
+      {
+        "description": "Pat gently into damp skin with fingertips, don't wipe",
+        "name": "Alcohol-free toner",
+      },
+      {
+        "description": "2-3 drops while skin is still slightly damp for best absorption",
+        "name": "Ceramide serum",
+      },
+      {
+        "description": "Apply generously — don't be afraid of richness in the morning",
+        "name": "Barrier moisturizer",
+      },
+      {
+        "description": "Finish every morning without fail. UV undoes all healing work",
+        "name": "Mineral SPF 30+",
+      },
+    ],
+    "pm": [
+      {
+        "description": "Massage gently to dissolve SPF and daily buildup — no friction",
+        "name": "Oil cleanse",
+      },
+      {
+        "description": "Rinse with lukewarm water. Hot water strips the barrier",
+        "name": "pH-balanced gel cleanser",
+      },
+      {
+        "description": "Anti-inflammatory calm — this is your skin's reset moment",
+        "name": "Centella or oat essence",
+      },
+      {
+        "description": "Apply generously. Overnight is when skin rebuilds most actively",
+        "name": "Barrier repair cream",
+      },
+    ],
+  },
+  "skinAnalysis": "Based on your assessment, your skin is showing signs of stress and barrier disruption. The combination of your concerns and lifestyle factors points to a skin system that needs support and simplification before active treatment.",
+}
+`;
+
+exports[`buildFallback (English) is unchanged: dullness 1`] = `
+{
+  "affirmation": "I nourish my skin with intention, not urgency.",
+  "era": {
+    "affirmation": "I nourish my skin with intention, not urgency.",
+    "bg": "#FBF6EE",
+    "color": "#B8924A",
+    "emoji": "✨",
+    "id": "glow_building",
+    "name": "Glow Building Era",
+    "tagline": "Your foundation is ready. Now we build radiance.",
+  },
+  "eraId": "glow_building",
+  "keyInsights": [
+    "Your skin's current reactivity suggests a compromised barrier — this is the first thing to address",
+    "Lifestyle factors are directly amplifying your skin concerns and need to be managed alongside your routine",
+    "Some of your current products may be working against your skin right now — the audit will flag these",
+  ],
+  "productAudit": {
+    "add": [
+      {
+        "priority": "essential",
+        "product": "Ceramide serum or moisturizer",
+        "reason": "The single most important product for barrier repair",
+      },
+      {
+        "priority": "essential",
+        "product": "Mineral SPF 30+",
+        "reason": "UV damage is the #1 barrier aggressor — non-negotiable daily",
+      },
+      {
+        "priority": "recommended",
+        "product": "Centella asiatica essence",
+        "reason": "Powerfully anti-inflammatory, speeds barrier recovery",
+      },
+    ],
+    "keep": [
+      {
+        "product": "Moisturizer",
+        "reason": "Hydration is always appropriate — keep this as your anchor product",
+      },
+    ],
+    "remove": [
+      {
+        "product": "Active treatments (retinol, acids)",
+        "reason": "Too aggressive for a stressed barrier — pause these until skin stabilizes",
+      },
+    ],
+    "replace": [
+      {
+        "from": "Current cleanser",
+        "reason": "Harsh cleansers strip the barrier daily, undoing all other work",
+        "to": "pH-balanced gentle cleanser (e.g. La Roche-Posay Toleriane)",
+      },
+    ],
+  },
+  "routine": {
+    "am": [
+      {
+        "description": "Skip cleanser in AM — let your skin keep its overnight oils",
+        "name": "Cool water rinse",
+      },
+      {
+        "description": "Pat gently into damp skin with fingertips, don't wipe",
+        "name": "Alcohol-free toner",
+      },
+      {
+        "description": "2-3 drops while skin is still slightly damp for best absorption",
+        "name": "Ceramide serum",
+      },
+      {
+        "description": "Apply generously — don't be afraid of richness in the morning",
+        "name": "Barrier moisturizer",
+      },
+      {
+        "description": "Finish every morning without fail. UV undoes all healing work",
+        "name": "Mineral SPF 30+",
+      },
+    ],
+    "pm": [
+      {
+        "description": "Massage gently to dissolve SPF and daily buildup — no friction",
+        "name": "Oil cleanse",
+      },
+      {
+        "description": "Rinse with lukewarm water. Hot water strips the barrier",
+        "name": "pH-balanced gel cleanser",
+      },
+      {
+        "description": "Anti-inflammatory calm — this is your skin's reset moment",
+        "name": "Centella or oat essence",
+      },
+      {
+        "description": "Apply generously. Overnight is when skin rebuilds most actively",
+        "name": "Barrier repair cream",
+      },
+    ],
+  },
+  "skinAnalysis": "Based on your assessment, your skin is showing signs of stress and barrier disruption. The combination of your concerns and lifestyle factors points to a skin system that needs support and simplification before active treatment.",
+}
+`;
+
+exports[`buildFallback (English) is unchanged: empty 1`] = `
+{
+  "affirmation": "I give my skin permission to heal at its own pace.",
+  "era": {
+    "affirmation": "I give my skin permission to heal at its own pace.",
+    "bg": "#F2F6EF",
+    "color": "#7A9E6E",
+    "emoji": "🌿",
+    "id": "barrier_healing",
+    "name": "Barrier Healing Era",
+    "tagline": "Your skin is not broken — it's asking for gentleness.",
+  },
+  "eraId": "barrier_healing",
+  "keyInsights": [
+    "Your skin's current reactivity suggests a compromised barrier — this is the first thing to address",
+    "Lifestyle factors are directly amplifying your skin concerns and need to be managed alongside your routine",
+    "Starting with a clean, minimal routine will reset your skin baseline effectively",
+  ],
+  "productAudit": {
+    "add": [
+      {
+        "priority": "essential",
+        "product": "Ceramide serum or moisturizer",
+        "reason": "The single most important product for barrier repair",
+      },
+      {
+        "priority": "essential",
+        "product": "Mineral SPF 30+",
+        "reason": "UV damage is the #1 barrier aggressor — non-negotiable daily",
+      },
+      {
+        "priority": "recommended",
+        "product": "Centella asiatica essence",
+        "reason": "Powerfully anti-inflammatory, speeds barrier recovery",
+      },
+    ],
+    "keep": [],
+    "remove": [],
+    "replace": [],
+  },
+  "routine": {
+    "am": [
+      {
+        "description": "Skip cleanser in AM — let your skin keep its overnight oils",
+        "name": "Cool water rinse",
+      },
+      {
+        "description": "Pat gently into damp skin with fingertips, don't wipe",
+        "name": "Alcohol-free toner",
+      },
+      {
+        "description": "2-3 drops while skin is still slightly damp for best absorption",
+        "name": "Ceramide serum",
+      },
+      {
+        "description": "Apply generously — don't be afraid of richness in the morning",
+        "name": "Barrier moisturizer",
+      },
+      {
+        "description": "Finish every morning without fail. UV undoes all healing work",
+        "name": "Mineral SPF 30+",
+      },
+    ],
+    "pm": [
+      {
+        "description": "Massage gently to dissolve SPF and daily buildup — no friction",
+        "name": "Oil cleanse",
+      },
+      {
+        "description": "Rinse with lukewarm water. Hot water strips the barrier",
+        "name": "pH-balanced gel cleanser",
+      },
+      {
+        "description": "Anti-inflammatory calm — this is your skin's reset moment",
+        "name": "Centella or oat essence",
+      },
+      {
+        "description": "Apply generously. Overnight is when skin rebuilds most actively",
+        "name": "Barrier repair cream",
+      },
+    ],
+  },
+  "skinAnalysis": "Based on your assessment, your skin is showing signs of stress and barrier disruption. The combination of your concerns and lifestyle factors points to a skin system that needs support and simplification before active treatment.",
+}
+`;
+
+exports[`buildFallback (English) is unchanged: sensitiveWithProducts 1`] = `
+{
+  "affirmation": "I give my skin permission to heal at its own pace.",
+  "era": {
+    "affirmation": "I give my skin permission to heal at its own pace.",
+    "bg": "#F2F6EF",
+    "color": "#7A9E6E",
+    "emoji": "🌿",
+    "id": "barrier_healing",
+    "name": "Barrier Healing Era",
+    "tagline": "Your skin is not broken — it's asking for gentleness.",
+  },
+  "eraId": "barrier_healing",
+  "keyInsights": [
+    "Your skin's current reactivity suggests a compromised barrier — this is the first thing to address",
+    "Lifestyle factors are directly amplifying your skin concerns and need to be managed alongside your routine",
+    "Some of your current products may be working against your skin right now — the audit will flag these",
+  ],
+  "productAudit": {
+    "add": [
+      {
+        "priority": "essential",
+        "product": "Ceramide serum or moisturizer",
+        "reason": "The single most important product for barrier repair",
+      },
+      {
+        "priority": "essential",
+        "product": "Mineral SPF 30+",
+        "reason": "UV damage is the #1 barrier aggressor — non-negotiable daily",
+      },
+      {
+        "priority": "recommended",
+        "product": "Centella asiatica essence",
+        "reason": "Powerfully anti-inflammatory, speeds barrier recovery",
+      },
+    ],
+    "keep": [
+      {
+        "product": "Moisturizer",
+        "reason": "Hydration is always appropriate — keep this as your anchor product",
+      },
+    ],
+    "remove": [
+      {
+        "product": "Active treatments (retinol, acids)",
+        "reason": "Too aggressive for a stressed barrier — pause these until skin stabilizes",
+      },
+    ],
+    "replace": [
+      {
+        "from": "Current cleanser",
+        "reason": "Harsh cleansers strip the barrier daily, undoing all other work",
+        "to": "pH-balanced gentle cleanser (e.g. La Roche-Posay Toleriane)",
+      },
+    ],
+  },
+  "routine": {
+    "am": [
+      {
+        "description": "Skip cleanser in AM — let your skin keep its overnight oils",
+        "name": "Cool water rinse",
+      },
+      {
+        "description": "Pat gently into damp skin with fingertips, don't wipe",
+        "name": "Alcohol-free toner",
+      },
+      {
+        "description": "2-3 drops while skin is still slightly damp for best absorption",
+        "name": "Ceramide serum",
+      },
+      {
+        "description": "Apply generously — don't be afraid of richness in the morning",
+        "name": "Barrier moisturizer",
+      },
+      {
+        "description": "Finish every morning without fail. UV undoes all healing work",
+        "name": "Mineral SPF 30+",
+      },
+    ],
+    "pm": [
+      {
+        "description": "Massage gently to dissolve SPF and daily buildup — no friction",
+        "name": "Oil cleanse",
+      },
+      {
+        "description": "Rinse with lukewarm water. Hot water strips the barrier",
+        "name": "pH-balanced gel cleanser",
+      },
+      {
+        "description": "Anti-inflammatory calm — this is your skin's reset moment",
+        "name": "Centella or oat essence",
+      },
+      {
+        "description": "Apply generously. Overnight is when skin rebuilds most actively",
+        "name": "Barrier repair cream",
+      },
+    ],
+  },
+  "skinAnalysis": "Based on your assessment, your skin is showing signs of stress and barrier disruption. The combination of your concerns and lifestyle factors points to a skin system that needs support and simplification before active treatment.",
+}
+`;
+
+exports[`buildFallback (English) is unchanged: smoker 1`] = `
+{
+  "affirmation": "Rest is part of my skincare routine.",
+  "era": {
+    "affirmation": "Rest is part of my skincare routine.",
+    "bg": "#F5F2F8",
+    "color": "#9B85B8",
+    "emoji": "😴",
+    "id": "burnout_recovery",
+    "name": "Burnout Recovery Era",
+    "tagline": "Your skin is tired because you are. That's valid.",
+  },
+  "eraId": "burnout_recovery",
+  "keyInsights": [
+    "Your skin's current reactivity suggests a compromised barrier — this is the first thing to address",
+    "Lifestyle factors are directly amplifying your skin concerns and need to be managed alongside your routine",
+    "Starting with a clean, minimal routine will reset your skin baseline effectively",
+  ],
+  "productAudit": {
+    "add": [
+      {
+        "priority": "essential",
+        "product": "Ceramide serum or moisturizer",
+        "reason": "The single most important product for barrier repair",
+      },
+      {
+        "priority": "essential",
+        "product": "Mineral SPF 30+",
+        "reason": "UV damage is the #1 barrier aggressor — non-negotiable daily",
+      },
+      {
+        "priority": "recommended",
+        "product": "Centella asiatica essence",
+        "reason": "Powerfully anti-inflammatory, speeds barrier recovery",
+      },
+    ],
+    "keep": [],
+    "remove": [],
+    "replace": [],
+  },
+  "routine": {
+    "am": [
+      {
+        "description": "Skip cleanser in AM — let your skin keep its overnight oils",
+        "name": "Cool water rinse",
+      },
+      {
+        "description": "Pat gently into damp skin with fingertips, don't wipe",
+        "name": "Alcohol-free toner",
+      },
+      {
+        "description": "2-3 drops while skin is still slightly damp for best absorption",
+        "name": "Ceramide serum",
+      },
+      {
+        "description": "Apply generously — don't be afraid of richness in the morning",
+        "name": "Barrier moisturizer",
+      },
+      {
+        "description": "Finish every morning without fail. UV undoes all healing work",
+        "name": "Mineral SPF 30+",
+      },
+    ],
+    "pm": [
+      {
+        "description": "Massage gently to dissolve SPF and daily buildup — no friction",
+        "name": "Oil cleanse",
+      },
+      {
+        "description": "Rinse with lukewarm water. Hot water strips the barrier",
+        "name": "pH-balanced gel cleanser",
+      },
+      {
+        "description": "Anti-inflammatory calm — this is your skin's reset moment",
+        "name": "Centella or oat essence",
+      },
+      {
+        "description": "Apply generously. Overnight is when skin rebuilds most actively",
+        "name": "Barrier repair cream",
+      },
+    ],
+  },
+  "skinAnalysis": "Based on your assessment, your skin is showing signs of stress and barrier disruption. The combination of your concerns and lifestyle factors points to a skin system that needs support and simplification before active treatment.",
+}
+`;
+
+exports[`buildFallback (English) is unchanged: wrinkles 1`] = `
+{
+  "affirmation": "I invest in my skin's future, one day at a time.",
+  "era": {
+    "affirmation": "I invest in my skin's future, one day at a time.",
+    "bg": "#FAF3EF",
+    "color": "#B07860",
+    "emoji": "🌙",
+    "id": "repair_restore",
+    "name": "Repair & Restore Era",
+    "tagline": "Aging is not the enemy — neglect is.",
+  },
+  "eraId": "repair_restore",
+  "keyInsights": [
+    "Your skin's current reactivity suggests a compromised barrier — this is the first thing to address",
+    "Lifestyle factors are directly amplifying your skin concerns and need to be managed alongside your routine",
+    "Starting with a clean, minimal routine will reset your skin baseline effectively",
+  ],
+  "productAudit": {
+    "add": [
+      {
+        "priority": "essential",
+        "product": "Ceramide serum or moisturizer",
+        "reason": "The single most important product for barrier repair",
+      },
+      {
+        "priority": "essential",
+        "product": "Mineral SPF 30+",
+        "reason": "UV damage is the #1 barrier aggressor — non-negotiable daily",
+      },
+      {
+        "priority": "recommended",
+        "product": "Centella asiatica essence",
+        "reason": "Powerfully anti-inflammatory, speeds barrier recovery",
+      },
+    ],
+    "keep": [],
+    "remove": [],
+    "replace": [],
+  },
+  "routine": {
+    "am": [
+      {
+        "description": "Skip cleanser in AM — let your skin keep its overnight oils",
+        "name": "Cool water rinse",
+      },
+      {
+        "description": "Pat gently into damp skin with fingertips, don't wipe",
+        "name": "Alcohol-free toner",
+      },
+      {
+        "description": "2-3 drops while skin is still slightly damp for best absorption",
+        "name": "Ceramide serum",
+      },
+      {
+        "description": "Apply generously — don't be afraid of richness in the morning",
+        "name": "Barrier moisturizer",
+      },
+      {
+        "description": "Finish every morning without fail. UV undoes all healing work",
+        "name": "Mineral SPF 30+",
+      },
+    ],
+    "pm": [
+      {
+        "description": "Massage gently to dissolve SPF and daily buildup — no friction",
+        "name": "Oil cleanse",
+      },
+      {
+        "description": "Rinse with lukewarm water. Hot water strips the barrier",
+        "name": "pH-balanced gel cleanser",
+      },
+      {
+        "description": "Anti-inflammatory calm — this is your skin's reset moment",
+        "name": "Centella or oat essence",
+      },
+      {
+        "description": "Apply generously. Overnight is when skin rebuilds most actively",
+        "name": "Barrier repair cream",
+      },
+    ],
+  },
+  "skinAnalysis": "Based on your assessment, your skin is showing signs of stress and barrier disruption. The combination of your concerns and lifestyle factors points to a skin system that needs support and simplification before active treatment.",
+}
+`;

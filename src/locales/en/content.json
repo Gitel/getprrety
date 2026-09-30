@@ -1,1 +1,38 @@
-{}
+{
+  "doneMsgs": {
+    "barrier_healing": "Your barrier thanks you. Every gentle step today builds the foundation for calm, resilient skin.",
+    "acne_reset": "You showed up for your skin — that consistency is exactly what creates real, lasting change.",
+    "burnout_recovery": "Rest and ritual are medicine. You just gave your skin exactly what it needed.",
+    "glow_building": "Radiance is built one intentional step at a time. You're doing the work.",
+    "repair_restore": "Investing in your skin today is the most powerful anti-aging move you can make."
+  },
+  "railway": {
+    "urgentAddition": "Most urgent addition for your era"
+  },
+  "fallback": {
+    "skinAnalysis": "Based on your assessment, your skin is showing signs of stress and barrier disruption. The combination of your concerns and lifestyle factors points to a skin system that needs support and simplification before active treatment.",
+    "insightBarrier": "Your skin's current reactivity suggests a compromised barrier — this is the first thing to address",
+    "insightLifestyle": "Lifestyle factors are directly amplifying your skin concerns and need to be managed alongside your routine",
+    "insightWithProducts": "Some of your current products may be working against your skin right now — the audit will flag these",
+    "insightNoProducts": "Starting with a clean, minimal routine will reset your skin baseline effectively",
+    "keepMoisturizer": { "product": "Moisturizer", "reason": "Hydration is always appropriate — keep this as your anchor product" },
+    "removeActives": { "product": "Active treatments (retinol, acids)", "reason": "Too aggressive for a stressed barrier — pause these until skin stabilizes" },
+    "replaceCleanser": { "from": "Current cleanser", "to": "pH-balanced gentle cleanser (e.g. La Roche-Posay Toleriane)", "reason": "Harsh cleansers strip the barrier daily, undoing all other work" },
+    "addCeramide": { "product": "Ceramide serum or moisturizer", "reason": "The single most important product for barrier repair" },
+    "addSpf": { "product": "Mineral SPF 30+", "reason": "UV damage is the #1 barrier aggressor — non-negotiable daily" },
+    "addCentella": { "product": "Centella asiatica essence", "reason": "Powerfully anti-inflammatory, speeds barrier recovery" },
+    "am": {
+      "rinse": { "name": "Cool water rinse", "description": "Skip cleanser in AM — let your skin keep its overnight oils" },
+      "toner": { "name": "Alcohol-free toner", "description": "Pat gently into damp skin with fingertips, don't wipe" },
+      "serum": { "name": "Ceramide serum", "description": "2-3 drops while skin is still slightly damp for best absorption" },
+      "moisturizer": { "name": "Barrier moisturizer", "description": "Apply generously — don't be afraid of richness in the morning" },
+      "spf": { "name": "Mineral SPF 30+", "description": "Finish every morning without fail. UV undoes all healing work" }
+    },
+    "pm": {
+      "oilCleanse": { "name": "Oil cleanse", "description": "Massage gently to dissolve SPF and daily buildup — no friction" },
+      "gelCleanser": { "name": "pH-balanced gel cleanser", "description": "Rinse with lukewarm water. Hot water strips the barrier" },
+      "essence": { "name": "Centella or oat essence", "description": "Anti-inflammatory calm — this is your skin's reset moment" },
+      "cream": { "name": "Barrier repair cream", "description": "Apply generously. Overnight is when skin rebuilds most actively" }
+    }
+  }
+}
