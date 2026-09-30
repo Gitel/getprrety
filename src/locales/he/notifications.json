@@ -1,8 +1,8 @@
 {
-  "channelName": "תזכורות לשגרה",
-  "channelDescription": "תזכורות לשגרת הטיפוח של Get Pretty",
-  "morningTitle": "שגרת הבוקר",
-  "morningBody": "תזכורת עדינה לשגרת הטיפוח של הבוקר.",
-  "eveningTitle": "שגרת הערב",
-  "eveningBody": "הזמן להירגע עם שגרת הטיפוח של הערב."
+  "channelName": "תזכורות לטקסים",
+  "channelDescription": "תזכורות לטקס הטיפוח של Get Pretty",
+  "morningTitle": "טקס הבוקר",
+  "morningBody": "תזכורת עדינה לטקס הטיפוח של הבוקר.",
+  "eveningTitle": "טקס הערב",
+  "eveningBody": "הזמן להירגע עם טקס הטיפוח של הערב."
 }
