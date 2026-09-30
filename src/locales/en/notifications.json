@@ -1,1 +1,8 @@
-{}
+{
+  "channelName": "Ritual reminders",
+  "channelDescription": "Get Pretty skincare ritual reminders",
+  "morningTitle": "Morning ritual",
+  "morningBody": "A gentle reminder for your morning skincare ritual.",
+  "eveningTitle": "Evening ritual",
+  "eveningBody": "Time to wind down with your evening skincare ritual."
+}

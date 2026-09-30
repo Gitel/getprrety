@@ -1,9 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, TextInput, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { C } from '../constants';
 import { MenuButton } from '../components/SideMenu';
 import { useApp } from '../context/AppContext';
+import { errorText } from '../lib/errorText';
+import { formatDateTime } from '../lib/formatting';
 import {
   fetchThread, markThreadRead, sendReply, MAX_MESSAGE_LENGTH, MESSAGES_POLL_MS,
 } from '../lib/messages';
@@ -13,6 +16,8 @@ import {
 // There is no push delivery: this screen polls every MESSAGES_POLL_MS while it is open,
 // and Home's unread badge refreshes when the app resumes.
 export default function MessagesScreen({ navigation }) {
+  // t = translate at render time; i18n.language picks the date/time style.
+  const { t, i18n } = useTranslation();
   const { analysis, setUnreadMessages } = useApp();
   const accent = analysis?.era?.color || C.accent;
 
@@ -56,8 +61,9 @@ export default function MessagesScreen({ navigation }) {
       setThread(current => [...(current || []), message]);
       setDraft('');
     } catch (err) {
-      // The server's own words for an empty / too-long message or the hourly limit.
-      setSendError(err?.message || 'Could not send your message. Please try again.');
+      // Text for the server's error code (empty / too long / hourly limit), in the current
+      // language; any other failure falls back to the generic "could not send" text.
+      setSendError(errorText(err, t, 'messages:sendFailed'));
     } finally {
       setSending(false);
     }
@@ -72,11 +78,11 @@ export default function MessagesScreen({ navigation }) {
         <View style={s.topRow}>
           <MenuButton onPress={navigation.openMenu} color={accent} />
           <Pressable onPress={() => navigation.goBack()} hitSlop={10}>
-            <Text style={[s.backText, { color: accent }]}>{'\u2190 Back'}</Text>
+            <Text style={[s.backText, { color: accent }]}>{t('common:back')}</Text>
           </Pressable>
         </View>
-        <Text style={s.pageTitle}>Your clinic</Text>
-        <Text style={s.subtitle}>Questions about your skin or your routine? Write to your clinic here.</Text>
+        <Text style={s.pageTitle}>{t('messages:title')}</Text>
+        <Text style={s.subtitle}>{t('messages:subtitle')}</Text>
       </View>
 
       <ScrollView
@@ -86,15 +92,15 @@ export default function MessagesScreen({ navigation }) {
         // Keep the newest message in view as the thread loads or grows.
         onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: false })}
       >
-        {thread === null && <Text style={s.muted}>{'Loading\u2026'}</Text>}
+        {thread === null && <Text style={s.muted}>{t('messages:loading')}</Text>}
         {thread !== null && thread.length === 0 && (
-          <Text style={s.muted}>{loadFailed ? 'Could not load your messages. Check your connection.' : 'No messages yet. Write to your clinic below.'}</Text>
+          <Text style={s.muted}>{loadFailed ? t('messages:loadFailed') : t('messages:empty')}</Text>
         )}
         {(thread || []).map(m => {
           const mine = m.from === 'user';
           return (
             <View key={m.id} style={[s.bubble, mine ? [s.mine, { backgroundColor: accent + '22' }] : s.theirs]}>
-              <Text style={s.sender}>{`${mine ? 'You' : 'Your clinic'} \u00B7 ${formatTime(m.createdAt)}`}</Text>
+              <Text style={s.sender}>{t('messages:senderLine', { who: mine ? t('messages:you') : t('messages:clinic'), time: formatTime(m.createdAt, i18n.language) })}</Text>
               <Text style={s.body}>{m.body}</Text>
             </View>
           );
@@ -108,7 +114,7 @@ export default function MessagesScreen({ navigation }) {
             style={s.input}
             value={draft}
             onChangeText={setDraft}
-            placeholder="Write a message"
+            placeholder={t('messages:placeholder')}
             placeholderTextColor={C.muted}
             multiline
             maxLength={MAX_MESSAGE_LENGTH}
@@ -118,7 +124,7 @@ export default function MessagesScreen({ navigation }) {
             disabled={!canSend}
             style={[s.sendBtn, { backgroundColor: accent }, !canSend && { opacity: 0.5 }]}
           >
-            <Text style={s.sendText}>{sending ? '\u2026' : 'Send'}</Text>
+            <Text style={s.sendText}>{sending ? '\u2026' : t('messages:send')}</Text>
           </Pressable>
         </View>
       </View>
@@ -126,10 +132,11 @@ export default function MessagesScreen({ navigation }) {
   );
 }
 
-// Short local date + time, e.g. "24/09/2026, 14:05".
-function formatTime(value) {
+// Short local date + time, e.g. "24/09/2026, 14:05". The style follows the app language
+// (formatDateTime); an unreadable date shows nothing.
+function formatTime(value, lang) {
   const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? '' : d.toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
+  return Number.isNaN(d.getTime()) ? '' : formatDateTime(d, lang);
 }
 
 const s = StyleSheet.create({

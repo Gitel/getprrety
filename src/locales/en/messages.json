@@ -1,1 +1,13 @@
-{}
+{
+  "title": "Your clinic",
+  "subtitle": "Questions about your skin or your routine? Write to your clinic here.",
+  "loading": "Loading…",
+  "loadFailed": "Could not load your messages. Check your connection.",
+  "empty": "No messages yet. Write to your clinic below.",
+  "you": "You",
+  "clinic": "Your clinic",
+  "senderLine": "{{who}} · {{time}}",
+  "placeholder": "Write a message",
+  "send": "Send",
+  "sendFailed": "Could not send your message. Please try again."
+}
