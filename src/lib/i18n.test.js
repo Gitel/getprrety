@@ -19,8 +19,8 @@ describe('i18n instance', () => {
   test('is ready synchronously, in English', () => {
     expect(i18n.isInitialized).toBe(true);
     expect(i18n.language).toBe('en');
-    expect(i18n.t('back')).toBe('← Back'); // defaultNS is common
-    expect(i18n.t('common:loading')).toBe('Loading…');
+    expect(i18n.t('back')).toBe('\u2190 Back'); // defaultNS is common
+    expect(i18n.t('common:loading')).toBe('Loading\u2026');
   });
 
   test('sets <html lang/dir> for the initial language', () => {

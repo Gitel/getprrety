@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Animated, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Capacitor } from '@capacitor/core';
@@ -75,8 +75,10 @@ export default function SideMenu({ visible, onClose, navigation, currentScreen }
 
   const [confirmRetake, setConfirmRetake] = useState(false);
   const [bookingFailed, setBookingFailed] = useState(false);
-  // Off-screen start position of the panel; set by the slide effect below.
-  const slide = useRef(new Animated.Value(0)).current;
+  // Horizontal offset of the panel. It starts OFF-screen (-320 = left in English, +320 = right
+  // in Hebrew) and is put back off-screen every time the menu closes (effect below), so the
+  // first painted frame of an opening menu is never the fully-open panel.
+  const slide = useRef(new Animated.Value(rtl ? 320 : -320)).current;
 
   // Forget the inline confirm and the booking error whenever the menu closes.
   useEffect(() => {
@@ -89,8 +91,14 @@ export default function SideMenu({ visible, onClose, navigation, currentScreen }
   // Slide the panel in when it opens. translateX is NOT mirrored by react-native-web, so we
   // start from -width (left) in English and +width (right) in Hebrew. The panel is at most
   // 320 wide, so 320 is always enough to start fully off-screen.
-  useEffect(() => {
-    if (!visible) return;
+  // useLayoutEffect (not useEffect) runs before the browser paints, so the start position is
+  // in place before the first frame is drawn.
+  useLayoutEffect(() => {
+    if (!visible) {
+      // Closed: park the panel off-screen on the correct side for the next opening.
+      slide.setValue(rtl ? 320 : -320);
+      return;
+    }
     if (prefersReducedMotion()) {
       slide.setValue(0);
       return;

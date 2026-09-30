@@ -8,8 +8,8 @@ jest.mock('./auth'); // constants.js imports api.js -> auth.js, which needs nati
 
 const LOCALES = path.join(__dirname, '..', 'locales');
 const PLURAL_RE = /_(zero|one|two|few|many|other)$/;
-const HEBREW_LETTER = /[א-ת]/;
-const RLM = '‏';
+const HEBREW_LETTER = /[\u05D0-\u05EA]/; // alef..tav
+const RLM = '\u200F'; // RIGHT-TO-LEFT MARK
 
 // Hebrew values that may legitimately contain no Hebrew letter (arrows, symbols), as "ns:key".
 const NO_HEBREW_ALLOWED = new Set(['common:arrowNext', 'common:arrowBack']);
@@ -63,7 +63,7 @@ const show = set => [...set].sort().join(' ') || '(none)';
 
 // The first "strong" character decides the paragraph direction: Hebrew letters are RTL, Latin LTR.
 function firstStrong(text) {
-  const m = String(text).match(/[A-Za-zא-ת]/);
+  const m = String(text).match(/[A-Za-z\u05D0-\u05EA]/);
   if (!m) return null;
   return HEBREW_LETTER.test(m[0]) ? 'rtl' : 'ltr';
 }
