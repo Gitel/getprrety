@@ -28,6 +28,11 @@ async function request(method, path, body, { timeoutMs = DEFAULT_TIMEOUT_MS } = 
       // from a 400 that will be rejected identically on every attempt.
       const err = new Error(data.error || `HTTP ${res.status}`);
       err.status = res.status;
+      // Machine-readable reason from the server (e.g. 'invalid_credentials') plus values for
+      // its text (e.g. { min: 8 }). errorText() turns these into a translated message.
+      // Old servers send neither, so both may be undefined.
+      err.code = data.code;
+      err.params = data.params;
       throw err;
     }
     return data;
@@ -36,8 +41,12 @@ async function request(method, path, body, { timeoutMs = DEFAULT_TIMEOUT_MS } = 
       // 408 so isRetryable() treats a timeout as worth another attempt.
       const timeoutErr = new Error(`Request timed out after ${timeoutMs}ms`);
       timeoutErr.status = 408;
+      timeoutErr.code = 'timeout'; // errorText() maps this to a translated message
       throw timeoutErr;
     }
+    // fetch() itself rejects with a TypeError when there is no connection (offline, DNS, CORS).
+    // Server errors above have a status; this one never reached the server.
+    if (err instanceof TypeError && err.status == null) err.code = 'network';
     throw err;
   } finally {
     clearTimeout(timer);
