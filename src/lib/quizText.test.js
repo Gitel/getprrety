@@ -49,3 +49,36 @@ describe('quiz text lookup with i18next (English)', () => {
       'July', 'August', 'September', 'October', 'November', 'December']);
   });
 });
+
+describe('quiz text lookup with i18next (Hebrew)', () => {
+  beforeAll(() => i18n.changeLanguage('he'));
+  afterAll(() => i18n.changeLanguage('en'));
+
+  test('lists and groups resolve in Hebrew, same length as English', () => {
+    const heList = i18n.t('quiz:welcome.checklist', { returnObjects: true });
+    expect(Array.isArray(heList)).toBe(true);
+    expect(heList).toHaveLength(4);
+    expect(i18n.t('quiz:completion.stages', { returnObjects: true })).toHaveLength(4);
+    expect(i18n.t('quiz:skin_goals.groups.3')).toMatch(/[\u05D0-\u05EA]/);
+  });
+
+  test('the name is isolated and the NoName twin has no placeholder', () => {
+    const named = i18n.t('quiz:birthday.question', { name: `${ISO_OPEN}Dana${ISO_CLOSE}` });
+    expect(named).toContain(`${ISO_OPEN}Dana${ISO_CLOSE}`);
+    expect(i18n.t('quiz:birthday.questionNoName')).not.toContain('{{');
+  });
+
+  test('number ranges are isolated so bidi does not reverse "5-6"', () => {
+    expect(i18n.t('quiz:sleep.options.5_6.label')).toContain('\u20665\u20136\u2069');
+  });
+
+  test('the Hebrew city hint asks for the city in English', () => {
+    expect(i18n.t('quiz:location.input.placeholder')).toContain('\u05D1\u05D0\u05E0\u05D2\u05DC\u05D9\u05EA');
+  });
+
+  test('month names come from Intl and are Hebrew', () => {
+    const months = monthNames('he');
+    expect(months).toHaveLength(12);
+    months.forEach(m => expect(m).toMatch(/[\u05D0-\u05EA]/));
+  });
+});
