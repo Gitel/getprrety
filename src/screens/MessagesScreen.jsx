@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, TextInput, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { C } from '../constants';
+import { MenuButton } from '../components/SideMenu';
 import { useApp } from '../context/AppContext';
 import {
   fetchThread, markThreadRead, sendReply, MAX_MESSAGE_LENGTH, MESSAGES_POLL_MS,
@@ -67,9 +68,13 @@ export default function MessagesScreen({ navigation }) {
   return (
     <SafeAreaView style={s.safe}>
       <View style={s.header}>
-        <Pressable onPress={() => navigation.goBack()} style={s.backBtn} hitSlop={10}>
-          <Text style={[s.backText, { color: accent }]}>{'\u2190 Back'}</Text>
-        </Pressable>
+        {/* Top row: [menu button] Back. A row mirrors automatically in RTL. */}
+        <View style={s.topRow}>
+          <MenuButton onPress={navigation.openMenu} color={accent} />
+          <Pressable onPress={() => navigation.goBack()} hitSlop={10}>
+            <Text style={[s.backText, { color: accent }]}>{'\u2190 Back'}</Text>
+          </Pressable>
+        </View>
         <Text style={s.pageTitle}>Your clinic</Text>
         <Text style={s.subtitle}>Questions about your skin or your routine? Write to your clinic here.</Text>
       </View>
@@ -130,7 +135,7 @@ function formatTime(value) {
 const s = StyleSheet.create({
   safe:        { flex: 1, backgroundColor: C.bg },
   header:      { paddingHorizontal: 24, paddingTop: 18, paddingBottom: 8 },
-  backBtn:     { marginBottom: 16 },
+  topRow:      { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 16 },
   backText:    { fontFamily: 'DMSans_400Regular', fontSize: 14 },
   pageTitle:   { fontFamily: 'CormorantGaramond_500Medium', fontSize: 26, color: C.text, marginBottom: 4 },
   subtitle:    { fontFamily: 'DMSans_400Regular', fontSize: 12, color: C.muted },

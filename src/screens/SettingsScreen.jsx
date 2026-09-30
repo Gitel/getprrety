@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { C } from '../constants';
+import { MenuButton } from '../components/SideMenu';
 import { useApp } from '../context/AppContext';
 import { logActivity } from '../lib/logActivity';
 import { loadReminderSchedule, requestNotificationPermission, saveReminderSchedule } from '../lib/notifications';
@@ -102,10 +103,13 @@ export default function SettingsScreen({ navigation }) {
     <SafeAreaView style={s.safe}>
       <ScrollView contentContainerStyle={s.content}>
 
-        {/* Back */}
-        <Pressable onPress={() => navigation.goBack()} style={s.backBtn}>
-          <Text style={s.backText}>← Back</Text>
-        </Pressable>
+        {/* Top row: [menu button] Back. A row mirrors automatically in RTL. */}
+        <View style={s.topRow}>
+          <MenuButton onPress={navigation.openMenu} color={C.accent} />
+          <Pressable onPress={() => navigation.goBack()}>
+            <Text style={s.backText}>← Back</Text>
+          </Pressable>
+        </View>
 
         <Text style={s.pageTitle}>Settings</Text>
 
@@ -233,7 +237,7 @@ function TimeRow({ label, icon, on, time, days, color, onToggle, onNudge, onDayT
 const s = StyleSheet.create({
   safe:      { flex: 1, backgroundColor: C.bg },
   content:   { padding: 24, paddingTop: 18 },
-  backBtn:   { marginBottom: 16 },
+  topRow:    { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 16 },
   backText:  { fontFamily: 'DMSans_400Regular', fontSize: 14, color: C.accent },
   pageTitle: { fontFamily: 'CormorantGaramond_500Medium', fontSize: 26, color: C.text, marginBottom: 20 },
   eraCard:   { borderWidth: 1.5, borderRadius: 16, padding: 20, alignItems: 'center', marginBottom: 28 },
