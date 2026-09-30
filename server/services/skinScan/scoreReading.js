@@ -51,6 +51,8 @@ function buildReadingRequest(scan) {
   const view = computeSignals(scan.merged) || { overall: null, skinAge: null, skinType: null, signals: [] };
   return {
     quizAnswers: scan.quizSnapshot || {},
+    // Language the reading copy must be written in ('en' | 'he'). Scans made before this field existed are English.
+    language: scan.language || 'en',
     scan: {
       overall: view.overall,
       skinAge: view.skinAge,
