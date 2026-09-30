@@ -6,8 +6,8 @@ jest.mock('./auth'); // constants.js imports api.js -> auth.js, which needs nati
 const i18n = require('./i18n').default;
 const { monthNames } = require('./formatting');
 
-const ISO_OPEN = '⁨';
-const ISO_CLOSE = '⁩';
+const ISO_OPEN = '\u2068';
+const ISO_CLOSE = '\u2069';
 
 describe('quiz text lookup with i18next (English)', () => {
   beforeAll(() => i18n.changeLanguage('en'));
