@@ -125,9 +125,8 @@ for (const lang of ['en', 'he']) {
 
     test('reduced motion: the screen does not slide mid-drag, then a long release goes back', async ({ page, t }) => {
       await openMessages(page, t);
-      // Force the preference explicitly: the project-level `reducedMotion: 'reduce'` was observed
-      // NOT to reach the page (matchMedia reported no-preference), so do not rely on it here.
-      await page.emulateMedia({ reducedMotion: 'reduce' });
+      // Reduced motion is ON by default (playwright.config.js contextOptions; guarded by a test in
+      // smoke.spec.js), so no explicit emulateMedia is needed here.
       const { from, to } = edgeSwipePlan({ lang, dx: 100 });
       await touchStart(page, from);
       await dragAlong(page, from, to, { steps: 5, stepDelayMs: 16 }); // well past the slop, finger down
@@ -267,7 +266,14 @@ test.describe('swipe-back flows (English)', () => {
 // ---- animated behaviour (reduced motion OFF) ----------------------------------------------
 for (const lang of ['en', 'he']) {
   test.describe(`drag animation, ${lang === 'en' ? 'English' : 'Hebrew'}`, () => {
-    test.use({ signedIn: true, lang, reducedMotion: 'no-preference' });
+    // test.use replaces the whole contextOptions object; it only holds reducedMotion, so that is fine.
+    test.use({ signedIn: true, lang, contextOptions: { reducedMotion: 'no-preference' } });
+
+    // Guard: this block really runs with animations enabled (the override reached the page).
+    test('reduced motion is off in this block', async ({ page }) => {
+      await page.goto('/');
+      expect(await page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches)).toBe(false);
+    });
 
     // +1 in English (content moves right), -1 in Hebrew (content moves left).
     const sign = lang === 'en' ? 1 : -1;

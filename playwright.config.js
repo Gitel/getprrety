@@ -22,7 +22,11 @@ export default defineConfig({
     baseURL: `http://127.0.0.1:${port}`,
     timezoneId: 'UTC',
     locale: 'en-US',
-    reducedMotion: 'reduce',
+    // Reduced motion by default makes animations instant (e.g. the side menu slide, the score dial
+    // count-up). NOTE: it must live in contextOptions; a top-level `reducedMotion` is silently ignored.
+    // Specs that need real animation override it with
+    // test.use({ contextOptions: { reducedMotion: 'no-preference' } }).
+    contextOptions: { reducedMotion: 'reduce' },
     trace: 'retain-on-failure',
   },
 

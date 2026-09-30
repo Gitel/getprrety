@@ -31,6 +31,11 @@ test('Home shows the unread badge', async ({ page, mock, t }) => {
 });
 ```
 
+Reduced motion is ON for every test (set in `playwright.config.js` via `contextOptions`), so animations
+are instant. A spec that needs real animation overrides it:
+`test.use({ contextOptions: { reducedMotion: 'no-preference' } })`. A top-level `reducedMotion`
+option is silently ignored by Playwright; `smoke.spec.js` guards the default.
+
 ## Fixtures
 
 - `t('ns:path.to.key', { var })` - text from `src/locales/<lang>/<ns>.json` (`{{var}}` and
