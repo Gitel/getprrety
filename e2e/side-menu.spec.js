@@ -7,6 +7,7 @@
 // keeps them apart from same-named things on the screen behind (e.g. Home's own message card).
 import { test, expect } from './support/test.js';
 import { makeT } from './support/i18n.js';
+import { openMenu, tapMenuItem, backButton } from './support/nav.js';
 
 test.use({ signedIn: true });
 
@@ -16,17 +17,6 @@ const tHe = makeT('he');
 // The open menu panel, in the given translator's language. exact:true matters: the plain text
 // "Menu" is also a substring of the hamburger label "Open menu" / "Close menu".
 const panelOf = (page, tr) => page.getByLabel(tr('menu:panel'), { exact: true });
-
-// Opens the menu with the hamburger button of the screen that is showing.
-async function openMenu(page, tr) {
-  await page.getByRole('button', { name: tr('menu:open') }).click();
-  await expect(panelOf(page, tr)).toBeVisible();
-}
-
-// Taps a menu row by its visible text (a text node click reaches the row's Pressable).
-async function tapItem(page, tr, key) {
-  await panelOf(page, tr).getByText(tr(key), { exact: true }).click();
-}
 
 // Home is recognised by its morning greeting (fixed clock: 09:00 UTC, user prefers morning).
 const homeIsShowing = (page, t) => expect(page.getByText(t('home:greeting.morning'))).toBeVisible();
@@ -42,22 +32,22 @@ test.describe('menu button', () => {
 
     // Messages (reached through the menu)
     await openMenu(page, t);
-    await tapItem(page, t, 'menu:messages');
+    await tapMenuItem(page, t, 'menu:messages');
     await messagesIsShowing(page, t);
     await expect(button).toBeVisible();
 
     // Settings (hop from Messages)
     await openMenu(page, t);
-    await tapItem(page, t, 'menu:settings');
+    await tapMenuItem(page, t, 'menu:settings');
     await settingsIsShowing(page, t);
     await expect(button).toBeVisible();
 
     // Back to Home, then Profile "opened from Home"
     await openMenu(page, t);
-    await tapItem(page, t, 'menu:myRoutine');
+    await tapMenuItem(page, t, 'menu:myRoutine');
     await homeIsShowing(page, t);
     await openMenu(page, t);
-    await tapItem(page, t, 'menu:mySkinProfile');
+    await tapMenuItem(page, t, 'menu:mySkinProfile');
     await expect(page.getByText(t('profile:cta'), { exact: true })).toBeVisible();
     await expect(button).toBeVisible();
   });
@@ -66,7 +56,7 @@ test.describe('menu button', () => {
     await page.goto('/');
     await homeIsShowing(page, t);
     await openMenu(page, t);
-    await tapItem(page, t, 'menu:retake');
+    await tapMenuItem(page, t, 'menu:retake');
     await panelOf(page, t).getByText(t('menu:retakeYes'), { exact: true }).click();
     await expect(page.getByText(t('quiz:name.question'))).toBeVisible();
     await expect(page.getByRole('button', { name: t('menu:open') })).toHaveCount(0);
@@ -125,59 +115,66 @@ test.describe('open and close', () => {
     await expect(panel.locator('[aria-current="page"]')).toContainText(t('menu:myRoutine'));
 
     // Tapping it just closes the menu; we stay on Home.
-    await tapItem(page, t, 'menu:myRoutine');
+    await tapMenuItem(page, t, 'menu:myRoutine');
     await expect(panel).toBeHidden();
     await homeIsShowing(page, t);
 
     // On Messages the current row moves to "Messages".
     await openMenu(page, t);
-    await tapItem(page, t, 'menu:messages');
+    await tapMenuItem(page, t, 'menu:messages');
     await messagesIsShowing(page, t);
     await openMenu(page, t);
     await expect(panel.locator('[aria-current="page"]')).toHaveCount(1);
     await expect(panel.locator('[aria-current="page"]')).toContainText(t('menu:messages'));
-    await tapItem(page, t, 'menu:messages');
+    await tapMenuItem(page, t, 'menu:messages');
     await expect(panel).toBeHidden();
     await messagesIsShowing(page, t);
   });
 });
 
-test.describe('navigation rule (menuAction)', () => {
-  test('Home pushes, other screens replace, Home pops', async ({ page, t }) => {
+test.describe('Back button (current behaviour, replaced by swipe-back in T-D0)', () => {
+  // Uses the Settings Back text, which the swipe-back change removes. The same navigation rule
+  // without the Back text is covered by '"My routine" from another screen pops back to Home'
+  // in the next describe block (Home -> Messages -> Settings, menu "My routine" lands on Home).
+  test('Home -> Messages -> Settings, then Settings Back lands on Home', async ({ page, t }) => {
     await page.goto('/');
     await homeIsShowing(page, t);
 
     // Home -> Messages: pushed on top of Home.
     await openMenu(page, t);
-    await tapItem(page, t, 'menu:messages');
+    await tapMenuItem(page, t, 'menu:messages');
     await messagesIsShowing(page, t);
     await expect(panelOf(page, t)).toBeHidden(); // the menu closes when the screen changes
 
     // Messages -> Settings: REPLACES Messages (stack is [Home, Settings]).
     await openMenu(page, t);
-    await tapItem(page, t, 'menu:settings');
+    await tapMenuItem(page, t, 'menu:settings');
     await settingsIsShowing(page, t);
 
     // Settings Back lands on Home, NOT on Messages (current behaviour of the replace rule).
-    await page.getByText(t('common:back'), { exact: true }).click();
+    await backButton(page, t).click();
     await homeIsShowing(page, t);
     await expect(page.getByText(t('messages:title'), { exact: true })).toHaveCount(0);
   });
+});
+
+test.describe('navigation rule (menuAction)', () => {
 
   test('"My routine" from another screen pops back to Home', async ({ page, t }) => {
     await page.goto('/');
     await homeIsShowing(page, t);
     await openMenu(page, t);
-    await tapItem(page, t, 'menu:messages');
+    await tapMenuItem(page, t, 'menu:messages');
     await messagesIsShowing(page, t);
     await openMenu(page, t);
-    await tapItem(page, t, 'menu:settings');
+    await tapMenuItem(page, t, 'menu:settings');
     await settingsIsShowing(page, t);
     // Home is the target: goBack() pops Settings and Home shows again.
     await openMenu(page, t);
-    await tapItem(page, t, 'menu:myRoutine');
+    await tapMenuItem(page, t, 'menu:myRoutine');
     await homeIsShowing(page, t);
-    // Only one screen was popped, so we are on Home and not on a deeper stack: the Home menu
+    // The web build shows no stack depth, so this cannot prove HOW MANY screens were popped
+    // (navigate('Home') would look the same). It only proves we ended on Home: the Home menu
     // marks "My routine" as current.
     await openMenu(page, t);
     await expect(panelOf(page, t).locator('[aria-current="page"]')).toContainText(t('menu:myRoutine'));
@@ -190,7 +187,7 @@ test.describe('retake from the menu', () => {
     await homeIsShowing(page, t);
     await openMenu(page, t);
     const panel = panelOf(page, t);
-    await tapItem(page, t, 'menu:retake');
+    await tapMenuItem(page, t, 'menu:retake');
     // The confirmation replaces the retake row, inside the same open menu.
     await expect(panel.getByText(t('menu:retakeConfirm'))).toBeVisible();
     await expect(panel.getByText(t('menu:retake'), { exact: true })).toHaveCount(0);
@@ -204,7 +201,7 @@ test.describe('retake from the menu', () => {
     await page.goto('/');
     await homeIsShowing(page, t);
     await openMenu(page, t);
-    await tapItem(page, t, 'menu:retake');
+    await tapMenuItem(page, t, 'menu:retake');
     await panelOf(page, t).getByText(t('menu:retakeYes'), { exact: true }).click();
     // The fixture user has accepted the terms, so startRetake goes straight to Quiz (not
     // QuizIntro) and the quiz starts at the name question.
