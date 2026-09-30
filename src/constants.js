@@ -1,4 +1,5 @@
 import { api } from './lib/api';
+import i18n from './lib/i18n';
 
 export const C = {
   bg:          '#FAF8F5',
@@ -30,43 +31,51 @@ export function fallbackEra(a) {
   return ERAS.barrier_healing;
 }
 
+// The generic analysis used when the Gemini analysis fails. All of its text comes from
+// content.json (content:fallback.*) in the language that is active WHEN THIS RUNS, and the result is
+// saved as created (saved analyses keep the language they were created in). i18n.t is called inside
+// the function, never at module level, so it always uses the current language.
 export function buildFallback(answers) {
   const era     = fallbackEra(answers);
   const hasProd = (answers.routine_products || []).filter(p => p !== 'none').length > 0;
+  const t = i18n.t.bind(i18n); // shorter calls below
   return {
     eraId: era.id, era,
-    skinAnalysis: 'Based on your assessment, your skin is showing signs of stress and barrier disruption. The combination of your concerns and lifestyle factors points to a skin system that needs support and simplification before active treatment.',
+    skinAnalysis: t('content:fallback.skinAnalysis'),
     keyInsights: [
-      "Your skin's current reactivity suggests a compromised barrier — this is the first thing to address",
-      'Lifestyle factors are directly amplifying your skin concerns and need to be managed alongside your routine',
-      hasProd ? 'Some of your current products may be working against your skin right now — the audit will flag these' : 'Starting with a clean, minimal routine will reset your skin baseline effectively',
+      t('content:fallback.insightBarrier'),
+      t('content:fallback.insightLifestyle'),
+      hasProd ? t('content:fallback.insightWithProducts') : t('content:fallback.insightNoProducts'),
     ],
     productAudit: {
-      keep:    hasProd ? [{ product:'Moisturizer', reason:'Hydration is always appropriate — keep this as your anchor product' }] : [],
-      remove:  hasProd ? [{ product:'Active treatments (retinol, acids)', reason:'Too aggressive for a stressed barrier — pause these until skin stabilizes' }] : [],
-      replace: hasProd ? [{ from:'Current cleanser', to:'pH-balanced gentle cleanser (e.g. La Roche-Posay Toleriane)', reason:'Harsh cleansers strip the barrier daily, undoing all other work' }] : [],
+      keep:    hasProd ? [{ product: t('content:fallback.keepMoisturizer.product'), reason: t('content:fallback.keepMoisturizer.reason') }] : [],
+      remove:  hasProd ? [{ product: t('content:fallback.removeActives.product'), reason: t('content:fallback.removeActives.reason') }] : [],
+      replace: hasProd ? [{ from: t('content:fallback.replaceCleanser.from'), to: t('content:fallback.replaceCleanser.to'), reason: t('content:fallback.replaceCleanser.reason') }] : [],
       add: [
-        { product:'Ceramide serum or moisturizer', reason:'The single most important product for barrier repair', priority:'essential' },
-        { product:'Mineral SPF 30+', reason:'UV damage is the #1 barrier aggressor — non-negotiable daily', priority:'essential' },
-        { product:'Centella asiatica essence', reason:'Powerfully anti-inflammatory, speeds barrier recovery', priority:'recommended' },
+        { product: t('content:fallback.addCeramide.product'), reason: t('content:fallback.addCeramide.reason'), priority:'essential' },
+        { product: t('content:fallback.addSpf.product'), reason: t('content:fallback.addSpf.reason'), priority:'essential' },
+        { product: t('content:fallback.addCentella.product'), reason: t('content:fallback.addCentella.reason'), priority:'recommended' },
       ],
     },
     routine: {
       am: [
-        { name:'Cool water rinse',     description:'Skip cleanser in AM — let your skin keep its overnight oils' },
-        { name:'Alcohol-free toner',   description:'Pat gently into damp skin with fingertips, don\'t wipe' },
-        { name:'Ceramide serum',       description:'2-3 drops while skin is still slightly damp for best absorption' },
-        { name:'Barrier moisturizer',  description:'Apply generously — don\'t be afraid of richness in the morning' },
-        { name:'Mineral SPF 30+',      description:'Finish every morning without fail. UV undoes all healing work' },
+        { name: t('content:fallback.am.rinse.name'),       description: t('content:fallback.am.rinse.description') },
+        { name: t('content:fallback.am.toner.name'),       description: t('content:fallback.am.toner.description') },
+        { name: t('content:fallback.am.serum.name'),       description: t('content:fallback.am.serum.description') },
+        { name: t('content:fallback.am.moisturizer.name'), description: t('content:fallback.am.moisturizer.description') },
+        { name: t('content:fallback.am.spf.name'),         description: t('content:fallback.am.spf.description') },
       ],
       pm: [
-        { name:'Oil cleanse',              description:'Massage gently to dissolve SPF and daily buildup — no friction' },
-        { name:'pH-balanced gel cleanser', description:'Rinse with lukewarm water. Hot water strips the barrier' },
-        { name:'Centella or oat essence',  description:'Anti-inflammatory calm — this is your skin\'s reset moment' },
-        { name:'Barrier repair cream',     description:'Apply generously. Overnight is when skin rebuilds most actively' },
+        { name: t('content:fallback.pm.oilCleanse.name'),  description: t('content:fallback.pm.oilCleanse.description') },
+        { name: t('content:fallback.pm.gelCleanser.name'), description: t('content:fallback.pm.gelCleanser.description') },
+        { name: t('content:fallback.pm.essence.name'),     description: t('content:fallback.pm.essence.description') },
+        { name: t('content:fallback.pm.cream.name'),       description: t('content:fallback.pm.cream.description') },
       ],
     },
-    affirmation: era.affirmation,
+    // The era affirmation in the same language as the rest of the fallback. The Hebrew text is in
+    // the Hebrew-only `eras` namespace (by era id); English has no such file, so the lookup falls
+    // back to the English ERAS text. (eraText.js is not used here: it imports this file.)
+    affirmation: i18n.t(`eras:${era.id}.affirmation`, { defaultValue: era.affirmation }),
   };
 }
 
@@ -280,18 +289,14 @@ export const QUESTIONS = [
   { id:'completion', type:'completion', countsInProgress:false, stageCount:4 },
 ];
 
+// Mood options of the daily check-in.
+//  - id:    stable key. The text shown to the user is in home.json under moods.<id>.
+//  - label: the ENGLISH word that is stored / sent to the server (POST /api/checkins) and used
+//           to look a mood up again. It must never be translated or renamed (see quizValues.test.js).
 export const MOODS = [
-  { emoji:'✨', label:'Glowing' },
-  { emoji:'🌿', label:'Calm' },
-  { emoji:'😴', label:'Tired' },
-  { emoji:'🔥', label:'Reactive' },
-  { emoji:'🧊', label:'Breaking out' },
+  { id:'glowing', emoji:'\u2728', label:'Glowing' },
+  { id:'calm', emoji:'\uD83C\uDF3F', label:'Calm' },
+  { id:'tired', emoji:'\uD83D\uDE34', label:'Tired' },
+  { id:'reactive', emoji:'\uD83D\uDD25', label:'Reactive' },
+  { id:'breaking_out', emoji:'\uD83E\uDDCA', label:'Breaking out' },
 ];
-
-export const DONE_MSGS = {
-  barrier_healing:  'Your barrier thanks you. Every gentle step today builds the foundation for calm, resilient skin.',
-  acne_reset:       'You showed up for your skin — that consistency is exactly what creates real, lasting change.',
-  burnout_recovery: 'Rest and ritual are medicine. You just gave your skin exactly what it needed.',
-  glow_building:    'Radiance is built one intentional step at a time. You\'re doing the work.',
-  repair_restore:   "Investing in your skin today is the most powerful anti-aging move you can make.",
-};

@@ -1,1 +1,61 @@
-{}
+{
+  "greeting": {
+    "morning": "Good morning",
+    "afternoon": "Good afternoon",
+    "evening": "Good evening"
+  },
+  "empty": {
+    "title": "Your routine is not ready yet",
+    "body": "Complete the skin assessment to build your personalized routine.",
+    "cta": "Start assessment →"
+  },
+  "messages": {
+    "label": "Messages",
+    "unread_one": "Messages, {{count}} unread",
+    "unread_other": "Messages, {{count}} unread"
+  },
+  "checkIn": {
+    "title": "Daily skin check-in",
+    "subtitle": "How does your skin feel today?",
+    "complete": "Check-in complete · {{mood}}",
+    "modalTitle": "Skin check-in",
+    "question": "How does your skin feel right now?",
+    "save": "Save check-in"
+  },
+  "moods": {
+    "glowing": "Glowing",
+    "calm": "Calm",
+    "tired": "Tired",
+    "reactive": "Reactive",
+    "breaking_out": "Breaking out"
+  },
+  "progress": {
+    "steps_one": "{{done}}/{{total}} steps complete",
+    "steps_other": "{{done}}/{{total}} steps complete",
+    "ritualComplete": "✓ Ritual complete",
+    "hint": "Check off each step once you've completed it"
+  },
+  "tabs": {
+    "am": "☀️ Morning",
+    "pm": "🌙 Evening"
+  },
+  "routine": {
+    "sourceExternally": "Source externally for this step."
+  },
+  "done": {
+    "title": "Well done!"
+  },
+  "viewAnalysis": {
+    "title": "View my full analysis",
+    "subtitle": "Your skin analysis, product audit and product routine"
+  },
+  "logProducts": {
+    "title": "Log your products",
+    "subtitle": "Save a product photo to track what you're using"
+  },
+  "fallbackBanner": {
+    "title": "We couldn't personalize your plan right now",
+    "body": "This is our general starter plan, not a reading of your skin. Please try again in a little while.",
+    "retake": "Retake assessment"
+  }
+}
