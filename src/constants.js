@@ -87,7 +87,7 @@ export async function fetchProductRecs(productAudit, country, eraName) {
   return api.post('/api/ai/product-recommendations', { productAudit, country, eraName });
 }
 
-// ─── Quiz structure ─────────────────────────────────────────────────────────
+// --- Quiz structure -------------------------------------------------------
 // IMPORTANT (for junior developers): the quiz TEXT no longer lives here. This file keeps only the
 // STRUCTURE of the quiz: ids, types, stored values, emoji, ordering rules and behaviour flags.
 // Every visible sentence is in src/locales/<lang>/quiz.json, keyed by the question id, e.g.

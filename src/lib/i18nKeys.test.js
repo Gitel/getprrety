@@ -22,17 +22,21 @@ function sourceFiles(dir, out = []) {
   return out;
 }
 
-// Matches t('...'), t("..."), i18n.t('...') and i18next.t('...'); \b keeps out e.g. split('x').
-const CALL_RE = /(?:^|[^\w$.])(?:(?:i18n|i18next)\.)?t\(\s*(['"])((?:(?!\1)[^\\\n])*)\1/g;
+// Matches t('...'), t("..."), i18n.t('...'), i18next.t('...') and i18nInstance.t('...'); \b keeps out e.g. split('x').
+const CALL_RE = /(?:^|[^\w$.])(?:(?:i18n|i18next|i18nInstance)\.)?t\(\s*(['"])((?:(?!\1)[^\\\n])*)\1/g;
 
 // Matches the literal fallback key of errorText(err, t, 'ns:key') (third argument).
 const ERROR_TEXT_RE = /\berrorText\(\s*[^,()]+,\s*[^,()]+,\s*(['"])((?:(?!\1)[^\\\n])*)\1/g;
+
+// Matches getFixedT(<anything>)('ns:key'): the translator is fixed to a language, then called.
+const FIXED_T_RE = /getFixedT\([^)]*\)\(\s*(['"])((?:(?!\1)[^\\\n])*)\1/g;
 
 // Returns every literal key used in a file's text.
 function literalKeys(text) {
   const keys = [];
   for (const m of text.matchAll(CALL_RE)) keys.push(m[2]);
   for (const m of text.matchAll(ERROR_TEXT_RE)) keys.push(m[2]);
+  for (const m of text.matchAll(FIXED_T_RE)) keys.push(m[2]);
   return keys;
 }
 
@@ -51,6 +55,10 @@ describe('literal t() keys', () => {
 
   test('the scanner also finds the literal fallback key of errorText()', () => {
     expect(literalKeys("errorText(err, t, 'auth:x.y') errorText(err, t) errorText(e, t, 'errors:generic')")).toEqual(['auth:x.y', 'errors:generic']);
+  });
+
+  test('the scanner finds i18nInstance.t() and getFixedT()() calls', () => {
+    expect(literalKeys("i18nInstance.t('a:b') i18n.getFixedT(lang)('c:d')")).toEqual(['a:b', 'c:d']);
   });
 
   test('every literal key has a namespace and exists in the English resources', () => {

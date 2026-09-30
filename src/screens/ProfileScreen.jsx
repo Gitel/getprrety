@@ -397,7 +397,8 @@ export default function ProfileScreen({ navigation, route }) {
         {/* Affirmation */}
         <View style={[s.affirmation, { borderColor: era.color + '50' }]}>
           <Text style={s.affirmLabel}>{t('profile:affirmLabel')}</Text>
-          <Text style={[s.affirmText, { color: era.color }]}>"{analysisAffirmation(analysis, i18n.language)}"</Text>
+          {/* The affirmation is usually AI text (English), so it is isolated inside the quotes. */}
+          <Text style={[s.affirmText, { color: era.color }]}>"{isolate(analysisAffirmation(analysis, i18n.language))}"</Text>
         </View>
 
         <Pressable

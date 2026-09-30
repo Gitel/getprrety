@@ -38,8 +38,8 @@ describe('quiz text lookup with i18next (English)', () => {
   });
 
   test('option keys with digits and underscores resolve', () => {
-    expect(i18n.t('quiz:sleep.options.5_6.label')).toBe('5–6 hours');
-    expect(i18n.t('quiz:water_intake.options.1_1_5l.label')).toBe('1–1.5L');
+    expect(i18n.t('quiz:sleep.options.5_6.label')).toBe('5\u20136 hours');
+    expect(i18n.t('quiz:water_intake.options.1_1_5l.label')).toBe('1\u20131.5L');
     expect(i18n.t('quiz:stress.labels.10')).toBe('Very high');
     expect(i18n.t('quiz:hormones.fields.regular_cycle.options.not_sure.label')).toBe('Not sure');
   });
