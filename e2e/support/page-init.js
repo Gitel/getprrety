@@ -3,7 +3,7 @@
 // so it cannot use imports or variables from this file.
 //
 // It makes the page deterministic:
-//   1. clock starts at a fixed time and then keeps running (a frozen Date.now would break
+//   1. clock starts at a fixed time and then keeps running (a clock that never advances would break
 //      React Native's JS animations, which compare Date.now() with their start time);
 //   2. Math.random is seeded;
 //   3. storage is seeded ONCE per tab (see below);

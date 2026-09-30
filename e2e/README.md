@@ -36,14 +36,25 @@ test('Home shows the unread badge', async ({ page, mock, t }) => {
 - `t('ns:path.to.key', { var })` - text from `src/locales/<lang>/<ns>.json` (`{{var}}` and
   `count` plurals supported). Falls back to English, throws if the key does not exist.
 - `mock` - the mocked backend:
-  - `mock.set({ analysis, messages, unread, ticks })` - override state (`analysis: null` -> no saved
-    analysis, 404). Defaults come from `support/fixtures-data.js` (user Dana, Barrier Healing Era,
-    3 messages with 1 unread, one AM tick).
+  - `mock.set({ analysis, messages, unread, ticks, user })` - override state (`analysis: null` -> no
+    saved analysis, 404). Defaults come from `support/fixtures-data.js` (user Dana, Barrier Healing
+    Era, 3 messages with 1 unread, one AM tick). `user` feeds login, `GET /api/auth/me` and
+    `/api/profile`; `PATCH /api/profile` merges into it; signup replaces it with a new-user shape
+    (no `skincareTiming`, `language: null`). `FIRST_TIME_USER` (Dana without `skincareTiming`) is
+    exported from the fixtures: `mock.set({ analysis: null, user: FIRST_TIME_USER })`.
+  - `mock.override(method, path, status, body)` - force the answer of one endpoint (persistent, the
+    call is still logged in `mock.calls`); `mock.clearOverride(method, path)` removes it.
+  - `POST /api/messages/read` marks clinic messages read and sets `unread` to 0, like the server.
   - `mock.calls`, `mock.callsTo(method, path)`, `mock.lastCall(method, path)` - call log with
     `{ method, path, query, body, authed }`.
   - `mock.state` - current state (for example messages after the user sent one).
   - `mock.holdAnalysis()` / `await mock.releaseAnalysis()` - hold the Railway `/analyze-skin`
     request open, then let it fail (the app then uses its built-in fallback plan).
+- Navigation helpers, `support/nav.js`: `openMenu`, `tapMenuItem(page, t, key)`, `backButton`,
+  `openHome`, `openProfileFromHome`, `openMessages(page, t, unread = 1)`, `openSettings`,
+  `openSignUp`. Each waits for its target screen.
+- Quiz helpers, `support/quiz.js`: `NAME`, `nameVars`, `walkQuizToLoading`,
+  `expectProfileAfterQuiz`, `finishOnboardingToHome`.
 - Options `signedIn` and `lang` seed the token / stored language before the app starts.
 - The clock is fixed at 2026-09-29 09:00 UTC (and keeps running), `Math.random` is seeded and
   geolocation is denied.

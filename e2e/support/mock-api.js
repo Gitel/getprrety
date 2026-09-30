@@ -12,6 +12,7 @@
 //
 // Response shapes mirror server/routes/* of the app; the data is in fixtures-data.js.
 import * as fx from './fixtures-data.js';
+import { FIXED_ISO } from './page-init.js';
 
 export const MOCK_API_ORIGIN = 'http://api.e2e.test';
 const RAILWAY_HOST = 'getpretty-api-production.up.railway.app';
@@ -47,6 +48,7 @@ function defaultState() {
     messages: fx.MESSAGES.map(m => ({ ...m })),     // POST /api/messages appends to this copy
     unread: 1,                                      // number the messages badge shows
     ticks: fx.PROGRESS_TICKS,                       // today's routine ticks; null -> nothing ticked
+    user: { ...fx.USER },                           // the signed-in user (/auth/me, /profile, login)
   };
 }
 
@@ -57,6 +59,12 @@ export function createMock({ appOrigin }) {
   const blockedHosts = new Set(); // other origins the page tried to reach (aborted)
   let railwayMode = 'fail';       // what /analyze-skin answers: 'fail' | 'hang'
   const railwayPending = [];      // held /analyze-skin requests while mode is 'hang'
+  const overrides = new Map();    // "METHOD /path" -> { status, body }, see mock.override()
+
+  // "Now" as the page sees it: the page clock starts at FIXED_ISO and keeps running, so the mock
+  // (which runs in Node) adds the real time elapsed since it was created.
+  const startedAt = Date.now();
+  const nowIso = () => new Date(Date.parse(FIXED_ISO) + (Date.now() - startedAt)).toISOString();
 
   const json = (route, status, body) => route.fulfill({
     status, headers: CORS, contentType: 'application/json', body: JSON.stringify(body ?? {}),
@@ -73,18 +81,45 @@ export function createMock({ appOrigin }) {
     const authed = request.headers().authorization === `Bearer ${fx.TOKEN}`;
     calls.push({ method, path, query: Object.fromEntries(url.searchParams), body, authed });
 
-    // Answers 401 (and returns true) when the request has no valid token.
-    const deny = () => { if (authed) return false; json(route, 401, { error: 'Unauthorized' }); return true; };
+    // A test can replace the answer of one endpoint (mock.override). The call is already logged.
+    const forced = overrides.get(key);
+    if (forced) return json(route, forced.status, forced.body);
+
+    // Answers 401 (and returns true) when the request has no valid token. Same bodies as
+    // server/middleware/auth.js: no Bearer header vs. a wrong token.
+    const deny = () => {
+      if (authed) return false;
+      const hasBearer = (request.headers().authorization || '').startsWith('Bearer ');
+      json(route, 401, hasBearer
+        ? { error: 'Invalid or expired token', code: 'auth_invalid' }
+        : { error: 'No token provided', code: 'auth_required' });
+      return true;
+    };
 
     // --- auth / profile ---
-    if (key === 'POST /api/auth/login' || key === 'POST /api/auth/signup' || key === 'POST /api/auth/google') {
-      return json(route, key.endsWith('signup') ? 201 : 200, { token: fx.TOKEN, user: fx.USER });
+    if (key === 'POST /api/auth/signup') {
+      // A brand-new account, shaped like toPublicUser(newUser) in server/routes/auth.js: the
+      // email is trimmed + lower-cased, there is no skincareTiming yet and language is null.
+      const name = typeof body.firstName === 'string' ? body.firstName.trim() : '';
+      state.user = {
+        _id: 'user-new', id: 'user-new', ...(name ? { firstName: name } : {}),
+        email: String(body.email || '').trim().toLowerCase(),
+        termsAcceptedAt: body.consentAcceptedAt, consentVersion: body.consentVersion,
+        skincareTiming: null, language: null,
+      };
+      return json(route, 201, { token: fx.TOKEN, user: state.user });
+    }
+    if (key === 'POST /api/auth/login' || key === 'POST /api/auth/google') {
+      // toPublicUser always includes language (null when the user never chose one).
+      return json(route, 200, { token: fx.TOKEN, user: { ...state.user, language: state.user.language ?? null } });
     }
     if (key === 'GET /api/auth/me' || key === 'GET /api/profile') {
-      return deny() || json(route, 200, { user: fx.USER });
+      return deny() || json(route, 200, { user: state.user });
     }
     if (key === 'PATCH /api/profile') {
-      return deny() || json(route, 200, { user: { ...fx.USER, ...body } });
+      if (deny()) return undefined;
+      state.user = { ...state.user, ...body };
+      return json(route, 200, { user: state.user });
     }
 
     // --- analysis ---
@@ -112,7 +147,14 @@ export function createMock({ appOrigin }) {
     // --- messages ---
     if (key === 'GET /api/messages') return deny() || json(route, 200, { messages: state.messages });
     if (key === 'GET /api/messages/unread-count') return deny() || json(route, 200, { count: state.unread });
-    if (key === 'POST /api/messages/read') return deny() || json(route, 200, { ok: true });
+    if (key === 'POST /api/messages/read') {
+      if (deny()) return undefined;
+      // Like markReadByUser in server/services/messages.js: clinic messages get a readAt.
+      const readAt = nowIso();
+      for (const m of state.messages) if (m.from === 'admin' && !m.readAt) m.readAt = readAt;
+      state.unread = 0;
+      return json(route, 200, { ok: true });
+    }
     if (key === 'POST /api/messages') {
       if (deny()) return undefined;
       const message = { id: `m-new-${state.messages.length}`, from: 'user', body: String(body.body || ''), createdAt: '2026-09-29T09:00:00.000Z', readAt: null };
@@ -148,7 +190,7 @@ export function createMock({ appOrigin }) {
       if (deny()) return undefined;
       return json(route, 200, { checkIns: [{ _id: 'checkin-0', mood: 'Glowing', createdAt: '2026-09-28T09:00:00.000Z' }] });
     }
-    if (key === 'POST /api/activity') return json(route, 200, { ok: true });
+    if (key === 'POST /api/activity') return deny() || json(route, 201, { log: {} });
     if (key === 'POST /api/uploads') return json(route, 201, { uploadId: 'upload-1' });
     if (key === 'POST /api/products') return json(route, 201, { product: { _id: 'product-1' } });
     if (key === 'GET /api/products') return json(route, 200, { products: [] });
@@ -198,6 +240,12 @@ export function createMock({ appOrigin }) {
     set(overrides) { state = { ...state, ...overrides }; },
     // Current state (e.g. mock.state.messages after a send).
     get state() { return state; },
+
+    // Forces the answer of one endpoint until mock.clearOverride() (persistent, not one-shot):
+    //   mock.override('POST', '/api/messages', 500, { error: 'boom' });
+    // The call still appears in mock.calls. method is upper-case, path has no query string.
+    override(method, path, status, body) { overrides.set(`${method} ${path}`, { status, body }); },
+    clearOverride(method, path) { overrides.delete(`${method} ${path}`); },
 
     // Call log helpers. Filter with a method and an exact path.
     get calls() { return calls; },

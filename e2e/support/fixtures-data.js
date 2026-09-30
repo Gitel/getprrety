@@ -1,8 +1,8 @@
 // Fixture data served by the mock API (see mock-api.js).
 //
 // Everything here is plain, invented data (no real people, no secrets). Times are fixed
-// ISO strings so every run renders the same pixels. The "current time" of the browser is
-// frozen to 2026-09-29 09:00 UTC (see page-init.js), so:
+// ISO strings so every run shows the same text. The browser clock STARTS at
+// 2026-09-29 09:00 UTC and keeps running (see page-init.js), so:
 //   - the saved analysis is from 2026-09-29 07:00 and the user's first reading is from
 //     2026-09-15, which the Profile score section shows as "Day 15";
 //   - the clinic message times are earlier the same week.
@@ -26,12 +26,16 @@ export const USER = {
   skincareTiming: 'morning',
 };
 
+// The same user before the SkinTiming onboarding screen (no skincareTiming): use with
+// mock.set({ user: FIRST_TIME_USER }).
+export const FIRST_TIME_USER = { ...USER, skincareTiming: null };
+
 // Copy of the "Barrier Healing Era" object from src/constants.js (ERAS.barrier_healing).
 const ERA = {
   id: 'barrier_healing',
   emoji: '\u{1F33F}',
   name: 'Barrier Healing Era',
-  tagline: "Your skin is not broken — it's asking for gentleness.",
+  tagline: 'Your skin is not broken ' + String.fromCharCode(0x2014) + " it's asking for gentleness.",
   affirmation: 'I give my skin permission to heal at its own pace.',
   color: '#7A9E6E',
   bg: '#F2F6EF',
