@@ -8,6 +8,7 @@ import { useApp } from '../context/AppContext';
 import { api } from '../lib/api';
 import { logActivity } from '../lib/logActivity';
 import FallbackBanner from '../components/FallbackBanner';
+import { MenuButton } from '../components/SideMenu';
 import { routineSteps, defaultRoutineTab, localDay, routineKeyFor, tickedIndices } from '../lib/homeRoutine';
 
 export default function HomeScreen({ navigation }) {
@@ -114,9 +115,15 @@ export default function HomeScreen({ navigation }) {
 
         {/* Greeting row */}
         <View style={s.greetingRow}>
-          <View style={s.greetingBlock}>
-            <Text style={s.greetingText}>{greeting}</Text>
-            <Text style={[s.eraTag, { color: era.color }]}>{era.emoji} {era.name}</Text>
+          {/* Menu button first: top-left in English, top-right in Hebrew (a row mirrors in RTL). */}
+          <View style={s.greetingLeft}>
+            <View style={s.menuBtnWrap}>
+              <MenuButton onPress={navigation.openMenu} color={era.color} />
+            </View>
+            <View style={s.greetingBlock}>
+              <Text style={s.greetingText}>{greeting}</Text>
+              <Text style={[s.eraTag, { color: era.color }]}>{era.emoji} {era.name}</Text>
+            </View>
           </View>
           <View style={s.headerActions}>
             {/* Messages with the clinic; the badge counts clinic messages not opened yet. */}
@@ -131,18 +138,7 @@ export default function HomeScreen({ navigation }) {
                 </View>
               )}
             </Pressable>
-            {/* Re-opens the saved analysis (skin analysis, product audit, SR Ritual, shelf),
-                including anything the clinic edited. Before this, the Profile screen was
-                reachable only once, straight after the quiz. */}
-            <Pressable
-              style={[s.profileBtn, { borderColor: era.color + '60' }]}
-              onPress={() => navigation.navigate('Profile', { fromHome: true })}
-            >
-              <Text style={[s.profileBtnText, { color: era.color }]}>My skin profile</Text>
-            </Pressable>
-            <Pressable onPress={() => navigation.navigate('Settings')}>
-              <Text style={{ fontSize: 20 }}>⚙️</Text>
-            </Pressable>
+            {/* "My skin profile" and Settings now live in the side menu. */}
           </View>
         </View>
 
@@ -309,10 +305,11 @@ const s = StyleSheet.create({
   content:     { padding: 22, paddingTop: 22 },
   greetingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 22 },
   // Lets a long era name wrap instead of pushing the header buttons off-screen.
-  greetingBlock: { flexShrink: 1, marginEnd: 10 }, // start/end = left/right in English, mirrored in Hebrew (RTL)
+  // Menu button + greeting text, grouped so the Messages button stays on the far side.
+  greetingLeft: { flexDirection: 'row', alignItems: 'flex-start', flexShrink: 1, marginEnd: 10 },
+  menuBtnWrap: { marginEnd: 14, paddingTop: 2 },
+  greetingBlock: { flexShrink: 1 }, // start/end = left/right in English, mirrored in Hebrew (RTL)
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  profileBtn:  { borderWidth: 1, borderRadius: 999, paddingVertical: 5, paddingHorizontal: 11, backgroundColor: C.card },
-  profileBtnText: { fontFamily: 'DMSans_500Medium', fontSize: 12 },
   // Small red count pinned to the top-right of the message icon.
   msgBadge:    { position: 'absolute', top: -5, end: -9, minWidth: 16, height: 16, borderRadius: 8, paddingHorizontal: 3, backgroundColor: '#C44B4B', alignItems: 'center', justifyContent: 'center' },
   msgBadgeText:{ fontFamily: 'DMSans_500Medium', fontSize: 9, color: '#FFFFFF' },
