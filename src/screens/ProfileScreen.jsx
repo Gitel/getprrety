@@ -9,6 +9,7 @@ import { useApp } from '../context/AppContext';
 import { pollScan } from '../lib/skinScan';
 import FallbackBanner from '../components/FallbackBanner';
 import ScoreSection from '../components/ScoreSection';
+import { MenuButton } from '../components/SideMenu';
 
 export default function ProfileScreen({ navigation, route }) {
   const {
@@ -136,6 +137,13 @@ export default function ProfileScreen({ navigation, route }) {
   return (
     <SafeAreaView style={[s.safe, { backgroundColor: era.bg }]}>
       <ScrollView contentContainerStyle={s.content}>
+
+        {/* Menu button only when opened from Home / the menu; the first view after the quiz has no menu. */}
+        {openedFromHome && (
+          <View style={s.menuRow}>
+            <MenuButton onPress={navigation.openMenu} color={era.color} />
+          </View>
+        )}
 
         {analysisSaveFailed && (
           <View style={s.saveWarnBanner}>
@@ -427,6 +435,7 @@ function ProductSkeleton() {
 const s = StyleSheet.create({
   safe:      { flex: 1 },
   content:   { padding: 24, paddingTop: 28 },
+  menuRow:   { flexDirection: 'row', marginBottom: 16 },
   saveWarnBanner: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#FBEEE9', borderWidth: 1, borderColor: '#E4B7A6', borderRadius: 12, paddingVertical: 10, paddingHorizontal: 14, marginBottom: 18 },
   saveWarnText:   { flex: 1, fontFamily: 'DMSans_400Regular', fontSize: 12, color: '#9A5B44', lineHeight: 17 },
   saveWarnDismiss:{ fontFamily: 'DMSans_500Medium', fontSize: 13, color: '#9A5B44' },
