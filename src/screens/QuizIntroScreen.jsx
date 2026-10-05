@@ -1,22 +1,34 @@
 import React from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useTranslation } from 'react-i18next';
+import { useTranslation, Trans } from 'react-i18next';
 import { C } from '../constants';
+import { useApp } from '../context/AppContext';
+import ConsentNotice from '../components/ConsentNotice';
+import { LEGAL_READY, consentParams } from '../lib/consent';
 
-// Login-first: the Terms/Privacy consent now lives on LoginScreen / SignUpScreen, so
-// this screen no longer shows or stamps it. It only forwards the stamp that "Skip for
-// now" put in the route params (anonymous users); signed-in users arrive without one.
+// Landing screen for signed-out users (quiz-first). Signed-out users see the Terms/Privacy
+// notice and tapping start stamps the consent (see lib/consent.js); they also get a
+// "Log in" control for existing accounts. Signed-in users (retake) see neither: no
+// notice, no log-in control, and the start button is always enabled.
 export default function QuizIntroScreen({ navigation, route }) {
   const { t } = useTranslation();
+  const { user } = useApp();
+  const signedOut = !user;
   // The intro copy lives in quiz.json under the "welcome" question id (quiz:welcome.*). The checklist is a list, so its key uses backticks: the static-key test only checks plain-string keys.
   const checklist = t(`quiz:welcome.checklist`, { returnObjects: true });
+  // Signed-out start is blocked until the legal links / policy version are configured.
+  const startDisabled = signedOut && !LEGAL_READY;
   function begin() {
-    navigation.navigate('Quiz', {
-      consentAcceptedAt: route?.params?.consentAcceptedAt || null,
-      consentVersion: route?.params?.consentVersion || null,
-      referralSource: route?.params?.referralSource || null,
-    });
+    const referralSource = route?.params?.referralSource || null;
+    if (!signedOut) {
+      // Signed-in retake: no consent is collected here.
+      navigation.navigate('Quiz', { consentAcceptedAt: null, consentVersion: null, referralSource });
+      return;
+    }
+    const consent = consentParams();
+    if (!consent) return; // legal links / policy version not configured - onboarding disabled
+    navigation.navigate('Quiz', { ...consent, referralSource });
   }
 
   return (
@@ -35,12 +47,21 @@ export default function QuizIntroScreen({ navigation, route }) {
         </View>
 
         <View style={s.actions}>
+          {signedOut && <ConsentNotice style={s.consent} />}
           <Pressable
-            style={({ pressed }) => [s.cta, pressed && { opacity: 0.88 }]}
+            disabled={startDisabled}
+            style={({ pressed }) => [s.cta, startDisabled && s.ctaDisabled, pressed && !startDisabled && { opacity: 0.88 }]}
             onPress={begin}
           >
             <Text style={s.ctaText}>{t('quiz:welcome.cta')}</Text>
           </Pressable>
+          {signedOut && (
+            <Pressable onPress={() => navigation.navigate('Login')} style={s.ghostBtn}>
+              <Text style={s.ghostText}>
+                <Trans i18nKey="auth:login.haveAccount" components={{ accent: <Text /> }} />
+              </Text>
+            </Pressable>
+          )}
         </View>
 
         <Text style={s.checklist}>{checklist.map(c => `✔ ${c}`).join('   ')}</Text>
@@ -61,8 +82,12 @@ const s = StyleSheet.create({
   sub: { fontFamily: 'DMSans_400Regular', fontSize: 14, color: C.muted, textAlign: 'center', lineHeight: 22, marginBottom: 10 },
   time: { fontFamily: 'DMSans_400Regular', fontSize: 12.5, color: C.muted },
   actions: { width: '100%', gap: 12, marginBottom: 24 },
+  consent: { marginBottom: 4 },
   cta: { backgroundColor: '#2C2C2C', borderRadius: 13, paddingVertical: 15, alignItems: 'center' },
+  ctaDisabled: { backgroundColor: '#D4CBC4' },
   ctaText: { fontFamily: 'DMSans_500Medium', fontSize: 15, color: C.bg, letterSpacing: 0.4 },
+  ghostBtn: { borderWidth: 1, borderColor: C.border, borderRadius: 26, paddingVertical: 13, alignItems: 'center' },
+  ghostText: { fontFamily: 'DMSans_400Regular', fontSize: 13, color: C.muted, letterSpacing: 0.5 },
   checklist: { fontFamily: 'DMSans_400Regular', fontSize: 11.5, color: C.muted, textAlign: 'center', lineHeight: 22, marginBottom: 12 },
   footer: { fontFamily: 'DMSans_400Regular', fontSize: 10.5, color: C.muted, textAlign: 'center' },
 });
