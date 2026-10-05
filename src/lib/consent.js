@@ -1,9 +1,10 @@
 import { Alert, Linking } from 'react-native';
 
-// Single source of truth for the Terms/Privacy consent. Since login-first, the auth
-// screens (LoginScreen and SignUpScreen) show the binding "by continuing you agree"
-// copy and stamp the acceptance on tap of Sign up / Google / "Skip for now" — there is
-// no separate checkbox.
+// Single source of truth for the Terms/Privacy consent. Signed-out users accept on the
+// quiz landing (QuizIntro / Welcome): the "by continuing you agree" copy is shown there
+// and the stamp is taken when the start button is tapped, then travels with the quiz
+// answers. SignUp (email/Google) and Login's Google button send a fresh stamp because
+// the server requires one (<= 24 h old) for new accounts. There is no separate checkbox.
 export const TERMS_URL = process.env.VITE_TERMS_URL;
 export const PRIVACY_URL = process.env.VITE_PRIVACY_URL;
 export const CONSENT_VERSION = process.env.VITE_CONSENT_VERSION;
@@ -39,7 +40,8 @@ export function openLegal(url) {
 }
 
 // A fresh, versioned acceptance stamp: sent with sign-up / Google sign-in (the server
-// requires it for new accounts), and carried into the quiz by "Skip for now".
+// requires it for new accounts), and taken on the landing start button so it can
+// travel with the quiz answers.
 // Returns null when legal config is missing — callers must not proceed.
 export function consentParams() {
   if (!LEGAL_READY) return null;

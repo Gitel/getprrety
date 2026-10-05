@@ -12,6 +12,7 @@ import { formatTime, weekdayLetters, weekdayNames } from '../lib/formatting';
 import { logActivity } from '../lib/logActivity';
 import { loadReminderSchedule, requestNotificationPermission, saveReminderSchedule } from '../lib/notifications';
 import { startRetake } from '../lib/retake';
+import { quizEntryScreen } from '../lib/welcomeVariants';
 
 function nudgeTime(time, dir) {
   const [h, m] = time.split(':').map(Number);
@@ -91,7 +92,8 @@ export default function SettingsScreen({ navigation }) {
   async function handleLogout() {
     await logActivity('logout');
     await logout();
-    navigation.reset({ index: 0, routes: [{ name: 'Splash' }] });
+    // Log out shows Login; the quiz landing sits beneath it so Back / swipe returns to it.
+    navigation.reset({ index: 1, routes: [{ name: quizEntryScreen() }, { name: 'Login' }] });
   }
 
   return (
