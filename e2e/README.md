@@ -57,7 +57,9 @@ option is silently ignored by Playwright; `smoke.spec.js` guards the default.
     request open, then let it fail (the app then uses its built-in fallback plan).
 - Navigation helpers, `support/nav.js`: `openMenu`, `tapMenuItem(page, t, key)`, `backButton`,
   `openHome`, `openProfileFromHome`, `openMessages(page, t, unread = 1)`, `openSettings`,
-  `openSignUp`. Each waits for its target screen.
+  `openLogin` (signed out: landing -> its "Already have an account? Log in" control -> Login).
+  Each waits for its target screen. A signed-out visitor boots on the landing (QuizIntro, or the
+  clinic Welcome with a known `?ref=`); Sign up exists only after the quiz (see `support/quiz.js`).
 - Quiz helpers, `support/quiz.js`: `NAME`, `nameVars`, `walkQuizToLoading`,
   `expectProfileAfterQuiz`, `finishOnboardingToHome`.
 - Options `signedIn` and `lang` seed the token / stored language before the app starts.

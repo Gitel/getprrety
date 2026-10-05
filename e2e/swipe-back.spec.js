@@ -17,7 +17,7 @@
 import { test, expect } from './support/test.js';
 import { FIRST_TIME_USER } from './support/fixtures-data.js';
 import {
-  openHome, openProfileFromHome, openMessages, openSettings, openSignUp, openMenu, panelOf, backButton,
+  openHome, openProfileFromHome, openMessages, openSettings, openMenu, panelOf, backButton,
 } from './support/nav.js';
 import { walkQuizToLoading, expectProfileAfterQuiz, finishOnboardingToHome } from './support/quiz.js';
 import {
@@ -182,25 +182,9 @@ for (const lang of ['en', 'he']) {
 // ---- flows, English only -------------------------------------------------------------------
 test.describe('swipe-back flows (English)', () => {
   test.describe('signed out', () => {
-    test('Login -> SignUp -> swipe -> Login', async ({ page, t }) => {
-      await openSignUp(page, t);
-      await edgeSwipe(page, { lang: 'en', dx: LONG });
-      await expect(text(page, t('auth:login.cta'))).toBeVisible();
-      await expect(text(page, t('auth:signup.headline'))).toHaveCount(0);
-    });
-
-    test('Login -> Skip -> QuizIntro -> swipe -> Login', async ({ page, t }) => {
-      await page.goto('/');
-      await text(page, t('auth:login.skip')).click();
-      await expect(text(page, t('quiz:welcome.cta'))).toBeVisible();
-      await edgeSwipe(page, { lang: 'en', dx: LONG });
-      await expect(text(page, t('auth:login.cta'))).toBeVisible();
-      await expect(text(page, t('quiz:welcome.cta'))).toHaveCount(0);
-    });
-
     test('the first Quiz question ignores the swipe', async ({ page, t }) => {
+      // The landing (QuizIntro) is the first screen; its start button opens the quiz.
       await page.goto('/');
-      await text(page, t('auth:login.skip')).click();
       await text(page, t('quiz:welcome.cta')).click();
       await expect(text(page, t('quiz:name.question'))).toBeVisible();
       await edgeSwipe(page, { lang: 'en', dx: LONG });

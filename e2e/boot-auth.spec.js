@@ -1,8 +1,12 @@
 // T-B1: boot routing + authentication, locked in as the app behaves TODAY.
-// Covers: Splash routing (with and without ?ref=), Login, Sign up, "Skip for now", Log out.
-// The backend is the shared mock (support/mock-api.js); error responses use mock.override.
+// Covers: Splash routing when signed in (and the invalid-token case), Login (reached from the
+// landing's "Already have an account? Log in" control) and the after-quiz Sign up.
+// The signed-out landing, "no Skip / no Create an account on Login" and Log out live in
+// landing.spec.js. The backend is the shared mock (support/mock-api.js); error responses use
+// mock.override.
 import { test, expect } from './support/test.js';
-import { openSignUp, openMenu, tapMenuItem, backButton } from './support/nav.js';
+import { openLogin } from './support/nav.js';
+import { walkQuizToLoading, expectProfileAfterQuiz } from './support/quiz.js';
 
 // The app's inputs have no labels, only placeholders.
 const field = (page, placeholder) => page.getByPlaceholder(placeholder, { exact: true });
@@ -12,24 +16,11 @@ const quizIntro = (page, t) => page.getByText(t('quiz:welcome.header'), { exact:
 const clinicWelcome = (page, t) => page.getByText(t('onboarding:welcome.lu_clinic.title'), { exact: true });
 const loginScreen = (page, t) => page.getByText(t('auth:login.tagline'), { exact: true });
 
+// The landing's log-in control text: the locale string minus its <accent> markup.
+const haveAccountText = t => t('auth:login.haveAccount').replace(/<\/?accent>/g, '');
+
 // Pulls a link text out of the locale string "... <terms>LINK</terms> ... <privacy>LINK</privacy> ...".
 const linkText = (t, tag) => t('auth:consent.agree').match(new RegExp(`<${tag}>(.*?)</${tag}>`))[1];
-
-test.describe('Splash routing, signed out', () => {
-  test('goes to Login and makes no authenticated calls', async ({ page, mock, t }) => {
-    await page.goto('/');
-    await expect(loginScreen(page, t)).toBeVisible();
-    // No token -> loadSession returns early: the app never asks the server who the user is.
-    expect(mock.callsTo('GET', '/api/auth/me')).toHaveLength(0);
-    expect(mock.callsTo('GET', '/api/analysis/latest')).toHaveLength(0);
-  });
-
-  test('with a known ?ref= still goes to Login (not Welcome)', async ({ page, t }) => {
-    await page.goto('/?ref=lu_clinic');
-    await expect(loginScreen(page, t)).toBeVisible();
-    await expect(clinicWelcome(page, t)).toHaveCount(0);
-  });
-});
 
 test.describe('Splash routing, signed in', () => {
   test.use({ signedIn: true });
@@ -67,18 +58,20 @@ test.describe('Splash routing, signed in', () => {
     await expect(clinicWelcome(page, t)).toHaveCount(0);
   });
 
-  test('an invalid stored token (401) is dropped and the user lands on Login', async ({ page, mock, t }) => {
-    // /me answers 401 -> loadSession removes the token -> Splash sees no user -> Login.
+  test('an invalid stored token (401) is dropped and the user lands on the landing (QuizIntro)', async ({ page, mock, t }) => {
+    // /me answers 401 -> loadSession removes the token -> Splash sees no user -> the signed-out
+    // landing (QuizIntro, not Login).
     mock.override('GET', '/api/auth/me', 401, { error: 'Invalid or expired token', code: 'auth_invalid' });
     await page.goto('/');
-    await expect(loginScreen(page, t)).toBeVisible();
-    // The token was removed, so a reload also stays on Login.
+    await expect(quizIntro(page, t)).toBeVisible();
+    await expect(loginScreen(page, t)).toHaveCount(0);
+    // The token was removed, so a reload also stays on the landing.
     await page.reload();
-    await expect(loginScreen(page, t)).toBeVisible();
+    await expect(quizIntro(page, t)).toBeVisible();
   });
 });
 
-test.describe('Login', () => {
+test.describe('Login (opened from the landing log-in control)', () => {
   // Types credentials and taps LOG IN.
   async function logIn(page, t, email, password) {
     await field(page, t('auth:login.emailPlaceholder')).fill(email);
@@ -87,7 +80,7 @@ test.describe('Login', () => {
   }
 
   test('email login sends trimmed lower-case email + password and lands on Home', async ({ page, mock, t }) => {
-    await page.goto('/');
+    await openLogin(page, t);
     await logIn(page, t, '  Dana@Example.COM ', 'secret-pass');
 
     await expect(page.getByText(t('home:greeting.morning'))).toBeVisible();
@@ -99,7 +92,7 @@ test.describe('Login', () => {
 
   test('email login without a saved analysis lands on the quiz intro', async ({ page, mock, t }) => {
     mock.set({ analysis: null });
-    await page.goto('/');
+    await openLogin(page, t);
     await logIn(page, t, 'dana@example.com', 'secret-pass');
     await expect(quizIntro(page, t)).toBeVisible();
   });
@@ -107,19 +100,21 @@ test.describe('Login', () => {
   test('email login without analysis and with ?ref= lands on the clinic Welcome', async ({ page, mock, t }) => {
     mock.set({ analysis: null });
     await page.goto('/?ref=lu_clinic');
+    // On the clinic Welcome landing the log-in control is the same sentence as on QuizIntro.
+    await page.getByText(haveAccountText(t), { exact: true }).click();
     await logIn(page, t, 'dana@example.com', 'secret-pass');
     await expect(clinicWelcome(page, t)).toBeVisible();
   });
 
   test('empty form shows the missing-fields message and calls no API', async ({ page, mock, t }) => {
-    await page.goto('/');
+    await openLogin(page, t);
     await page.getByText(t('auth:login.cta'), { exact: true }).click();
     await expect(page.getByText(t('auth:login.missingFields'), { exact: true })).toBeVisible();
     expect(mock.callsTo('POST', '/api/auth/login')).toHaveLength(0);
   });
 
   test('typing clears the error message', async ({ page, t }) => {
-    await page.goto('/');
+    await openLogin(page, t);
     await page.getByText(t('auth:login.cta'), { exact: true }).click();
     const error = page.getByText(t('auth:login.missingFields'), { exact: true });
     await expect(error).toBeVisible();
@@ -130,7 +125,7 @@ test.describe('Login', () => {
   test('wrong credentials show the translated error for the server code', async ({ page, mock, t }) => {
     // Same shape as server/routes/auth.js: 401 + { error, code }.
     mock.override('POST', '/api/auth/login', 401, { error: 'Invalid email or password', code: 'invalid_credentials' });
-    await page.goto('/');
+    await openLogin(page, t);
     await logIn(page, t, 'dana@example.com', 'wrong-pass');
     await expect(page.getByText(t('errors:invalid_credentials'), { exact: true })).toBeVisible();
     // Still on Login.
@@ -139,14 +134,14 @@ test.describe('Login', () => {
 
   test('a server error without a known code shows the generic "our side" message', async ({ page, mock, t }) => {
     mock.override('POST', '/api/auth/login', 500, {});
-    await page.goto('/');
+    await openLogin(page, t);
     await logIn(page, t, 'dana@example.com', 'secret-pass');
     await expect(page.getByText(t('errors:server_error'), { exact: true })).toBeVisible();
   });
 
   test('a 4xx with an unknown code shows the screen fallback text', async ({ page, mock, t }) => {
     mock.override('POST', '/api/auth/login', 400, { error: 'whatever', code: 'not_a_real_code' });
-    await page.goto('/');
+    await openLogin(page, t);
     await logIn(page, t, 'dana@example.com', 'secret-pass');
     await expect(page.getByText(t('auth:login.failed'), { exact: true })).toBeVisible();
   });
@@ -157,7 +152,7 @@ test.describe('Login', () => {
       window.__opened = [];
       window.open = url => { window.__opened.push(String(url)); return null; };
     });
-    await page.goto('/');
+    await openLogin(page, t);
     const terms = linkText(t, 'terms');
     const privacy = linkText(t, 'privacy');
     await expect(page.getByText(terms, { exact: true })).toBeVisible();
@@ -171,126 +166,70 @@ test.describe('Login', () => {
   });
 });
 
-test.describe('Create an account / Sign up', () => {
-  test('"Create an account" opens the pre-quiz Sign up page', async ({ page, t }) => {
-    await openSignUp(page, t);
-    await expect(page.getByText(t('auth:signup.sub'), { exact: true })).toBeVisible();
-    await expect(page.getByText(t('auth:signup.cta'), { exact: true })).toBeVisible();
-  });
+test.describe('Sign up (only after the quiz)', () => {
+  // The quiz walk takes ~35 s (real timers), so it is walked ONCE and every sign-up check runs
+  // in order on the same screen. (The full anonymous flow, incl. Back and the saved analysis,
+  // is in quiz-onboarding.spec.js.)
+  test.setTimeout(180_000);
 
-  test('empty submit shows email and password required, no API call', async ({ page, mock, t }) => {
-    await openSignUp(page, t);
-    await page.getByText(t('auth:signup.cta'), { exact: true }).click();
-    await expect(page.getByText(t('auth:signup.emailRequired'), { exact: true })).toBeVisible();
-    await expect(page.getByText(t('auth:signup.passwordRequired'), { exact: true })).toBeVisible();
+  test('quiz -> Profile -> SignUp: validation, consent notice, taken email, then a valid sign up', async ({ page, mock, t }) => {
+    await page.goto('/');
+    await walkQuizToLoading(page, t);
+    await expectProfileAfterQuiz(page, t);
+    await page.getByText(t('profile:cta'), { exact: true }).click();
+
+    const submit = page.getByText(t('auth:signup.ctaAfterQuiz'), { exact: true });
+    const emailBox = field(page, t('auth:signup.emailPlaceholder'));
+    const passwordBox = field(page, t('auth:signup.passwordPlaceholder'));
+    const message = key => page.getByText(t(key), { exact: true });
+
+    // The after-quiz copy is showing, and the first name was pre-filled from the quiz answers.
+    await expect(message('auth:signup.headlineAfterQuiz')).toBeVisible();
+    await expect(field(page, t('auth:signup.firstNamePlaceholder'))).toHaveValue('Dana');
+
+    // 1. Empty submit: email and password are required, no API call.
+    await submit.click();
+    await expect(message('auth:signup.emailRequired')).toBeVisible();
+    await expect(message('auth:signup.passwordRequired')).toBeVisible();
     expect(mock.callsTo('POST', '/api/auth/signup')).toHaveLength(0);
-  });
 
-  test('invalid email and short password show their messages', async ({ page, mock, t }) => {
-    await openSignUp(page, t);
-    await field(page, t('auth:signup.emailPlaceholder')).fill('not-an-email');
-    await field(page, t('auth:signup.passwordPlaceholder')).fill('short');
-    await page.getByText(t('auth:signup.cta'), { exact: true }).click();
-    await expect(page.getByText(t('auth:signup.emailInvalid'), { exact: true })).toBeVisible();
-    await expect(page.getByText(t('auth:signup.passwordTooShort'), { exact: true })).toBeVisible();
+    // 2. Typing in a field clears only that field's message.
+    await emailBox.fill('a');
+    await expect(message('auth:signup.emailRequired')).toHaveCount(0);
+    await expect(message('auth:signup.passwordRequired')).toBeVisible();
+
+    // 3. Invalid email + short password show their messages, still no API call.
+    await emailBox.fill('not-an-email');
+    await passwordBox.fill('short');
+    await submit.click();
+    await expect(message('auth:signup.emailInvalid')).toBeVisible();
+    await expect(message('auth:signup.passwordTooShort')).toBeVisible();
     expect(mock.callsTo('POST', '/api/auth/signup')).toHaveLength(0);
-  });
 
-  test('typing in a field clears only that field message', async ({ page, t }) => {
-    await openSignUp(page, t);
-    await page.getByText(t('auth:signup.cta'), { exact: true }).click();
-    await expect(page.getByText(t('auth:signup.emailRequired'), { exact: true })).toBeVisible();
-    await field(page, t('auth:signup.emailPlaceholder')).fill('a');
-    await expect(page.getByText(t('auth:signup.emailRequired'), { exact: true })).toHaveCount(0);
-    await expect(page.getByText(t('auth:signup.passwordRequired'), { exact: true })).toBeVisible();
-  });
+    // 4. The consent notice (Terms + Privacy links) is shown above the button.
+    await expect(page.getByText(linkText(t, 'terms'), { exact: true })).toBeVisible();
+    await expect(page.getByText(linkText(t, 'privacy'), { exact: true })).toBeVisible();
 
-  test('valid sign up sends the body with a consent stamp and starts the quiz', async ({ page, mock, t }) => {
-    await openSignUp(page, t);
-    await field(page, t('auth:signup.firstNamePlaceholder')).fill('Dana');
-    await field(page, t('auth:signup.emailPlaceholder')).fill('dana@example.com');
-    await field(page, t('auth:signup.passwordPlaceholder')).fill('longenough1');
-    await page.getByText(t('auth:signup.cta'), { exact: true }).click();
+    // 5. A taken email shows the translated server error (the form stays on screen).
+    mock.override('POST', '/api/auth/signup', 409, { error: 'Email already registered', code: 'email_taken' });
+    await emailBox.fill('Dana@Example.com');
+    await passwordBox.fill('longenough1');
+    await submit.click();
+    await expect(message('errors:email_taken')).toBeVisible();
+    expect(mock.callsTo('POST', '/api/auth/signup')).toHaveLength(1);
 
-    // Before the quiz nothing is saved yet: the new account starts at the quiz intro.
-    await expect(quizIntro(page, t)).toBeVisible();
+    // 6. Back to the normal mock answer, submit again: the account is created, SkinTiming opens.
+    mock.clearOverride('POST', '/api/auth/signup');
+    await submit.click();
+    await expect(page.getByText(t('onboarding:timing.headline'), { exact: true })).toBeVisible();
     const body = mock.lastCall('POST', '/api/auth/signup').body;
-    expect(body).toMatchObject({ firstName: 'Dana', email: 'dana@example.com', password: 'longenough1', consentVersion: 'v1' });
-    // Consent is stamped at tap time from the test clock (fixed at 2026-09-29 09:00 UTC, then running).
-    expect(body.consentAcceptedAt).toMatch(/^2026-09-29T09:/);
-    // The quiz intro was opened with navigation.reset(): no Back button to the auth screens.
-    await expect(backButton(page, t)).toHaveCount(0);
-  });
-
-  test('sign up leaves out an empty first name and keeps the email as typed', async ({ page, mock, t }) => {
-    await openSignUp(page, t);
-    await field(page, t('auth:signup.emailPlaceholder')).fill('Dana@Example.com');
-    await field(page, t('auth:signup.passwordPlaceholder')).fill('longenough1');
-    await page.getByText(t('auth:signup.cta'), { exact: true }).click();
-    await expect(quizIntro(page, t)).toBeVisible();
-    const body = mock.lastCall('POST', '/api/auth/signup').body;
-    expect(body).not.toHaveProperty('firstName');
+    // The first name comes from the quiz ('Dana'), the password is sent as typed.
+    expect(body).toMatchObject({ firstName: 'Dana', password: 'longenough1', consentVersion: 'v1' });
     // CURRENT BEHAVIOUR: unlike Login, the client sends the email exactly as typed. This is not a
     // bug: the server normalises it (server/routes/auth.js trims + lower-cases, and the User
     // model's email field is lowercase + trim).
     expect(body.email).toBe('Dana@Example.com');
-  });
-
-  test('a taken email shows the translated server error', async ({ page, mock, t }) => {
-    mock.override('POST', '/api/auth/signup', 409, { error: 'Email already registered', code: 'email_taken' });
-    await openSignUp(page, t);
-    await field(page, t('auth:signup.emailPlaceholder')).fill('dana@example.com');
-    await field(page, t('auth:signup.passwordPlaceholder')).fill('longenough1');
-    await page.getByText(t('auth:signup.cta'), { exact: true }).click();
-    await expect(page.getByText(t('errors:email_taken'), { exact: true })).toBeVisible();
-  });
-
-  test('shows the consent notice above the button', async ({ page, t }) => {
-    await openSignUp(page, t);
-    await expect(page.getByText(linkText(t, 'terms'), { exact: true })).toBeVisible();
-    await expect(page.getByText(linkText(t, 'privacy'), { exact: true })).toBeVisible();
-  });
-});
-
-test.describe('Skip for now', () => {
-  test('opens the generic quiz intro', async ({ page, t }) => {
-    await page.goto('/');
-    await page.getByText(t('auth:login.skip'), { exact: true }).click();
-    await expect(quizIntro(page, t)).toBeVisible();
-    // (Its Back-to-Login behaviour is covered in quiz-onboarding.spec.js.)
-  });
-
-  test('opens the clinic Welcome screen when the URL has a known ?ref=', async ({ page, t }) => {
-    await page.goto('/?ref=lu_clinic');
-    await page.getByText(t('auth:login.skip'), { exact: true }).click();
-    await expect(clinicWelcome(page, t)).toBeVisible();
-    // Welcome has no Back control, even though it sits on top of Login.
-    await expect(backButton(page, t)).toHaveCount(0);
-  });
-
-  test('makes no API calls (anonymous flow)', async ({ page, mock, t }) => {
-    await page.goto('/');
-    await page.getByText(t('auth:login.skip'), { exact: true }).click();
-    await expect(quizIntro(page, t)).toBeVisible();
-    expect(mock.calls).toHaveLength(0);
-  });
-});
-
-test.describe('Log out', () => {
-  test.use({ signedIn: true });
-
-  test('side menu "Log out" returns to Login and a reload stays signed out', async ({ page, mock, t }) => {
-    await page.goto('/');
-    await expect(page.getByText(t('home:greeting.morning'))).toBeVisible();
-    await openMenu(page, t);
-    await tapMenuItem(page, t, 'menu:logout');
-
-    await expect(loginScreen(page, t)).toBeVisible();
-
-    // The token is gone: after a reload the app does not sign back in (no new /me call).
-    const meCallsBefore = mock.callsTo('GET', '/api/auth/me').length;
-    await page.reload();
-    await expect(loginScreen(page, t)).toBeVisible();
-    expect(mock.callsTo('GET', '/api/auth/me')).toHaveLength(meCallsBefore);
+    // Consent is stamped at tap time from the test clock (fixed at 2026-09-29 09:00 UTC, then running).
+    expect(body.consentAcceptedAt).toMatch(/^2026-09-29T09:/);
   });
 });

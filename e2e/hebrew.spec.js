@@ -7,7 +7,7 @@
 import { test, expect } from './support/test.js';
 import { USER } from './support/fixtures-data.js';
 import { makeT } from './support/i18n.js';
-import { openMenu, panelOf, backButton, openMessages, openSettings, openSignUp } from './support/nav.js';
+import { openMenu, panelOf, backButton, openMessages, openSettings, openLogin } from './support/nav.js';
 
 test.use({ lang: 'he' });
 
@@ -22,21 +22,28 @@ const PDI = String.fromCharCode(0x2069); // pop directional isolate: closes it
 const MIDDLE_DOT = ' ' + String.fromCharCode(0x00b7) + ' '; // separator between who and time
 
 test.describe('signed out, Hebrew', () => {
-  test('html is rtl/he and the Login screen is in Hebrew', async ({ page, t }) => {
+  test('html is rtl/he, the landing and the Login screen are in Hebrew', async ({ page, t }) => {
     await page.goto('/');
-    await expect(page.getByText(t('auth:login.tagline'))).toBeVisible();
-    await expect(page.getByText(t('auth:login.cta'), { exact: true })).toBeVisible();
-    await expect(page.getByText(t('auth:login.createAccount'))).toBeVisible();
-    await expect(page.getByText(t('auth:login.skip'))).toBeVisible();
-    await expect(page.getByPlaceholder(t('auth:login.emailPlaceholder'))).toBeVisible();
-    await expect(page.getByPlaceholder(t('auth:login.passwordPlaceholder'))).toBeVisible();
+    // Signed-out boot lands on QuizIntro (Hebrew), with the Hebrew log-in control.
+    await expect(page.getByText(t('quiz:welcome.header'), { exact: true })).toBeVisible();
+    await expect(page.getByText(t('auth:login.haveAccount').replace(/<\/?accent>/g, ''), { exact: true })).toBeVisible();
     // <html> follows the language (set by src/lib/i18n.js on languageChanged).
     await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
     await expect(page.locator('html')).toHaveAttribute('lang', 'he');
+
+    // The log-in control opens Login, also in Hebrew (openLogin boots again and taps it).
+    await openLogin(page, t);
+    await expect(page.getByText(t('auth:login.cta'), { exact: true })).toBeVisible();
+    await expect(page.getByPlaceholder(t('auth:login.emailPlaceholder'))).toBeVisible();
+    await expect(page.getByPlaceholder(t('auth:login.passwordPlaceholder'))).toBeVisible();
+    // The consent notice is Hebrew too: its Terms link text comes from the Hebrew locale string.
+    const terms = t('auth:consent.agree').match(/<terms>(.*?)<\/terms>/)[1];
+    await expect(page.getByText(terms, { exact: true })).toBeVisible();
+    await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
   });
 
-  test('the Sign up screen shows the Hebrew Back label', async ({ page, t }) => {
-    await openSignUp(page, t);
+  test('the Login screen shows the Hebrew Back label', async ({ page, t }) => {
+    await openLogin(page, t);
     await expect(backButton(page, t)).toBeVisible();
   });
 });

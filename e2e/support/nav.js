@@ -55,9 +55,12 @@ export async function openSettings(page, t) {
   await expect(page.getByText(t('settings:title'), { exact: true })).toBeVisible();
 }
 
-// Signed out: boots on Login and opens the pre-quiz Sign up page.
-export async function openSignUp(page, t) {
+// Signed out: boots on the landing (QuizIntro, or the clinic Welcome when the URL has a ?ref=),
+// taps its "Already have an account? Log in" control and waits for the Login screen.
+// The locale string wraps the accent word in <accent> tags; those are markup, not visible text.
+export async function openLogin(page, t) {
   await page.goto('/');
-  await page.getByText(t('auth:login.createAccount'), { exact: true }).click();
-  await expect(page.getByText(t('auth:signup.headline'), { exact: true })).toBeVisible();
+  const sentence = t('auth:login.haveAccount').replace(/<\/?accent>/g, '');
+  await page.getByText(sentence, { exact: true }).click();
+  await expect(page.getByText(t('auth:login.tagline'), { exact: true })).toBeVisible();
 }

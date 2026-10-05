@@ -1,6 +1,7 @@
-// Baseline for the quiz + onboarding chain (T-B2): Login "Skip for now" -> QuizIntro -> Quiz
+// Baseline for the quiz + onboarding chain (T-B2): the landing (QuizIntro) -> Quiz
 // (every question type) -> Loading -> Profile -> SignUp / SkinTiming -> SkinSelfie ->
-// ShelfPhotos -> Notifications -> Home.
+// ShelfPhotos -> Notifications -> Home. A signed-out visitor boots straight on the landing;
+// SignUp is only reachable after the quiz.
 //
 // These tests lock in what the app does TODAY. The analysis service (Railway) answers 503 by
 // default, so after the quiz the app shows its built-in fallback plan with the fallback banner.
@@ -26,44 +27,29 @@ function makeFirstTimeUser(mock) {
   mock.set({ analysis: null, user: FIRST_TIME_USER });
 }
 
-// Signed-out entry: Login -> "Skip for now" (accepts the terms) -> QuizIntro.
-async function skipLoginToQuizIntro(page, t) {
+// Signed-out entry: the app boots straight on QuizIntro (the landing, no ?ref=).
+async function openQuizIntro(page, t) {
   await page.goto('/');
-  await text(page, t('auth:login.skip')).click();
   await expect(text(page, t('quiz:welcome.cta'))).toBeVisible();
 }
 
 
 // ---- tests -----------------------------------------------------------------------------------
 
-test.describe('signed out (anonymous "Skip for now" path)', () => {
-  test('QuizIntro Back pops one screen to Login; the Quiz screen has no Back control', async ({ page, t }) => {
-    await skipLoginToQuizIntro(page, t);
+test.describe('signed out (anonymous quiz-first path)', () => {
+  test('QuizIntro is the root screen (no Back control); the Quiz screen has no Back control either', async ({ page, t }) => {
+    await openQuizIntro(page, t);
+    // Nothing sits beneath the landing, so there is nothing to go back to.
+    await expect(backButton(page, t)).toHaveCount(0);
 
-    // QuizIntro was opened on top of Login, so it shows Back; one press returns to Login.
-    await backButton(page, t).click();
-    await expect(text(page, t('auth:login.cta'))).toBeVisible();
-    await expect(text(page, t('quiz:welcome.cta'))).toHaveCount(0);
-
-    // Go in again and start the quiz: the first question has no Back control.
-    await text(page, t('auth:login.skip')).click();
+    // Start the quiz: the first question has no Back control.
     await text(page, t('quiz:welcome.cta')).click();
     await expect(text(page, t('quiz:name.question'))).toBeVisible();
     await expect(backButton(page, t)).toHaveCount(0);
   });
 
-  test('SignUp opened from Login: Back pops one screen to Login', async ({ page, t }) => {
-    await page.goto('/');
-    await text(page, t('auth:login.createAccount')).click();
-    await expect(text(page, t('auth:signup.headline'))).toBeVisible();
-
-    await backButton(page, t).click();
-    await expect(text(page, t('auth:login.cta'))).toBeVisible();
-    await expect(text(page, t('auth:signup.headline'))).toHaveCount(0);
-  });
-
   test('full quiz -> Loading -> Profile with fallback banner -> SignUp (Back returns to Profile) -> account created -> onboarding', async ({ page, mock, t }) => {
-    await skipLoginToQuizIntro(page, t);
+    await openQuizIntro(page, t);
     await walkQuizToLoading(page, t);
 
     // Loading has no Back control.
@@ -79,7 +65,7 @@ test.describe('signed out (anonymous "Skip for now" path)', () => {
     await text(page, t('profile:cta')).click();
     await expect(text(page, t('auth:signup.ctaAfterQuiz'))).toBeVisible();
 
-    // SignUp Back pops exactly one screen: Profile (not Loading, not Login).
+    // SignUp Back pops exactly one screen: Profile (not Loading).
     await backButton(page, t).click();
     await expectProfileAfterQuiz(page, t);
     await expect(text(page, t('auth:signup.ctaAfterQuiz'))).toHaveCount(0);
