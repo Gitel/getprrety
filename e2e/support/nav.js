@@ -55,7 +55,7 @@ export async function openSettings(page, t) {
   await expect(page.getByText(t('settings:title'), { exact: true })).toBeVisible();
 }
 
-// Signed out: boots on the landing (QuizIntro, or the clinic Welcome when the URL has a ?ref=),
+// Signed out: boots on the landing (QuizIntro, since the URL has no ?ref=),
 // taps its "Already have an account? Log in" control and waits for the Login screen.
 // The locale string wraps the accent word in <accent> tags; those are markup, not visible text.
 export async function openLogin(page, t) {

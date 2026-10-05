@@ -184,6 +184,16 @@ test.describe('log-in control opens Login', () => {
     await expect(quizIntro(page, t)).toBeVisible();
     await expect(loginScreen(page, t)).toHaveCount(0);
   });
+
+  // Same swipe, but Login was opened from the clinic Welcome (?ref=), so it goes back there.
+  test('the left-edge swipe on Login returns to the clinic Welcome (?ref=)', async ({ page, t }) => {
+    await page.goto('/?ref=lu_clinic');
+    await loginLink(page, t).click();
+    await expect(loginScreen(page, t)).toBeVisible();
+    await edgeSwipe(page, { lang: 'en', dx: LONG });
+    await expect(clinicWelcome(page, t)).toBeVisible();
+    await expect(loginScreen(page, t)).toHaveCount(0);
+  });
 });
 
 // ---- successful log-in resets the stack -----------------------------------------------------

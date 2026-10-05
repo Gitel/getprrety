@@ -222,6 +222,8 @@ test.describe('Sign up (only after the quiz)', () => {
     await submit.click();
     await expect(message('errors:email_taken')).toBeVisible();
     expect(mock.callsTo('POST', '/api/auth/signup')).toHaveLength(1);
+    // The pre-filled first name is sent; the final submit later checks an emptied one is left out.
+    expect(mock.lastCall('POST', '/api/auth/signup').body).toMatchObject({ firstName: 'Dana' });
 
     // 6. Back to the normal mock answer, submit again: the account is created, SkinTiming opens.
     mock.clearOverride('POST', '/api/auth/signup');

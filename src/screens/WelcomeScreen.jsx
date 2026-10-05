@@ -8,7 +8,7 @@ import { WELCOME_VARIANTS, getWelcomeRef } from '../lib/welcomeVariants';
 import ConsentNotice from '../components/ConsentNotice';
 import { LEGAL_READY, consentParams } from '../lib/consent';
 
-// Clinic / website entry screen. Shown before QuizIntro only when the app was opened
+// Clinic / website entry screen. Shown instead of QuizIntro only when the app was opened
 // with a recognized ?ref= param (see App.js). Carries the resolved ref forward as
 // `referralSource` so it rides into the quiz answers and lands on the customer record.
 // Quiz-first: ?ref= visitors skip QuizIntro, so for signed-out users the Terms/Privacy
