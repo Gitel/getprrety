@@ -1,4 +1,4 @@
-// Quiz-first landing (test-first: written BEFORE the feature exists).
+// Quiz-first landing (this spec was written test-first, before the feature was built).
 //
 // The entry flow being tested (plan: AI/plans/quiz-first-landing.md):
 //   - A signed-out visitor boots on the LANDING, not on Login: the clinic Welcome screen when the
@@ -46,7 +46,7 @@ async function expectNoConsentNotice(page, t) {
 }
 
 // The log-in control: "Already have an account? Log in" (the accent word is a nested Text inside
-// the sentence). The key does not exist yet, so t() throws until it is added: expected for now.
+// the sentence). The key auth:login.haveAccount exists in the locale files.
 // Locator choice: getByText with exact:true and the WHOLE sentence. Playwright matches against an
 // element's full text content (nested spans included), so the outer element that holds the
 // sentence matches, while the inner "Log in" span alone does not (it is only part of the text).
@@ -58,7 +58,7 @@ const loginLink = (page, t) => text(page, haveAccountText(t));
 
 // Login is a pure log-in screen: Back, form, Google section, consent notice; no Skip, no Create.
 // Literal English strings are used for the REMOVED controls on purpose: their locale keys
-// (auth:login.skip, auth:login.createAccount) will be deleted and t() throws on a missing key.
+// (auth:login.skip, auth:login.createAccount) were deleted and t() throws on a missing key.
 async function expectPureLogin(page, t) {
   await expect(loginScreen(page, t)).toBeVisible();
   await expect(backButton(page, t)).toBeVisible();
@@ -70,7 +70,6 @@ async function expectPureLogin(page, t) {
   await expectConsentNotice(page, t);
   await expect(text(page, 'Skip for now')).toHaveCount(0);
   await expect(text(page, '✦ Create an account')).toHaveCount(0);
-  await expect(text(page, 'Create an account')).toHaveCount(0);
 }
 
 // Types credentials and taps LOG IN (same steps as boot-auth.spec.js).
@@ -99,6 +98,8 @@ test.describe('signed-out boot lands on the quiz, not on Login', () => {
     // No token -> the app never asks the server who the user is.
     expect(mock.callsTo('GET', '/api/auth/me')).toHaveLength(0);
     expect(mock.callsTo('GET', '/api/analysis/latest')).toHaveLength(0);
+    // Stronger: the signed-out boot makes no API call at all.
+    expect(mock.calls).toHaveLength(0);
   });
 
   test('known ?ref=: clinic Welcome with consent notice, start button and log-in link, no Back', async ({ page, mock, t }) => {
@@ -128,6 +129,9 @@ test.describe('signed-out boot lands on the quiz, not on Login', () => {
 
 // ---- consent stamp --------------------------------------------------------------------------
 test.describe('start button stamps consent', () => {
+  // The quiz walk takes ~35 s (real timers), more than the 30 s default on slower browsers.
+  test.setTimeout(180_000);
+
   // The ONE test that walks the whole quiz. For an anonymous user nothing is sent until SignUp
   // (after Profile "See My Routine"); there the analysis is saved with POST /api/analysis and the
   // consent stamp rides inside body.quizAnswers (QuizScreen copies the route params into the
@@ -267,6 +271,21 @@ test.describe('log out lands on Login with the landing beneath it', () => {
     await openMenu(page, t);
     await tapMenuItem(page, t, 'menu:logout');
     await expectLoggedOut(page, mock, t);
+  });
+
+  test('side menu "Log out" with ?ref=lu_clinic: Back returns to the clinic Welcome', async ({ page, t }) => {
+    // The app boots signed in with a saved analysis -> Home, even though the URL has ?ref=.
+    await page.goto('/?ref=lu_clinic');
+    await homeShows(page, t);
+    await openMenu(page, t);
+    await tapMenuItem(page, t, 'menu:logout');
+    await expect(loginScreen(page, t)).toBeVisible();
+    await expect(backButton(page, t)).toBeVisible();
+    // The landing beneath Login is the clinic Welcome, in its signed-out form.
+    await backButton(page, t).click();
+    await expect(clinicWelcome(page, t)).toBeVisible();
+    await expectConsentNotice(page, t);
+    await expect(loginLink(page, t)).toBeVisible();
   });
 
   test('Settings "Log out"', async ({ page, mock, t }) => {

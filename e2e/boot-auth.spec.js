@@ -65,6 +65,10 @@ test.describe('Splash routing, signed in', () => {
     await page.goto('/');
     await expect(quizIntro(page, t)).toBeVisible();
     await expect(loginScreen(page, t)).toHaveCount(0);
+    // It is the SIGNED-OUT variant: the consent notice links and the log-in sentence are shown.
+    await expect(page.getByText(linkText(t, 'terms'), { exact: true })).toBeVisible();
+    await expect(page.getByText(linkText(t, 'privacy'), { exact: true })).toBeVisible();
+    await expect(page.getByText(haveAccountText(t), { exact: true })).toBeVisible();
     // The token was removed, so a reload also stays on the landing.
     await page.reload();
     await expect(quizIntro(page, t)).toBeVisible();
@@ -183,8 +187,9 @@ test.describe('Sign up (only after the quiz)', () => {
     const passwordBox = field(page, t('auth:signup.passwordPlaceholder'));
     const message = key => page.getByText(t(key), { exact: true });
 
-    // The after-quiz copy is showing, and the first name was pre-filled from the quiz answers.
-    await expect(message('auth:signup.headlineAfterQuiz')).toBeVisible();
+    // The after-quiz copy is showing (its headline needs the era name and is split over nested
+    // text, so the plain sub-line proves it), and the first name was pre-filled from the quiz answers.
+    await expect(message('auth:signup.subAfterQuiz')).toBeVisible();
     await expect(field(page, t('auth:signup.firstNamePlaceholder'))).toHaveValue('Dana');
 
     // 1. Empty submit: email and password are required, no API call.
@@ -220,11 +225,14 @@ test.describe('Sign up (only after the quiz)', () => {
 
     // 6. Back to the normal mock answer, submit again: the account is created, SkinTiming opens.
     mock.clearOverride('POST', '/api/auth/signup');
+    // Clear the pre-filled first name: an empty one must be left out of the body (firstName.trim() || undefined).
+    await field(page, t('auth:signup.firstNamePlaceholder')).fill('');
     await submit.click();
     await expect(page.getByText(t('onboarding:timing.headline'), { exact: true })).toBeVisible();
     const body = mock.lastCall('POST', '/api/auth/signup').body;
-    // The first name comes from the quiz ('Dana'), the password is sent as typed.
-    expect(body).toMatchObject({ firstName: 'Dana', password: 'longenough1', consentVersion: 'v1' });
+    // The first name was cleared, so it is not sent; the password is sent as typed.
+    expect(body).not.toHaveProperty('firstName');
+    expect(body).toMatchObject({ password: 'longenough1', consentVersion: 'v1' });
     // CURRENT BEHAVIOUR: unlike Login, the client sends the email exactly as typed. This is not a
     // bug: the server normalises it (server/routes/auth.js trims + lower-cases, and the User
     // model's email field is lowercase + trim).

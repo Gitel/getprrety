@@ -9,10 +9,11 @@ test('reduced motion is on by default', async ({ page }) => {
 });
 
 test.describe('signed out', () => {
-  test('boots to the Login screen', async ({ page, t }) => {
+  test('boots to the quiz landing', async ({ page, t }) => {
     await page.goto('/');
-    await expect(page.getByText(t('auth:login.tagline'))).toBeVisible();
-    await expect(page.getByText(t('auth:login.cta'), { exact: true })).toBeVisible();
+    // A signed-out visitor lands on the quiz intro (not Login), with the log-in sentence below it.
+    await expect(page.getByText(t('quiz:welcome.header'), { exact: true })).toBeVisible();
+    await expect(page.getByText(t('auth:login.haveAccount').replace(/<\/?accent>/g, ''), { exact: true })).toBeVisible();
   });
 });
 

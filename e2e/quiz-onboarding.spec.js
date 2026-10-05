@@ -138,6 +138,9 @@ test.describe('signed in, first-time user (no analysis, no skincareTiming)', () 
       skin_goals: ['acne', 'redness'], stress: 7, event: 'wedding',
     });
     expect(saved.source).toBe('fallback');
+    // Decision 2: a signed-in user gets no consent stamp on the landing (the fields are sent as null).
+    expect(saved.quizAnswers.consentVersion).toBeNull();
+    expect(saved.quizAnswers.consentAcceptedAt).toBeNull();
     expect(saved.era).toBeTruthy();
     // No sign-up call: the user was already signed in.
     expect(mock.callsTo('POST', '/api/auth/signup')).toHaveLength(0);
