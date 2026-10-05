@@ -199,7 +199,7 @@ const s = StyleSheet.create({
   content:        { flexGrow: 1, paddingHorizontal: 28, paddingTop: 44, paddingBottom: 40 },
 
   backBtn:        { marginBottom: 20 },
-  backText:       { fontFamily: 'DMSans_400Regular', fontSize: 14, color: C.accent },
+  backText:       { fontFamily: 'DMSans_400Regular', fontSize: 14, color: '#C9897A' },
 
   headBlock:      { alignItems: 'center', marginBottom: 36 },
   leaf:           { fontSize: 52, marginBottom: 16 },
