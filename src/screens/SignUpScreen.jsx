@@ -17,23 +17,19 @@ import { useApp } from '../context/AppContext';
 import GoogleSignInButton from '../components/GoogleSignInButton';
 import ConsentNotice from '../components/ConsentNotice';
 import { LEGAL_READY, consentParams } from '../lib/consent';
-import { quizEntryScreen } from '../lib/welcomeVariants';
 
 function isValidEmail(v) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 }
 
-// Reached two ways (login-first):
-//  - from LoginScreen's "Create an account", BEFORE the quiz: no analysis in context yet;
-//  - from ProfileScreen's "See My Routine" after "Skip for now", AFTER the quiz: the
-//    just-finished analysis is in context and is saved here once the account exists.
-// `analysis` tells the two apart and drives the copy and the next screen.
+// Reached ONLY from ProfileScreen's "See My Routine", after the user took the quiz signed
+// out. The just-finished analysis is therefore always in context and is saved here once
+// the account exists.
 export default function SignUpScreen({ navigation }) {
   const { analysis, setAnalysis, answers, setUser, setAnalysisSaveFailed } = useApp();
   // All visible text comes from src/locales/<lang>/auth.json.
   const { t, i18n } = useTranslation();
   const era = analysis?.era;
-  const afterQuiz = Boolean(analysis);
 
   const [firstName, setFirstName] = useState(answers?.name || '');
   const [email,    setEmail]    = useState('');
@@ -55,13 +51,7 @@ export default function SignUpScreen({ navigation }) {
   // Shared by email and Google sign-up once the account exists.
   function continueAfterSignup() {
     logActivity('signup');
-    if (!afterQuiz) {
-      // Login-first: nothing to save yet. Start the quiz as the new root screen so Back
-      // cannot return to the auth screens. LoadingScreen saves the result (user is set).
-      navigation.reset({ index: 0, routes: [{ name: quizEntryScreen() }] });
-      return;
-    }
-    // Skip path: save the anonymous analysis to the new account, then onboarding.
+    // Save the analysis from the anonymous quiz to the new account, then onboarding.
     // srProducts / shelfAnalysis are on `analysis` itself, so they are saved with it.
     persistAnalysis({ analysis, answers }).then(
       saved => {
@@ -144,25 +134,18 @@ export default function SignUpScreen({ navigation }) {
             </Pressable>
           )}
 
-          {/* Headline: the era copy after the quiz (skip path), generic copy before it */}
-          {afterQuiz ? (
-            <View style={s.headlineBlock}>
-              <Text style={s.headline}>
-                {/* <Trans> lets the translation place the coloured era name anywhere in the sentence */}
-                <Trans
-                  i18nKey="auth:signup.headlineAfterQuiz"
-                  values={{ eraName }}
-                  components={{ accent: <Text style={{ color: C.accent }} /> }}
-                />
-              </Text>
-              <Text style={s.sub}>{t('auth:signup.subAfterQuiz')}</Text>
-            </View>
-          ) : (
-            <View style={s.headlineBlock}>
-              <Text style={s.headline}>{t('auth:signup.headline')}</Text>
-              <Text style={s.sub}>{t('auth:signup.sub')}</Text>
-            </View>
-          )}
+          {/* Headline: the era copy from the just-finished quiz */}
+          <View style={s.headlineBlock}>
+            <Text style={s.headline}>
+              {/* <Trans> lets the translation place the coloured era name anywhere in the sentence */}
+              <Trans
+                i18nKey="auth:signup.headlineAfterQuiz"
+                values={{ eraName }}
+                components={{ accent: <Text style={{ color: C.accent }} /> }}
+              />
+            </Text>
+            <Text style={s.sub}>{t('auth:signup.subAfterQuiz')}</Text>
+          </View>
 
           <GoogleSignInButton onToken={handleGoogleToken} onError={msg => setErrors({ submit: msg })} loading={googleLoading} />
 
@@ -234,7 +217,7 @@ export default function SignUpScreen({ navigation }) {
           >
             {loading
               ? <ActivityIndicator color={C.bg} size="small" />
-              : <Text style={s.ctaText}>{afterQuiz ? t('auth:signup.ctaAfterQuiz') : t('auth:signup.cta')}</Text>
+              : <Text style={s.ctaText}>{t('auth:signup.ctaAfterQuiz')}</Text>
             }
           </Pressable>
 

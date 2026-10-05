@@ -404,7 +404,7 @@ export default function ProfileScreen({ navigation, route }) {
         <Pressable
           style={[s.cta, { backgroundColor: era.color }]}
           // The routine (Home) always needs an account:
-          //  - no user (took "Skip for now")          -> SignUp, which saves this analysis;
+          //  - no user (took the quiz signed out)     -> SignUp, which saves this analysis;
           //  - signed in, SkinTiming never answered    -> first-time onboarding chain;
           //  - signed in and onboarded (e.g. a retake) -> straight to Home.
           //  - opened from Home ("My skin profile" button or "View my full analysis" card)
