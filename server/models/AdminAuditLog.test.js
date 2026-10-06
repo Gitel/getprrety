@@ -16,6 +16,11 @@ const ACTIONS_THE_ROUTES_LOG = [
   'shelf_updated',
   'message_sent',
   'user_deleted',
+  'catalogue_product_created',
+  'catalogue_product_updated',
+  'catalogue_photo_replaced',
+  'catalogue_product_archived',
+  'catalogue_product_restored',
 ];
 
 test('the action enum accepts every action the routes log', () => {
@@ -34,4 +39,11 @@ test('a valid entry defaults its optional targets to null / []', () => {
   expect(doc.adminEmail).toBe('a@b.co');
   expect(doc.userId).toBeNull();
   expect(doc.fields).toEqual([]);
+});
+
+test('catalogueProductId defaults to null and accepts an ObjectId', () => {
+  const doc = new AdminAuditLog({ adminEmail: 'a@b.co', action: 'catalogue_product_created' });
+  expect(doc.catalogueProductId).toBeNull();
+  const withId = new AdminAuditLog({ adminEmail: 'a@b.co', action: 'catalogue_product_created', catalogueProductId: '64b0000000000000000000aa' });
+  expect(withId.validateSync()).toBeUndefined();
 });
