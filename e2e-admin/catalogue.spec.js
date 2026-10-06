@@ -167,6 +167,11 @@ test.describe('catalogue', () => {
     // Same name, different case -> 400 re-render with typed values kept.
     await page.goto('/admin/catalogue/new');
     await page.getByLabel('Name', { exact: true }).fill('E2E CREATED PRODUCT');
+    // The three dropdowns are `required`: without them the browser itself blocks the submit
+    // and the server's duplicate-name check is never reached.
+    await page.getByLabel('Category', { exact: true }).selectOption('face_serums');
+    await page.getByLabel('Use', { exact: true }).selectOption('home');
+    await page.getByLabel('Pregnancy', { exact: true }).selectOption('not_stated');
     await page.getByLabel('Strengths', { exact: true }).fill('typed value');
     const [dupResponse] = await Promise.all([
       page.waitForResponse(r => r.request().method() === 'POST' && /\/admin\/catalogue$/.test(new URL(r.url()).pathname)),
@@ -176,6 +181,7 @@ test.describe('catalogue', () => {
     await expect(notice(page)).toHaveText('A product with this name already exists.');
     await expect(page.getByLabel('Name', { exact: true })).toHaveValue('E2E CREATED PRODUCT');
     await expect(page.getByLabel('Strengths', { exact: true })).toHaveValue('typed value');
+    await expect(page.getByLabel('Category', { exact: true })).toHaveValue('face_serums');
 
     // Empty name -> invalid notice. The input is "required", so turn off the browser's own
     // validation to let the SERVER validation run.

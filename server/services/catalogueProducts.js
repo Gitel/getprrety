@@ -223,7 +223,12 @@ async function getProductPhoto(id, { productModel = CatalogueProduct } = {}) {
   if (!mongoose.isValidObjectId(id)) return null;
   const doc = await productModel.findById(id).select('photo').lean();
   if (!doc || !doc.photo || !doc.photo.data) return null;
-  return { data: doc.photo.data, mimeType: doc.photo.mimeType };
+  // With .lean(), Mongo returns stored bytes as a BSON `Binary` object, not a Node Buffer.
+  // res.send(Binary) would send it as JSON instead of image bytes (the admin thumbnails
+  // stayed blank), so unwrap it to a Buffer here. `.buffer` holds the raw bytes.
+  const raw = doc.photo.data;
+  const data = Buffer.isBuffer(raw) ? raw : Buffer.from(raw.buffer);
+  return { data, mimeType: doc.photo.mimeType };
 }
 
 module.exports = {

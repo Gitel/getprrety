@@ -70,7 +70,11 @@ async function main() {
     RAILWAY_API_URL: '',
     GOOGLE_CLIENT_IDS: '',
     ADMIN_GOOGLE_CLIENT_ID: '',
-    CORS_ORIGINS: '',
+    // The browser sends `Origin: http://127.0.0.1:<port>` on every form POST, and the
+    // server's CORS check (server/index.js) rejects any origin that is not listed. In
+    // production the admin's own site is in CORS_ORIGINS; here the test server's own
+    // address plays that role (and nothing else is allowed).
+    CORS_ORIGINS: `http://127.0.0.1:${PORT}`,
   };
 
   // Seed the catalogue with the REAL seed script (fails loudly on a non-zero exit).

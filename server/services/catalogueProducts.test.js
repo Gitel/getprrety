@@ -223,4 +223,13 @@ describe('reads', () => {
     expect(await getProductPhoto(ID, { productModel: fakeModel(null) })).toBeNull();
     expect(await getProductPhoto('bad', { productModel: fakeModel(null) })).toBeNull();
   });
+
+  test('getProductPhoto unwraps the BSON Binary that .lean() really returns into a Buffer', async () => {
+    // A real lean read gives mongodb's Binary, not a Buffer (found by the admin e2e suite:
+    // the thumbnails stayed blank because Binary was sent as JSON).
+    const binary = new (require('mongoose').mongo.Binary)(JPEG);
+    const out = await getProductPhoto(ID, { productModel: fakeModel({ photo: { data: binary, mimeType: 'image/jpeg' } }) });
+    expect(Buffer.isBuffer(out.data)).toBe(true);
+    expect(out.data.equals(JPEG)).toBe(true);
+  });
 });
