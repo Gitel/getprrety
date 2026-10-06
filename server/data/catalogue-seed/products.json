@@ -1,0 +1,863 @@
+{
+  "source": "All products and Ingrediants SR COSMETICS New.pdf (client, received 2026-10-05)",
+  "products": [
+    {
+      "slug": "herbal-cleansing-mousse",
+      "name": "Herbal Cleansing Mousse",
+      "category": "cleansers_peelings",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Healing herbs: Lavender, Chamomile, Turmeric, Geranium"
+      ],
+      "ingredients": "Water, Sodium Coceth Sulfate, Cocamidoethyl Betaine, Glycerin, Propylene Glycol, Matricaria Chamomilla (German Chamomile) Extract, Phenoxyethanol, Caprylyl Glycol, Helianthus Annuus (Sunflower) Seed Oil, Calendula Officinalis (Calendula) Flower, Polyquaternium-10, Fragrance, Disodium EDTA, Geranium Maculatum (Wild Geranium) Oil, Curcuma Longa (Turmeric) Root Extract, Chlorphenesin",
+      "strengths": [
+        "Healing",
+        "detox",
+        "Can be used as a detox moisturizing mask",
+        "Can be used on intimate areas"
+      ],
+      "suitableFor": [
+        "Sensitive skin",
+        "Inflammatory acne",
+        "For all skin types!"
+      ],
+      "photo": "herbal-cleansing-mousse.png"
+    },
+    {
+      "slug": "whitening-peeling-acid",
+      "name": "Whitening Peeling Acid",
+      "category": "cleansers_peelings",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "AHA",
+        "Lactic acid - lightening and peeling for the face, helps the penetration of the ingredients",
+        "Arbutin - suppresses melanin from plants",
+        "glycolic acid",
+        "Salicylic acid (BHA)"
+      ],
+      "ingredients": "Water, SD Alcohol 40-B, Glycolic Acid, Lactic Acid, Propylene Glycol, Triethanolamine, AlphaArbutin, Polysorbate 20, Phenoxyethanol, Caprylyl Glycol, Chlorphensin, Salycilic Acid, Allantoin, Fragrance, Limonene, Citral, Benzyl Salicylate",
+      "strengths": [
+        "Helps break down and inhibit the tyrosinase enzyme \u2013 preventing an increase of pigmentation",
+        "brightens the skin"
+      ],
+      "suitableFor": [
+        "Brighten pigmentation in all parts of the body (also groin and armpits)",
+        "Very suitable for post acne treatment (glycolic acid)",
+        "postacne / chloasma lentigo, PIH"
+      ],
+      "photo": "whitening-peeling-acid.png"
+    },
+    {
+      "slug": "caliente-peeling-mask",
+      "name": "Caliente Peeling Mask",
+      "category": "cleansers_peelings",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Minerals",
+        "Algae",
+        "Vitamins",
+        "Hyaluronic acid"
+      ],
+      "ingredients": "Water, Zeolite, Kaolin, Mica, Cetearyl Alcohol, Hippophae Rhamnoides (Sea Buckthorn) Oil, Phenoxyethanol, Caprylyl Glycol, Chlorphenesin, Alpha-Arbutin, Tripeptide-10 Citrulline, Borago Officianalis (Borage) Seed Oil, Glycyrrhiza Glabra (Licorice) Root Extract, Hydrolized Algae Extract, Hyaluronic Acid, Dunaliella Salina (Algae) Extract, Panthenol, Oenothera Biennis (Evening Primrose) Oil, Tocopheryl Acetate",
+      "strengths": [
+        "warm",
+        "Soften the skin",
+        "clarifies",
+        "Prepares the skin for draining comedones"
+      ],
+      "suitableFor": [
+        "Oily and problematic skin",
+        "Any treatment can be started with it",
+        "Increase softening of the skin during drainage of comedones, add 2 pumps of tomato peeling, massage the skin and a thermal warming will occur for about half a minute",
+        "Professional only!"
+      ],
+      "photo": "caliente-peeling-mask.png"
+    },
+    {
+      "slug": "light-tomato-peel",
+      "name": "Light Tomato Peel",
+      "category": "cleansers_peelings",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "AHA, BHA",
+        "Tomato extract (lycopene)"
+      ],
+      "ingredients": "Water, Glycerin, SD Alcohol 40-B, Glycolic Acid, Salicylic Acid, Phenoxyethanol, Caprylyl Glycol, Chlorphensin, Etohxydiglycol, Solanum Lycopersicum (Tomato) Fruit Extract, Silk Powder, Benzoic Acid, Phytic Acid, Hydroxyethyl Cellulose, Retinyl Palmitate",
+      "strengths": [
+        "Keratolytic (light peeling)",
+        "warm",
+        "Hyperemia (stimulation of blood circulation / the skin will turn reddish) is mild and transient",
+        "Tomatoes = lycopene = strong antioxidant!"
+      ],
+      "suitableFor": [
+        "Skin full of light and hard comedones",
+        "Preparation for active ingredients and draining comedones.",
+        "Softens the skin in combination with Caliente Peeling",
+        "In adult skin types that do not have a problem with comedones, you can apply two pumps of tomato peeling while lightly massaging and leaving it on the skin for up to 5 minutes (depending on the thickness of the skin and the age of the patient)",
+        "Professional only!"
+      ],
+      "photo": "light-tomato-peel.png"
+    },
+    {
+      "slug": "crystal-silk-peeling",
+      "name": "Crystal & Silk Peeling",
+      "category": "cleansers_peelings",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Minerals",
+        "Glycolic Acid in high concentration",
+        "Salicylic Acid"
+      ],
+      "ingredients": "Water, Glycerin, SD Alchol 40-B, Glycolic Acid, Salicylic Acid, Phenoxyethanol, Caprylyl Glycol, Chlorphensin, Etohxydiglycol, Solanum Lycopersicum (Tomato) Fruit Extract, Silk Powder, Benzoic Acid, Phytic Acid, Hydroxyethyl Cellulose, Retinyl Palmitate",
+      "strengths": [
+        "Disinfectant",
+        "Closes cuts (tingling)",
+        "Opens the comedone channels = dissolves",
+        "A peel that leaves the skin \"soft as silk\"",
+        "Pore Visibility Delicacy!"
+      ],
+      "suitableFor": [
+        "For home use: helps acne comedonica",
+        "Strengthens the activity of other peelings",
+        "Clinic: disinfection after drainage, hair removal, stopping light bleeding!"
+      ],
+      "photo": "crystal-silk-peeling.png"
+    },
+    {
+      "slug": "caffeine-renewing-mask",
+      "name": "Caffeine Renewing Mask",
+      "category": "cleansers_peelings",
+      "use": "home",
+      "pregnancy": "avoid",
+      "keyActives": [
+        "AHA BHA",
+        "Antioxidants",
+        "Coffee"
+      ],
+      "ingredients": "Water, Glycerin, Glyceryl Stearate, Peg-1000 Stearate, Niacinamide, Glycolic Acid, Lactic Acid, Isostearyl Isostearate, Propylene Glycol, Alpha-Arbutin, Glycerin, Anthemis NobilisFlower Extract, Propylene Glycol, Cucumis Sativus (Cucumber ) Fruit Extract, Solanum Lycopersicum (Tomato) Fruit Extract, Phenoxyethanol, Caprylyl Glycol, Salicylic Acid, Caffeine, Coffea Arabica (Coffee) Seed Extract, Lecithin, Sodium Hydroxide, Hydroxyethylcellulose, Allantoin, Chlorphenesin, Tocopheryl Acetate, Retinol, Retinyl Palmitate, Fragrance",
+      "strengths": [
+        "Brightens pigmentation",
+        "Firms and tightens the skin",
+        "Contributes to light peel of the skin"
+      ],
+      "suitableFor": [
+        "Not suitable for dark skin, pregnancy, breastfeeding"
+      ],
+      "photo": "caffeine-renewing-mask.png"
+    },
+    {
+      "slug": "peel-young",
+      "name": "Peel Young",
+      "category": "cleansers_peelings",
+      "use": "guided",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "AHA BHA",
+        "Lycopene",
+        "extraction of turmeric"
+      ],
+      "ingredients": "SD Alcohol 40-B, Propylene Glycol, Glycerin, Etohxydiglycol, Triethanolamine, Lactic Acid, Phenoxyethanol, Caprylyl Glycol, Salicylic Acid, Lycopen, Chlorphenesin, Polysorbate 20, Curcuma Longa (Turmeric) Root Extract, Lavandula Angustifolia (Lavender) Oil, Pelargonium Graveolens (Sweet Scented Greanium) Oil, Linalool, Geraniol",
+      "strengths": [
+        "Brightens pigmentation",
+        "Firms the skin",
+        "Firms and tightens the skin in combination with cream or alone",
+        "With a direct and spot-on application, also treats an open wound (\"Frosting\")"
+      ],
+      "suitableFor": [
+        "Exfoliation at an active level but not very strong",
+        "Also possible for home use according to the beautician's guidance only!",
+        "Suitable in combination with a peeling cocktail = strengthens and upgrades the peelings"
+      ],
+      "photo": "peel-young.png"
+    },
+    {
+      "slug": "one-step-peel",
+      "name": "One Step Peel",
+      "category": "face_serums",
+      "use": "home",
+      "pregnancy": "safe",
+      "keyActives": [
+        "TXA",
+        "Active botanical extracts",
+        "Sugar Maple + Snow Flak",
+        "Camellia Sinensis",
+        "Arnica",
+        "Goji Berry",
+        "Artemesia",
+        "Pelargonium Graveolens Oil"
+      ],
+      "ingredients": "Water, glycolic acid, niacinamide, arbutin, tranexamic acid, lactic acid, acetyl hexapeptide-8, hydroxyethyl urea, sodium hydroxide, dimethyl isosorbide, hydroxyethyl cellulose, citric acid, polysorbate 20, artemesia capillaris flower extract, acer saccharum (sugar maple) sap extract, chlorphenesin, pelargonium graveolens oil, lycium barbarum fruit extract, phenoxyethanol, caprylyl glycol, arnica montana flower extract, propylene glycol, glycerin, leucojum aestivum bulb extract, camellia sinensis leaf extract, butylene glycol",
+      "strengths": [
+        "Helps lighten and firm the skin",
+        "Suitable for all skin tones, including dark skin.",
+        "Safe for use on the face, eyes, and neck.",
+        "Approved for pregnancy and breastfeeding.",
+        "Ideal for year-round use, including summer!"
+      ],
+      "suitableFor": [
+        "Acne",
+        "Post-Acne",
+        "Wrinkles",
+        "Enlarged Pores",
+        "Blackheads",
+        "Seborrhea",
+        "Rosacea",
+        "Pigmentation",
+        "Psoriasis"
+      ],
+      "photo": "one-step-peel.png"
+    },
+    {
+      "slug": "phyto-stem-cell-serum",
+      "name": "Phyto Stem Cell Serum",
+      "category": "face_serums",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Stem Cells: Derived from the Santal reversa plant to rejuvenate and renew the skin.",
+        "Biofunctional Peptides: Calm overactive facial muscles for a smoother, more relaxed appearance.",
+        "Advanced Fillers: Tighten and firm the skin for youthful contours.",
+        "Medicinal Herbs: Soothe skin stress with: Arnica, Camu Camu, Moringa"
+      ],
+      "ingredients": "water, propanediol, centella asiatica callus conditioned media, bakuchiol, isopropyl myristate, hydroxyethyl acrylate/sodium acryloyldimethyl taurate copolymer, tranexamic acid, arginine, sodium hyaluronate, rose hip seed oil, cannabis sativa seed oil, acer saccharum (sugar maple) sap extract, morinda citrifolia seed oil, myrciaria dubia fruit extract, fragrance, carbomer, benzyl alcohol, citral, hydroxycitronellal, geraniol, linalool, citronellol, hexyl cinnamal, camellia sinensis leaf extract, edta, limonene, cetearyl alcohol, cetearyl glucoside, phenoxyethanol, caprylyl glycol, water, glycerin, gleditsia triacanthos seed extract, caprylyl glycol, sodium polyacrylate, polysorbate 20, ppg-3 benzyl ether myristate, ethylhexyl cocoate, water, lecithin, sh-polypeptide-1, 1,2-hexanediol, sodium hyaluronate, caprylyl glycol, butylene glycol, bacillus/soybean/folic acid ferment extract, sh-polypeptide-11, sh-oligopeptide-2, sh-oligopeptide-1, acetyl glutamine, sh-polypeptide-9, acetyl hexapeptide-8, water, caprylyl glycol, glycerin, water, palmitoyl tripeptide-38, hydroxypropyl cyclodextrin, maltose, agave tequilana leaf extract, propylene glycol, arnica montana flower extract, water, glycerin, leucojum aestivum bulb extract.",
+      "strengths": [
+        "An ideal complement for aesthetic procedures: Supports and enhances results.",
+        "Reduces \"skin stress\": Helps slow down skin aging effectively.",
+        "Packed with potent antioxidants: Formulated with high concentrations for maximum impact.",
+        "Accelerates skin recovery: Provides intensive skin restoration.",
+        "Enhances scar treatment: Works as a pre-treatment in combination with scar care products for optimal rehabilitation.",
+        "Helps Preventing aging at the cellular level: Promotes youthful, resilient skin.",
+        "Boosts radiance: Supports skin brightening for a luminous complexion."
+      ],
+      "suitableFor": [
+        "For Mature Skin.",
+        "Post-Acne Care: Phyto Stem Cell Serum enriched with EPA for advanced skin recovery.",
+        "Targets Wrinkles and Fine Lines: Smooths and rejuvenates the skin.",
+        "Effectively Dissolves Milia: Promotes a clearer, healthier complexion."
+      ],
+      "photo": "phyto-stem-cell-serum.png"
+    },
+    {
+      "slug": "lipo-vit-serum",
+      "name": "Lipo Vit Serum",
+      "category": "face_serums",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "10% pure vitamin C",
+        "Amino acid",
+        "Hemp Seed Oil",
+        "DMAE"
+      ],
+      "ingredients": "Cyclopentasiloxane, Dimethicone Crosspolymer, Dimethicone / Vinyl Dimethicone Crosspolymer, Isohexadecane, Ascorbic Acid, Titanium Dioxide, C12-15 Alkyl Benzoate, Hemp Seed Oil, Dimethylaminoethanol Tartrate",
+      "strengths": [
+        "Brightens pigmentation",
+        "Suitable for dark skin and treats dark skin spots!",
+        "Encourages collagen production"
+      ],
+      "suitableFor": [
+        "For all skin types Includes and intended for Fitzpatrick 4 and up",
+        "Suitable for gray skin from smoking",
+        "If we lightened pigmentation spots in the winter, the product can be used to maintain the results",
+        "Apply on damp skin"
+      ],
+      "photo": "lipo-vit-serum.png"
+    },
+    {
+      "slug": "active-face-serum-h-a",
+      "name": "Active Face Serum & H.A",
+      "category": "face_serums",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "7 types of hyaluronic acid",
+        "Caviar"
+      ],
+      "ingredients": "Water, Butylene Glycol, Panthenol, Glycosaminoglycans, Sodium Hyaluronate, Sodium Lactate, Allantoin, Caviar Extract",
+      "strengths": [
+        "Firms and tightens the skin",
+        "Provides a generous amount of moisture",
+        "Perfect in combination with Caffeine Serum for dark circles and Ever Pure for eyes"
+      ],
+      "suitableFor": [
+        "Suitable for all skin types!!",
+        "Eyes",
+        "Neck"
+      ],
+      "photo": "active-face-serum-h-a.png"
+    },
+    {
+      "slug": "vitamin-c-serum",
+      "name": "Vitamin C Serum",
+      "category": "face_serums",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Nutrient oils:",
+        "Macadamia",
+        "Wheat Sprouts",
+        "Carrot Oil",
+        "Obalfiha - Sea Buckthorn",
+        "Ester vitamin c"
+      ],
+      "ingredients": "Water, C12-15 Alkyl Benzoate, Cyclopentasiloxane, Triticum Vulgare (Wheat) Germ Oil, Daucus Carota Sativa (Carrot) Seed Oil, Hippophae Rhamnoides (Sea Buckthorn) Fruit Oil, Macadamia Ternifolia (Macademia) Seed Oil, Dimethicone, Persea Gratissima (Avocado) Oil, Tocopheryl Acetate, Fragrance, Phenoxyethanol, Caprylyl Glycol, Ascorbyl Glucoside, Retinyl Palmitate, Chlorphenesin, Citral, Limonene, Benzyl Salicylate",
+      "strengths": [
+        "Antioxidant",
+        "Nourishes the skin",
+        "Encourages collagen production",
+        "Restores the skin"
+      ],
+      "suitableFor": [
+        "For dry skin",
+        "Mature skin",
+        "Smokers",
+        "Ashy skin",
+        "Supports pigmentation lightening"
+      ],
+      "photo": "vitamin-c-serum.png"
+    },
+    {
+      "slug": "d-immediate-ageless-serum",
+      "name": "D. Immediate Ageless Serum",
+      "category": "face_serums",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "DMAE",
+        "Ester C",
+        "Hemp Seed Oil"
+      ],
+      "ingredients": "Water, Dimethicone, Glycerin, Dimethylaminoethanol, Xanthan Gum, Phenoxyethanol, Caprylyl Glycol, Chlorphenesin, Magnesium Ascorbyl Phosphate, Polysorbate 20, Sodium Hydroxide, Fragrance, Hemp Seed Oil, Geranium Maculatum (Wild Geranium) Oil, Lactic Acid, Geraniol, Linalool",
+      "strengths": [
+        "Firms the skin immediately",
+        "Restores irritated skin"
+      ],
+      "suitableFor": [
+        "Treats acneic skin",
+        "Irritated skin",
+        "Red skin",
+        "Treats wrinkles"
+      ],
+      "photo": "d-immediate-ageless-serum.png"
+    },
+    {
+      "slug": "mezotox-serum",
+      "name": "Mezotox Serum",
+      "category": "face_serums",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Hyaluronic acid (50 Dalton)",
+        "Blue agave",
+        "Pine bark extract",
+        "Biometic peptides"
+      ],
+      "ingredients": "Water, Sodium Hyaluronate, Maltose, Agave Tequilana Leaf Extract, Acetyl Dipeptide-1 Cetyl Ester, Hydroxyethylcellulose, Sorbitan Laurate, Butylene Glycol, Hydroxypropyl Cyclodextrin, Palmitoyl Tripeptide-38, Dextran, Trifluoroacetyl Tripeptide-2, Glycerin, Albizia Julibrissin (Mimosa) Bark Extract, Darutoside, Phenoxyethanol, Caprylyl Glycol",
+      "strengths": [
+        "Reduces pores",
+        "Slides",
+        "Wrinkle iron",
+        "Solidify"
+      ],
+      "suitableFor": [
+        "Mesotherapy",
+        "For all skin types!",
+        "Dry skin",
+        "After therapeutic procedures"
+      ],
+      "photo": "mezotox-serum.png"
+    },
+    {
+      "slug": "caviar-fast-wrinkle-filler",
+      "name": "Caviar Fast Wrinkle Filler",
+      "category": "face_serums",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Hyaluronic acid with a high dalton weight (thickness)",
+        "amino acids",
+        "Phospholipids",
+        "Omega 3"
+      ],
+      "ingredients": "Water, Acacia Senegal Gum, Hydrolyzed Rhizobian Gum, Dipalmitoyl Hydroxyproline, Glycerin, Fucus Vesiculosus (Bladderwrack) Extract, Lecithin, Tripeptide-10 Citrulline, Carbomer, Trietanolamine, Phenoxyethanol, Caprylyl Glycol, Dead Sea Salt, Hydrogenated Polydecene, Dunaliella Salina (Algae) Extract, Hyaluronic Acid, Panthenol, Tocopheryl Acetate, Caviar Extract, Chlorphenesin, Sodium Benzoate, Oenothera Biennis (Evening Primrose) Oil, Hippophae Rhamnoides (Sea Buckthorn) Fruit Oil, Borago Officinalis (Borage) Seed Oil, Fragrance, Benzyl Salicylate, Butylphenyl Methylpropional, Citronnellol, Hexyl Cinnamal, Linalool",
+      "strengths": [
+        "wrinkles filling",
+        "Firms the skin",
+        "Rejuvenating"
+      ],
+      "suitableFor": [
+        "For all skin types!!!"
+      ],
+      "photo": "caviar-fast-wrinkle-filler.png"
+    },
+    {
+      "slug": "grand-active-serum",
+      "name": "Grand Active Serum",
+      "category": "face_serums",
+      "use": "home",
+      "pregnancy": "avoid",
+      "keyActives": [
+        "Retinol from plants from the carotenoid family"
+      ],
+      "ingredients": "Water, Propanediol, Chamomilla Recutita (Matricaria) Flower Water, Dimethyl Mea, Allaintoin, Sodium Hyaluronate, Panthenol, Bisabolol, Cannabis Sativa Seed Oil, Acer Saccharum (Sugar Maple) Extract, Zinc, PCA, Xanthan Gum, Cellulose Gum, Fragrance, Camellia Sinensis (Tea) Leaf Extract, Linalool, Citronellol, Hexyl Cinnamal, Limonene, Geraniol, Artemisia Capillaris Extraxt, Butylene Glycol, Sodium Acrylates Copolymer, Lecithin, Phenoxyethanol, Caprylyl Glycol, Camellia Sinensis (Tea) Leaf Extract, Butylene Glycol, Glycerin, Leucojum Aestivum Bulb Extract, Dimethyl Isosorbide, Hydroxypinacolone Retinoate, Gleditsia Triacanthos Seed Extract, Sodium Polyacrylate, Polysorbate 20, Ethylhexyl Cocoate, PPG-3 Benzyl Ether Myristate",
+      "strengths": [
+        "Lighter and gentler than other retinols",
+        "less irritating"
+      ],
+      "suitableFor": [
+        "Can be used as a follow-up treatment at home to protect against the development of signs of skin aging/wrinkles.",
+        "Supports the lightening of pigmentation and is suitable for all skin types except pregnant and lactating women"
+      ],
+      "photo": "grand-active-serum.png"
+    },
+    {
+      "slug": "one-solution-serum",
+      "name": "One Solution Serum",
+      "category": "face_serums",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Niacinamide Vitamin B3 13%",
+        "Snow flake (similar to the Botox effect)",
+        "Maple leaves",
+        "Magnolia"
+      ],
+      "ingredients": "Water, Squalane, Propanediol, Niacinamide, Chamomilla Recutita (Matricaria) Leaf Extract, Cetyl Alcohol, Bisabolol, Zinc PCA, Dipotassium Glycyrrhizate, Panthenol, Cer Saccharum (Sugar Maple) Extract, Hemp Seed Oil, Polyacrylate Crosspolymer-6, Hippophae Rhamnoides (Sea Buckthorn) Seed Oil, Camellia Sinensis (Tea) Leaf Extract, Linalool, Citronellol, Hexyl Cinnamal, Limonene, Geraniol, Artemisia Capillaris Extract, Butylene Glycol, Phenoxyethanol, Caprylyl Glycol, Lactobacillus/Camellia Sinensis Leaf Ferment Extract Filtrate, Glycerin, Leucojum Aestivum Bulb Extract",
+      "strengths": [
+        "Balance acne and excess sebum",
+        "Clears red PIH post-acne pigmentation",
+        "Reduces wrinkles"
+      ],
+      "suitableFor": [
+        "Also great for acne",
+        "Clarification of PIH",
+        "For those who want a replacement \\in addition to Botox, combine it with a cream: Lift u up"
+      ],
+      "photo": "one-solution-serum.png"
+    },
+    {
+      "slug": "age-defying-night-repair",
+      "name": "Age Defying Night Repair",
+      "category": "face_serums",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Omega 3 + 6",
+        "Active Vitamin A",
+        "Vitamin C which is soluble in oil",
+        "Antioxidants"
+      ],
+      "ingredients": "Cyclopentasiloxane, Dimethiconol, Isononyl Isononanoate, Simmondsia Chinensis (Jojoba) Seed Oil, Squalane, Hippophae Rhamnoides (Sea Buckthorn) Fruit Oil, Octyl Methoxy Cinnamate, Hemp Seed Oil, Prunus Amygdalus Dulcis (Sweet Almond) Oil, Phenoxyethanol, Caprylyl Glycol, Caviar Extract, Tocopheryl Acetate, Fragrance, Retinyl Palmitate, Ascorbyl Tetraisopalmitate, Benzyl Salicylate, Butylphenyl Methylpropional, Citronellol, Hexyl Cinnamal, Linalool",
+      "strengths": [
+        "Produced with innovative and powerful technology - Slow release system",
+        "Restores the skin",
+        "Excellent after therapeutic procedures",
+        "Feels like oil at first and within minutes it disappears completely and leaves a velvety and pleasant skin!"
+      ],
+      "suitableFor": [
+        "dry skin",
+        "Weather changes (Skiing, etc.)"
+      ],
+      "photo": "age-defying-night-repair.png"
+    },
+    {
+      "slug": "zit-out-serum",
+      "name": "Zit-Out Serum",
+      "category": "face_serums",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Truffle",
+        "Botanical herbs"
+      ],
+      "ingredients": "Water, Alcohol Denatured, Hydroxyethyl Acrylate, Acrylate/Sodium Acryloyldimethyl Taurate Copolymer, Glucolic Acid, Salicylic Acid, Panthenol, Allantoin, Hemp Seed Oil, Niacinamide, Tuber Magnatum Extract, Origanum Vulgare, Glycyrrhiza Gabra (Licorice) Root Extract, Oenothera Biennes (Evening Primrose) Root Extract, Salvia Sclarea (Clary Sage) Oil, Thymus Vulgaris (Thyme) Flower/Leaf Extract, Syringa Vulgaris (Lilac) Extract, Maltodextrin, Potassium Thiocyanate, Lactoferrin, Lactoperoxidase, Glucose Oxidase, Glucose Pentaacetate, Glycerin, PEG-60 Almond Glycerides, Butylene Glycol, Caprylyl Glycol, Carbomer, Nordihydroguaiaretic Acid, Oleanolic Acid, Phenoxyethanol",
+      "strengths": [
+        "The active serum can be applied under any cream!",
+        "Acne exterminator",
+        "Complements treatment together with products for severe acne"
+      ],
+      "suitableFor": [
+        "Problematic skin",
+        "Acne skin",
+        "Acne comedonica"
+      ],
+      "photo": "zit-out-serum.png"
+    },
+    {
+      "slug": "everpure-eye-treatment",
+      "name": "EverPure Eye Treatment",
+      "category": "eye",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Medicinal plants from the Amazon",
+        "Cross-linked hyaluronic acid",
+        "Acai"
+      ],
+      "ingredients": "Water, Propanediol, Cycloheptasiloxane, Caprylic/Capric Triglyceride, Niacinamide, Cetyl Alcohol, Cetearyl Glucoside, Isopropyl Muristate, PEG-40 Stearate, Glyceryl Stearate SE, Squalane, Hyaluronic Acid, Phenyl Trimethicone, Panthenol, Bisabolol, Sorbitan Triisostearate, Allantoin, Shea Butter (Butyrospermum Parkii), Tocopheryl Acetate, Melissa Officinalis (Lemon Balm) Leaf Oil, Chlorphenesin, Hippophae Rhamnoides (Sea Buckthorn) Fruit Oil, Theobroma Grandiflorum (Copoasu) Seed Butter, Astrocaryum Murumuru Seed Butter, Carapa Guaianensis Seed Oil, EDTA, Bertholletia Excelsa (Brazilnut) Seed Oil, Citric Acid, Phenoxyethanol, Caprylyl Glycol, Glycerin, Darutoside, Albiziz Julibrissin (Mimosa) Bark Extract, Pentylene Glycol, N-Prolyl Palmitoyl Tripeptide-56 Acetate, Butylene Glycol, Palnitoyl Tetrapeptide-7, Polysorbate 20, Palmitoyl Tripeptide-10, Carbomer, Hesperidin Methyl Chalcone, Steareth-20, Dipeptide-2, Cetyl Hydroxyethylcellulose, Phaseolus Vulgaris (Bean) Seed Extract, Rutin,Euterpe Oleracea Fruit Extract, Tocopherol, Ethylhexyl Stearate, Sodium Isostearate, Sodium Hyaluronate Crosspolymer, Polyglyceryl-4 Diisostearate/Polyhydroxystearate/Sebacate, Myrciaria Dubia Fruit Extract, Ascorbic Acid, Calcium Hydroxide, Maltodextrin",
+      "strengths": [
+        "Treats skin damage around the eyes",
+        "Treats swelling",
+        "Treats hollows under the eyes",
+        "Treats blue radiation damage"
+      ],
+      "suitableFor": [
+        "For all skin types"
+      ],
+      "photo": "everpure-eye-treatment.png"
+    },
+    {
+      "slug": "anti-dark-circulars-eye-serum",
+      "name": "Anti-Dark Circulars Eye Serum",
+      "category": "eye",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "5% pure caffeine",
+        "Squalene",
+        "Niaziamide 5B"
+      ],
+      "ingredients": "Water, Caffeine, Coffea Arabica (Coffee) Seed Extract, Lecithin, Niacinamide, Squalane, Glycerin, Isononyl Isononanoate, Cetyl Alcohol, C12-15 Alkyl Benzoate, Steareth-2, Simmondsia Chinensis (Jojoba) Seed Oil, Sodium Hyaluronate, Phenoxyethanol, Caprylyl Glycol, Chlorphenesin, Steareth \u2013 21, Dimethicone, Fragrance. Allantoin,Tocopheryl Acetate, BHT, Menthyl Lactate, EDTA",
+      "strengths": [
+        "Brightens pigmentation",
+        "Detox"
+      ],
+      "suitableFor": [
+        "For all skin types, including dark skin!",
+        "Also suitable for dark pigmentation spots and you can apply the White Bright Serum over it"
+      ],
+      "photo": "anti-dark-circulars-eye-serum.png"
+    },
+    {
+      "slug": "bio-placeta-cream",
+      "name": "Bio Placeta Cream",
+      "category": "face_creams",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Stem cells from the plant Senalta repensera.",
+        "The \"Sharul\" plant",
+        "Phytopeptides",
+        "Licorice",
+        "Ferulic acid (rice)",
+        "Camu camu",
+        "Arnica",
+        "Rose hip",
+        "Artemisia"
+      ],
+      "ingredients": "Water, ferulic acid, aloe barbadensis extract, cetearyl alcohol, caprylic/capric triglyceride, isodecyl neopentanoate, isopropyl myristate, glycerin, sodium hyaluronate, bakuchiol, tranexamic acid, centella asiatica callus conditioned media, niacinamide, shea butter (butyrospermum parkii), cannabis sativa seed oil, squalane, tocopheryl acetate, allantoin, arginine, glycyrrhiza glabra (licorice) leaf extract, rose hip seed oil, edta, fragrance, hexyl cinnamal, linalool, hydroxycitronellal, geraniol, limonene, citronellol, citral, moringa oleifera seed oil, acer saccharum (sugar maple) sap extract, artemesia capillaris flower extract, myrciaria dubia fruit extract, behentrimonium methosulfate, butylene glycol, cetyl alcohol, peg-100 stearate, glyceryl stearate, glyceryl stearate, stearic acid, cetyl alcohol, lecithin, palmitic acid, lauryl alcohol, myristyl alcohol, behenyl alcohol, myristyl myristate, myristyl laurate, cyclopentasiloxane, dimethiconol, glycerin, leucojum aestivum bulb extract, propylene glycol, arnica montana flower extract, phenoxyethanol, caprylyl glycol, phenoxyethanol, ethylhexylglycerin, water, lecithin, sh-polypeptide-11, bacillus/folic acid ferment filtrate extract, sodium hyaluronate, caprylyl glycol, butylene glycol, sh-polypeptide-1, sh-oligopeptide-2, sh-oligopeptide-1, acetyl glutamine, 1,2-hexanediol, sh-polypeptide-9.",
+      "strengths": [
+        "Fights Skin Aging at the Cellular Level.",
+        "Enhances and Sustains Radiant Skin."
+      ],
+      "suitableFor": [
+        "For all skin types",
+        "Mature skin"
+      ],
+      "photo": "bio-placeta-cream.png"
+    },
+    {
+      "slug": "lift-u-up-cream",
+      "name": "Lift U Up Cream",
+      "category": "face_creams",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Lactic acid",
+        "Snowflake (similar to the Botox effect)",
+        "Artemisia",
+        "Matcha",
+        "Hemp Seed Oil"
+      ],
+      "ingredients": "Water, Lactic Acid, Arbutin, Propanediol, Isopropyl Myristate, Cetyl Alcohol, Chamomilla Recutita (Matricaria) Flower Water, Squalane, Sodium Hydroxide, Steareth-2, Niacinamide, Bisabolol, Cer Saccharum (Sugar Maple) Extract, Stereth-21, Hemp Seed Oil, Fragrance, Xanthan Gum, Hydrolyzed Hyaluronic Acid, Lactobacillus/Camellia Sinensis Leaf Ferment Extract Filtrate, EDTA, Citronellol, Linalool, Limonene, Geraniol, Hexyl Cinnamal, Artemisia Capillaris Extract, Phenoxyethanol, Caprylyl Glycol, Camellia Sinensis (Tea) Leaf Extract, Butylene Glycol, Glycerin, Leucojum Aestivum Bulb Extract, Carthamus Tinctorius (Safflower) Seed Oil, Spilanthes Acmella Flower/Leaf/Stem Extract, Astragalus Membranaceus Root Extract, Ubiquinone, Tocopherol, Gleditsia Triacanthos Seed Extract",
+      "strengths": [
+        "Brightens even dark skin",
+        "Solidifying and refining kinetic expression",
+        "Excellent for dark upper lids",
+        "Excellent for brightening of pigmentation"
+      ],
+      "suitableFor": [
+        "From light to extremely dark skin",
+        "To brighten pigmentation",
+        "Adaptation to alpha and beta hydroxy acids",
+        "flattening wrinkles",
+        "Moisturizes the skin",
+        "Contributes to light skin tightening"
+      ],
+      "photo": "lift-u-up-cream.png"
+    },
+    {
+      "slug": "blue-light-night-cream",
+      "name": "Blue Light Night Cream",
+      "category": "face_creams",
+      "use": "home",
+      "pregnancy": "safe",
+      "keyActives": [
+        "Alpha lipoic acid that simulates the activity of retinol without the photosensitivity and without skin irritations!",
+        "DMAE"
+      ],
+      "ingredients": "Water, Dimethylaminoethanol, Cetyl Alcohol, Thioctic Acid, Steareth-2, Sodium Hyaluronate, Steareth-21, Simmondsia Chinensis (Jojoba) Butter, Ricinus Communis (Castor) Seed Oil, Tocopheryl Acetate, BHT, Hemp Seed Oil, Polyacryate Crosspolymer-6, Cucumis Sativus (Cucumber) Oil, Ascorbic Acid, Melissa Officinalis (Lemon Balm) Leaf Oil, Chlorphenesin, Rose Hips Seed Oil, Cymbidium Grandiflorum Flower Extract, PEG-100 Stearate, Glyceryl Stearate, Phenoxyethanol, Caprylyl Glycol, Cyclopentasiloxane, Dimethicone / Vinyl Dimethacone Crosspolymer, Maltose, Agave Tequilana Leaf Extract, Glycerin, Hydroxypropyl Cyclodextrin, Palmitoyl Tripeptide 38",
+      "strengths": [
+        "Supports pigmentation lightening",
+        "Firms the skin",
+        "Supports scar healing",
+        "Reduces the depth of wrinkles and contributes to the Firmness and tightens the skin",
+        "You can use the rest of the cream after applying it to the skin around the eyes"
+      ],
+      "suitableFor": [
+        "All skin types! Includes a dark shade!",
+        "Pregnancy",
+        "Breastfeeding"
+      ],
+      "photo": "blue-light-night-cream.png"
+    },
+    {
+      "slug": "d-herbal-calm-forte",
+      "name": "D. Herbal Calm Forte",
+      "category": "face_creams",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "DMAE",
+        "Vitamin B5",
+        "Hemp seed oil",
+        "Zinc",
+        "Vitamin E",
+        "Centella Asiatica",
+        "Macadamia oil"
+      ],
+      "ingredients": "Aqua Panthenol, Tocopheryl Acetate, Aqua Glycerin, Centella Asiatica Extract, Citric Acid, Sodium Benzoate, Potassium Sorbae, Zinc Oxide, Cetearyl Alcohol, Cetearyl Glucoside, Cetyl Alcohol, Macademia Integrifolia Seed Oil, Phenoxyethanol, Caprylyl Glycol, Chlorphenesin, Hemp Seed Oil, Dimethicone, PEG-7 Glyceryl Cocoate, Xanthan Gum, Polysorbate 20, Bisabolol, Allantoin, BHT, Dimethyl MEA, EDTA",
+      "strengths": [
+        "Relaxing",
+        "Heals the skin",
+        "Restoring (Reduces redness - atopic dermatitis, bites and rubs, diaper rash)"
+      ],
+      "suitableFor": [
+        "For all skin types From the age of six months!"
+      ],
+      "photo": "d-herbal-calm-forte.png"
+    },
+    {
+      "slug": "demi-make-up",
+      "name": "Demi Make Up",
+      "category": "face_creams",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Hyaluronic acid",
+        "Natural sunscreen"
+      ],
+      "ingredients": "Water, Cetearyl Alcohol, Cetearyl Glucoside, Octyl Methoxy Cinnimate, Caprylic/Capric Triglyceride, Borago Officinalis (Borage) Seed Oil, Benzophenone-3, Titanium Dioxide, Niacinamide, Cetyl Palmitate, Ascorbyl Glucoside, Sodium Hyaluronate, Sodium PCA, Glycerin, Phenoxyethanol & Caprylyl Glycol & Chlorphensin, Tocopheryl Acetate, Fragrance, Retinyl Palmitate, Limonene, Butylphenyl Methylpropional, Hexyl Cinnamal, Linalool, Geraniol, Citral",
+      "strengths": [
+        "Light wight",
+        "Half transparent",
+        "Moisture and protection in one!"
+      ],
+      "suitableFor": [
+        "For all skin types"
+      ],
+      "photo": "demi-make-up.png"
+    },
+    {
+      "slug": "caviar-renewal-face-cream",
+      "name": "Caviar Renewal Face Cream",
+      "category": "face_creams",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Peptides",
+        "Lipoic acid",
+        "Phytic acid"
+      ],
+      "ingredients": "Water, Acetyl Hexapeptide-8, Butyrospermum Parkii (Shea) Butter, Isopropyl Myristate, Cyclopentasiloxane, Glycerin, Glyceryl Stearate, Caprylyl Glycol, Paraffin, Hydrogenated C12-18 Triglycerides, Cera Alba, Stearic Acid, Cetearyl Ethylhexanoate, Prunus Amygdalus Dulcis (Sweet Almond) Oil, Squalane, Steareth-21, Cetyl Alcohol, Dimethicone, Steareth-2, Caviar Extract, Helianthus Annuus (Sunflower) Seed Oil, Calendula Officinalis (Calendula) Flower Extract, Phenoxyethanol, Caprylyl Glycol, Fragrance, Allentoin, Ubiquinone, Solanum Lycopersicum (Tomato) Fruit Extract, Phenoxyethanol, Chlorphensin, Sodium Metabisulfite, BHT, Alpha-Isomethyl Ionone, Benzyl Salicylate, Butylphenyl Methylpropional, Citronellol, Eugenol, Hexyl Cinnamal",
+      "strengths": [
+        "Nourishes the skin",
+        "Restoring",
+        "Balances the dehydrated and dry skin"
+      ],
+      "suitableFor": [
+        "Dry skin",
+        "Mature skin"
+      ],
+      "photo": "caviar-renewal-face-cream.png"
+    },
+    {
+      "slug": "caviar-total-revitalizer",
+      "name": "Caviar Total Revitalizer",
+      "category": "face_creams",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "ALA",
+        "Squalane",
+        "Ester C"
+      ],
+      "ingredients": "Water, Cetyl Alcohol, Caprylic/Capric Triglyceride, C12-15 Alkyl Benzoate, Niacinamide, Glycerin, Squalane, PEG-6 Caprylic/Capric Glycerides, Hyaluronic Acid, Ceteareth-25, Lanolin, hamaemelum Nobile (English/Roman Chamomile) Extract, Phenyl Trimethicone, Aloe Barbadensis Extract, Allantoin, Xanthan Gum, EDTA, Tocopheryl Acetate, Fragrance, Bisabolol, Caviar Extract, Citronellol, Limonene, Alpha-Isomethyl Ionone, Geraniol, Benzyl Salicylate, Linalool, Cetaryl Aalcohol, Ceteryl Etearyl Glucoside, Phenoxyethanol, Capylyl Glycol, Palmitoyl Tripeptide-38, Hydroxypropyl Cyclodextrin, MICA, Titanium Dioxide, Iron Oxides, Polyacrylamide, C13-14 Isoparrafin, Laureth-7",
+      "strengths": [
+        "Restoring",
+        "Rejuvenating",
+        "Firms and tightens the skin"
+      ],
+      "suitableFor": [
+        "Excellent after powerful treatments such as mesotherapy Plasma, RF"
+      ],
+      "photo": "caviar-total-revitalizer.png"
+    },
+    {
+      "slug": "dmae-refiner-face-cream",
+      "name": "DMAE Refiner Face Cream",
+      "category": "face_creams",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "DMAE",
+        "Hemp Seed Oil",
+        "Vitamin E",
+        "Shea butter"
+      ],
+      "ingredients": "Water, Cyclopentasiloxane, Dimethicone Crosspolymer, Dimethicone, Vinyl Dimethicone Crosspolymer Isooctyl Palmitate, Propylene Glycol, C12-15 Alkyl Benzoate, Butyrospermum Parkii (Shea) Butter, Cetearyl Alcohol, Paraffin, Hydrogenated C12-18 Triglycerides, Cera Alba, Stearic Acid, Phenoxyethanol, Caprylyl Glycol, Chlorphenesin, Sodium Polyacrylate, Ethylhexyl Stearate, Trideceth-6, PEG-40 Stearate, Sorbitan Stearate, Cetearyl Ethylhexanoate, Isononyl Isononanoate, Dimethicone, Glycerin, Glyceryl Polyacrylate, Acetylated Lanolin, Laureth-4, Tocopheryl Acetate, Allantoin, Fragrance, BHT, Hemp Seed Oil, EDTA, Pelargonium Gravolens (Sweet Scented Geranium) Oil, Dimethyl MEA, Lactic Acid, Geraniol, Linalool, Citral, Citronellol",
+      "strengths": [
+        "Active 24/7!",
+        "Glides on the skin",
+        "Wonderful as a primer before applying makeup"
+      ],
+      "suitableFor": [
+        "For dry skin",
+        "Stretch marks",
+        "Scars"
+      ],
+      "photo": "dmae-refiner-face-cream.png"
+    },
+    {
+      "slug": "smooth-face-cream",
+      "name": "Smooth Face Cream",
+      "category": "face_creams",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Medicinal plants from the Amazon",
+        "REGESTRIL TM (hyaluronic acid - for scars)"
+      ],
+      "ingredients": "Water, Hemp Seed Oil, Propanediol, Cetearyl Ethylhexonate, Cetearyl Alcohol, Cetearyl Glucoside, Sheat Butter (Butyrospermum Parkii), Pesea Gratissima (Avocado) Oil, Cetyl Alcohol, Sorbitan Tristearate, Polyacrylate Crosspolymer-6, Xanthan Gum, Hippophae Rhamnoides (Sea Buckthorn) Fruit Oil, Chlorphenesin, Melissa Officinalis (Lemon Balm) Leaf Oil, Bertholletia Excelsia (Brazilnut) Seed Oil, Theobroma Grandiflorum (Copoasu) Seed Butter, Astrocaryum Murumuru Seed Butter, Carapa Guaianensis Seed Oil, Tetrasodium EDTA, Butylene Glycol, Cetyl Hydroxyethylcellulose, Rutin, Palmitoyl Tripeptide-10, Palmitoyl Tripeptide-1 Phellinus Linteus Extract, Centella Asiatica (Asiatic Pennywort) Extract, Darutoside, Phenoxyethanol, Caprylyl Caprylate/Caprate, Euterpe Oleracea (AcaI) Fruit Oil, Tocopherol, Myrciara DubiaFruit Extract, Ascorbic Acid, Maltodextrin, Calcium Hydroxide",
+      "strengths": [
+        "Excellent for scars",
+        "Stretch marks",
+        "Post acne"
+      ],
+      "suitableFor": [
+        "For all skin types for face and body"
+      ],
+      "photo": "smooth-face-cream.png"
+    },
+    {
+      "slug": "white-bright-cream",
+      "name": "White Bright Cream",
+      "category": "face_creams",
+      "use": "home",
+      "pregnancy": "safe",
+      "keyActives": [
+        "Hemp Seed Oil",
+        "Arbutin",
+        "Rose hip",
+        "Kojic acid",
+        "Orchid oil",
+        "Hemp oil - cold-pressed organic",
+        "Black gooseberry extract (arbutin)"
+      ],
+      "ingredients": "Water, Glyceryl Stearate SE, Isopropyl Myristate, Caprylic/Capric Triglyceride, Arbutin, Diacetyl Boldine, Cetyl Alcohol, Glycerin, Ozokerite, Propylene Glycol, Niacinamide, PEG-40 Stearate, Undecylenoyl Phenylalanine, Sorbitan Tristearate, Phenylethyl Resorcinol, Butyrospermum Parkii (Shea) Butter, Fragrance, Hemp Seed Oil, Rosa Canina (Dog Rose) Seed Oil, Cucumis Sativus (Cucumber) Oil, Cymbidium Grandiflorum Flower Extract, Chlorphenesin, Melissa Officinalis (Lemon Balm) Leaf Oi, Tetrasodium EDTA, Phenoxyethanol, Caprylyl Glycol, Polyacrylamide, C13-14 Isoparaffin, Laureth-7, Rosmarinus Officinalis (Rosemary) Leaf Extract, Paeonia Suffruticosa (Tree Peony) Root Extract, Octyldodecyl Oleate, Octyldodecyl Stearoyl Stearate, Octyldecanol, Ribes Nigrum (Black Currant) Seed Oil",
+      "strengths": [
+        "Brightens pigmentation",
+        "Suppresses the appearance of melanin",
+        "Reduction in the appearance of wrinkles/dryness",
+        "Skin firming"
+      ],
+      "suitableFor": [
+        "All skin types: From pregnant and breastfeeding women to dark skin! Fitzpatrick 4 and up!",
+        "In all invasive treatments, a melanin suppressant should be given to the patient a week or two before the treatment to prevent an increase in pigmentation"
+      ],
+      "photo": "white-bright-cream.png"
+    },
+    {
+      "slug": "relaxing-caviar-honey-mask",
+      "name": "Relaxing Caviar & Honey Mask",
+      "category": "masks",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Chlorophyll = corresponds to the composition of the blood plasma",
+        "Honey",
+        "Azulene (chamomile)",
+        "Borage oil\" (anti-inflammatory)",
+        "Avocado oil",
+        "Extraction of pure caviar"
+      ],
+      "ingredients": "Water, Cetearyl Alcohol, Hexadecyl D-glucoside, Persea Gratissima (Avocado) Oil, Calendula Officinalis (Calendula) Flower, Squalane, Borago Officinalis (Borage) Seed Oil, Fucus Vesiculosus (Bladderwrack) Extract, Ascorbyl Glucoside, Solanum Lycopersicum (Tomato) Fruit/Leaf/Stem Extract, Titanium Dioxide, Calamine, Phenoxyethanol, Caprylyl Glycol, Royal Jelly Extract, Glycerin, Caviar Extract, Chlorphenesin, Sodium Benzoate, Potassium Sorbate, Fragrance, Tocopheryl Acetate, Allantoin, Azulene, Bisabolol",
+      "strengths": [
+        "Relaxing",
+        "Anti-inflammatory",
+        "Rehabilitator",
+        "Excellent after invasive treatments"
+      ],
+      "suitableFor": [
+        "For all skin types"
+      ],
+      "photo": "relaxing-caviar-honey-mask.png"
+    },
+    {
+      "slug": "dmae-face-mask",
+      "name": "DMAE Face Mask",
+      "category": "masks",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "DMAE",
+        "Hemp Seed Oil"
+      ],
+      "ingredients": "Water, Kaolin, Zinc Oxide, Cetyl Alcohol, Glyceryl Stearate, Panthenol, C12-15 Alkyl Benzoate, Glyceryl Stearate, PEG-100 Stearate, Hippophae Rhamnoides (Sea Buckthorn) Fruit Oil, Chromium Oxide Greens, Titanium Dioxide, Potassium Alum, Sulfur, Phenoxyethanol, Caprylyl Glycol, Chlorphenesin, Iron Oxides, Trilaureth-4 Phosphate, Salicylic Acid, Sorbitan Oleate, Hydroxyethylcellulose, Tocopheryl Acetate, Hemp Seed Oil, BHT, Allantoin, fragrance, Geranium Maculatum (Wild Geranium) Oil, BHT, Allantoin, Fragrance, Dimethylaminoethanol, Geraniol, Linalool",
+      "strengths": [
+        "Restoring",
+        "Also suitable for dehydrated and dry skin"
+      ],
+      "suitableFor": [
+        "For all skin types",
+        "Supports acne healing",
+        "Excellent after mesotherapy"
+      ],
+      "photo": "dmae-face-mask.png"
+    },
+    {
+      "slug": "calm-forte-cream-mask",
+      "name": "Calm Forte + Cream Mask",
+      "category": "masks",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Obalfiha - Sea Buckthorn",
+        "DMAE",
+        "Hemp Seed Oil",
+        "Centella Asiatica"
+      ],
+      "ingredients": "Water, Panthemol, Zinc Oxide, Glycerin, Centella Asiatica (Asiatic Pennywort) Extract, Citric Acid, Hippophae Rhamnoides (Sea Buckthorn) Fruit Oil, Cetyl Alcohol, Glyceryl Stearate, Tocopheryl Acetate, PEG-40 Stearate, Glyceryl Stearate, PEG-100 Stearate, Sodium Benzoate, Potassium Sorbate, Dimethicone, Phenoxyethanol, Caprylyl Glycol, Chlorphenesin, Hydroxyethyl Acrylate/Sodium. Acryloyldimethyl Taurate Copolymer, Sorbitan Tristearate, Hemp Seed Oil, Polysorbate 60, Lactic Acid, Xanthan Gum, Allantoin, BHT, Bisabolol",
+      "strengths": [
+        "Relaxing",
+        "Rehabilitator",
+        "Relieves dryness and lack of moisture"
+      ],
+      "suitableFor": [
+        "Acute acne",
+        "After mesotherapy",
+        "Atopic skin",
+        "Psoriasis",
+        "Seborrhea",
+        "Dry skin",
+        "Irritated skin"
+      ],
+      "photo": "calm-forte-cream-mask.png"
+    }
+  ]
+}
