@@ -105,6 +105,11 @@ router.use(helmet({
     },
   },
   crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
+  // helmet's default `no-referrer` makes browsers send `Origin: null` on the dashboard's own
+  // form POSTs and fetch() saves, and the app-wide CORS check (server/index.js) answers that
+  // with 403 "Origin not allowed". `same-origin` sends the real origin (and referrer) only to
+  // this site; other sites still get nothing. Found by the admin e2e suite (2026-10-06).
+  referrerPolicy: { policy: 'same-origin' },
 }));
 
 // Plain HTML <form method="post"> submissions arrive urlencoded. The app-wide parser only
