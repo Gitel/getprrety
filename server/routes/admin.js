@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const multer = require('multer');
 const helmet = require('helmet');
 const express = require('express');
 const router = express.Router();
@@ -27,6 +28,7 @@ const { SHELF_STATUSES } = require('../services/analysisFields');
 const AdminUser = require('../models/AdminUser');
 const AdminAuditLog = require('../models/AdminAuditLog');
 const messages = require('../services/messages');
+const catalogue = require('../services/catalogueProducts');
 const { deleteUserAndData } = require('../services/deleteUser');
 
 // Result banners after a redirect. The URL carries only a short code (?notice=...),
@@ -53,6 +55,15 @@ const NOTICES = {
   message_empty:           { text: 'Write a message first.', error: true },
   message_too_long:        { text: 'Messages can be up to 2000 characters.', error: true },
   user_deleted:            { text: 'The account and all of its data were permanently deleted.' },
+  catalogue_created:       { text: 'Product created.' },
+  catalogue_saved:         { text: 'Product saved.' },
+  catalogue_unchanged:     { text: 'Nothing changed.' },
+  catalogue_invalid:       { text: 'Please fill in the name and choose a valid category, use and pregnancy option.', error: true },
+  catalogue_name_taken:    { text: 'A product with this name already exists.', error: true },
+  catalogue_photo_saved:   { text: 'Photo updated.' },
+  catalogue_photo_invalid: { text: 'The photo must be a JPEG or PNG image of up to 2 MB.', error: true },
+  catalogue_archived:      { text: 'Product archived.' },
+  catalogue_restored:      { text: 'Product restored.' },
   delete_confirm_mismatch: { text: 'Nothing was deleted: the email you typed does not match this account.', error: true },
 };
 
@@ -392,6 +403,175 @@ router.get('/users/:id/image/:uploadId', requireAdmin, async (req, res, next) =>
     next(err);
   }
 });
+
+// ── Catalogue ───────────────────────────────────────────────────────────────
+
+// Photo uploads: kept in memory (the bytes go straight into MongoDB), one file of at most
+// 2 MB plus the _csrf text field. The limits stop a client from sending huge or many parts.
+const photoUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: catalogue.MAX_PHOTO_BYTES, files: 1, fields: 5, parts: 6 },
+}).single('photo');
+
+// What the product form shows, as plain strings. `source` is either a stored product (lists
+// become one item per line) or a submitted body (kept exactly as typed, so a 400 re-render
+// does not lose the admin's work).
+function formValues(source) {
+  const str = v => (typeof v === 'string' ? v : '');
+  const list = v => (Array.isArray(v) ? v.join('\n') : str(v));
+  const s = source || {};
+  return {
+    name: str(s.name), category: str(s.category), use: str(s.use), pregnancy: str(s.pregnancy),
+    keyActives: list(s.keyActives), ingredients: str(s.ingredients),
+    strengths: list(s.strengths), suitableFor: list(s.suitableFor),
+  };
+}
+
+// One view serves both "new" (product = null) and "edit".
+function renderProductForm(req, res, { product, values, notice, status = 200 }) {
+  res.status(status).render('admin/catalogueProduct', {
+    admin: req.admin,
+    product,
+    values,
+    notice,
+    categoryLabels: catalogue.CATEGORY_LABELS,
+    useLabels: catalogue.USE_LABELS,
+    pregnancyLabels: catalogue.PREGNANCY_LABELS,
+  });
+}
+
+// List: every product (archived included), grouped by category, photo bytes not loaded.
+router.get('/catalogue', adminPage, async (req, res, next) => {
+  try {
+    res.render('admin/catalogue', {
+      admin: req.admin,
+      products: await catalogue.listProducts(),
+      categoryLabels: catalogue.CATEGORY_LABELS,
+      useLabels: catalogue.USE_LABELS,
+      pregnancyLabels: catalogue.PREGNANCY_LABELS,
+      notice: noticeFrom(req),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Registered BEFORE /catalogue/:id, otherwise "new" would be read as an id.
+router.get('/catalogue/new', adminPage, (req, res) => {
+  renderProductForm(req, res, { product: null, values: formValues(null), notice: noticeFrom(req) });
+});
+
+// Create. Invalid input re-renders the form (400) with what was typed.
+router.post('/catalogue', requireAdmin, requireCsrf, async (req, res, next) => {
+  try {
+    const result = await catalogue.createProduct(req.body);
+    if (!result.ok) {
+      return renderProductForm(req, res, {
+        product: null, values: formValues(req.body), notice: NOTICES[result.code], status: 400,
+      });
+    }
+    // The audit entry lists the form fields the admin filled in (name is always one).
+    const typed = formValues(req.body);
+    const filled = Object.keys(typed).filter(k => typed[k].trim());
+    await logAdminAction(req, 'catalogue_product_created', { catalogueProductId: result.id, fields: filled });
+    res.redirect(`/admin/catalogue/${result.id}?notice=catalogue_created`);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Photo bytes for the list thumbnails and the edit page. Not found / no photo -> 404.
+router.get('/catalogue/:id/photo', requireAdmin, async (req, res, next) => {
+  try {
+    const photo = await catalogue.getProductPhoto(req.params.id);
+    if (!photo) return res.status(404).send('Not found');
+    res.set('Content-Type', photo.mimeType || 'image/jpeg');
+    res.set('Cache-Control', 'private, max-age=3600');
+    res.send(photo.data);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/catalogue/:id', adminPage, async (req, res, next) => {
+  try {
+    const product = await catalogue.getProduct(req.params.id);
+    if (!product) return res.status(404).send('Not found');
+    renderProductForm(req, res, { product, values: formValues(product), notice: noticeFrom(req) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Save the edit form. Only changed field names are audited, never values.
+router.post('/catalogue/:id', requireAdmin, requireCsrf, async (req, res, next) => {
+  try {
+    const result = await catalogue.updateProduct(req.params.id, req.body);
+    if (!result.ok && result.code === 'not_found') return res.status(404).send('Not found');
+    const back = `/admin/catalogue/${req.params.id}`;
+    if (!result.ok) {
+      // Re-render with the typed values; the product itself is only needed for slug/photo/dates.
+      const product = await catalogue.getProduct(req.params.id);
+      if (!product) return res.status(404).send('Not found');
+      return renderProductForm(req, res, {
+        product, values: formValues(req.body), notice: NOTICES[result.code], status: 400,
+      });
+    }
+    if (!result.changed.length) return res.redirect(`${back}?notice=catalogue_unchanged`);
+    await logAdminAction(req, 'catalogue_product_updated', {
+      catalogueProductId: req.params.id, fields: result.changed,
+    });
+    res.redirect(`${back}?notice=catalogue_saved`);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Photo upload (multipart). Order: admin check, parse the multipart body, CSRF check (the
+// token is a form field, so it only exists after multer has parsed the body).
+router.post('/catalogue/:id/photo', requireAdmin, (req, res, next) => {
+  photoUpload(req, res, err => {
+    if (!err) return next();
+    // Too big / too many parts / wrong field. Skipping the CSRF check here is safe because
+    // nothing is written: we only redirect back to the page with an error banner. Handling
+    // it here also keeps multer errors away from the global JSON error handler.
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).send('Not found');
+    res.redirect(`/admin/catalogue/${req.params.id}?notice=catalogue_photo_invalid`);
+  });
+}, requireCsrf, async (req, res, next) => {
+  try {
+    const result = await catalogue.replacePhoto(req.params.id, req.file);
+    if (!result.ok && result.code === 'not_found') return res.status(404).send('Not found');
+    const back = `/admin/catalogue/${req.params.id}`;
+    if (!result.ok) return res.redirect(`${back}?notice=${result.code}`);
+    await logAdminAction(req, 'catalogue_photo_replaced', {
+      catalogueProductId: req.params.id, fields: ['photo'],
+    });
+    res.redirect(`${back}?notice=catalogue_photo_saved`);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Archive / restore. The audit entry is written only when the state really changed.
+function archiveHandler(archived, action, notice) {
+  return async (req, res, next) => {
+    try {
+      const result = await catalogue.setArchived(req.params.id, archived);
+      if (!result.ok) return res.status(404).send('Not found');
+      if (result.changed) {
+        await logAdminAction(req, action, { catalogueProductId: req.params.id, fields: ['archived'] });
+      }
+      res.redirect(`/admin/catalogue/${req.params.id}?notice=${notice}`);
+    } catch (err) {
+      next(err);
+    }
+  };
+}
+router.post('/catalogue/:id/archive', requireAdmin, requireCsrf,
+  archiveHandler(true, 'catalogue_product_archived', 'catalogue_archived'));
+router.post('/catalogue/:id/restore', requireAdmin, requireCsrf,
+  archiveHandler(false, 'catalogue_product_restored', 'catalogue_restored'));
 
 // ── Admins ──────────────────────────────────────────────────────────────────
 

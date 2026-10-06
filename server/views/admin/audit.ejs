@@ -28,6 +28,7 @@
               (<a href="/admin/audit?user=<%= e.userId %>">filter</a>)
             <% } %>
             <% if (e.analysisId) { %> <a href="/admin/customer/<%= e.analysisId %>">analysis</a><% } %>
+            <% if (e.catalogueProductId) { %> <a href="/admin/catalogue/<%= e.catalogueProductId %>">product</a><% } %>
           </td>
           <td><%= (e.fields || []).map(humanize).join(', ') || '—' %></td>
         </tr>
