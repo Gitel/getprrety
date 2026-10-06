@@ -4,7 +4,8 @@ import { useTranslation, Trans } from 'react-i18next';
 import { C } from '../constants';
 import { TERMS_URL, PRIVACY_URL, LEGAL_READY, missingLegalConfig, openLegal } from '../lib/consent';
 
-// Binding consent copy shown on the auth screens (LoginScreen, SignUpScreen).
+// Binding consent copy shown on the signed-out landing (QuizIntro, Welcome) and on the
+// auth screens (LoginScreen, SignUpScreen).
 // Tapping the CTA is the act of acceptance; this text makes that explicit and links
 // out to the policies. When legal links aren't configured, onboarding is blocked and
 // we say so instead.

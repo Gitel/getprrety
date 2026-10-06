@@ -12,6 +12,7 @@ import { formatTime, weekdayLetters, weekdayNames } from '../lib/formatting';
 import { logActivity } from '../lib/logActivity';
 import { loadReminderSchedule, requestNotificationPermission, saveReminderSchedule } from '../lib/notifications';
 import { startRetake } from '../lib/retake';
+import { quizEntryScreen } from '../lib/welcomeVariants';
 
 function nudgeTime(time, dir) {
   const [h, m] = time.split(':').map(Number);
@@ -91,19 +92,17 @@ export default function SettingsScreen({ navigation }) {
   async function handleLogout() {
     await logActivity('logout');
     await logout();
-    navigation.reset({ index: 0, routes: [{ name: 'Splash' }] });
+    // Log out shows Login; the quiz landing sits beneath it so Back / swipe returns to it.
+    navigation.reset({ index: 1, routes: [{ name: quizEntryScreen() }, { name: 'Login' }] });
   }
 
   return (
     <SafeAreaView style={s.safe}>
       <ScrollView contentContainerStyle={s.content}>
 
-        {/* Top row: [menu button] Back. A row mirrors automatically in RTL. */}
+        {/* Top row: [menu button]. Going back is the edge swipe (handled in App.jsx / SwipeBack), so there is no Back button. A row mirrors automatically in RTL. */}
         <View style={s.topRow}>
           <MenuButton onPress={navigation.openMenu} color={C.accent} />
-          <Pressable onPress={() => navigation.goBack()}>
-            <Text style={s.backText}>{t('common:back')}</Text>
-          </Pressable>
         </View>
 
         <Text style={s.pageTitle}>{t('settings:title')}</Text>
@@ -235,7 +234,6 @@ const s = StyleSheet.create({
   safe:      { flex: 1, backgroundColor: C.bg },
   content:   { padding: 24, paddingTop: 18 },
   topRow:    { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 16 },
-  backText:  { fontFamily: 'DMSans_400Regular', fontSize: 14, color: C.accent },
   pageTitle: { fontFamily: 'CormorantGaramond_500Medium', fontSize: 26, color: C.text, marginBottom: 20 },
   eraCard:   { borderWidth: 1.5, borderRadius: 16, padding: 20, alignItems: 'center', marginBottom: 28 },
   eraName:   { fontFamily: 'CormorantGaramond_500Medium', fontSize: 17, marginBottom: 4 },

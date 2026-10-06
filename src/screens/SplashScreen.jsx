@@ -38,9 +38,10 @@ export default function SplashScreen({ navigation }) {
       return;
     }
     navigated.current = true;
-    // Login-first: a signed-out user starts on Login (create account, log in, or
-    // "Skip for now" into the anonymous quiz). The ?ref= is re-read from the URL later.
-    navigation.replace('Login');
+    // Quiz-first: a signed-out user lands on the skin-analysis intro (or the clinic
+    // Welcome screen when a recognized ?ref= is present). Existing users reach Login
+    // from the "Already have an account? Log in" control on those screens.
+    navigation.replace(getWelcomeRef() ? 'Welcome' : 'QuizIntro');
   }, [authReady, gaveUp, user, analysis]);
 
   return (

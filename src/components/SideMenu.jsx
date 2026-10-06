@@ -16,6 +16,7 @@ import { logActivity } from '../lib/logActivity';
 import { saveLanguage } from '../lib/languageSync';
 import { rescheduleReminders } from '../lib/notifications';
 import { eraText } from '../lib/eraText';
+import { quizEntryScreen } from '../lib/welcomeVariants';
 
 // Slide-in length in milliseconds.
 const SLIDE_MS = 200;
@@ -198,7 +199,8 @@ export default function SideMenu({ visible, onClose, navigation, currentScreen }
     onClose();
     await logActivity('logout');
     await logout();
-    navigation.reset({ index: 0, routes: [{ name: 'Splash' }] });
+    // Log out shows Login; the quiz landing sits beneath it so Back / swipe returns to it.
+    navigation.reset({ index: 1, routes: [{ name: quizEntryScreen() }, { name: 'Login' }] });
   }
 
   const era = analysis?.era;
