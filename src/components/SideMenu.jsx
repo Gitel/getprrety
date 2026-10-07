@@ -118,9 +118,13 @@ const MenuBody = memo(function MenuBody({ currentScreen, onClose, navigationRef,
   const [bookingFailed, setBookingFailed] = useState(false);
 
   // Forget the inline confirm and the booking error each time the menu has finished closing.
+  // The menu is always mounted, so its scroll position would be kept; reopen at the top as before.
+  // This runs when the overlay is already hidden, so there is no visible jump.
+  const scrollRef = useRef(null);
   useEffect(() => {
     setConfirmRetake(false);
     setBookingFailed(false);
+    scrollRef.current?.scrollTo?.({ y: 0, animated: false });
   }, [closedCount]);
 
   // Navigates to a menu screen following menuAction (see src/lib/sideMenu.js).
@@ -174,7 +178,7 @@ const MenuBody = memo(function MenuBody({ currentScreen, onClose, navigationRef,
 
   return (
     <SafeAreaView style={s.panel} accessibilityLabel={t('menu:panel')}>
-      <ScrollView contentContainerStyle={s.panelContent}>
+      <ScrollView ref={scrollRef} contentContainerStyle={s.panelContent}>
         <View style={s.header}>
           <View style={s.headerText}>
             <Text style={s.brand}>Get Pretty</Text>
@@ -251,6 +255,11 @@ const MenuBody = memo(function MenuBody({ currentScreen, onClose, navigationRef,
   );
 });
 
+// Soft edge shadow: thin translucent bands that follow the wave (no blur, which is slow on phones).
+// Each band is the liquid shape pushed forward by its offset (px); tune the colour/offsets here.
+const SHADOW_OFFSETS = [4, 9, 14];
+const SHADOW_COLOR = 'rgba(0,0,0,0.06)';
+
 // Keyboard-focusable elements inside the panel (used by the focus trap).
 const FOCUSABLE = 'a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])';
 
@@ -282,6 +291,8 @@ export default function SideMenu({ visible, onClose, navigation, currentScreen }
   const overlayRef = useRef(null);
   const dimRef = useRef(null);
   const revealRef = useRef(null);
+  // One ref per shadow band; their clip-path is written to the DOM each frame like the reveal's.
+  const shadowRefs = useRef([]);
   // 0 = fully hidden .. 1 = fully open. A ref (not state): it changes every frame.
   const progressRef = useRef(visible ? 1 : 0);
   const rafRef = useRef(0);
@@ -320,8 +331,10 @@ export default function SideMenu({ visible, onClose, navigation, currentScreen }
     const rtl = getComputedStyle(overlay).direction === 'rtl';
 
     // Removes the inline values: no clip, dim at its full CSS value (darkness 0.2).
+    const bands = shadowRefs.current.filter(Boolean);
     const clearInline = () => {
       reveal.style.clipPath = '';
+      bands.forEach(b => { b.style.clipPath = ''; });
       dim.style.opacity = '';
     };
     // End of a close: hide the overlay and tell MenuBody it can reset.
@@ -342,6 +355,7 @@ export default function SideMenu({ visible, onClose, navigation, currentScreen }
     // Starting values, in place before the first paint of the newly displayed overlay.
     if (p0 === 0) {
       reveal.style.clipPath = EMPTY_POLYGON;
+      bands.forEach(b => { b.style.clipPath = EMPTY_POLYGON; });
       dim.style.opacity = '0';
     }
 
@@ -363,6 +377,12 @@ export default function SideMenu({ visible, onClose, navigation, currentScreen }
       }
       const clip = liquidClipPath({ width, height, progress: p, timeMs: ts, rtl });
       reveal.style.clipPath = clip === 'none' ? '' : clip;
+      // Each band is the same shape pushed forward, so it peeks out ahead of the panel edge.
+      bands.forEach((b, i) => {
+        b.style.clipPath = liquidClipPath({
+          width, height, progress: p, timeMs: ts, rtl, offset: SHADOW_OFFSETS[i],
+        });
+      });
       dim.style.opacity = String(p);
       rafRef.current = requestAnimationFrame(frame);
     };
@@ -461,8 +481,16 @@ export default function SideMenu({ visible, onClose, navigation, currentScreen }
 
       {/* A row mirrors in RTL by itself: the panel is first, so it sits on the start side. */}
       <View style={s.row}>
-        {/* The drop-shadow filter is on this wrapper so the soft shadow follows the wavy edge. */}
+        {/* The shadow bands sit under the reveal, so they show only where they stick out ahead of it. */}
         <View style={s.panelWrap}>
+          {SHADOW_OFFSETS.map((_, i) => (
+            <View
+              key={i}
+              ref={el => { shadowRefs.current[i] = el; }}
+              aria-hidden={true}
+              style={s.shadowBand}
+            />
+          ))}
           {/* clip-path is written to the DOM every frame (never a React style key). */}
           <View ref={revealRef} testID="side-menu-reveal" style={s.reveal}>
             <MenuBody
@@ -492,8 +520,8 @@ const s = StyleSheet.create({
   // 20% black; its opacity (0..1) is animated through the DOM, so darkness = 0.2 x progress.
   dim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.2)', pointerEvents: 'none' },
   row: { flex: 1, flexDirection: 'row' },
-  // The soft shadow follows the clipped (wavy) shape of the child.
-  panelWrap: { width: '82%', maxWidth: 320, filter: 'drop-shadow(0px 0px 14px rgba(0,0,0,0.22))' },
+  panelWrap: { width: '82%', maxWidth: 320 },
+  shadowBand: { ...StyleSheet.absoluteFillObject, backgroundColor: SHADOW_COLOR, pointerEvents: 'none' },
   reveal: { flex: 1 },
   panel: { flex: 1, backgroundColor: C.bg },
   panelContent: { paddingHorizontal: 20, paddingVertical: 16 },
