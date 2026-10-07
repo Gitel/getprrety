@@ -57,3 +57,27 @@ test('USER_DATA covers every model that stores per-user documents', () => {
     .filter(name => !EXCEPTIONS.includes(name));
   expect(Object.keys(USER_DATA).sort()).toEqual(perUser.sort());
 });
+
+// Contract section 13: upcoming calendar events are released BEFORE any row is deleted.
+test('releases the user\'s bookings before deleting rows, when Booking is in the data models', async () => {
+  const f = fakes({ _id: ID, email: 'ada@example.com' });
+  f.dataModels.Booking = { deleteMany: jest.fn(async () => { f.order.push('Booking'); return { deletedCount: 1 }; }) };
+  const releaseBookings = jest.fn(async () => { f.order.push('release'); });
+  await deleteUserAndData(ID, 'ada@example.com', { ...f, releaseBookings });
+  expect(releaseBookings).toHaveBeenCalledWith(ID);
+  expect(f.order[0]).toBe('release');
+  expect(f.order).toContain('Booking');
+});
+
+test('the account is still deleted when releasing bookings fails', async () => {
+  const f = fakes({ _id: ID, email: 'ada@example.com' });
+  f.dataModels.Booking = { deleteMany: jest.fn(async () => ({ deletedCount: 0 })) };
+  const releaseBookings = jest.fn(async () => { throw new Error('calendar down'); });
+  const result = await deleteUserAndData(ID, 'ada@example.com', { ...f, releaseBookings });
+  expect(result.ok).toBe(true);
+  expect(f.userModel.deleteOne).toHaveBeenCalled();
+});
+
+test('USER_DATA includes Booking', () => {
+  expect(Object.keys(USER_DATA)).toContain('Booking');
+});

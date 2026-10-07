@@ -24,6 +24,7 @@ const skinScanRoutes = require('./routes/skinScan');
 const aiRoutes       = require('./routes/ai');
 const cityRoutes     = require('./routes/cities');
 const messageRoutes  = require('./routes/messages');
+const bookingRoutes  = require('./routes/bookings');
 const routineProgressRoutes = require('./routes/routineProgress');
 const adminRoutes    = require('./routes/admin');
 const skinScanPoller = require('./jobs/skinScanPoller');
@@ -67,6 +68,7 @@ app.use('/api/activity',  activityRoutes);
 app.use('/api/ai',        aiRoutes);
 app.use('/api/cities',    cityRoutes);
 app.use('/api/messages',  messageRoutes); // in-app messages with the clinic
+app.use('/api/bookings',  bookingRoutes); // in-app consultation booking
 app.use('/api/routine-progress', routineProgressRoutes); // Home step ticks, per user per day
 
 // Server-rendered clinic admin dashboard (Google sign-in + email allow-list)
