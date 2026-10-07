@@ -270,6 +270,23 @@ test.describe('bookings', () => {
     await expect(page.getByLabel('Buffer between consultations (minutes)')).toHaveValue('0');
   });
 
+  // 11b. CSRF on the settings form (review L13a: dropping requireCsrf here was not caught by any test)
+  test('11b. saving settings without or with a wrong _csrf gets 403 and saves nothing', async ({ page, context }) => {
+    await signIn(context);
+    // A fully VALID form body, so the only thing that can stop it is the CSRF check.
+    const body = {
+      enabled: 'on', slotMinutes: '30', bufferMinutes: '0', leadHours: '99', horizonDays: '30',
+      day0_enabled: 'on', day0_open: '10:00', day0_close: '18:00',
+    };
+    for (const extra of [{}, { _csrf: 'wrong-token' }]) {
+      const res = await page.request.post('/admin/booking-settings', { form: { ...body, ...extra }, maxRedirects: 0 });
+      expect(res.status()).toBe(403);
+    }
+    // Nothing was saved: test 10 left leadHours at 24, and it is still 24 (not 99).
+    await page.goto('/admin/booking-settings');
+    await expect(page.getByLabel('Minimum notice (hours)')).toHaveValue('24');
+  });
+
   // 12. Audit
   test('12. audit log shows booking cancelled and booking settings updated', async ({ page, context }) => {
     await signIn(context);

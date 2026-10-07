@@ -25,6 +25,9 @@
     "multer": "^2.1.1",
     "postmark": "^5.1.0"
   },
+  "jest": {
+    "globalSetup": "./jest.global-setup.js"
+  },
   "devDependencies": {
     "jest": "^29.7.0",
     "nodemon": "^3.1.4"

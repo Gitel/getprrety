@@ -33,6 +33,8 @@ bookingSchema.index({ userId: 1, startsAt: -1 });
 // THE DOUBLE-BOOKING GUARD. Two confirmed bookings can never share a start time because
 // the database itself rejects the second insert (E11000). It is partial so that a
 // cancelled booking does not block the slot: the slot becomes bookable again.
+// Known limit (accepted for phase 1): it only guards an IDENTICAL startsAt. With a buffer or right after
+// a slot-length change, two simultaneous requests for different but overlapping starts can both succeed.
 bookingSchema.index({ startsAt: 1 }, { unique: true, partialFilterExpression: { status: 'confirmed' } });
 
 const Booking = mongoose.model('Booking', bookingSchema);

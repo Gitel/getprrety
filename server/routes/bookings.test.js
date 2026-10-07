@@ -23,9 +23,31 @@ async function call(method, path, { body = {}, query = {} } = {}) {
   return res;
 }
 
+let errorSpy;
 beforeEach(() => {
   jest.resetAllMocks();
+  errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
   consumeRateLimit.mockResolvedValue(true); // rate limit allows by default
+});
+
+afterEach(() => errorSpy.mockRestore());
+
+// M-2: an unexpected failure leaves ONE log line with the route and the error class, nothing else.
+describe('unexpected failures are logged safely', () => {
+  test.each([
+    ['get', '/config', 'getPublicConfig', 'GET /api/bookings/config'],
+    ['get', '/slots', 'listSlots', 'GET /api/bookings/slots'],
+    ['post', '/', 'createBooking', 'POST /api/bookings'],
+    ['get', '/mine', 'listMine', 'GET /api/bookings/mine'],
+  ])('%s %s', async (method, path, fn, label) => {
+    const secret = 'SECRET-KEY-dana@example.com';
+    bookings[fn].mockRejectedValue(new TypeError(`bad data ${secret}`));
+    await call(method, path, { body: { startsAt: 'x', note: 'private note' } });
+    const text = errorSpy.mock.calls.map(c => c.join(' ')).join(' | ');
+    expect(text).toBe(`booking: unexpected error in ${label} (TypeError)`);
+    expect(text).not.toContain(secret);
+    expect(text).not.toContain('private note');
+  });
 });
 
 describe('every route is behind requireAuth', () => {

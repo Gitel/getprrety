@@ -11,7 +11,12 @@ const realCalendar = require('./calendar');
 const realSlots = require('./slots');
 const { isDuplicateStartsAt } = require('./duplicateKey');
 
+// Log-safe text of a calendar error: only Google's reason and the HTTP status, e.g.
+// "(Google: notFound, status 404)". Logs must never get the error object, request or user data, or the key.
+const calendarDetail = err => realCalendar.describeCalendarError(err);
+
 const MINUTE = 60 * 1000;
+const LIST_CAP = 500; // most rows an admin list (or the user card) returns
 const DAY = 24 * 60 * MINUTE;
 const NOTE_MAX = 300;
 
@@ -47,6 +52,20 @@ async function isBookingEnabled(deps) {
   if (!d.calendar.isConfigured()) return false;
   const config = await getConfig(d);
   return Boolean(config.enabled);
+}
+
+// One line for the server log at boot: is booking on, and if not, WHICH settings are missing
+// (names only, never values). The clinic's own on/off switch lives in the database, so it is not checked here.
+function bookingBootLine(deps) {
+  const d = withDefaults(deps);
+  const missing = [];
+  if (!['1', 'true'].includes(process.env.BOOKING_ENABLED)) missing.push('BOOKING_ENABLED (must be 1)');
+  if (!d.calendar.isConfigured()) {
+    if (!process.env.GOOGLE_CALENDAR_ID) missing.push('GOOGLE_CALENDAR_ID');
+    if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON_B64) missing.push('GOOGLE_SERVICE_ACCOUNT_JSON_B64');
+  }
+  if (missing.length) return `booking disabled: missing ${missing.join(', ')}`;
+  return `booking enabled (${realCalendar.isMockMode() ? 'mock calendar' : 'Google calendar'})`;
 }
 
 // What the app may know: five safe fields, or just { enabled: false }.
@@ -98,7 +117,7 @@ async function removeRow(d, id, why) {
   try {
     await d.Booking.deleteOne({ _id: id });
   } catch (err) {
-    console.error(`Booking ${id} could not be removed after ${why}: ${err.message}`);
+    console.error(`Booking ${id} could not be removed after ${why} (${err && err.name})`); // name only: messages can hold data
   }
 }
 
@@ -106,7 +125,8 @@ async function removeRow(d, id, why) {
 // Slots
 // ---------------------------------------------------------------------------------------------
 
-// Free slots for a range of clinic-local dates. from/to optional (default: today .. horizon).
+// Free slots for a range of clinic-local dates. from/to optional (default: today .. the last day
+// the booking window reaches, i.e. the clinic-local date of now + horizonDays).
 async function listSlots({ from, to } = {}, deps) {
   const d = withDefaults(deps);
   if (!(await isBookingEnabled(d))) return { ok: false, code: 'booking_disabled' };
@@ -114,7 +134,12 @@ async function listSlots({ from, to } = {}, deps) {
   const now = d.now();
 
   const fromDate = from === undefined ? d.slots.localParts(now, config.timeZone).date : from;
-  const toDate = to === undefined ? addDays(fromDate, config.horizonDays - 1) : to;
+  // Default end: the local date of "now + horizonDays". Slots after that exact moment are still dropped by computeSlots.
+  let toDate = to;
+  if (to === undefined) {
+    toDate = d.slots.localParts(new Date(now.getTime() + config.horizonDays * DAY), config.timeZone).date;
+    if (d.slots.isDateString(fromDate) && fromDate > toDate) toDate = fromDate; // a start past the window just has no slots
+  }
   if (!d.slots.isDateString(fromDate) || !d.slots.isDateString(toDate) || fromDate > toDate) {
     return { ok: false, code: 'invalid_range' };
   }
@@ -127,7 +152,8 @@ async function listSlots({ from, to } = {}, deps) {
   let busy;
   try {
     busy = await d.calendar.getBusy({ start: rangeStart, end: rangeEnd });
-  } catch {
+  } catch (err) {
+    console.error(`booking: calendar_unavailable while listing slots ${calendarDetail(err)}`);
     return { ok: false, code: 'calendar_unavailable' }; // any calendar failure
   }
   // A day of margin before the range, so a booking that started just before still blocks.
@@ -179,7 +205,8 @@ async function createBooking(userId, { startsAt, note } = {}, deps) {
   let busy;
   try {
     busy = await d.calendar.getBusy({ start: rangeStart, end: rangeEnd }, { fresh: true });
-  } catch {
+  } catch (err) {
+    console.error(`booking: calendar_unavailable while checking the slot ${calendarDetail(err)}`);
     return { ok: false, code: 'calendar_unavailable' }; // nothing was written yet
   }
   const booked = await d.Booking.find({
@@ -188,6 +215,9 @@ async function createBooking(userId, { startsAt, note } = {}, deps) {
   const stillFree = d.slots.computeSlots({ now, fromDate: localDate, toDate: localDate, config, busy, booked });
   if (!stillFree.some(s => s.startsAt === wanted)) return { ok: false, code: 'slot_taken' };
 
+  // Known limit (accepted for phase 1): the unique index only stops an IDENTICAL startsAt. With a buffer
+  // or right after a slot-length change, two simultaneous requests for different but overlapping
+  // starts can both get through. No lock is used.
   // 5. Claim the slot. The unique index on startsAt (confirmed rows) makes this atomic:
   //    if two people get here together, the database rejects the second one.
   let booking;
@@ -200,8 +230,12 @@ async function createBooking(userId, { startsAt, note } = {}, deps) {
     throw err;
   }
 
-  // 6. Race guard: two requests of the SAME user may both pass step 2. Keep only one.
-  if ((await d.Booking.countDocuments(upcomingFilter)) > 1) {
+  // 6. Race guard: two requests of the SAME user may both pass step 2. Keep only one: the EARLIER
+  //    row (smaller _id = created first). Both requests compute the same winner, so exactly one
+  //    row survives and only the later request is answered with limit_reached.
+  const upcomingRows = await d.Booking.find(upcomingFilter).select('_id').lean();
+  const earliestId = upcomingRows.map(r => String(r._id)).sort()[0];
+  if (upcomingRows.length > 1 && String(booking._id) !== earliestId) {
     await removeRow(d, booking._id, 'limit race');
     return { ok: false, code: 'limit_reached' };
   }
@@ -213,7 +247,10 @@ async function createBooking(userId, { startsAt, note } = {}, deps) {
     ({ eventId } = await d.calendar.createEvent({
       bookingId: booking._id, startsAt: start, endsAt: end, ...text,
     }));
-  } catch {
+  } catch (err) {
+    // Google may still have created the event (e.g. after a timeout). It carries our booking id in
+    // extendedProperties.private.getprettyBookingId, so a human can find an orphan with this log line.
+    console.error(`booking: calendar_unavailable creating the event for booking ${booking._id} ${calendarDetail(err)}; an orphan event would have getprettyBookingId=${booking._id}`);
     await removeRow(d, booking._id, 'calendar failure');
     return { ok: false, code: 'calendar_unavailable' };
   }
@@ -226,8 +263,8 @@ async function createBooking(userId, { startsAt, note } = {}, deps) {
   } catch {
     try {
       await d.calendar.deleteEvent(eventId);
-    } catch {
-      console.error(`Booking ${booking._id}: calendar event cleanup failed`);
+    } catch (err) {
+      console.error(`Booking ${booking._id}: calendar event ${eventId} cleanup failed ${calendarDetail(err)}`);
     }
     await removeRow(d, booking._id, 'event id save failure');
     return { ok: false, code: 'booking_failed' };
@@ -299,14 +336,15 @@ async function listForAdmin({ tab } = {}, deps) {
     cancelled: [{ status: 'cancelled' }, -1],
   };
   const [filter, direction] = queries[tab] || queries.upcoming;
-  const bookings = await d.Booking.find(filter).sort({ startsAt: direction }).lean();
+  // Capped so a list cannot grow forever: upcoming = the soonest 500, past/cancelled = the newest 500.
+  const bookings = await d.Booking.find(filter).sort({ startsAt: direction }).limit(LIST_CAP).lean();
   return toAdminRows(bookings, d);
 }
 
 // Every booking of one client, newest first (shown on the admin user page).
 async function listForUser(userId, deps) {
   const d = withDefaults(deps);
-  const bookings = await d.Booking.find({ userId }).sort({ startsAt: -1 }).lean();
+  const bookings = await d.Booking.find({ userId }).sort({ startsAt: -1 }).limit(LIST_CAP).lean();
   return toAdminRows(bookings, d);
 }
 
@@ -322,8 +360,10 @@ async function cancelBooking(id, adminEmail, deps) {
 
   if (booking.calendarEventId) {
     try {
-      await d.calendar.deleteEvent(booking.calendarEventId);
-    } catch {
+      // Delete on the calendar the booking was made on (stored snapshot), not the one configured now.
+      await d.calendar.deleteEvent(booking.calendarEventId, booking.calendarId || undefined);
+    } catch (err) {
+      console.error(`booking: calendar_unavailable cancelling booking ${booking._id}, event ${booking.calendarEventId} ${calendarDetail(err)}`);
       return { ok: false, code: 'calendar_unavailable' };
     }
   }
@@ -387,7 +427,7 @@ async function updateConfig(input = {}, deps) {
 // ---------------------------------------------------------------------------------------------
 
 // Removes the calendar events of the user's upcoming bookings. Best effort: a failure is logged
-// (booking id only) and we carry on, because the account must always be deletable.
+// (booking id + event id) and we carry on, because the account must always be deletable.
 async function releaseUserBookings(userId, deps) {
   const d = withDefaults(deps);
   const upcoming = await d.Booking.find({
@@ -396,14 +436,14 @@ async function releaseUserBookings(userId, deps) {
   for (const b of upcoming) {
     if (!b.calendarEventId) continue;
     try {
-      await d.calendar.deleteEvent(b.calendarEventId);
-    } catch {
-      console.error(`Booking ${b._id}: calendar event could not be removed while deleting the account`);
+      await d.calendar.deleteEvent(b.calendarEventId, b.calendarId || undefined);
+    } catch (err) {
+      console.error(`Booking ${b._id}: calendar event ${b.calendarEventId} could not be removed while deleting the account ${calendarDetail(err)}`);
     }
   }
 }
 
 module.exports = {
-  isBookingEnabled, getConfig, getPublicConfig, listSlots, createBooking, listMine,
+  isBookingEnabled, bookingBootLine, getConfig, getPublicConfig, listSlots, createBooking, listMine,
   listForAdmin, listForUser, cancelBooking, updateConfig, releaseUserBookings,
 };

@@ -5,7 +5,7 @@ const mongoose = require('mongoose'); // only for ObjectId values, we never conn
 const realSlots = require('./slots');
 const {
   isBookingEnabled, getConfig, getPublicConfig, listSlots, createBooking, listMine,
-  listForAdmin, listForUser, cancelBooking, updateConfig,
+  listForAdmin, listForUser, cancelBooking, updateConfig, bookingBootLine, releaseUserBookings,
 } = require('./bookings');
 
 const oid = () => new mongoose.Types.ObjectId();
@@ -704,12 +704,12 @@ describe('cancelBooking', () => {
   }
 
   test('deletes the calendar event FIRST, then marks the booking cancelled', async () => {
-    const { world, deps, booking } = cancelWorld();
+    const { world, deps, booking } = cancelWorld({ calendarId: 'old-cal@group.calendar.google.com' }); // L8: the stored snapshot is used
     let statusWhenCalendarWasCalled = null;
     world.calendar.deleteEvent.mockImplementation(async () => { statusWhenCalendarWasCalled = booking.status; });
     const result = await cancelBooking(String(booking._id), 'admin@example.com', deps);
     expect(result.ok).toBe(true);
-    expect(world.calendar.deleteEvent).toHaveBeenCalledWith('evt-9');
+    expect(world.calendar.deleteEvent).toHaveBeenCalledWith('evt-9', 'old-cal@group.calendar.google.com');
     expect(statusWhenCalendarWasCalled).toBe('confirmed'); // the DB was still untouched when the calendar was called
     expect(booking.status).toBe('cancelled');
     expect(booking.cancelledByAdminEmail).toBe('admin@example.com');
@@ -843,5 +843,192 @@ describe('updateConfig (form body -> validated settings)', () => {
     const world = fresh();
     expect(await updateConfig(baseForm(patch), world.deps)).toEqual({ ok: false, code: 'invalid' });
     expect(world.config()).toMatchObject(DEFAULTS);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// Review round 1 fixes (contract section 14)
+// ---------------------------------------------------------------------------------------------
+const SECRET = 'SUPER-SECRET-PRIVATE-KEY-123';
+const USER_EMAIL = 'dana@example.com';
+// What the calendar service throws, but carrying things that must NEVER reach the log.
+const leakyCalendarError = () => Object.assign(new FakeCalendarError(`boom ${SECRET} ${USER_EMAIL}`), {
+  reason: 'notFound', status: 404, cause: new Error(`${SECRET} ${USER_EMAIL}`),
+});
+const spyLog = () => jest.spyOn(console, 'error').mockImplementation(() => {});
+const logged = spy => spy.mock.calls.map(c => c.join(' ')).join('\n');
+
+describe('M-2: failures are logged with codes only', () => {
+  test('slots: calendar failure logs the Google reason and status, never the key or the user email', async () => {
+    const { world, deps } = userWorld();
+    const spy = spyLog();
+    world.calendar.getBusy.mockRejectedValue(leakyCalendarError());
+    await listSlots({ from: '2026-10-11', to: '2026-10-11' }, deps);
+    expect(logged(spy)).toContain('booking: calendar_unavailable');
+    expect(logged(spy)).toContain('(Google: notFound, status 404)');
+    expect(logged(spy)).not.toContain(SECRET);
+    expect(logged(spy)).not.toContain(USER_EMAIL);
+  });
+
+  test('create: step 4 failure, step 7 failure (with the booking id) and step 8 cleanup failure are logged safely', async () => {
+    const { world, userId, deps } = userWorld();
+    const spy = spyLog();
+    world.calendar.getBusy.mockRejectedValueOnce(leakyCalendarError());
+    await createBooking(userId, { startsAt: SLOT, note: 'private note' }, deps);
+    expect(logged(spy)).toContain('(Google: notFound, status 404)');
+
+    spy.mockClear();
+    world.calendar.createEvent.mockRejectedValueOnce(leakyCalendarError());
+    await createBooking(userId, { startsAt: SLOT, note: 'private note' }, deps);
+    // L8: the failure line carries the booking id so an orphan event can be found by extendedProperties.
+    const created = await world.Booking.create.mock.results[0].value;
+    expect(logged(spy)).toContain(`booking ${created._id}`);
+    expect(logged(spy)).toContain('getprettyBookingId');
+
+    spy.mockClear();
+    world.Booking.updateOne.mockRejectedValueOnce(new Error(`mongo ${USER_EMAIL}`));
+    world.calendar.deleteEvent.mockRejectedValueOnce(leakyCalendarError());
+    await createBooking(userId, { startsAt: SLOT, note: 'private note' }, deps);
+    expect(logged(spy)).toContain('evt-1'); // the id of the event that could not be cleaned up
+    for (const text of [SECRET, USER_EMAIL, 'private note']) expect(logged(spy)).not.toContain(text);
+  });
+
+  test('a database failure while removing a row logs the error NAME only, not its message', async () => {
+    const { world, userId, deps } = userWorld();
+    const spy = spyLog();
+    world.calendar.createEvent.mockRejectedValueOnce(new FakeCalendarError());
+    world.Booking.deleteOne.mockRejectedValueOnce(new Error(`E11000 dup key ${USER_EMAIL}`));
+    await createBooking(userId, { startsAt: SLOT }, deps);
+    expect(logged(spy)).not.toContain(USER_EMAIL);
+  });
+
+  test('cancel failure logs the booking id and event id with the Google reason, nothing else', async () => {
+    const userId = oid();
+    const world = makeWorld({
+      users: [{ _id: userId, email: USER_EMAIL, firstName: 'Dana' }],
+      bookings: [{ userId, startsAt: new Date(SLOT), endsAt: new Date('2026-10-08T07:30:00Z'), calendarEventId: 'evt-77' }],
+    });
+    const spy = spyLog();
+    world.calendar.deleteEvent.mockRejectedValueOnce(leakyCalendarError());
+    await cancelBooking(String(world.store[0]._id), 'admin@example.com', world.deps);
+    expect(logged(spy)).toContain(String(world.store[0]._id));
+    expect(logged(spy)).toContain('evt-77');
+    expect(logged(spy)).toContain('(Google: notFound, status 404)');
+    expect(logged(spy)).not.toContain(SECRET);
+    expect(logged(spy)).not.toContain(USER_EMAIL);
+  });
+
+  test('bookingBootLine: names the missing settings (never values), or says booking is enabled', () => {
+    const { world } = userWorld();
+    const deps = world.deps;
+    const savedKey = process.env.GOOGLE_SERVICE_ACCOUNT_JSON_B64;
+    delete process.env.BOOKING_ENABLED;
+    delete process.env.GOOGLE_SERVICE_ACCOUNT_JSON_B64;
+    process.env.GOOGLE_CALENDAR_ID = 'calendar-id-value-must-not-print';
+    world.calendar.isConfigured.mockReturnValue(false);
+    const line = bookingBootLine(deps);
+    expect(line).toBe('booking disabled: missing BOOKING_ENABLED (must be 1), GOOGLE_SERVICE_ACCOUNT_JSON_B64');
+    expect(line).not.toContain('calendar-id-value-must-not-print');
+
+    process.env.BOOKING_ENABLED = '1';
+    world.calendar.isConfigured.mockReturnValue(true);
+    expect(bookingBootLine(deps)).toBe('booking enabled (Google calendar)');
+    if (savedKey !== undefined) process.env.GOOGLE_SERVICE_ACCOUNT_JSON_B64 = savedKey;
+  });
+});
+
+describe('L4: admin lists are capped at 500 rows per tab', () => {
+  function bigWorld(count, make) {
+    const userId = oid();
+    const bookings = Array.from({ length: count }, (_, i) => make(userId, i));
+    const world = makeWorld({ users: [{ _id: userId, email: 'a@x.com', firstName: 'A' }], bookings });
+    return { world, userId, deps: world.deps };
+  }
+  const day = n => new Date(NOW.getTime() + n * 24 * 3600 * 1000);
+  const row = (userId, startsAt, status = 'confirmed') => ({ userId, status, startsAt, endsAt: new Date(startsAt.getTime() + 1800000) });
+
+  test('upcoming keeps the SOONEST 500', async () => {
+    const { deps } = bigWorld(505, (u, i) => row(u, day(i + 1)));
+    const rows = await listForAdmin({ tab: 'upcoming' }, deps);
+    expect(rows).toHaveLength(500);
+    expect(rows[0].startsAt).toBe(day(1).toISOString());
+    expect(rows[499].startsAt).toBe(day(500).toISOString());
+  });
+
+  test('past and cancelled keep the NEWEST 500', async () => {
+    const past = bigWorld(505, (u, i) => row(u, day(-(i + 1))));
+    let rows = await listForAdmin({ tab: 'past' }, past.deps);
+    expect(rows).toHaveLength(500);
+    expect(rows[0].startsAt).toBe(day(-1).toISOString());
+    const cancelled = bigWorld(505, (u, i) => row(u, day(i + 1), 'cancelled'));
+    rows = await listForAdmin({ tab: 'cancelled' }, cancelled.deps);
+    expect(rows).toHaveLength(500);
+    expect(rows[0].startsAt).toBe(day(505).toISOString());
+  });
+
+  test('the user card is capped too, newest first', async () => {
+    const { deps, userId } = bigWorld(505, (u, i) => row(u, day(-i)));
+    const rows = await listForUser(userId, deps);
+    expect(rows).toHaveLength(500);
+    expect(rows[0].startsAt).toBe(day(0).toISOString());
+  });
+});
+
+describe('L6: same-user race keeps exactly one booking (the earlier one)', () => {
+  test('two simultaneous requests of one user: one books, the other gets limit_reached, one row and one event remain', async () => {
+    const { world, userId, deps } = userWorld();
+    // Hold both requests at the calendar check so they BOTH pass step 2 (no booking exists yet).
+    let arrived = 0;
+    let open;
+    const gate = new Promise(resolve => { open = resolve; });
+    world.calendar.getBusy.mockImplementation(async () => {
+      arrived += 1;
+      if (arrived === 2) open();
+      await gate;
+      return [];
+    });
+    const [a, b] = await Promise.all([
+      createBooking(userId, { startsAt: SLOT }, deps),
+      createBooking(userId, { startsAt: '2026-10-08T07:30:00.000Z' }, deps),
+    ]);
+    expect([a.ok, b.ok].sort()).toEqual([false, true]);
+    expect([a, b].find(r => !r.ok)).toEqual({ ok: false, code: 'limit_reached' });
+    expect(world.store).toHaveLength(1); // the user keeps exactly one booking
+    expect(world.calendar.createEvent).toHaveBeenCalledTimes(1);
+    // The survivor is the one created FIRST (smallest _id).
+    const created = await Promise.all(world.Booking.create.mock.results.map(r => r.value));
+    const first = created.map(c => String(c._id)).sort()[0];
+    expect(String(world.store[0]._id)).toBe(first);
+  });
+});
+
+describe('L8: release on account deletion uses the stored calendar and logs ids', () => {
+  test('deleteEvent gets the booking snapshot calendarId; a failure logs booking id + event id only', async () => {
+    const userId = oid();
+    const world = makeWorld({
+      users: [{ _id: userId, email: USER_EMAIL, firstName: 'Dana' }],
+      bookings: [{ userId, startsAt: new Date(SLOT), endsAt: new Date('2026-10-08T07:30:00Z'), calendarEventId: 'evt-5', calendarId: 'old@group.calendar.google.com' }],
+    });
+    const spy = spyLog();
+    world.calendar.deleteEvent.mockRejectedValueOnce(leakyCalendarError());
+    await releaseUserBookings(userId, world.deps);
+    expect(world.calendar.deleteEvent).toHaveBeenCalledWith('evt-5', 'old@group.calendar.google.com');
+    expect(logged(spy)).toContain(String(world.store[0]._id));
+    expect(logged(spy)).toContain('evt-5');
+    expect(logged(spy)).not.toContain(SECRET);
+    expect(logged(spy)).not.toContain(USER_EMAIL);
+  });
+});
+
+describe('L9: default slot range ends on the last day the window reaches', () => {
+  test('with every weekday open, slots on the local date of now + horizonDays are offered', async () => {
+    const allDays = { ...DEFAULTS, weekly: [0, 1, 2, 3, 4, 5, 6].map(day => ({ day, open: '10:00', close: '18:00' })) };
+    const world = makeWorld({ config: allDays });
+    // Now = Wed 2026-10-07 15:00 local (12:00Z). Window ends Fri 2026-11-06 14:00 local (12:00Z, UTC+2 after DST ends).
+    const deps = { ...world.deps, now: () => new Date('2026-10-07T12:00:00Z') };
+    const result = await listSlots({}, deps);
+    const last = result.slots[result.slots.length - 1];
+    expect(last.date).toBe('2026-11-06');
+    expect(last.time).toBe('13:30'); // 13:30 starts before 14:00; 14:00 and later are past the horizon
   });
 });

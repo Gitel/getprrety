@@ -32,14 +32,16 @@ test('deletes the calendar event of upcoming confirmed bookings only', async () 
     row('no-event', { calendarEventId: null }),
   ], calendar);
   await releaseUserBookings(USER, deps);
-  expect(calendar.deleteEvent.mock.calls).toEqual([['evt-a']]);
+  expect(calendar.deleteEvent.mock.calls).toEqual([['evt-a', undefined]]); // no stored calendarId -> undefined (falls back to the configured one)
 });
 
 test('a calendar failure is logged with the booking id and the loop continues', async () => {
   const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
-  const calendar = { deleteEvent: jest.fn(async id => { if (id === 'evt-a') throw new Error('google down'); }) };
-  const deps = makeDeps([row('a'), row('b')], calendar);
+  const calendar = { deleteEvent: jest.fn(async id => { if (id === 'evt-booking-id-AAA111') throw new Error('google down'); }) };
+  const deps = makeDeps([row('booking-id-AAA111'), row('b')], calendar);
   await expect(releaseUserBookings(USER, deps)).resolves.toBeUndefined();
   expect(calendar.deleteEvent).toHaveBeenCalledTimes(2);
-  expect(spy.mock.calls.map(c => c.join(' ')).join('\n')).toContain('a');
+  const text = spy.mock.calls.map(c => c.join(' ')).join('\n');
+  expect(text).toContain('Booking booking-id-AAA111:'); // the booking id (distinctive, so this cannot pass by accident)
+  expect(text).toContain('evt-booking-id-AAA111'); // and the event id
 });

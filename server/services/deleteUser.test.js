@@ -1,5 +1,9 @@
 const fs = require('fs');
 const path = require('path');
+// The real ./bookings is replaced by an automock so we can see whether the PRODUCTION default
+// of deleteUserAndData calls it (no calendar, no database involved).
+jest.mock('./bookings');
+const { releaseUserBookings } = require('./bookings');
 const { deleteUserAndData, USER_DATA } = require('./deleteUser');
 
 const ID = '64b0000000000000000000aa';
@@ -80,4 +84,15 @@ test('the account is still deleted when releasing bookings fails', async () => {
 
 test('USER_DATA includes Booking', () => {
   expect(Object.keys(USER_DATA)).toContain('Booking');
+});
+
+// L13: the production default (no releaseBookings injected) must really call bookings.releaseUserBookings.
+test('without an injected release, the real releaseUserBookings from ./bookings is called, before any row is deleted', async () => {
+  const f = fakes({ _id: ID, email: 'ada@example.com' });
+  f.dataModels.Booking = { deleteMany: jest.fn(async () => { f.order.push('Booking'); return { deletedCount: 0 }; }) };
+  releaseUserBookings.mockImplementation(async () => { f.order.push('release'); });
+  const result = await deleteUserAndData(ID, 'ada@example.com', f); // note: no releaseBookings here
+  expect(result.ok).toBe(true);
+  expect(releaseUserBookings).toHaveBeenCalledWith(ID);
+  expect(f.order[0]).toBe('release');
 });

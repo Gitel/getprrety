@@ -591,7 +591,7 @@ router.post('/catalogue/:id/archive', requireAdmin, requireCsrf,
 router.post('/catalogue/:id/restore', requireAdmin, requireCsrf,
   archiveHandler(false, 'catalogue_product_restored', 'catalogue_restored'));
 
-// ג”€ג”€ Bookings ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
+// ── Bookings ────────────────────────────────────────────────────────────────
 
 const BOOKING_TABS = ['upcoming', 'past', 'cancelled'];
 

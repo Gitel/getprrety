@@ -187,6 +187,62 @@ describe('real client behaviour with an injected fake Google client', () => {
     expect(client.freebusy.query).toHaveBeenCalledTimes(2);
   });
 
+  // M-1: Google can answer HTTP 200 and still say the calendar failed (errors) or leave it out.
+  test('M-1: a freebusy reply with errors for our calendar -> CalendarError, with the Google reason, never cached', async () => {
+    const client = fakeClient();
+    client.freebusy.query.mockResolvedValueOnce({ data: { calendars: { [CAL_ID]: { errors: [{ domain: 'global', reason: 'notFound' }], busy: [] } } } });
+    const { svc } = build(client);
+    await expect(svc.getBusy(range)).rejects.toMatchObject({ code: 'calendar_unavailable', reason: 'notFound' });
+    // Not cached: the next call asks Google again and (now healthy) succeeds.
+    expect(await svc.getBusy(range)).toHaveLength(1);
+    expect(client.freebusy.query).toHaveBeenCalledTimes(2);
+  });
+
+  test('M-1: a freebusy reply that does not mention our calendar -> CalendarError, never cached', async () => {
+    const client = fakeClient();
+    client.freebusy.query.mockResolvedValueOnce({ data: { calendars: {} } });
+    const { svc } = build(client);
+    await expect(svc.getBusy(range)).rejects.toMatchObject({ code: 'calendar_unavailable' });
+    expect(await svc.getBusy(range)).toHaveLength(1);
+    expect(client.freebusy.query).toHaveBeenCalledTimes(2);
+  });
+
+  // L5: the busy cache must not grow forever.
+  test('L5: expired cache entries are dropped when a new answer is stored', async () => {
+    jest.useFakeTimers({ now: new Date('2026-10-07T06:00:00Z') });
+    const client = fakeClient();
+    const { svc } = build(client);
+    await svc.getBusy(rangeOf('2026-10-08T00:00:00Z', '2026-10-09T00:00:00Z'));
+    await svc.getBusy(rangeOf('2026-10-09T00:00:00Z', '2026-10-10T00:00:00Z'));
+    expect(svc.__mock.cacheSize()).toBe(2);
+    jest.setSystemTime(new Date('2026-10-07T06:01:00Z')); // both entries are now older than 45 s
+    await svc.getBusy(rangeOf('2026-10-10T00:00:00Z', '2026-10-11T00:00:00Z'));
+    expect(svc.__mock.cacheSize()).toBe(1); // only the new answer is left
+  });
+
+  // L8: events are deleted on the calendar the booking was made on (its stored snapshot).
+  test('L8: deleteEvent uses the given calendar id, falling back to the configured one', async () => {
+    const client = fakeClient();
+    const { svc } = build(client);
+    await svc.deleteEvent('evt-1', 'old-calendar@group.calendar.google.com');
+    expect(client.events.delete.mock.calls[0][0]).toMatchObject({ calendarId: 'old-calendar@group.calendar.google.com', eventId: 'evt-1' });
+    await svc.deleteEvent('evt-2');
+    expect(client.events.delete.mock.calls[1][0]).toMatchObject({ calendarId: CAL_ID, eventId: 'evt-2' });
+  });
+
+  // M-2: errors carry only short codes (never the original error, which may hold the key).
+  test('M-2: describeCalendarError gives only safe codes: Google reason, status', async () => {
+    const client = fakeClient();
+    const { cal, svc } = build(client);
+    const boom = Object.assign(new Error(`failed with ${SECRET}`), { code: 403, errors: [{ reason: 'forbidden' }] });
+    client.events.insert.mockRejectedValueOnce(boom);
+    const err = await svc.createEvent({ bookingId: 'b1', startsAt: new Date(), endsAt: new Date(), summary: 's', description: 'd' }).catch(e => e);
+    const text = cal.describeCalendarError(err);
+    expect(text).toBe('(Google: forbidden, status 403)');
+    expect(text).not.toContain(SECRET);
+    expect(cal.describeCalendarError(new Error('plain'))).toBe('');
+  });
+
   test('createEvent sends no attendees, no invite mail, the Jerusalem zone and our booking id', async () => {
     const client = fakeClient();
     const { svc } = build(client);

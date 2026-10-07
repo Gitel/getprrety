@@ -14,13 +14,29 @@ const CACHE_MS = 45 * 1000; // busy answers are reused for this long
 
 // Single error type for every calendar problem. `cause` keeps the original error for debugging.
 // Messages are fixed text: they must never include the key or anything decoded from it.
+// `reason` / `status` are the ONLY details meant for logs: short codes taken from Google's reply.
 class CalendarError extends Error {
-  constructor(message, cause) {
+  constructor(message, cause, reason) {
     super(message);
     this.name = 'CalendarError';
     this.code = 'calendar_unavailable';
     if (cause !== undefined) this.cause = cause;
+    // Google's reason (e.g. 'notFound') when we have one, kept only if it is a short plain word.
+    const googleReason = reason || (cause && Array.isArray(cause.errors) && cause.errors[0] && cause.errors[0].reason);
+    if (typeof googleReason === 'string' && /^[A-Za-z0-9_]{1,40}$/.test(googleReason)) this.reason = googleReason;
+    // HTTP status of a failed Google call (numbers only).
+    const status = cause && Number(cause.code || cause.status || (cause.response && cause.response.status));
+    if (Number.isInteger(status) && status >= 100 && status < 600) this.status = status;
   }
+}
+
+// Log-safe text for a calendar failure: only the Google reason and HTTP status, like
+// "(Google: notFound, status 404)". Never the error object, its message, config or the key.
+function describeCalendarError(err) {
+  const parts = [];
+  if (err && err.reason) parts.push(`Google: ${err.reason}`);
+  if (err && err.status) parts.push(`status ${err.status}`);
+  return parts.length ? `(${parts.join(', ')})` : '';
 }
 
 // Mock mode is a test/dev aid. It is never allowed in production.
@@ -37,7 +53,7 @@ function isConfigured() {
 function withTimeout(promise) {
   let timer;
   const timeout = new Promise((_, reject) => {
-    timer = setTimeout(() => reject(new CalendarError('Calendar request timed out')), TIMEOUT_MS);
+    timer = setTimeout(() => reject(new CalendarError('Calendar request timed out', undefined, 'timeout')), TIMEOUT_MS);
   });
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
@@ -129,7 +145,17 @@ function createCalendarService({ client } = {}) {
         requestBody: { timeMin: start.toISOString(), timeMax: end.toISOString(), items: [{ id: calendarId }] },
       }));
       const cal = res.data && res.data.calendars && res.data.calendars[calendarId];
-      const busy = ((cal && cal.busy) || []).map(b => ({ start: new Date(b.start), end: new Date(b.end) }));
+      // Google can answer HTTP 200 and still report a per-calendar failure (errors) or leave our
+      // calendar out. Treating that as "no busy time" would show every slot free, so it is an error.
+      // (Thrown before cache.set, so a failed answer is never cached.)
+      if (!cal || (Array.isArray(cal.errors) && cal.errors.length)) {
+        throw new CalendarError('Calendar busy query failed', undefined, cal && cal.errors && cal.errors[0] && cal.errors[0].reason);
+      }
+      const busy = (cal.busy || []).map(b => ({ start: new Date(b.start), end: new Date(b.end) }));
+      // Drop expired entries first so the cache cannot grow forever, then store this answer.
+      for (const [key, entry] of cache) {
+        if (Date.now() - entry.at >= CACHE_MS) cache.delete(key);
+      }
       cache.set(cacheKey, { at: Date.now(), busy }); // only successful answers are cached
       return busy;
     } catch (e) {
@@ -163,14 +189,16 @@ function createCalendarService({ client } = {}) {
   }
 
   // Idempotent: an event that is already gone (404/410) counts as deleted.
-  async function deleteEvent(eventId) {
+  // `calendarId` is the calendar the booking was made on (its stored snapshot); it falls back
+  // to the configured one for rows that have none.
+  async function deleteEvent(eventId, calendarId) {
     if (useMock()) {
       mockEvents = mockEvents.filter(ev => ev.eventId !== eventId);
       return;
     }
     const g = requireReady();
     try {
-      await withTimeout(g.events.delete({ calendarId: process.env.GOOGLE_CALENDAR_ID, eventId, sendUpdates: 'none' }));
+      await withTimeout(g.events.delete({ calendarId: calendarId || process.env.GOOGLE_CALENDAR_ID, eventId, sendUpdates: 'none' }));
     } catch (e) {
       if (isGone(e)) return;
       throw wrap(e);
@@ -183,8 +211,9 @@ function createCalendarService({ client } = {}) {
     __mock: {
       events: () => mockEvents.slice(),
       reset: () => { mockEvents = []; mockCounter = 0; cache.clear(); },
+      cacheSize: () => cache.size,
     },
   };
 }
 
-module.exports = { ...createCalendarService(), createCalendarService };
+module.exports = { ...createCalendarService(), createCalendarService, describeCalendarError, isMockMode };

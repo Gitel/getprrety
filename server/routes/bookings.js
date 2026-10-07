@@ -22,6 +22,13 @@ const ERRORS = {
   booking_failed:       { status: 500, error: 'Unable to book the consultation' },
 };
 
+// Logs an unexpected failure as ONE short line: where it happened and the error's class name only
+// (e.g. TypeError). Never the error object or message, the request or any user data.
+function logUnexpected(where, err) {
+  const name = err && /^[A-Za-z0-9_]{1,40}$/.test(err.name) ? err.name : 'Error';
+  console.error(`booking: unexpected error in ${where} (${name})`);
+}
+
 // Sends the error body for a code from the table above.
 function sendError(res, code) {
   const e = ERRORS[code];
@@ -36,7 +43,8 @@ router.get('/config', requireAuth, async (req, res) => {
   try {
     const config = await bookings.getPublicConfig();
     res.json(config && config.enabled ? config : { enabled: false });
-  } catch {
+  } catch (err) {
+    logUnexpected('GET /api/bookings/config', err);
     sendError(res, 'booking_load_failed');
   }
 });
@@ -50,7 +58,8 @@ router.get('/slots', requireAuth, async (req, res) => {
     const result = await bookings.listSlots({ from, to });
     if (!result.ok) return sendError(res, result.code);
     res.json({ timeZone: result.timeZone, slots: result.slots });
-  } catch {
+  } catch (err) {
+    logUnexpected('GET /api/bookings/slots', err);
     sendError(res, 'booking_load_failed');
   }
 });
@@ -63,7 +72,8 @@ router.post('/', requireAuth, async (req, res) => {
     const result = await bookings.createBooking(req.user.id, req.body || {});
     if (!result.ok) return sendError(res, result.code);
     res.status(201).json({ booking: result.booking, warning: result.warning });
-  } catch {
+  } catch (err) {
+    logUnexpected('POST /api/bookings', err);
     sendError(res, 'booking_failed');
   }
 });
@@ -72,7 +82,8 @@ router.post('/', requireAuth, async (req, res) => {
 router.get('/mine', requireAuth, async (req, res) => {
   try {
     res.json(await bookings.listMine(req.user.id));
-  } catch {
+  } catch (err) {
+    logUnexpected('GET /api/bookings/mine', err);
     sendError(res, 'booking_load_failed');
   }
 });

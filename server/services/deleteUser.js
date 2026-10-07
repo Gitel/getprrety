@@ -44,7 +44,7 @@ async function deleteUserAndData(id, confirmEmail, { userModel = User, dataModel
     try {
       await releaseBookings(user._id);
     } catch (err) {
-      console.error('Releasing bookings before account deletion failed:', err.message);
+      console.error(`Releasing bookings before account deletion failed (${err && err.name})`); // name only: messages can hold data
     }
   }
 

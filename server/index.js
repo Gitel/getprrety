@@ -98,6 +98,10 @@ console[mailProblem ? 'error' : 'log'](
     : '✉️  Clinic notification email configured'
 );
 
+// In-app booking: say at boot whether it is on and, if not, which settings are missing (names only,
+// never values), so a silent "menu item missing" can be explained from `pm2 logs`.
+console.log(`📅 ${require('./services/bookings').bookingBootLine()}`);
+
 mongoose
   .connect(process.env.MONGODB_URI)
   .then(() => {
