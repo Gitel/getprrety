@@ -12,9 +12,13 @@
 // Note: even a dry run writes no DOCUMENTS, but Mongoose may create the empty collection and
 // its indexes when it connects (autoCreate / autoIndex are on by default).
 //
-// Insert-only: a product is inserted only when its slug is NOT already in the collection.
-// Existing products are never updated or deleted, so re-running is safe and keeps any edits
-// the admin made in /admin/catalogue (renames, new photos, archiving).
+// Insert-only: each seed product carries a hidden permanent seedKey (= its slug in
+// products.json). A product is inserted only when NO document has that seedKey. The admin
+// can rename a product (its slug then changes) but never its seedKey, so a re-run does not
+// re-add a renamed product. If a seed product's slug or name is already used by a document
+// with a different / missing seedKey (e.g. an admin created or renamed a product to that
+// name), it is SKIPPED with a warning. Nothing is ever updated or deleted, so re-running is
+// safe and keeps any edits the admin made in /admin/catalogue.
 //
 // Needs MONGODB_URI in server/.env (or in the environment). The URI is never printed.
 // The last stdout line is "Inserted <n>, skipped <m> (already present)." (or "Would insert
@@ -71,7 +75,7 @@ function loadSeed(dataDir = DEFAULT_DATA_DIR) {
     const bad = msg => problems.push(`${label}: ${msg}`);
 
     if (typeof p.name !== 'string' || !p.name.trim()) bad('name is required');
-    // The slug is the stable id; it must be exactly what the admin service would derive.
+    // The seed slug (which also becomes the permanent seedKey) must be exactly what the admin service would derive.
     if (typeof p.name === 'string' && p.slug !== slugify(p.name)) bad(`slug must be "${slugify(p.name)}"`);
     if (!CatalogueProduct.CATEGORIES.includes(p.category)) bad(`invalid category "${p.category}"`);
     if (!CatalogueProduct.USES.includes(p.use)) bad(`invalid use "${p.use}"`);
@@ -106,6 +110,7 @@ function loadSeed(dataDir = DEFAULT_DATA_DIR) {
     }
 
     const doc = {
+      seedKey: p.slug, // permanent: the slug the product has in the seed file
       slug: p.slug, name: p.name, category: p.category, use: p.use, pregnancy: p.pregnancy,
       keyActives: p.keyActives, strengths: p.strengths, suitableFor: p.suitableFor,
       ingredients: p.ingredients,
@@ -117,15 +122,29 @@ function loadSeed(dataDir = DEFAULT_DATA_DIR) {
   return { products, problems };
 }
 
-// Pure: which products are new (slug not in the collection) and which are skipped.
-function planInserts(products, existingSlugs) {
-  const existing = new Set(existingSlugs);
+// Pure: decides what to insert. `existing` = [{ seedKey, slug, nameKey }] of the documents in
+// the collection. Returns { toInsert, skipped, warnings }:
+//  - seedKey already in the DB -> skipped quietly (already seeded; maybe renamed since).
+//  - else slug or name already used by another document -> skipped WITH a warning.
+//  - else -> toInsert.
+function planInserts(products, existing) {
+  const seedKeys = new Set(existing.map(d => d.seedKey).filter(Boolean));
+  const slugs = new Set(existing.map(d => d.slug));
+  const nameKeys = new Set(existing.map(d => d.nameKey));
   const toInsert = [];
   const skipped = [];
+  const warnings = [];
   for (const product of products) {
-    (existing.has(product.slug) ? skipped : toInsert).push(product);
+    if (seedKeys.has(product.seedKey)) {
+      skipped.push(product);
+    } else if (slugs.has(product.slug) || nameKeys.has(product.name.trim().toLowerCase())) {
+      skipped.push(product);
+      warnings.push(`WARNING: skipped "${product.slug}": another product already uses this slug or name (not touched).`);
+    } else {
+      toInsert.push(product);
+    }
   }
-  return { toInsert, skipped };
+  return { toInsert, skipped, warnings };
 }
 
 // Does the whole run and returns { inserted, skipped, dryRun } (or throws).
@@ -150,8 +169,9 @@ async function seedCatalogue({ dryRun = false, dataDir = DEFAULT_DATA_DIR, model
   // its indexes on connect; that is harmless and the server does the same on boot.)
   try {
     log(`Loaded ${products.length} product(s) from the seed file.`);
-    const existing = await Model.find({}, 'slug').lean();
-    const { toInsert, skipped } = planInserts(products, existing.map(doc => doc.slug));
+    const existing = await Model.find({}, 'seedKey slug nameKey').lean();
+    const { toInsert, skipped, warnings } = planInserts(products, existing);
+    warnings.forEach(w => log(w));
 
     if (dryRun) {
       toInsert.forEach(p => log(`would insert: ${p.slug}`));

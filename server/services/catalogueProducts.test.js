@@ -21,6 +21,7 @@ const form = { name: ' Herbal Mousse ', category: 'cleansers_peelings', use: 'ho
 function fakeModel(current, extra = {}) {
   return {
     findById: jest.fn(() => ({ select: jest.fn(() => ({ lean: async () => current })) })),
+    findOne: jest.fn(() => ({ select: jest.fn(() => ({ lean: async () => null })) })),
     findByIdAndUpdate: jest.fn(async () => ({})),
     create: jest.fn(async doc => ({ _id: ID, ...doc })),
     ...extra,
@@ -134,13 +135,40 @@ describe('updateProduct', () => {
     expect(model.findByIdAndUpdate).toHaveBeenCalledWith(ID, { $set: { use: 'professional', keyActives: ['A', 'C'] } }, { runValidators: true });
   });
 
-  test('a rename also sets nameKey, reports only name, and never touches slug', async () => {
+  test('a rename also sets nameKey and the new slug, and reports only name', async () => {
     const model = fakeModel(current);
     const result = await updateProduct(ID, { ...form, name: 'Herbal Foam', keyActives: 'A\nB' }, { productModel: model });
     expect(result).toEqual({ ok: true, changed: ['name'] });
     const { $set } = model.findByIdAndUpdate.mock.calls[0][1];
-    expect($set).toEqual({ name: 'Herbal Foam', nameKey: 'herbal foam' });
-    expect($set.slug).toBeUndefined();
+    expect($set).toEqual({ name: 'Herbal Foam', nameKey: 'herbal foam', slug: 'herbal-foam' });
+  });
+
+  test('a form body can never set seedKey or slug', async () => {
+    expect(Object.keys(parseProductForm({ ...form, seedKey: 'hacked', slug: 'hacked' }).product)).not.toEqual(
+      expect.arrayContaining(['seedKey'])
+    );
+    expect(parseProductForm({ ...form, seedKey: 'hacked', slug: 'hacked' }).product).not.toHaveProperty('slug');
+    const model = fakeModel(current);
+    await updateProduct(ID, { ...form, keyActives: 'A\nB', seedKey: 'x', slug: 'x', use: 'guided' }, { productModel: model });
+    expect(model.findByIdAndUpdate.mock.calls[0][1].$set).toEqual({ use: 'guided' });
+  });
+
+  test('renaming to a name whose slug belongs to another product is catalogue_name_taken, nothing written', async () => {
+    const model = fakeModel(current, {
+      findOne: jest.fn(() => ({ select: jest.fn(() => ({ lean: async () => ({ _id: 'other' }) })) })),
+    });
+    // "Herbal-Foam" is a different name from "Herbal Foam" but has the same slug.
+    const result = await updateProduct(ID, { ...form, name: 'Herbal-Foam', keyActives: 'A\nB' }, { productModel: model });
+    expect(result).toEqual({ ok: false, code: 'catalogue_name_taken' });
+    expect(model.findByIdAndUpdate).not.toHaveBeenCalled();
+    // The clash query must exclude the product being edited.
+    expect(model.findOne.mock.calls[0][0]).toEqual({ _id: { $ne: ID }, $or: [{ slug: 'herbal-foam' }, { nameKey: 'herbal-foam' }] });
+  });
+
+  test('a rename that leaves no usable slug is catalogue_invalid', async () => {
+    const model = fakeModel(current);
+    expect(await updateProduct(ID, { ...form, name: '!!!', keyActives: 'A\nB' }, { productModel: model })).toEqual({ ok: false, code: 'catalogue_invalid' });
+    expect(model.findByIdAndUpdate).not.toHaveBeenCalled();
   });
 
   test('not_found for a malformed id (no query) and a missing product', async () => {
@@ -241,5 +269,70 @@ describe('reads', () => {
     const out = await getProductPhoto(ID, { productModel: fakeModel({ photo: { data: binary, mimeType: 'image/jpeg' } }) });
     expect(Buffer.isBuffer(out.data)).toBe(true);
     expect(out.data.equals(JPEG)).toBe(true);
+  });
+});
+
+// A tiny in-memory model with the same unique rules as the real indexes (slug, nameKey), so a
+// whole rename -> create sequence can be tested without a database.
+describe('slug follows the name (stateful fake)', () => {
+  const ID1 = '64b0000000000000000000b1';
+  const ID2 = '64b0000000000000000000b2';
+  const base = { category: 'masks', use: 'home', pregnancy: 'not_stated', keyActives: [], strengths: [], suitableFor: [], ingredients: '' };
+  const body = { category: 'masks', use: 'home', pregnancy: 'not_stated' };
+
+  function seededDoc(id, name) {
+    return { _id: id, seedKey: slugify(name), slug: slugify(name), name, nameKey: name.toLowerCase(), ...base };
+  }
+
+  function memoryModel(docs) {
+    // Same rule as the unique indexes: no two documents share a slug or a nameKey.
+    const clashes = (d, ownId) => docs.some(o => o._id !== ownId && (o.slug === d.slug || o.nameKey === d.nameKey));
+    const dup = () => ({ code: 11000, keyPattern: { slug: 1 } });
+    return {
+      docs,
+      findById: id => ({ select: () => ({ lean: async () => docs.find(d => d._id === id) || null }) }),
+      findOne: q => ({
+        select: () => ({
+          lean: async () => docs.find(d => d._id !== q._id.$ne && q.$or.some(c => Object.entries(c).every(([k, v]) => d[k] === v))) || null,
+        }),
+      }),
+      findByIdAndUpdate: jest.fn(async (id, { $set }) => {
+        const d = docs.find(x => x._id === id);
+        if (clashes({ ...d, ...$set }, id)) throw dup();
+        Object.assign(d, $set);
+      }),
+      create: async doc => {
+        if (clashes(doc, null)) throw dup();
+        const d = { _id: ID2, ...doc };
+        docs.push(d);
+        return d;
+      },
+    };
+  }
+
+  test('a rename changes the slug but keeps the seedKey; the old name is free for a new product', async () => {
+    const model = memoryModel([seededDoc(ID1, 'Light Tomato Peel')]);
+
+    const renamed = await updateProduct(ID1, { ...body, name: 'Tomato Peel Pro' }, { productModel: model });
+    expect(renamed).toEqual({ ok: true, changed: ['name'] });
+    expect(model.docs[0]).toMatchObject({ slug: 'tomato-peel-pro', nameKey: 'tomato peel pro', seedKey: 'light-tomato-peel' });
+
+    // The old name (and old slug) no longer belongs to anyone, so a NEW product may use it.
+    const created = await createProduct({ ...body, name: 'Light Tomato Peel' }, { productModel: model });
+    expect(created).toMatchObject({ ok: true, slug: 'light-tomato-peel' });
+    expect(model.docs).toHaveLength(2);
+  });
+
+  test('renaming onto a name or slug owned by another product writes nothing', async () => {
+    const other = { ...seededDoc(ID2, 'Peel Young') };
+    const model = memoryModel([seededDoc(ID1, 'Light Tomato Peel'), other]);
+    const before = JSON.stringify(model.docs);
+
+    // Same name, different case; and a different name that slugifies to the same slug.
+    for (const name of ['PEEL YOUNG', 'Peel-Young']) {
+      expect(await updateProduct(ID1, { ...body, name }, { productModel: model })).toEqual({ ok: false, code: 'catalogue_name_taken' });
+    }
+    expect(model.findByIdAndUpdate).not.toHaveBeenCalled();
+    expect(JSON.stringify(model.docs)).toBe(before);
   });
 });

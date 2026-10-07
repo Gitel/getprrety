@@ -50,3 +50,9 @@ test('exports the enum lists the contract names', () => {
   expect(CatalogueProduct.USES).toEqual(['home', 'guided', 'professional']);
   expect(CatalogueProduct.PREGNANCY).toEqual(['safe', 'avoid', 'not_stated']);
 });
+
+test('seedKey is optional (admin-created products have none)', async () => {
+  // validate() (not validateSync) so the pre('validate') hook fills nameKey first.
+  await expect(new CatalogueProduct(valid).validate()).resolves.toBeUndefined();
+  expect(new CatalogueProduct({ ...valid, seedKey: 'herbal-cleansing-mousse' }).seedKey).toBe('herbal-cleansing-mousse');
+});

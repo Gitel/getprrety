@@ -100,12 +100,12 @@ test.describe('catalogue', () => {
     await page.getByRole('button', { name: 'Save', exact: true }).click();
     await expect(notice(page)).toHaveText('Product saved.');
 
-    // Reload: values kept, slug unchanged.
+    // Reload: values kept; the slug followed the new name.
     await page.reload();
     await expect(page.getByLabel('Name', { exact: true })).toHaveValue(newName);
     await expect(page.getByLabel('Use', { exact: true })).toHaveValue('guided');
     await expect(page.getByLabel('Strengths', { exact: true })).toHaveValue(/E2E strength line/);
-    await expect(page.locator('code.slug')).toHaveText('light-tomato-peel');
+    await expect(page.locator('code.slug')).toHaveText('light-tomato-peel-e2e');
 
     // Audit log lists the change with a link to the product.
     await page.goto('/admin/audit');
@@ -303,14 +303,16 @@ test.describe('catalogue', () => {
     expect(Buffer.compare(after, before)).toBe(0);
   });
 
-  // 8. Seed re-run keeps edits
-  test('8. re-running the seed keeps edits and adds no duplicates', async ({ page, context }) => {
+  // 8. Seed re-run after a rename. The seed matches on the hidden seedKey (not the slug), so a
+  // renamed product is not re-added; the slug follows the name; the old name is free again.
+  test('8. re-running the seed keeps renames, adds no duplicates; the old name can be reused', async ({ page, context }) => {
     await signIn(context);
     await openProduct(page, 'caliente-peeling-mask');
     const edited = 'Caliente Peeling Mask Edited';
     await page.getByLabel('Name', { exact: true }).fill(edited);
     await page.getByRole('button', { name: 'Save', exact: true }).click();
     await expect(notice(page)).toHaveText('Product saved.');
+    await expect(page.locator('code.slug')).toHaveText('caliente-peeling-mask-edited');
 
     await page.goto('/admin/catalogue');
     const rowsBefore = await page.locator('tr[data-product-slug]').count();
@@ -325,9 +327,23 @@ test.describe('catalogue', () => {
     expect(run.status, run.stderr).toBe(0);
     const lastLine = run.stdout.trim().split('\n').pop().trim();
     expect(lastLine).toMatch(/^Inserted 0, skipped \d+ \(already present\)\.$/);
+    expect(run.stdout).not.toContain('WARNING');
 
+    // No duplicate rows; the renamed product keeps its new name and its new slug; the old
+    // slug is gone from the list.
     await page.goto('/admin/catalogue');
     await expect(page.locator('tr[data-product-slug]')).toHaveCount(rowsBefore);
-    await expect(page.locator('tr[data-product-slug="caliente-peeling-mask"]')).toContainText(edited);
+    await expect(page.locator('tr[data-product-slug="caliente-peeling-mask-edited"]')).toContainText(edited);
+    await expect(page.locator('tr[data-product-slug="caliente-peeling-mask"]')).toHaveCount(0);
+
+    // The old name is no longer taken, so a NEW product may use it.
+    await page.goto('/admin/catalogue/new');
+    await page.getByLabel('Name', { exact: true }).fill('Caliente Peeling Mask');
+    await page.getByLabel('Category', { exact: true }).selectOption('masks');
+    await page.getByLabel('Use', { exact: true }).selectOption('professional');
+    await page.getByLabel('Pregnancy', { exact: true }).selectOption('not_stated');
+    await page.getByRole('button', { name: 'Create product' }).click();
+    await expect(notice(page)).toHaveText('Product created.');
+    await expect(page.locator('code.slug')).toHaveText('caliente-peeling-mask');
   });
 });

@@ -104,7 +104,7 @@ function sameValue(a, b) {
 }
 
 /**
- * Create a product. The slug comes from the name and is never changed afterwards.
+ * Create a product. The slug comes from the name (and follows it when the product is renamed).
  * Returns { ok: true, id, slug } or { ok: false, code: 'catalogue_invalid' | 'catalogue_name_taken' }.
  */
 async function createProduct(body, { productModel = CatalogueProduct } = {}) {
@@ -130,7 +130,8 @@ async function createProduct(body, { productModel = CatalogueProduct } = {}) {
 }
 
 /**
- * Apply the edit form to a product. Never touches the slug.
+ * Apply the edit form to a product. When the name changes the slug is regenerated from the
+ * new name (same rule as on create). seedKey is never touched (parseProductForm drops it).
  * Returns { ok: true, changed: [field names] } or { ok: false, code }.
  */
 async function updateProduct(id, body, { productModel = CatalogueProduct } = {}) {
@@ -147,7 +148,18 @@ async function updateProduct(id, body, { productModel = CatalogueProduct } = {})
   const $set = Object.fromEntries(changed.map(k => [k, parsed.product[k]]));
   // $set bypasses the model's pre('validate') hook, so keep nameKey in step by hand.
   // It is not reported in `changed`: it is derived from name, not an editable field.
-  if (changed.includes('name')) $set.nameKey = parsed.product.name.toLowerCase();
+  // The slug follows the name too (also not reported: derived, not an editable field).
+  if (changed.includes('name')) {
+    const slug = slugify(parsed.product.name);
+    if (!slug) return { ok: false, code: 'catalogue_invalid' };
+    const nameKey = parsed.product.name.toLowerCase();
+    // Another product (different _id) already using this slug or name -> refuse, write nothing.
+    // (The unique indexes below still guard against two admins racing.)
+    const clash = await productModel.findOne({ _id: { $ne: id }, $or: [{ slug }, { nameKey }] }).select('_id').lean();
+    if (clash) return { ok: false, code: 'catalogue_name_taken' };
+    $set.slug = slug;
+    $set.nameKey = nameKey;
+  }
 
   try {
     await productModel.findByIdAndUpdate(id, { $set }, { runValidators: true });

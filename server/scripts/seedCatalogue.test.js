@@ -28,10 +28,32 @@ describe('parseArgs', () => {
 });
 
 describe('planInserts', () => {
-  const list = [{ slug: 'a' }, { slug: 'b' }];
-  test('all new', () => expect(planInserts(list, [])).toEqual({ toInsert: list, skipped: [] }));
-  test('some existing', () => expect(planInserts(list, ['a'])).toEqual({ toInsert: [list[1]], skipped: [list[0]] }));
-  test('all existing', () => expect(planInserts(list, ['a', 'b'])).toEqual({ toInsert: [], skipped: list }));
+  const list = [
+    { seedKey: 'a', slug: 'a', name: 'A' },
+    { seedKey: 'b', slug: 'b', name: 'B' },
+  ];
+  const doc = (seedKey, slug, name) => ({ seedKey, slug, nameKey: name.toLowerCase() });
+
+  test('all new', () => expect(planInserts(list, [])).toEqual({ toInsert: list, skipped: [], warnings: [] }));
+  test('some already seeded', () => {
+    expect(planInserts(list, [doc('a', 'a', 'A')])).toEqual({ toInsert: [list[1]], skipped: [list[0]], warnings: [] });
+  });
+  test('all already seeded', () => {
+    expect(planInserts(list, [doc('a', 'a', 'A'), doc('b', 'b', 'B')])).toEqual({ toInsert: [], skipped: list, warnings: [] });
+  });
+  test('a renamed product is still "already seeded" (matched by seedKey, no warning)', () => {
+    const result = planInserts(list, [doc('a', 'a-new-name', 'A New Name'), doc('b', 'b', 'B')]);
+    expect(result.toInsert).toEqual([]);
+    expect(result.warnings).toEqual([]);
+  });
+  test('slug or name used by a product with another/no seedKey -> skipped with a warning', () => {
+    // An admin-created product (no seedKey) already has the slug "a"; another one has the name "b".
+    const result = planInserts(list, [doc(undefined, 'a', 'Other A'), doc(undefined, 'zzz', 'b')]);
+    expect(result.toInsert).toEqual([]);
+    expect(result.skipped).toEqual(list);
+    expect(result.warnings).toHaveLength(2);
+    expect(result.warnings[0]).toMatch(/WARNING: skipped "a"/);
+  });
 });
 
 describe('loadSeed', () => {
@@ -70,20 +92,49 @@ describe('loadSeed', () => {
 });
 
 describe('seedCatalogue with a fake model', () => {
+  // `existing` = documents already in the collection ({ seedKey, slug, nameKey }).
   const fake = existing => ({
-    find: jest.fn(() => ({ lean: () => Promise.resolve(existing.map(slug => ({ slug }))) })),
+    find: jest.fn(() => ({ lean: () => Promise.resolve(existing) })),
     insertMany: jest.fn(() => Promise.resolve()),
     init: jest.fn(() => Promise.resolve()),
   });
 
   test('inserts only missing slugs and prints the last line', async () => {
     const dir = fixture([product(), product({ slug: 'b-one', name: 'B One' })]);
-    const model = fake(['b-one']);
+    const model = fake([{ seedKey: 'b-one', slug: 'b-one', nameKey: 'b one' }]);
     const lines = [];
     await seedCatalogue({ dataDir: dir, model, log: l => lines.push(l) });
     expect(model.init).toHaveBeenCalled();
     expect(model.insertMany.mock.calls[0][0].map(p => p.slug)).toEqual(['crystal-silk-peeling']);
     expect(lines[lines.length - 1]).toBe('Inserted 1, skipped 1 (already present).');
+  });
+
+  test('a seeded product that was renamed is not inserted again and nothing else is written', async () => {
+    const dir = fixture([product()]);
+    // Same seedKey, but the admin renamed it: slug and name are different now.
+    const model = fake([{ seedKey: 'crystal-silk-peeling', slug: 'silk-peel-pro', nameKey: 'silk peel pro' }]);
+    const lines = [];
+    const result = await seedCatalogue({ dataDir: dir, model, log: l => lines.push(l) });
+    expect(result.inserted).toBe(0);
+    expect(model.insertMany).not.toHaveBeenCalled();
+    expect(lines[lines.length - 1]).toBe('Inserted 0, skipped 1 (already present).');
+  });
+
+  test('a slug / name collision with another product is skipped with a warning, no crash, no update', async () => {
+    const dir = fixture([product(), product({ slug: 'b-one', name: 'B One' })]);
+    // An admin-created product (no seedKey) already owns the slug of the first seed product.
+    const model = fake([{ slug: 'crystal-silk-peeling', nameKey: 'crystal silk peeling' }]);
+    model.updateOne = jest.fn();
+    model.deleteMany = jest.fn();
+    const lines = [];
+    const result = await seedCatalogue({ dataDir: dir, model, log: l => lines.push(l) });
+    expect(model.insertMany.mock.calls[0][0].map(p => p.slug)).toEqual(['b-one']);
+    expect(result).toMatchObject({ inserted: 1, skipped: 1 });
+    expect(lines.some(l => /WARNING: skipped "crystal-silk-peeling"/.test(l))).toBe(true);
+    expect(model.updateOne).not.toHaveBeenCalled();
+    expect(model.deleteMany).not.toHaveBeenCalled();
+    // Every inserted document carries its permanent seedKey.
+    expect(model.insertMany.mock.calls[0][0][0].seedKey).toBe('b-one');
   });
 
   test('--dry-run writes nothing', async () => {

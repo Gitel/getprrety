@@ -27,7 +27,7 @@
     <h2><%= isNew ? 'New product' : 'Product details' %></h2>
     <% if (!isNew) { %>
       <dl class="kv">
-        <dt>Slug</dt><dd><code class="slug"><%= product.slug %></code> <span class="muted">(never changes, even if you rename the product)</span></dd>
+        <dt>Slug</dt><dd><code class="slug"><%= product.slug %></code> <span class="muted">(follows the product name)</span></dd>
         <dt>Created</dt><dd><%= stamp(product.createdAt) %> UTC</dd>
         <dt>Last updated</dt><dd><%= stamp(product.updatedAt) %> UTC</dd>
         <% if (product.archived) { %><dt>Status</dt><dd><span class="pill no">Archived</span></dd><% } %>
