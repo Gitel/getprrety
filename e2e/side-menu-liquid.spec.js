@@ -91,7 +91,8 @@ const waitFullyOpen = (page) => expect.poll(async () => { const s = await snap(p
 // microtasks React queues from it, i.e. it sees what the browser paints for that frame.
 async function installFlashLog(page) {
   await page.evaluate(() => {
-    window.__flashFrames = 0;
+    window.__flashFrames = 0; // number of CLOSING frames the recorder saw
+    window.__lastDim = null;
     window.__flashes = [];
     const orig = window.requestAnimationFrame.bind(window);
     window.requestAnimationFrame = (cb) => orig((ts) => {
@@ -102,11 +103,21 @@ async function installFlashLog(page) {
         const r = document.querySelector('[data-testid="side-menu-reveal"]');
         const d = document.querySelector('[data-testid="side-menu-dim"]');
         if (!o || !r || !d) return;
-        window.__flashFrames += 1;
         const cs = getComputedStyle(o);
+        // "Closing" = overlay displayed but not tappable (pointer-events none).
+        if (cs.display === 'none' || cs.pointerEvents !== 'none') { window.__lastDim = null; return; }
+        window.__flashFrames += 1; // frames watched while closing
+        const dim = Number(getComputedStyle(d).opacity);
+        // (a) reveal without clip, or any shadow band without clip. The bands are the reveal's
+        //     siblings inside its parent.
+        const bands = Array.from(r.parentElement.children).filter((el) => el !== r);
+        const revealOpen = getComputedStyle(r).clipPath === 'none';
+        const bandOpen = bands.some((bd) => getComputedStyle(bd).clipPath === 'none');
+        // (b) dim opacity going UP between two closing frames (0.01 tolerance) is a dim flash.
+        const dimUp = window.__lastDim != null && dim > window.__lastDim + 0.01;
         // dim opacity > 0.05 means darkness > 0.01 (the dim colour is 20% black).
-        if (cs.display !== 'none' && cs.pointerEvents === 'none' && getComputedStyle(r).clipPath === 'none'
-          && Number(getComputedStyle(d).opacity) > 0.05) window.__flashes.push(Math.round(ts));
+        if ((revealOpen && dim > 0.05) || bandOpen || dimUp) window.__flashes.push(Math.round(ts));
+        window.__lastDim = dim;
       });
       check(0);
     });
@@ -219,11 +230,14 @@ test.describe('liquid menu animation', () => {
       else await tapMenuItem(page, t, 'menu:settings');
       await expect(overlay(page)).toBeHidden();
       const { frames, flashes } = await page.evaluate(() => ({ frames: window.__flashFrames, flashes: window.__flashes }));
-      expect(frames).toBeGreaterThan(3); // the recorder really watched the close
+      expect(frames).toBeGreaterThanOrEqual(1); // at least one CLOSING frame was watched (proves the recorder saw the close)
       expect(flashes).toEqual([]);
     });
   }
 
+  // NOTE: in WebKit the second tap sometimes lands after the animation already finished (Playwright's
+  // actionability wait delays it), so the two interrupt tests below are regression coverage of the
+  // interrupt path that is mainly exercised in Chromium. Deliberately not hardened.
   test('tapping the page while the menu is closing reaches the page and re-opens the menu', async ({ page, t }) => {
     await page.goto('/');
     await installSampler(page, t, false, false);
@@ -259,7 +273,9 @@ for (const [label, motion] of [['reduced motion', 'reduce'], ['animations on', '
       await page.keyboard.press('Escape');
       await expect(overlay(page)).toBeHidden();
       await openMenu(page, t);
-      await expect.poll(() => scrollTopOfMenu(page)).toBe(0);
+      // One direct read right after openMenu returns (no poll): a reset that only happens after the
+      // menu is already visible would be a visible jump and must fail here.
+      expect(await scrollTopOfMenu(page)).toBe(0);
     });
   });
 }
@@ -275,10 +291,20 @@ test.describe('liquid menu with reduced motion', () => {
     const s = await snap(page);
     expect(s.clip).toBe('none');
     expect(s.darkness).toBeCloseTo(0.2, 2);
+    // Install a one-shot capture listener BEFORE the click. At the first animation frame after the
+    // click it records whether the overlay is still displayed. null = "not recorded yet".
+    // Reduced motion: already display:none at that frame. An animated 300 ms close: still displayed.
+    await page.evaluate(() => {
+      window.__displayedNextFrame = null;
+      document.addEventListener('click', () => {
+        requestAnimationFrame(() => {
+          const o = document.querySelector('[data-testid="side-menu"]');
+          window.__displayedNextFrame = !!o && getComputedStyle(o).display !== 'none';
+        });
+      }, { capture: true, once: true });
+    });
     await closeButtons(page, t).first().click();
-    // Right after the click the overlay must already be gone. A short poll (not a long wait) so a
-    // 300 ms animated close could NOT satisfy it.
-    await expect.poll(() => snap(page).then((x) => x.displayed), { timeout: 200 }).toBe(false);
+    await expect.poll(() => page.evaluate(() => window.__displayedNextFrame)).toBe(false);
   });
 
   test('keyboard: focus enters the menu, Tab stays inside, Escape closes and returns focus', async ({ page, t }) => {
