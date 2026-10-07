@@ -1,0 +1,190 @@
+// Google Calendar access for in-app booking: read busy times, create and delete events.
+// Env vars are read at CALL time (never at import) so tests can change them freely.
+//
+// Library choice: @googleapis/calendar (small) + the server's own google-auth-library JWT.
+// npm dedupes both to the SAME google-auth-library copy (checked with `npm ls`), so the JWT
+// client we build here is passed straight in as `auth` with no version mismatch.
+const { calendar: createGoogleCalendar } = require('@googleapis/calendar');
+const { JWT } = require('google-auth-library');
+
+const TZ = 'Asia/Jerusalem';
+const SCOPE = 'https://www.googleapis.com/auth/calendar';
+const TIMEOUT_MS = 8000; // every Google call is cut off after this long
+const CACHE_MS = 45 * 1000; // busy answers are reused for this long
+
+// Single error type for every calendar problem. `cause` keeps the original error for debugging.
+// Messages are fixed text: they must never include the key or anything decoded from it.
+class CalendarError extends Error {
+  constructor(message, cause) {
+    super(message);
+    this.name = 'CalendarError';
+    this.code = 'calendar_unavailable';
+    if (cause !== undefined) this.cause = cause;
+  }
+}
+
+// Mock mode is a test/dev aid. It is never allowed in production.
+function isMockMode() {
+  return process.env.BOOKING_CALENDAR_MOCK === '1' && process.env.NODE_ENV !== 'production';
+}
+
+function isConfigured() {
+  if (isMockMode()) return true;
+  return Boolean(process.env.GOOGLE_CALENDAR_ID && process.env.GOOGLE_SERVICE_ACCOUNT_JSON_B64);
+}
+
+// Runs a Google call but gives up after 8 s. A timeout rejects with a CalendarError.
+function withTimeout(promise) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new CalendarError('Calendar request timed out')), TIMEOUT_MS);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+// Any failure of a Google call becomes a CalendarError (our own errors pass through unchanged).
+function wrap(err) {
+  return err instanceof CalendarError ? err : new CalendarError('Calendar request failed', err);
+}
+
+// Builds the real Google client from the base64 service-account key. Only called when needed.
+// Failures use a fixed message: the key and the parse error are NOT included.
+function buildRealClient() {
+  try {
+    const key = JSON.parse(Buffer.from(process.env.GOOGLE_SERVICE_ACCOUNT_JSON_B64, 'base64').toString('utf8'));
+    const auth = new JWT({ email: key.client_email, key: key.private_key, scopes: [SCOPE] });
+    return createGoogleCalendar({ version: 'v3', auth });
+  } catch (e) {
+    throw new CalendarError('Calendar credentials are invalid');
+  }
+}
+
+// True when a Google error means "event does not exist (any more)".
+function isGone(err) {
+  const status = Number(err && (err.code || (err.response && err.response.status)));
+  return status === 404 || status === 410;
+}
+
+// ---------- mock calendar (BOOKING_CALENDAR_MOCK=1, never in production) ----------
+
+// Offset in ms of `tz` from UTC at the given instant (positive = ahead of UTC).
+function zoneOffsetMs(date, tz) {
+  const p = {};
+  for (const part of new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  }).formatToParts(date)) p[part.type] = Number(part.value);
+  const asUtc = Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second);
+  return asUtc - Math.floor(date.getTime() / 1000) * 1000;
+}
+
+// Turns a local wall-clock hour in `tz` into a UTC Date (DST-aware; private to this file).
+function localToUtc(y, m, d, hour, tz) {
+  const guess = Date.UTC(y, m - 1, d, hour);
+  let utc = guess - zoneOffsetMs(new Date(guess), tz);
+  utc = guess - zoneOffsetMs(new Date(utc), tz); // second pass fixes days where the offset changes
+  return new Date(utc);
+}
+
+// Mock busy time: every local day has a 12:00-13:00 block, so tests are deterministic.
+function mockBusy({ start, end }) {
+  const out = [];
+  // Walk calendar days (as plain UTC dates) from one day before to one day after the range.
+  const day = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate() - 1));
+  const last = Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate() + 1);
+  for (; day.getTime() <= last; day.setUTCDate(day.getUTCDate() + 1)) {
+    const y = day.getUTCFullYear(), m = day.getUTCMonth() + 1, d = day.getUTCDate();
+    const s = localToUtc(y, m, d, 12, TZ);
+    const e = localToUtc(y, m, d, 13, TZ);
+    if (e > start && s < end) out.push({ start: s, end: e }); // keep only blocks touching the range
+  }
+  return out;
+}
+
+// ---------- the service ----------
+
+// `client` is optional: tests inject a fake with the @googleapis/calendar shape.
+function createCalendarService({ client } = {}) {
+  let realClient = client || null; // built lazily on first real call
+  let mockEvents = [];
+  let mockCounter = 0;
+  const cache = new Map(); // "startISO|endISO" -> { at, busy }
+  const useMock = () => isMockMode() && !client;
+
+  function requireReady() {
+    if (!isConfigured()) throw new CalendarError('Calendar is not configured');
+    if (!realClient) realClient = buildRealClient();
+    return realClient;
+  }
+
+  async function getBusy({ start, end }, { fresh = false } = {}) {
+    if (useMock()) return mockBusy({ start, end });
+    const g = requireReady();
+    const calendarId = process.env.GOOGLE_CALENDAR_ID;
+    const cacheKey = `${start.toISOString()}|${end.toISOString()}`;
+    const hit = cache.get(cacheKey);
+    if (!fresh && hit && Date.now() - hit.at < CACHE_MS) return hit.busy;
+    try {
+      const res = await withTimeout(g.freebusy.query({
+        requestBody: { timeMin: start.toISOString(), timeMax: end.toISOString(), items: [{ id: calendarId }] },
+      }));
+      const cal = res.data && res.data.calendars && res.data.calendars[calendarId];
+      const busy = ((cal && cal.busy) || []).map(b => ({ start: new Date(b.start), end: new Date(b.end) }));
+      cache.set(cacheKey, { at: Date.now(), busy }); // only successful answers are cached
+      return busy;
+    } catch (e) {
+      throw wrap(e);
+    }
+  }
+
+  async function createEvent({ bookingId, startsAt, endsAt, summary, description }) {
+    if (useMock()) {
+      const eventId = `mock-event-${++mockCounter}`;
+      mockEvents.push({ eventId, bookingId, startsAt, endsAt, summary, description });
+      return { eventId };
+    }
+    const g = requireReady();
+    try {
+      const res = await withTimeout(g.events.insert({
+        calendarId: process.env.GOOGLE_CALENDAR_ID,
+        sendUpdates: 'none', // never email anyone; no attendees are set either
+        requestBody: {
+          summary,
+          description,
+          start: { dateTime: startsAt.toISOString(), timeZone: TZ },
+          end: { dateTime: endsAt.toISOString(), timeZone: TZ },
+          extendedProperties: { private: { getprettyBookingId: String(bookingId) } },
+        },
+      }));
+      return { eventId: res.data.id };
+    } catch (e) {
+      throw wrap(e);
+    }
+  }
+
+  // Idempotent: an event that is already gone (404/410) counts as deleted.
+  async function deleteEvent(eventId) {
+    if (useMock()) {
+      mockEvents = mockEvents.filter(ev => ev.eventId !== eventId);
+      return;
+    }
+    const g = requireReady();
+    try {
+      await withTimeout(g.events.delete({ calendarId: process.env.GOOGLE_CALENDAR_ID, eventId, sendUpdates: 'none' }));
+    } catch (e) {
+      if (isGone(e)) return;
+      throw wrap(e);
+    }
+  }
+
+  return {
+    isConfigured, getBusy, createEvent, deleteEvent, CalendarError,
+    // Test helpers for the in-memory mock calendar.
+    __mock: {
+      events: () => mockEvents.slice(),
+      reset: () => { mockEvents = []; mockCounter = 0; cache.clear(); },
+    },
+  };
+}
+
+module.exports = { ...createCalendarService(), createCalendarService };
