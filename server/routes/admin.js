@@ -492,7 +492,9 @@ router.get('/catalogue/:id/photo', requireAdmin, async (req, res, next) => {
     const photo = await catalogue.getProductPhoto(req.params.id);
     if (!photo) return res.status(404).send('Not found');
     res.set('Content-Type', photo.mimeType || 'image/jpeg');
-    res.set('Cache-Control', 'private, max-age=3600');
+    // The URL stays the same when the photo is replaced, so the browser must revalidate each
+    // time; Express's automatic ETag turns an unchanged photo into a cheap 304.
+    res.set('Cache-Control', 'private, no-cache');
     res.send(photo.data);
   } catch (err) {
     next(err);

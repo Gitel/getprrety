@@ -134,6 +134,20 @@ test.describe('catalogue', () => {
     expect(res.status()).toBe(200);
     expect(res.headers()['content-type']).toContain('image/png');
     expect(Buffer.compare(await res.body(), TINY_PNG)).toBe(0);
+    // The browser must revalidate (ETag -> 304) instead of reusing the old cached photo.
+    expect(res.headers()['cache-control']).toBe('private, no-cache');
+    expect(res.headers()['etag']).toBeTruthy();
+
+    // What the PAGE shows (page.request bypasses the browser cache): the product page was
+    // loaded before the upload with the old photo, so a stale cache would still show it.
+    // TINY_PNG is 1x1, so naturalWidth === 1 proves the new photo is displayed.
+    const pagePhoto = page.locator(`img[src="/admin/catalogue/${id}/photo"]`);
+    await expect.poll(() => pagePhoto.evaluate(img => img.complete && img.naturalWidth)).toBe(1);
+    // Same for the list thumbnail.
+    await page.goto('/admin/catalogue');
+    const thumb = page.locator('tr[data-product-slug="herbal-cleansing-mousse"] img');
+    await expect.poll(() => thumb.evaluate(img => img.complete && img.naturalWidth)).toBe(1);
+    await openProduct(page, 'herbal-cleansing-mousse');
 
     // A non-image is rejected and the PNG we just stored stays.
     await page.getByLabel('Photo', { exact: true }).setInputFiles({
