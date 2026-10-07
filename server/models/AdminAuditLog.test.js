@@ -21,6 +21,8 @@ const ACTIONS_THE_ROUTES_LOG = [
   'catalogue_photo_replaced',
   'catalogue_product_archived',
   'catalogue_product_restored',
+  'booking_cancelled',
+  'booking_settings_updated',
 ];
 
 test('the action enum accepts every action the routes log', () => {
@@ -46,4 +48,18 @@ test('catalogueProductId defaults to null and accepts an ObjectId', () => {
   expect(doc.catalogueProductId).toBeNull();
   const withId = new AdminAuditLog({ adminEmail: 'a@b.co', action: 'catalogue_product_created', catalogueProductId: '64b0000000000000000000aa' });
   expect(withId.validateSync()).toBeUndefined();
+});
+
+test('bookingId defaults to null, accepts an ObjectId and references the Booking model', () => {
+  const doc = new AdminAuditLog({ adminEmail: 'a@b.co', action: 'booking_cancelled' });
+  expect(doc.bookingId).toBeNull();
+  const withId = new AdminAuditLog({ adminEmail: 'a@b.co', action: 'booking_cancelled', userId: '64b0000000000000000000bb', bookingId: '64b0000000000000000000aa' });
+  expect(withId.validateSync()).toBeUndefined();
+  expect(AdminAuditLog.schema.path('bookingId').options.ref).toBe('Booking');
+});
+
+test('booking_settings_updated records the changed setting names in fields', () => {
+  const doc = new AdminAuditLog({ adminEmail: 'a@b.co', action: 'booking_settings_updated', fields: ['leadHours', 'weekly'] });
+  expect(doc.validateSync()).toBeUndefined();
+  expect(doc.fields).toEqual(['leadHours', 'weekly']);
 });
