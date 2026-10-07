@@ -61,21 +61,31 @@ test.describe('menu button', () => {
 });
 
 test.describe('open and close', () => {
-  test('lists the implemented items; the booking item is hidden without VITE_BOOKING_URL', async ({ page, t }) => {
+  test('lists the implemented items; the booking item shows when the server enables booking', async ({ page, t }) => {
     await page.goto('/');
     await homeIsShowing(page, t);
     await openMenu(page, t);
     const panel = panelOf(page, t);
     for (const key of [
       'menu:myRoutine', 'menu:mySkinProfile', 'menu:messages', 'menu:logProducts', 'menu:settings',
-      'menu:retake', 'menu:terms', 'menu:privacy', 'menu:logout', 'menu:language',
+      'menu:book', 'menu:retake', 'menu:terms', 'menu:privacy', 'menu:logout', 'menu:language',
     ]) {
       await expect(panel.getByText(t(key), { exact: true })).toBeVisible();
     }
     // Each language option is drawn in its own language.
     await expect(panel.getByRole('button', { name: t('menu:languageName') })).toBeVisible();
     await expect(panel.getByRole('button', { name: tHe('menu:languageName') })).toBeVisible();
-    // The build has an empty booking URL, so the row is not rendered.
+  });
+
+  test('the booking item is hidden when the server has booking disabled', async ({ page, mock, t }) => {
+    mock.booking({ enabled: false });
+    await page.goto('/');
+    await homeIsShowing(page, t);
+    await openMenu(page, t);
+    // The menu asks the server on every opening: wait for that answer before checking absence.
+    await expect.poll(() => mock.callsTo('GET', '/api/bookings/config').length).toBeGreaterThan(0);
+    const panel = panelOf(page, t);
+    await expect(panel.getByText(t('menu:settings'), { exact: true })).toBeVisible();
     await expect(panel.getByText(t('menu:book'), { exact: true })).toHaveCount(0);
   });
 
