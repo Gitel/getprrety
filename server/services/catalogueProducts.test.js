@@ -1,7 +1,17 @@
 const {
   slugify, parseProductForm, createProduct, updateProduct, setArchived, replacePhoto,
   listProducts, getProduct, getProductPhoto, MAX_PHOTO_BYTES,
+  CATEGORY_LABELS, USE_LABELS, PREGNANCY_LABELS,
 } = require('./catalogueProducts');
+const CatalogueProduct = require('../models/CatalogueProduct');
+
+// The form dropdowns are built from the *_LABELS keys while validation uses the model enums.
+// If the two lists drift apart the form would offer a value the server rejects (or hide a valid one).
+test('the label maps list exactly the values the model allows', () => {
+  expect(Object.keys(CATEGORY_LABELS)).toEqual(CatalogueProduct.CATEGORIES);
+  expect(Object.keys(USE_LABELS)).toEqual(CatalogueProduct.USES);
+  expect(Object.keys(PREGNANCY_LABELS)).toEqual(CatalogueProduct.PREGNANCY);
+});
 
 const ID = '64b0000000000000000000aa';
 const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00]);

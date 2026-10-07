@@ -58,3 +58,24 @@ test('every product has its catalogue text (key actives, ingredients, strengths,
   expect(bySlug['herbal-cleansing-mousse'].name).toBe('Herbal Cleansing Mousse');
   expect(bySlug['herbal-cleansing-mousse'].suitableFor).toContain('Sensitive skin');
 });
+
+// The admin form silently truncates over-long values on the first Save (see lines() and
+// parseProductForm in server/services/catalogueProducts.js). These caps are copied from
+// there (300 chars per list item, 60 items per list, 5000 chars of ingredients); the seed
+// must fit, or an admin's first Save would change data they did not touch.
+test('the seed data fits the admin form caps', () => {
+  const MAX_ITEM_CHARS = 300;
+  const MAX_LIST_ITEMS = 60;
+  const MAX_INGREDIENTS_CHARS = 5000;
+  const tooBig = [];
+  for (const p of products) {
+    for (const key of ['keyActives', 'strengths', 'suitableFor']) {
+      if (p[key].length > MAX_LIST_ITEMS) tooBig.push(`${p.slug}.${key} has too many items`);
+      for (const item of p[key]) {
+        if (item.length > MAX_ITEM_CHARS) tooBig.push(`${p.slug}.${key} has an item over ${MAX_ITEM_CHARS} chars`);
+      }
+    }
+    if (p.ingredients.length > MAX_INGREDIENTS_CHARS) tooBig.push(`${p.slug}.ingredients is too long`);
+  }
+  expect(tooBig).toEqual([]);
+});

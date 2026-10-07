@@ -337,7 +337,7 @@ describe('catalogue pages', () => {
         { ...product, _id: '64b0000000000000000000c2', slug: 'old-one', name: 'Old One', use: 'home', hasPhoto: false, archived: true },
       ],
     });
-    expect(html).toContain('<h1 style="font-size: 20px; margin: 0;">Products</h1>');
+    expect(html).toContain('>Products</h1>'); // visible text only; styling may change
     expect(html).toContain('href="/admin/catalogue/new"');
     expect(html).toContain('data-product-slug="herbal-mousse"');
     expect(html).toContain('src="/admin/catalogue/64b0000000000000000000c1/photo"');

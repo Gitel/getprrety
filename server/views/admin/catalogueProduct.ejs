@@ -78,8 +78,8 @@
       <% } else { %>
         <p class="muted">No photo yet.</p>
       <% } %>
-      <%# multipart/form-data is required for file uploads. The _csrf input comes first so the
-          server has it before it reads the file. %>
+      <%# multipart/form-data is required for file uploads. multer reads the whole multipart body
+          before the CSRF check runs, so the order of the fields does not matter. %>
       <form method="post" action="/admin/catalogue/<%= product._id %>/photo" enctype="multipart/form-data">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
         <label for="photo-file">Photo</label>

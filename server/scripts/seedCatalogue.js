@@ -6,8 +6,11 @@
 // after a deploy - it is never run automatically:
 //
 //   cd server
-//   npm run seed:catalogue -- --dry-run     (preview: connects and reads, writes nothing)
+//   npm run seed:catalogue -- --dry-run     (preview: connects and reads, writes no documents)
 //   npm run seed:catalogue                  (real run)
+//
+// Note: even a dry run writes no DOCUMENTS, but Mongoose may create the empty collection and
+// its indexes when it connects (autoCreate / autoIndex are on by default).
 //
 // Insert-only: a product is inserted only when its slug is NOT already in the collection.
 // Existing products are never updated or deleted, so re-running is safe and keeps any edits
@@ -143,6 +146,8 @@ async function seedCatalogue({ dryRun = false, dataDir = DEFAULT_DATA_DIR, model
     if (!process.env.MONGODB_URI) throw new Error('MONGODB_URI is required');
     await mongoose.connect(process.env.MONGODB_URI);
   }
+  // Dry run = no documents are written. (Mongoose may still create the empty collection and
+  // its indexes on connect; that is harmless and the server does the same on boot.)
   try {
     log(`Loaded ${products.length} product(s) from the seed file.`);
     const existing = await Model.find({}, 'slug').lean();

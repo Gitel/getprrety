@@ -225,6 +225,70 @@ test.describe('catalogue', () => {
     expect(wrong.status()).toBe(403);
   });
 
+  // 7b. CSRF on the photo route. Unlike the other POSTs, CSRF is checked AFTER multer has read
+  // the body, so a regression here would not show up in spec 7. The old photo must survive.
+  test('7b. photo upload without or with a wrong _csrf gets 403 and keeps the old photo', async ({ page, context }) => {
+    await signIn(context);
+    await openProduct(page, 'peel-young');
+    const id = productId(page);
+    const photoUrl = `/admin/catalogue/${id}/photo`;
+    const before = await (await page.request.get(photoUrl)).body();
+    const photo = { name: 'evil.png', mimeType: 'image/png', buffer: TINY_PNG };
+
+    const missing = await page.request.post(photoUrl, { multipart: { photo } });
+    expect(missing.status()).toBe(403);
+    const wrong = await page.request.post(photoUrl, { multipart: { _csrf: 'wrong-token', photo } });
+    expect(wrong.status()).toBe(403);
+
+    // Same bytes as before: the rejected uploads changed nothing.
+    const after = await (await page.request.get(photoUrl)).body();
+    expect(Buffer.compare(after, before)).toBe(0);
+    expect(Buffer.compare(after, TINY_PNG)).not.toBe(0);
+  });
+
+  // 7c. CSRF on create, archive and restore: 403 and nothing changes.
+  test('7c. create, archive and restore without or with a wrong _csrf get 403 and change nothing', async ({ page, context }) => {
+    await signIn(context);
+    await openProduct(page, 'crystal-silk-peeling');
+    const id = productId(page);
+    await page.goto('/admin/catalogue');
+    const rowsBefore = await page.locator('tr[data-product-slug]').count();
+
+    const newProduct = { name: 'CSRF Should Not Exist', category: 'masks', use: 'home', pregnancy: 'not_stated' };
+    for (const extra of [{}, { _csrf: 'wrong-token' }]) {
+      const created = await page.request.post('/admin/catalogue', { form: { ...newProduct, ...extra } });
+      expect(created.status()).toBe(403);
+      const archived = await page.request.post(`/admin/catalogue/${id}/archive`, { form: extra });
+      expect(archived.status()).toBe(403);
+      const restored = await page.request.post(`/admin/catalogue/${id}/restore`, { form: extra });
+      expect(restored.status()).toBe(403);
+    }
+
+    // Same rows, the new name does not exist, and the product is still not archived.
+    await page.goto('/admin/catalogue');
+    await expect(page.locator('tr[data-product-slug]')).toHaveCount(rowsBefore);
+    await expect(page.locator('tr[data-product-slug="csrf-should-not-exist"]')).toHaveCount(0);
+    await expect(page.locator('tr[data-product-slug="crystal-silk-peeling"]')).not.toContainText('Archived');
+  });
+
+  // 7d. A file over the 2 MB limit is stopped by multer; the route must answer with the
+  // normal "invalid photo" banner (not a raw JSON error page) and keep the old photo.
+  test('7d. a photo over 2 MB shows the invalid-photo banner and keeps the old photo', async ({ page, context }) => {
+    await signIn(context);
+    await openProduct(page, 'peel-young');
+    const id = productId(page);
+    const before = await (await page.request.get(`/admin/catalogue/${id}/photo`)).body();
+
+    await page.getByLabel('Photo', { exact: true }).setInputFiles({
+      name: 'huge.png', mimeType: 'image/png', buffer: Buffer.alloc(2 * 1024 * 1024 + 1),
+    });
+    await page.getByRole('button', { name: 'Upload photo' }).click();
+    await expect(notice(page)).toHaveText('The photo must be a JPEG or PNG image of up to 2 MB.');
+
+    const after = await (await page.request.get(`/admin/catalogue/${id}/photo`)).body();
+    expect(Buffer.compare(after, before)).toBe(0);
+  });
+
   // 8. Seed re-run keeps edits
   test('8. re-running the seed keeps edits and adds no duplicates', async ({ page, context }) => {
     await signIn(context);

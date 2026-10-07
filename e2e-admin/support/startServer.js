@@ -10,8 +10,12 @@
 //    require('dotenv').config(), which reads .env from the CURRENT WORKING DIRECTORY, so
 //    nothing real is loaded. (The seed script loads server/.env by absolute path; that is
 //    harmless only because MONGODB_URI is already set, see above.)
-//  - A guard below refuses to run unless the URI is a local memory-server URI.
-//  - Everything that could reach a real service (email, face analysis, AI) is set to ''.
+//  - The child server gets an ALLOW-LIST environment (only what Node needs to run, plus the
+//    explicit test values below). Nothing else from the developer's shell, such as cloud
+//    credentials or API keys, is passed on. Note: libraries that read credential FILES in the
+//    home directory (e.g. ~/.aws) are not stopped by this; the real guarantee against a real
+//    database is that MONGODB_URI is set explicitly to the in-memory server.
+//  - The service keys that the server reads (email, face analysis, AI) are set to '' too.
 import { MongoMemoryServer } from 'mongodb-memory-server-core';
 import { spawn, spawnSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -42,7 +46,8 @@ async function main() {
   mongod = await MongoMemoryServer.create();
   const uri = mongod.getUri('gp_admin_e2e');
 
-  // Guard: never continue with anything but a local memory-server URI (protects the real DB).
+  // Sanity check only: the URI above comes from MongoMemoryServer itself, so this cannot fail
+  // today; it just catches a future edit that swaps in some other URI.
   if (!/^mongodb:\/\/(127\.0\.0\.1|localhost)/.test(uri)) {
     throw new Error('Refusing to run: MONGODB_URI is not a local memory-server URI');
   }
@@ -51,8 +56,19 @@ async function main() {
   mkdirSync(path.join(adminDir, '.tmp'), { recursive: true });
   writeFileSync(path.join(adminDir, '.tmp', 'db.json'), JSON.stringify({ uri }));
 
+  // Allow-list: copy only the variables a Node process / Windows needs to start. Everything
+  // else in the developer's shell is deliberately NOT passed to the test server.
+  const ALLOWED = [
+    'PATH', 'Path', 'PATHEXT', 'SystemRoot', 'SYSTEMROOT', 'windir', 'ComSpec',
+    'TEMP', 'TMP', 'HOME', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA',
+  ];
+  const baseEnv = {};
+  for (const key of ALLOWED) {
+    if (process.env[key] !== undefined) baseEnv[key] = process.env[key];
+  }
+
   const env = {
-    ...process.env,
+    ...baseEnv,
     MONGODB_URI: uri,
     NODE_ENV: 'test',
     PORT: String(PORT),
