@@ -302,3 +302,126 @@ test('users page shows the "deleted" notice after a delete', async () => {
   });
   expect(html).toContain('permanently deleted');
 });
+
+describe('catalogue pages', () => {
+  const labels = require('../services/catalogueProducts');
+  const listData = {
+    categoryLabels: labels.CATEGORY_LABELS,
+    useLabels: labels.USE_LABELS,
+    pregnancyLabels: labels.PREGNANCY_LABELS,
+  };
+  const product = {
+    _id: '64b0000000000000000000c1',
+    slug: 'herbal-mousse',
+    name: 'Herbal Mousse',
+    category: 'face_serums',
+    use: 'professional',
+    pregnancy: 'avoid',
+    hasPhoto: true,
+    archived: false,
+    createdAt: new Date('2026-09-01T10:00:00Z'),
+    updatedAt: new Date('2026-09-02T10:00:00Z'),
+  };
+  const values = {
+    name: 'Herbal Mousse', category: 'face_serums', use: 'professional', pregnancy: 'avoid',
+    keyActives: 'A\nB', ingredients: 'Water', strengths: 'S', suitableFor: 'T',
+  };
+  const editData = { ...listData, product, values, notice: null };
+
+  test('list renders rows, thumbnail, professional pill, archived label and nav state', async () => {
+    const html = await render('catalogue', {
+      ...listData,
+      notice: null,
+      products: [
+        product,
+        { ...product, _id: '64b0000000000000000000c2', slug: 'old-one', name: 'Old One', use: 'home', hasPhoto: false, archived: true },
+      ],
+    });
+    expect(html).toContain('>Products</h1>'); // visible text only; styling may change
+    expect(html).toContain('href="/admin/catalogue/new"');
+    expect(html).toContain('data-product-slug="herbal-mousse"');
+    expect(html).toContain('src="/admin/catalogue/64b0000000000000000000c1/photo"');
+    expect(html).not.toContain('/admin/catalogue/64b0000000000000000000c2/photo');
+    expect(html).toContain('Professional only');
+    expect(html).toContain('Face serums');
+    expect(html).toContain('Avoid in pregnancy');
+    expect(html.match(/Archived/g)).toHaveLength(1); // only the archived row
+    expect(html).toMatch(/<a href="\/admin\/catalogue" class="active">Products<\/a>/);
+    expect(html).not.toMatch(/<(a|tr|td|img|form|button)[^>]*\son\w+=/);
+  });
+
+  test('list escapes a hostile product name', async () => {
+    const html = await render('catalogue', {
+      ...listData, notice: null, products: [{ ...product, name: '<script>alert(1)</script>' }],
+    });
+    expect(html).not.toContain('<script>alert(1)');
+    expect(html).toContain('&lt;script&gt;');
+  });
+
+  test('nav shows Products between Users and Inbox', async () => {
+    const html = await render('catalogue', { ...listData, notice: null, products: [] });
+    expect(html.indexOf('>Users<')).toBeLessThan(html.indexOf('>Products<'));
+    expect(html.indexOf('>Products<')).toBeLessThan(html.indexOf('>Inbox'));
+  });
+
+  test('edit page: fields, slug, photo form, archive form, CSRF in every POST form', async () => {
+    const html = await render('catalogueProduct', editData);
+    expect(html).toContain('<code class="slug">herbal-mousse</code>');
+    expect(html).toContain('<option value="professional" selected>Professional only</option>');
+    expect(html).toContain('A\nB</textarea>');
+    expect(html).toContain('One item per line.');
+    expect(html).toContain('enctype="multipart/form-data"');
+    expect(html).toContain('accept="image/jpeg,image/png"');
+    expect(html).toContain('JPEG or PNG, up to 2 MB.');
+    expect(html).toContain('>Upload photo<');
+    expect(html).toContain('<form method="post" action="/admin/catalogue/64b0000000000000000000c1/archive" data-confirm=');
+    expect(html).toContain('>Archive<');
+    const forms = html.match(/<form method="post"/g).length;
+    expect(html.match(/name="_csrf" value="TEST_CSRF_TOKEN"/g)).toHaveLength(forms);
+    expect(forms).toBe(3);
+    expect(html).not.toMatch(/<form[^>]*\son\w+=/);
+  });
+
+  test('archived product shows Restore instead of Archive', async () => {
+    const html = await render('catalogueProduct', { ...editData, product: { ...product, archived: true } });
+    expect(html).toContain('/admin/catalogue/64b0000000000000000000c1/restore');
+    expect(html).not.toContain('/archive"');
+    expect(html).toContain('Archived');
+  });
+
+  test('new page has no slug, photo or archive forms', async () => {
+    const html = await render('catalogueProduct', {
+      ...listData, product: null, notice: null,
+      values: { name: '', category: '', use: '', pregnancy: '', keyActives: '', ingredients: '', strengths: '', suitableFor: '' },
+    });
+    expect(html).toContain('action="/admin/catalogue"');
+    expect(html).toContain('>Create product<');
+    expect(html).not.toContain('class="slug"');
+    expect(html).not.toContain('multipart/form-data');
+    expect(html.match(/name="_csrf"/g)).toHaveLength(1);
+  });
+
+  test('hostile name and typed values are escaped; error notice is shown on re-render', async () => {
+    const evil = `"><script>alert(1)</script>`;
+    const html = await render('catalogueProduct', {
+      ...editData,
+      values: { ...values, name: evil, strengths: '<b>typed</b>' },
+      notice: { text: 'A product with this name already exists.', error: true },
+    });
+    expect(html).not.toContain('<script>alert(1)');
+    expect(html).toContain('&lt;b&gt;typed&lt;/b&gt;');
+    expect(html).toContain('<div class="notice error">A product with this name already exists.</div>');
+  });
+
+  test('audit page links catalogue entries to the product', async () => {
+    const html = await render('audit', {
+      entries: [{
+        createdAt: new Date(), adminEmail: 'admin@example.com', action: 'catalogue_product_updated',
+        catalogueProductId: '64b0000000000000000000c1', fields: ['name'],
+      }],
+      filterUserId: null,
+    });
+    expect(html).toContain('catalogue product updated');
+    expect(html).toContain('<a href="/admin/catalogue/64b0000000000000000000c1">product</a>');
+  });
+});

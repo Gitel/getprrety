@@ -1,0 +1,110 @@
+<%#
+  Catalogue product page: one view for "new" (product is null) and "edit".
+  `values` holds the strings shown in the form (stored values, or what the admin typed when
+  a save failed validation). `product` supplies slug, dates, photo and archived state.
+%>
+<%
+  function stamp(d) { return d ? new Date(d).toISOString().slice(0, 16).replace('T', ' ') : '—'; }
+  var isNew = !product;
+  // The three dropdowns: [form field, label text, value -> human label map]. Rendered in a
+  // loop below with escaped output tags, so even these fixed server-side labels are escaped.
+  var selects = [
+    ['category', 'Category', categoryLabels],
+    ['use', 'Use', useLabels],
+    ['pregnancy', 'Pregnancy', pregnancyLabels],
+  ];
+%>
+<%- include('_head', { title: isNew ? 'New product' : product.name }) %>
+<%- include('_nav', { active: 'catalogue' }) %>
+<main>
+  <% if (locals.notice) { %>
+    <div class="notice <%= notice.error ? 'error' : '' %>"><%= notice.text %></div>
+  <% } %>
+
+  <p><a href="/admin/catalogue">&larr; Back to products</a></p>
+
+  <div class="card">
+    <h2><%= isNew ? 'New product' : 'Product details' %></h2>
+    <% if (!isNew) { %>
+      <dl class="kv">
+        <dt>Slug</dt><dd><code class="slug"><%= product.slug %></code> <span class="muted">(follows the product name)</span></dd>
+        <dt>Created</dt><dd><%= stamp(product.createdAt) %> UTC</dd>
+        <dt>Last updated</dt><dd><%= stamp(product.updatedAt) %> UTC</dd>
+        <% if (product.archived) { %><dt>Status</dt><dd><span class="pill no">Archived</span></dd><% } %>
+      </dl>
+    <% } %>
+
+    <form method="post" action="<%= isNew ? '/admin/catalogue' : '/admin/catalogue/' + product._id %>" style="margin-top: 12px;">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+      <label for="name">Name</label>
+      <input type="text" id="name" name="name" required maxlength="120" value="<%= values.name %>">
+
+      <%# One <select> per entry of `selects`; the current value is pre-selected. %>
+      <% selects.forEach(function (s) { var field = s[0], labels = s[2]; %>
+        <label for="<%= field %>"><%= s[1] %></label>
+        <select id="<%= field %>" name="<%= field %>" required>
+          <option value="">Choose...</option>
+          <% Object.keys(labels).forEach(function (key) { %>
+            <option value="<%= key %>"<%= values[field] === key ? ' selected' : '' %>><%= labels[key] %></option>
+          <% }); %>
+        </select>
+      <% }); %>
+
+      <label for="keyActives">Key actives</label>
+      <textarea id="keyActives" name="keyActives"><%= values.keyActives %></textarea>
+      <p class="muted">One item per line.</p>
+
+      <label for="ingredients">Ingredients</label>
+      <textarea id="ingredients" name="ingredients" style="min-height: 120px;"><%= values.ingredients %></textarea>
+
+      <label for="strengths">Strengths</label>
+      <textarea id="strengths" name="strengths"><%= values.strengths %></textarea>
+      <p class="muted">One item per line.</p>
+
+      <label for="suitableFor">Suitable for</label>
+      <textarea id="suitableFor" name="suitableFor"><%= values.suitableFor %></textarea>
+      <p class="muted">One item per line.</p>
+
+      <p><button type="submit"><%= isNew ? 'Create product' : 'Save' %></button></p>
+    </form>
+  </div>
+
+  <% if (!isNew) { %>
+    <div class="card" id="photo">
+      <h2>Photo</h2>
+      <% if (product.hasPhoto) { %>
+        <p><img src="/admin/catalogue/<%= product._id %>/photo" alt="<%= product.name %>" style="max-width: 260px; border-radius: 8px; border: 1px solid #eadfce;"></p>
+      <% } else { %>
+        <p class="muted">No photo yet.</p>
+      <% } %>
+      <%# multipart/form-data is required for file uploads. multer reads the whole multipart body
+          before the CSRF check runs, so the order of the fields does not matter. %>
+      <form method="post" action="/admin/catalogue/<%= product._id %>/photo" enctype="multipart/form-data">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <label for="photo-file">Photo</label>
+        <input type="file" id="photo-file" name="photo" accept="image/jpeg,image/png" required>
+        <p class="muted">JPEG or PNG, up to 2 MB.</p>
+        <p><button type="submit">Upload photo</button></p>
+      </form>
+    </div>
+
+    <div class="card" id="archive">
+      <h2><%= product.archived ? 'Restore' : 'Archive' %></h2>
+      <% if (product.archived) { %>
+        <p class="muted">This product is archived. Restoring makes it active again.</p>
+        <form method="post" action="/admin/catalogue/<%= product._id %>/restore" data-confirm="Restore <%= product.name %>?">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <button type="submit">Restore</button>
+        </form>
+      <% } else { %>
+        <p class="muted">Archiving keeps the product and its photo but marks it as archived.</p>
+        <form method="post" action="/admin/catalogue/<%= product._id %>/archive" data-confirm="Archive <%= product.name %>?">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <button type="submit" class="danger">Archive</button>
+        </form>
+      <% } %>
+    </div>
+  <% } %>
+</main>
+<%- include('_foot') %>

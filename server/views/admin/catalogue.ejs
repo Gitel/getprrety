@@ -1,0 +1,49 @@
+<%#
+  Catalogue list: every product (archived included), grouped by category (the route passes
+  them already sorted). Data from catalogueProducts.listProducts; photo bytes are NOT loaded,
+  the thumbnail is fetched by the browser from /admin/catalogue/<id>/photo.
+%>
+<%- include('_head', { title: 'Products' }) %>
+<%- include('_nav', { active: 'catalogue' }) %>
+<main>
+  <% if (locals.notice) { %>
+    <div class="notice <%= notice.error ? 'error' : '' %>"><%= notice.text %></div>
+  <% } %>
+
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+    <h1 style="font-size: 20px; margin: 0;">Products</h1>
+    <a href="/admin/catalogue/new" class="btn">Add product</a>
+  </div>
+
+  <p class="muted"><%= products.length %> product<%= products.length === 1 ? '' : 's' %></p>
+
+  <table>
+    <thead>
+      <tr><th>Photo</th><th>Name</th><th>Category</th><th>Use</th><th>Pregnancy</th><th>Status</th></tr>
+    </thead>
+    <tbody>
+      <% products.forEach(function (p) { %>
+        <tr data-product-slug="<%= p.slug %>">
+          <td>
+            <% if (p.hasPhoto) { %>
+              <img src="/admin/catalogue/<%= p._id %>/photo" alt="<%= p.name %>" loading="lazy" width="48" height="48" style="object-fit: cover; border-radius: 6px;">
+            <% } %>
+          </td>
+          <td><a href="/admin/catalogue/<%= p._id %>"><%= p.name %></a></td>
+          <td><%= categoryLabels[p.category] || p.category %></td>
+          <%# "Professional only" is shown as a pill so it stands out from home-use products. %>
+          <td>
+            <% if (p.use === 'professional') { %><span class="pill no"><%= useLabels[p.use] %></span>
+            <% } else { %><%= useLabels[p.use] || p.use %><% } %>
+          </td>
+          <td><%= pregnancyLabels[p.pregnancy] || p.pregnancy %></td>
+          <td><% if (p.archived) { %><span class="pill no">Archived</span><% } else { %>Active<% } %></td>
+        </tr>
+      <% }); %>
+      <% if (!products.length) { %>
+        <tr><td colspan="6" class="muted">No products yet.</td></tr>
+      <% } %>
+    </tbody>
+  </table>
+</main>
+<%- include('_foot') %>

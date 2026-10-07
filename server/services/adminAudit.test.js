@@ -10,6 +10,7 @@ test('writes the acting admin, action and targets', async () => {
     action: 'routine_updated',
     userId: 'u1',
     analysisId: 'a1',
+    catalogueProductId: null,
     targetAdminEmail: null,
     fields: ['routine'],
   });
@@ -18,7 +19,13 @@ test('writes the acting admin, action and targets', async () => {
 test('defaults every target to empty when none is given', async () => {
   const model = { create: jest.fn().mockResolvedValue({}) };
   await logAdminAction(req, 'admin_added', undefined, { model });
-  expect(model.create.mock.calls[0][0]).toMatchObject({ userId: null, analysisId: null, fields: [] });
+  expect(model.create.mock.calls[0][0]).toMatchObject({ userId: null, analysisId: null, catalogueProductId: null, fields: [] });
+});
+
+test('passes the catalogue product id through', async () => {
+  const model = { create: jest.fn().mockResolvedValue({}) };
+  await logAdminAction(req, 'catalogue_product_updated', { catalogueProductId: 'p1', fields: ['name'] }, { model });
+  expect(model.create.mock.calls[0][0]).toMatchObject({ catalogueProductId: 'p1', userId: null, fields: ['name'] });
 });
 
 test('never throws: a failed audit write is logged, the action already succeeded', async () => {

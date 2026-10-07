@@ -15,6 +15,11 @@ const ACTIONS = [
   'shelf_updated',           // Customer page: shelf analysis
   'message_sent',            // User page: message to the user
   'user_deleted',            // User page: account and all data deleted
+  'catalogue_product_created',  // Products page: new product added
+  'catalogue_product_updated',  // Products page: text / category / use / pregnancy fields edited
+  'catalogue_photo_replaced',   // Products page: product photo uploaded
+  'catalogue_product_archived', // Products page: product hidden from the catalogue
+  'catalogue_product_restored', // Products page: archived product brought back
 ];
 
 // Who changed what, and when. Records the NAMES of changed fields, never their values:
@@ -25,6 +30,8 @@ const adminAuditLogSchema = new mongoose.Schema({
   action:           { type: String, enum: ACTIONS, required: true },
   userId:           { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   analysisId:       { type: mongoose.Schema.Types.ObjectId, ref: 'SkinAnalysis', default: null },
+  // Only for the catalogue_* actions: which product was touched.
+  catalogueProductId: { type: mongoose.Schema.Types.ObjectId, ref: 'CatalogueProduct', default: null },
   // Only for admin_added / admin_removed: which admin account was granted or revoked.
   targetAdminEmail: { type: String, lowercase: true, trim: true, default: null },
   fields:           { type: [String], default: [] },
