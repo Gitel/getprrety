@@ -21,6 +21,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { baseEnv } from './baseEnv.js';
 import { PORT, ADMIN_EMAIL, ADMIN_SESSION_SECRET, JWT_SECRET } from './env.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -56,19 +57,9 @@ async function main() {
   mkdirSync(path.join(adminDir, '.tmp'), { recursive: true });
   writeFileSync(path.join(adminDir, '.tmp', 'db.json'), JSON.stringify({ uri }));
 
-  // Allow-list: copy only the variables a Node process / Windows needs to start. Everything
-  // else in the developer's shell is deliberately NOT passed to the test server.
-  const ALLOWED = [
-    'PATH', 'Path', 'PATHEXT', 'SystemRoot', 'SYSTEMROOT', 'windir', 'ComSpec',
-    'TEMP', 'TMP', 'HOME', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA',
-  ];
-  const baseEnv = {};
-  for (const key of ALLOWED) {
-    if (process.env[key] !== undefined) baseEnv[key] = process.env[key];
-  }
-
+  // Allow-list env (see support/baseEnv.js): nothing else from the developer's shell is passed on.
   const env = {
-    ...baseEnv,
+    ...baseEnv(),
     MONGODB_URI: uri,
     NODE_ENV: 'test',
     PORT: String(PORT),

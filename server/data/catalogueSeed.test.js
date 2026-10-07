@@ -79,3 +79,11 @@ test('the seed data fits the admin form caps', () => {
   }
   expect(tooBig).toEqual([]);
 });
+
+// seedKey is the permanent id the seed script matches on (see seedCatalogue.js): every product
+// needs one, they must be unique, and they must look like a slug.
+test('every product has a unique, slug-shaped seedKey', () => {
+  const keys = products.map(p => p.seedKey);
+  expect(keys.every(k => typeof k === 'string' && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(k))).toBe(true);
+  expect(new Set(keys).size).toBe(keys.length);
+});

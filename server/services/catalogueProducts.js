@@ -8,6 +8,9 @@ const { text } = require('./analysisFields');
 const { detectImageType } = require('./imageType');
 
 const MAX_PHOTO_BYTES = 2 * 1024 * 1024; // 2 MB
+// multer limits of the photo upload route (used by routes/admin.js, pinned by a unit test):
+// one file of at most 2 MB plus a few small text fields (the _csrf token).
+const PHOTO_UPLOAD_LIMITS = { fileSize: MAX_PHOTO_BYTES, files: 1, fields: 5, parts: 6 };
 const MAX_LIST_ITEMS = 60;
 const MAX_ITEM_CHARS = 300;
 
@@ -254,6 +257,7 @@ module.exports = {
   getProduct,
   getProductPhoto,
   MAX_PHOTO_BYTES,
+  PHOTO_UPLOAD_LIMITS,
   CATEGORY_LABELS,
   USE_LABELS,
   PREGNANCY_LABELS,

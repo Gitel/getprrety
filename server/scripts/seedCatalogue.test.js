@@ -6,7 +6,9 @@ const { parseArgs, loadSeed, planInserts, seedCatalogue } = require('./seedCatal
 // Smallest buffer that detectImageType accepts as PNG (the 8-byte signature + padding).
 const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(8)]);
 
+// seedKey defaults to the slug (like in the real products.json); pass seedKey to override.
 const product = (over = {}) => ({
+  seedKey: over.slug || 'crystal-silk-peeling',
   slug: 'crystal-silk-peeling', name: 'Crystal Silk Peeling', category: 'cleansers_peelings',
   use: 'home', pregnancy: 'safe', keyActives: ['a'], strengths: [], suitableFor: ['dry'],
   ingredients: 'water', photo: null, ...over,
@@ -77,6 +79,19 @@ describe('loadSeed', () => {
     const { problems } = loadSeed(fixture([p], { 't.png': Buffer.from('hello world') }));
     expect(problems.join('\n')).toMatch(re);
   });
+  test('seedKey is required, unique and slug-shaped (a bad file fails loudly)', () => {
+    const missing = product();
+    delete missing.seedKey;
+    expect(loadSeed(fixture([missing])).problems.join('\n')).toMatch(/seedKey is required/);
+    expect(loadSeed(fixture([product({ seedKey: 'Bad Key' })])).problems.join('\n')).toMatch(/seedKey is required/);
+    const dup = loadSeed(fixture([product(), product({ slug: 'b-one', name: 'B One', seedKey: 'crystal-silk-peeling' })]));
+    expect(dup.problems.join('\n')).toMatch(/duplicate seedKey/);
+  });
+  test('the seedKey comes from the file, not from the slug', () => {
+    const { products, problems } = loadSeed(fixture([product({ slug: 'crystal-silk', name: 'Crystal Silk', seedKey: 'crystal-silk-peeling' })]));
+    expect(problems).toEqual([]);
+    expect(products[0]).toMatchObject({ slug: 'crystal-silk', seedKey: 'crystal-silk-peeling' });
+  });
   test('duplicate slug', () => {
     const { problems } = loadSeed(fixture([product(), product()]));
     expect(problems.join('\n')).toMatch(/duplicate slug/);
@@ -118,6 +133,17 @@ describe('seedCatalogue with a fake model', () => {
     expect(result.inserted).toBe(0);
     expect(model.insertMany).not.toHaveBeenCalled();
     expect(lines[lines.length - 1]).toBe('Inserted 0, skipped 1 (already present).');
+  });
+
+  test('a product renamed IN THE FILE (new name and slug, same seedKey) is not inserted again', async () => {
+    const dir = fixture([product({ slug: 'crystal-silk', name: 'Crystal Silk', seedKey: 'crystal-silk-peeling' })]);
+    // The DB already holds the product under its first seedKey (and its old name / slug).
+    const model = fake([{ seedKey: 'crystal-silk-peeling', slug: 'crystal-silk-peeling', nameKey: 'crystal silk peeling' }]);
+    const lines = [];
+    const result = await seedCatalogue({ dataDir: dir, model, log: l => lines.push(l) });
+    expect(result.inserted).toBe(0);
+    expect(model.insertMany).not.toHaveBeenCalled();
+    expect(lines.some(l => l.includes('WARNING'))).toBe(false);
   });
 
   test('a slug / name collision with another product is skipped with a warning, no crash, no update', async () => {

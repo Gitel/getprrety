@@ -1,8 +1,14 @@
 const {
   slugify, parseProductForm, createProduct, updateProduct, setArchived, replacePhoto,
   listProducts, getProduct, getProductPhoto, MAX_PHOTO_BYTES,
-  CATEGORY_LABELS, USE_LABELS, PREGNANCY_LABELS,
+  CATEGORY_LABELS, USE_LABELS, PREGNANCY_LABELS, PHOTO_UPLOAD_LIMITS,
 } = require('./catalogueProducts');
+
+// Pins the upload limits the photo route hands to multer: dropping the 2 MB limit (or the
+// single-file / few-parts limits) must fail a test.
+test('the photo upload route is limited to one file of at most 2 MB', () => {
+  expect(PHOTO_UPLOAD_LIMITS).toEqual({ fileSize: 2 * 1024 * 1024, files: 1, fields: 5, parts: 6 });
+});
 const CatalogueProduct = require('../models/CatalogueProduct');
 
 // The form dropdowns are built from the *_LABELS keys while validation uses the model enums.

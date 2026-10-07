@@ -12,8 +12,10 @@
 // Note: even a dry run writes no DOCUMENTS, but Mongoose may create the empty collection and
 // its indexes when it connects (autoCreate / autoIndex are on by default).
 //
-// Insert-only: each seed product carries a hidden permanent seedKey (= its slug in
-// products.json). A product is inserted only when NO document has that seedKey. The admin
+// Insert-only: each seed product in products.json carries an explicit seedKey. It starts out
+// equal to the product's slug, but it is PERMANENT: never edit a seedKey in the file. Names
+// (and therefore slugs) in the file may be corrected later; the seedKey stays the same.
+// A product is inserted only when NO document has that seedKey. The admin
 // can rename a product (its slug then changes) but never its seedKey, so a re-run does not
 // re-add a renamed product. If a seed product's slug or name is already used by a document
 // with a different / missing seedKey (e.g. an admin created or renamed a product to that
@@ -30,6 +32,8 @@ const fs = require('fs');
 const path = require('path');
 const mongoose = require('mongoose');
 const CatalogueProduct = require('../models/CatalogueProduct');
+// Same shape the model enforces for slugs.
+const SEED_KEY_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const { slugify, MAX_PHOTO_BYTES } = require('../services/catalogueProducts');
 const { detectImageType } = require('../services/imageType');
 
@@ -66,6 +70,7 @@ function loadSeed(dataDir = DEFAULT_DATA_DIR) {
   }
 
   const seenSlugs = new Set();
+  const seenSeedKeys = new Set();
   const seenNames = new Set();
   const photosDir = path.join(dataDir, 'photos');
 
@@ -75,7 +80,13 @@ function loadSeed(dataDir = DEFAULT_DATA_DIR) {
     const bad = msg => problems.push(`${label}: ${msg}`);
 
     if (typeof p.name !== 'string' || !p.name.trim()) bad('name is required');
-    // The seed slug (which also becomes the permanent seedKey) must be exactly what the admin service would derive.
+    // seedKey: permanent id of the product, read from the file (NOT derived from the slug, so
+    // a later name correction in the file cannot make the product look new). Must exist, be
+    // unique and look like a slug.
+    if (typeof p.seedKey !== 'string' || !SEED_KEY_PATTERN.test(p.seedKey)) bad('seedKey is required and must look like a slug (a-z, 0-9, single dashes)');
+    else if (seenSeedKeys.has(p.seedKey)) bad('duplicate seedKey in products.json');
+    else seenSeedKeys.add(p.seedKey);
+    // The seed slug must be exactly what the admin service would derive.
     if (typeof p.name === 'string' && p.slug !== slugify(p.name)) bad(`slug must be "${slugify(p.name)}"`);
     if (!CatalogueProduct.CATEGORIES.includes(p.category)) bad(`invalid category "${p.category}"`);
     if (!CatalogueProduct.USES.includes(p.use)) bad(`invalid use "${p.use}"`);
@@ -110,7 +121,7 @@ function loadSeed(dataDir = DEFAULT_DATA_DIR) {
     }
 
     const doc = {
-      seedKey: p.slug, // permanent: the slug the product has in the seed file
+      seedKey: p.seedKey, // permanent id from the file; never changes
       slug: p.slug, name: p.name, category: p.category, use: p.use, pregnancy: p.pregnancy,
       keyActives: p.keyActives, strengths: p.strengths, suitableFor: p.suitableFor,
       ingredients: p.ingredients,

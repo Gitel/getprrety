@@ -416,7 +416,7 @@ router.get('/users/:id/image/:uploadId', requireAdmin, async (req, res, next) =>
 // 2 MB plus the _csrf text field. The limits stop a client from sending huge or many parts.
 const photoUpload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: catalogue.MAX_PHOTO_BYTES, files: 1, fields: 5, parts: 6 },
+  limits: catalogue.PHOTO_UPLOAD_LIMITS,
 }).single('photo');
 
 // What the product form shows, as plain strings. `source` is either a stored product (lists

@@ -2,6 +2,7 @@
   "source": "All products and Ingrediants SR COSMETICS New.pdf (client, received 2026-10-05)",
   "products": [
     {
+      "seedKey": "herbal-cleansing-mousse",
       "slug": "herbal-cleansing-mousse",
       "name": "Herbal Cleansing Mousse",
       "category": "cleansers_peelings",
@@ -25,6 +26,7 @@
       "photo": "herbal-cleansing-mousse.png"
     },
     {
+      "seedKey": "whitening-peeling-acid",
       "slug": "whitening-peeling-acid",
       "name": "Whitening Peeling Acid",
       "category": "cleansers_peelings",
@@ -50,6 +52,7 @@
       "photo": "whitening-peeling-acid.png"
     },
     {
+      "seedKey": "caliente-peeling-mask",
       "slug": "caliente-peeling-mask",
       "name": "Caliente Peeling Mask",
       "category": "cleansers_peelings",
@@ -77,6 +80,7 @@
       "photo": "caliente-peeling-mask.png"
     },
     {
+      "seedKey": "light-tomato-peel",
       "slug": "light-tomato-peel",
       "name": "Light Tomato Peel",
       "category": "cleansers_peelings",
@@ -103,6 +107,7 @@
       "photo": "light-tomato-peel.png"
     },
     {
+      "seedKey": "crystal-silk-peeling",
       "slug": "crystal-silk-peeling",
       "name": "Crystal & Silk Peeling",
       "category": "cleansers_peelings",
@@ -129,6 +134,7 @@
       "photo": "crystal-silk-peeling.png"
     },
     {
+      "seedKey": "caffeine-renewing-mask",
       "slug": "caffeine-renewing-mask",
       "name": "Caffeine Renewing Mask",
       "category": "cleansers_peelings",
@@ -151,6 +157,7 @@
       "photo": "caffeine-renewing-mask.png"
     },
     {
+      "seedKey": "peel-young",
       "slug": "peel-young",
       "name": "Peel Young",
       "category": "cleansers_peelings",
@@ -176,6 +183,7 @@
       "photo": "peel-young.png"
     },
     {
+      "seedKey": "one-step-peel",
       "slug": "one-step-peel",
       "name": "One Step Peel",
       "category": "face_serums",
@@ -213,6 +221,7 @@
       "photo": "one-step-peel.png"
     },
     {
+      "seedKey": "phyto-stem-cell-serum",
       "slug": "phyto-stem-cell-serum",
       "name": "Phyto Stem Cell Serum",
       "category": "face_serums",
@@ -243,6 +252,7 @@
       "photo": "phyto-stem-cell-serum.png"
     },
     {
+      "seedKey": "lipo-vit-serum",
       "slug": "lipo-vit-serum",
       "name": "Lipo Vit Serum",
       "category": "face_serums",
@@ -269,6 +279,7 @@
       "photo": "lipo-vit-serum.png"
     },
     {
+      "seedKey": "active-face-serum-h-a",
       "slug": "active-face-serum-h-a",
       "name": "Active Face Serum & H.A",
       "category": "face_serums",
@@ -292,6 +303,7 @@
       "photo": "active-face-serum-h-a.png"
     },
     {
+      "seedKey": "vitamin-c-serum",
       "slug": "vitamin-c-serum",
       "name": "Vitamin C Serum",
       "category": "face_serums",
@@ -322,6 +334,7 @@
       "photo": "vitamin-c-serum.png"
     },
     {
+      "seedKey": "d-immediate-ageless-serum",
       "slug": "d-immediate-ageless-serum",
       "name": "D. Immediate Ageless Serum",
       "category": "face_serums",
@@ -346,6 +359,7 @@
       "photo": "d-immediate-ageless-serum.png"
     },
     {
+      "seedKey": "mezotox-serum",
       "slug": "mezotox-serum",
       "name": "Mezotox Serum",
       "category": "face_serums",
@@ -373,6 +387,7 @@
       "photo": "mezotox-serum.png"
     },
     {
+      "seedKey": "caviar-fast-wrinkle-filler",
       "slug": "caviar-fast-wrinkle-filler",
       "name": "Caviar Fast Wrinkle Filler",
       "category": "face_serums",
@@ -396,6 +411,7 @@
       "photo": "caviar-fast-wrinkle-filler.png"
     },
     {
+      "seedKey": "grand-active-serum",
       "slug": "grand-active-serum",
       "name": "Grand Active Serum",
       "category": "face_serums",
@@ -416,6 +432,7 @@
       "photo": "grand-active-serum.png"
     },
     {
+      "seedKey": "one-solution-serum",
       "slug": "one-solution-serum",
       "name": "One Solution Serum",
       "category": "face_serums",
@@ -441,6 +458,7 @@
       "photo": "one-solution-serum.png"
     },
     {
+      "seedKey": "age-defying-night-repair",
       "slug": "age-defying-night-repair",
       "name": "Age Defying Night Repair",
       "category": "face_serums",
@@ -466,6 +484,7 @@
       "photo": "age-defying-night-repair.png"
     },
     {
+      "seedKey": "zit-out-serum",
       "slug": "zit-out-serum",
       "name": "Zit-Out Serum",
       "category": "face_serums",
@@ -489,6 +508,7 @@
       "photo": "zit-out-serum.png"
     },
     {
+      "seedKey": "everpure-eye-treatment",
       "slug": "everpure-eye-treatment",
       "name": "EverPure Eye Treatment",
       "category": "eye",
@@ -512,6 +532,7 @@
       "photo": "everpure-eye-treatment.png"
     },
     {
+      "seedKey": "anti-dark-circulars-eye-serum",
       "slug": "anti-dark-circulars-eye-serum",
       "name": "Anti-Dark Circulars Eye Serum",
       "category": "eye",
@@ -534,6 +555,7 @@
       "photo": "anti-dark-circulars-eye-serum.png"
     },
     {
+      "seedKey": "bio-placeta-cream",
       "slug": "bio-placeta-cream",
       "name": "Bio Placeta Cream",
       "category": "face_creams",
@@ -562,6 +584,7 @@
       "photo": "bio-placeta-cream.png"
     },
     {
+      "seedKey": "lift-u-up-cream",
       "slug": "lift-u-up-cream",
       "name": "Lift U Up Cream",
       "category": "face_creams",
@@ -592,6 +615,7 @@
       "photo": "lift-u-up-cream.png"
     },
     {
+      "seedKey": "blue-light-night-cream",
       "slug": "blue-light-night-cream",
       "name": "Blue Light Night Cream",
       "category": "face_creams",
@@ -617,6 +641,7 @@
       "photo": "blue-light-night-cream.png"
     },
     {
+      "seedKey": "d-herbal-calm-forte",
       "slug": "d-herbal-calm-forte",
       "name": "D. Herbal Calm Forte",
       "category": "face_creams",
@@ -643,6 +668,7 @@
       "photo": "d-herbal-calm-forte.png"
     },
     {
+      "seedKey": "demi-make-up",
       "slug": "demi-make-up",
       "name": "Demi Make Up",
       "category": "face_creams",
@@ -664,6 +690,7 @@
       "photo": "demi-make-up.png"
     },
     {
+      "seedKey": "caviar-renewal-face-cream",
       "slug": "caviar-renewal-face-cream",
       "name": "Caviar Renewal Face Cream",
       "category": "face_creams",
@@ -687,6 +714,7 @@
       "photo": "caviar-renewal-face-cream.png"
     },
     {
+      "seedKey": "caviar-total-revitalizer",
       "slug": "caviar-total-revitalizer",
       "name": "Caviar Total Revitalizer",
       "category": "face_creams",
@@ -709,6 +737,7 @@
       "photo": "caviar-total-revitalizer.png"
     },
     {
+      "seedKey": "dmae-refiner-face-cream",
       "slug": "dmae-refiner-face-cream",
       "name": "DMAE Refiner Face Cream",
       "category": "face_creams",
@@ -734,6 +763,7 @@
       "photo": "dmae-refiner-face-cream.png"
     },
     {
+      "seedKey": "smooth-face-cream",
       "slug": "smooth-face-cream",
       "name": "Smooth Face Cream",
       "category": "face_creams",
@@ -755,6 +785,7 @@
       "photo": "smooth-face-cream.png"
     },
     {
+      "seedKey": "white-bright-cream",
       "slug": "white-bright-cream",
       "name": "White Bright Cream",
       "category": "face_creams",
@@ -783,6 +814,7 @@
       "photo": "white-bright-cream.png"
     },
     {
+      "seedKey": "relaxing-caviar-honey-mask",
       "slug": "relaxing-caviar-honey-mask",
       "name": "Relaxing Caviar & Honey Mask",
       "category": "masks",
@@ -809,6 +841,7 @@
       "photo": "relaxing-caviar-honey-mask.png"
     },
     {
+      "seedKey": "dmae-face-mask",
       "slug": "dmae-face-mask",
       "name": "DMAE Face Mask",
       "category": "masks",
@@ -831,6 +864,7 @@
       "photo": "dmae-face-mask.png"
     },
     {
+      "seedKey": "calm-forte-cream-mask",
       "slug": "calm-forte-cream-mask",
       "name": "Calm Forte + Cream Mask",
       "category": "masks",

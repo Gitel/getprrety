@@ -11,6 +11,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { signIn } from './support/session.js';
+import { baseEnv } from './support/baseEnv.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -321,7 +322,7 @@ test.describe('catalogue', () => {
     const { uri } = JSON.parse(readFileSync(path.join(here, '.tmp', 'db.json'), 'utf8'));
     expect(uri).toMatch(/^mongodb:\/\/(127\.0\.0\.1|localhost)/);
     const run = spawnSync(process.execPath, [path.resolve(here, '../server/scripts/seedCatalogue.js')], {
-      env: { ...process.env, MONGODB_URI: uri, NODE_ENV: 'test' },
+      env: { ...baseEnv(), MONGODB_URI: uri, NODE_ENV: 'test' }, // allow-listed env, not the whole shell
       cwd: here, encoding: 'utf8',
     });
     expect(run.status, run.stderr).toBe(0);
