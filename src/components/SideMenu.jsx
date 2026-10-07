@@ -8,8 +8,7 @@ import { C } from '../constants';
 import { useApp } from '../context/AppContext';
 import { isRTL } from '../lib/language';
 import { menuAction } from '../lib/sideMenu';
-import { BOOKING_READY, BOOKING_URL } from '../lib/booking';
-import { openInAppBrowser } from '../lib/inAppBrowser';
+import { fetchBookingConfig } from '../lib/bookingApi';
 import { openLegal, TERMS_URL, PRIVACY_URL } from '../lib/consent';
 import { startRetake } from '../lib/retake';
 import { logActivity } from '../lib/logActivity';
@@ -113,18 +112,28 @@ export default function SideMenu({ visible, onClose, navigation, currentScreen }
   const rtl = isRTL(i18n.language);
 
   const [confirmRetake, setConfirmRetake] = useState(false);
-  const [bookingFailed, setBookingFailed] = useState(false);
+  // True only when the server says booking is on. Hidden by default and on any error.
+  const [bookingEnabled, setBookingEnabled] = useState(false);
   // Horizontal offset of the panel. It starts OFF-screen (-320 = left in English, +320 = right
   // in Hebrew) and is put back off-screen every time the menu closes (effect below), so the
   // first painted frame of an opening menu is never the fully-open panel.
   const slide = useRef(new Animated.Value(rtl ? 320 : -320)).current;
 
-  // Forget the inline confirm and the booking error whenever the menu closes.
+  // Forget the inline confirm whenever the menu closes.
   useEffect(() => {
-    if (!visible) {
-      setConfirmRetake(false);
-      setBookingFailed(false);
-    }
+    if (!visible) setConfirmRetake(false);
+  }, [visible]);
+
+  // Ask the server on every opening whether booking is on; the "Book" row shows only if so.
+  // `cancelled` ignores a late answer after the menu closed or reopened.
+  useEffect(() => {
+    if (!visible) return undefined;
+    let cancelled = false;
+    setBookingEnabled(false);
+    fetchBookingConfig()
+      .then(config => { if (!cancelled) setBookingEnabled(config?.enabled === true); })
+      .catch(() => { if (!cancelled) setBookingEnabled(false); });
+    return () => { cancelled = true; };
   }, [visible]);
 
   // Slide the panel in when it opens. translateX is NOT mirrored by react-native-web, so we
@@ -170,15 +179,6 @@ export default function SideMenu({ visible, onClose, navigation, currentScreen }
     else if (action === 'navigate') navigation.navigate(target, params);
     else if (action === 'replace') navigation.replace(target, params);
     // 'close': the user is already on that screen, closing the menu is enough.
-  }
-
-  // Must call openInAppBrowser synchronously in the tap (before any await), see inAppBrowser.js.
-  function handleBook() {
-    setBookingFailed(false);
-    openInAppBrowser(BOOKING_URL).then(opened => {
-      if (opened) onClose();
-      else setBookingFailed(true);
-    });
   }
 
   function handleRetake() {
@@ -248,11 +248,9 @@ export default function SideMenu({ visible, onClose, navigation, currentScreen }
                 current={currentScreen === 'Messages'}
                 onPress={() => go('Messages')}
               />
-              {BOOKING_READY ? (
-                <>
-                  <Item icon={'\uD83D\uDCC5'} label={t('menu:book')} onPress={handleBook} />
-                  {bookingFailed ? <Text style={s.error}>{t('menu:bookingError')}</Text> : null}
-                </>
+              {bookingEnabled ? (
+                <Item icon={'\uD83D\uDCC5'} label={t('menu:book')} current={currentScreen === 'Booking'}
+                  onPress={() => go('Booking')} />
               ) : null}
               <Item icon={'\uD83E\uDDF4'} label={t('menu:logProducts')} current={currentScreen === 'ProductCamera'}
                 onPress={() => go('ProductCamera')} />
@@ -324,7 +322,6 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5, marginStart: 8,
   },
   badgeText: { fontFamily: 'DMSans_700Bold', fontSize: 11, color: '#fff' },
-  error: { fontFamily: 'DMSans_400Regular', fontSize: 13, color: '#B3402A', paddingStart: 38, paddingBottom: 8, textAlign: 'start' },
   confirm: { backgroundColor: C.card, borderRadius: 14, borderWidth: 1, borderColor: C.border, padding: 14, marginVertical: 6 },
   confirmText: { fontFamily: 'DMSans_400Regular', fontSize: 14, color: C.text, textAlign: 'start' },
   confirmRow: { flexDirection: 'row', marginTop: 12 },

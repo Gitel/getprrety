@@ -49,7 +49,6 @@ export default defineConfig({
       VITE_PRIVACY_URL: 'https://example.test/privacy',
       VITE_CONSENT_VERSION: 'v1',
       VITE_GOOGLE_WEB_CLIENT_ID: 'e2e-dummy',
-      VITE_BOOKING_URL: '', // empty -> the booking menu item is hidden
     },
   },
 });
