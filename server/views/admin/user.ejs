@@ -55,6 +55,20 @@
     <p class="muted" style="margin-top: 12px;"><a href="/admin/audit?user=<%= user._id %>">Admin changes to this user &rarr;</a></p>
   </div>
 
+  <%# Bookings of this user (all statuses, newest first). Times are clinic-local. %>
+  <div class="card" id="bookings">
+    <h2>Bookings</h2>
+    <% if (!locals.bookings || !bookings.length) { %>
+      <p class="muted">No bookings.</p>
+    <% } else { %>
+      <ul>
+        <% bookings.forEach(function (b) { %>
+          <li data-booking-id="<%= b.id %>"><%= b.date %> <%= b.time %> - <%= b.status %></li>
+        <% }); %>
+      </ul>
+    <% } %>
+  </div>
+
   <%# Two-way in-app messages. The user sees admin messages as "Your clinic" in the app's
       Messages screen; which admin wrote each one is shown only here. %>
   <div class="card" id="messages">

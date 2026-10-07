@@ -30,6 +30,7 @@ const AdminAuditLog = require('../models/AdminAuditLog');
 const messages = require('../services/messages');
 const catalogue = require('../services/catalogueProducts');
 const { deleteUserAndData } = require('../services/deleteUser');
+const bookings = require('../services/bookings');
 
 // Result banners after a redirect. The URL carries only a short code (?notice=...),
 // never free text, so a crafted link cannot make the dashboard display arbitrary words.
@@ -64,6 +65,13 @@ const NOTICES = {
   catalogue_photo_invalid: { text: 'The photo must be a JPEG or PNG image of up to 2 MB.', error: true },
   catalogue_archived:      { text: 'Product archived.' },
   catalogue_restored:      { text: 'Product restored.' },
+  booking_cancelled:         { text: 'Booking cancelled and removed from the calendar.' },
+  booking_not_found:         { text: 'That booking no longer exists.', error: true },
+  booking_already_cancelled: { text: 'That booking was already cancelled.', error: true },
+  booking_calendar_failed:   { text: 'The calendar could not be reached, so nothing was cancelled. Please try again.', error: true },
+  booking_settings_saved:    { text: 'Booking settings saved.' },
+  booking_settings_unchanged: { text: 'Nothing changed.' },
+  booking_settings_invalid:  { text: 'Please check the settings: times must be HH:MM, closing after opening, and the numbers within range.', error: true },
   delete_confirm_mismatch: { text: 'Nothing was deleted: the email you typed does not match this account.', error: true },
 };
 
@@ -319,8 +327,10 @@ router.get('/users/:id', adminPage, async (req, res, next) => {
       await messages.markReadByAdmin(detail.user._id);
       res.locals.unreadReplies = await messages.unreadRepliesCount();
     }
+    // Bookings card: every booking of this user, newest first.
+    const userBookings = await bookings.listForUser(detail.user._id);
     res.render('admin/user', {
-      admin: req.admin, ...detail, thread, notice: noticeFrom(req), maxMessage: messages.MAX_BODY,
+      admin: req.admin, ...detail, thread, bookings: userBookings, notice: noticeFrom(req), maxMessage: messages.MAX_BODY,
     });
   } catch (err) {
     next(err);
@@ -580,6 +590,111 @@ router.post('/catalogue/:id/archive', requireAdmin, requireCsrf,
   archiveHandler(true, 'catalogue_product_archived', 'catalogue_archived'));
 router.post('/catalogue/:id/restore', requireAdmin, requireCsrf,
   archiveHandler(false, 'catalogue_product_restored', 'catalogue_restored'));
+
+// ג”€ג”€ Bookings ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€ג”€
+
+const BOOKING_TABS = ['upcoming', 'past', 'cancelled'];
+
+// Service error code -> notice code for a failed cancel.
+const CANCEL_NOTICES = {
+  not_found: 'booking_not_found',
+  already_cancelled: 'booking_already_cancelled',
+  calendar_unavailable: 'booking_calendar_failed',
+};
+
+// List of bookings, one tab at a time (an unknown ?tab= falls back to upcoming).
+router.get('/bookings', adminPage, async (req, res, next) => {
+  try {
+    const tab = BOOKING_TABS.includes(req.query.tab) ? req.query.tab : 'upcoming';
+    res.render('admin/bookings', {
+      admin: req.admin, tab, rows: await bookings.listForAdmin({ tab }), notice: noticeFrom(req),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Cancel removes the calendar event first, then marks the booking cancelled (service order).
+// The audit entry is written only when the cancel really happened.
+router.post('/bookings/:id/cancel', requireAdmin, requireCsrf, async (req, res, next) => {
+  try {
+    const result = await bookings.cancelBooking(req.params.id, req.admin.email);
+    if (!result.ok) {
+      return res.redirect(`/admin/bookings?notice=${CANCEL_NOTICES[result.code] || 'booking_not_found'}`);
+    }
+    await logAdminAction(req, 'booking_cancelled', {
+      userId: result.booking.userId, bookingId: result.booking._id || req.params.id,
+    });
+    res.redirect('/admin/bookings?notice=booking_cancelled');
+  } catch (err) {
+    next(err);
+  }
+});
+
+const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+// Turns the stored config into the flat shape the settings form shows
+// (days[d] = { enabled, open, close }; a day missing from `weekly` is closed).
+function settingsFormFromConfig(config) {
+  const days = WEEKDAYS.map((_, d) => {
+    const w = (config.weekly || []).find(x => x.day === d);
+    return { enabled: Boolean(w), open: w ? w.open : '', close: w ? w.close : '' };
+  });
+  return {
+    enabled: Boolean(config.enabled),
+    slotMinutes: config.slotMinutes,
+    bufferMinutes: config.bufferMinutes,
+    leadHours: config.leadHours,
+    horizonDays: config.horizonDays,
+    days,
+  };
+}
+
+// Same shape, built from what the admin typed (used to re-show the form after an error).
+function settingsFormFromBody(body) {
+  return {
+    enabled: Boolean(body.enabled),
+    slotMinutes: body.slotMinutes,
+    bufferMinutes: body.bufferMinutes,
+    leadHours: body.leadHours,
+    horizonDays: body.horizonDays,
+    days: WEEKDAYS.map((_, d) => ({
+      enabled: Boolean(body[`day${d}_enabled`]),
+      open: body[`day${d}_open`] || '',
+      close: body[`day${d}_close`] || '',
+    })),
+  };
+}
+
+function renderBookingSettings(req, res, status, form, notice) {
+  res.status(status).render('admin/bookingSettings', {
+    admin: req.admin, form, weekdays: WEEKDAYS, slotOptions: [15, 20, 30, 45, 60], notice,
+  });
+}
+
+router.get('/booking-settings', adminPage, async (req, res, next) => {
+  try {
+    const config = await bookings.getConfig();
+    renderBookingSettings(req, res, 200, settingsFormFromConfig(config), noticeFrom(req));
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/booking-settings', requireAdmin, requireCsrf, async (req, res, next) => {
+  try {
+    const result = await bookings.updateConfig(req.body);
+    if (!result.ok) {
+      // Invalid: show the form again with the typed values, nothing saved.
+      return renderBookingSettings(req, res, 400, settingsFormFromBody(req.body), NOTICES.booking_settings_invalid);
+    }
+    if (!result.changed.length) return res.redirect('/admin/booking-settings?notice=booking_settings_unchanged');
+    await logAdminAction(req, 'booking_settings_updated', { fields: result.changed });
+    res.redirect('/admin/booking-settings?notice=booking_settings_saved');
+  } catch (err) {
+    next(err);
+  }
+});
 
 // ── Admins ──────────────────────────────────────────────────────────────────
 
