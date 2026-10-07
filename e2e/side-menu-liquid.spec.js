@@ -93,7 +93,9 @@ test.describe('liquid menu animation', () => {
     await expect(overlay(page)).toHaveCount(1);
     await expect(overlay(page)).toBeHidden();
     // Tag the panel node while hidden; if opening rebuilt it the tag would be gone.
-    await panelOf(page, t).evaluate((el) => { el.dataset.e2eMark = '1'; });
+    // page.locator (not panelOf/getByLabel): the shared fixture filters getByLabel to VISIBLE
+    // elements, but here we must reach the panel while it is still hidden.
+    await page.locator(`[aria-label="${t('menu:panel')}"]`).evaluate((el) => { el.dataset.e2eMark = '1'; });
     await openMenu(page, t);
     await expect(panelOf(page, t)).toHaveAttribute('data-e2e-mark', '1');
   });
