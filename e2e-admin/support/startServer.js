@@ -82,6 +82,14 @@ async function main() {
     // production the admin's own site is in CORS_ORIGINS; here the test server's own
     // address plays that role (and nothing else is allowed).
     CORS_ORIGINS: `http://127.0.0.1:${PORT}`,
+    // In-app booking: ON, with the fake in-memory calendar (busy 12:00-13:00 local every day).
+    // The real Google variables stay blank so no real calendar can ever be reached.
+    BOOKING_ENABLED: '1',
+    BOOKING_CALENDAR_MOCK: '1',
+    GOOGLE_CALENDAR_ID: '',
+    GOOGLE_SERVICE_ACCOUNT_JSON_B64: '',
+    // Used for the "Client page" link in the calendar event text.
+    PUBLIC_BASE_URL: `http://127.0.0.1:${PORT}`,
   };
 
   // Seed the catalogue with the REAL seed script (fails loudly on a non-zero exit).
