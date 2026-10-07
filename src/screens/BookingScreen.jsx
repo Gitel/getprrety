@@ -164,6 +164,8 @@ export default function BookingScreen({ navigation }) {
                 key={g.date}
                 testID={`booking-day-${g.date}`}
                 accessibilityState={{ selected: on }}
+                // react-native-web does not turn this into aria-selected here, so set it directly.
+                aria-selected={on}
                 onPress={() => { setDay(g.date); setSlot(null); setSubmitError(null); }}
                 style={[s.chip, on && { backgroundColor: accent, borderColor: accent }]}
               >
@@ -182,6 +184,8 @@ export default function BookingScreen({ navigation }) {
                 key={sl.startsAt}
                 testID={`booking-slot-${sl.time}`}
                 accessibilityState={{ selected: on }}
+                // react-native-web does not turn this into aria-selected here, so set it directly.
+                aria-selected={on}
                 onPress={() => { setSlot(sl); setSubmitError(null); }}
                 style={[s.chip, on && { backgroundColor: accent, borderColor: accent }]}
               >
