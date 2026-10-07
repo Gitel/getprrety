@@ -61,12 +61,14 @@ test.describe('opening and the picker (English)', () => {
 
   test('the first day is preselected; its times show, nothing is picked, confirm is disabled', async ({ page, t }) => {
     await openBooking(page, t);
-    await expect(page.getByTestId('booking-day-2026-10-01')).toHaveAttribute('aria-selected', 'true');
-    await expect(page.getByTestId('booking-day-2026-10-04')).toHaveAttribute('aria-selected', 'false');
+    await expect(page.getByTestId('booking-day-2026-10-01')).toHaveAttribute('aria-checked', 'true');
+    await expect(page.getByTestId('booking-day-2026-10-04')).toHaveAttribute('aria-checked', 'false');
+    // The chips are radios, so a screen reader announces the checked one as selected.
+    await expect(page.getByRole('radio', { checked: true })).toHaveCount(1);
     // Day 1 has three times (24 h, clinic time), none selected.
     await expect(slotButtons(page)).toHaveCount(3);
     for (const time of ['10:00', '10:30', '11:00']) {
-      await expect(page.getByTestId(`booking-slot-${time}`)).toHaveAttribute('aria-selected', 'false');
+      await expect(page.getByTestId(`booking-slot-${time}`)).toHaveAttribute('aria-checked', 'false');
     }
     await expect(page.getByTestId('booking-selected')).toHaveCount(0);
     await expect(confirmBtn(page)).toHaveAttribute('aria-disabled', 'true');
@@ -75,7 +77,7 @@ test.describe('opening and the picker (English)', () => {
   test('choosing another day swaps the time buttons', async ({ page, t }) => {
     await openBooking(page, t);
     await page.getByTestId('booking-day-2026-10-04').click();
-    await expect(page.getByTestId('booking-day-2026-10-04')).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByTestId('booking-day-2026-10-04')).toHaveAttribute('aria-checked', 'true');
     await expect(slotButtons(page)).toHaveCount(2);
     await expect(page.getByTestId('booking-slot-11:00')).toHaveCount(0); // only Thursday has 11:00
     await expect(page.getByTestId('booking-slot-10:30')).toBeVisible();
@@ -84,7 +86,7 @@ test.describe('opening and the picker (English)', () => {
   test('picking a time shows the summary and enables confirm', async ({ page, t }) => {
     await openBooking(page, t);
     await page.getByTestId('booking-slot-10:30').click();
-    await expect(page.getByTestId('booking-slot-10:30')).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByTestId('booking-slot-10:30')).toHaveAttribute('aria-checked', 'true');
     await expect(page.getByTestId('booking-selected')).toContainText('Your appointment: Thu, 1 October, 10:30 AM');
     await expect(confirmBtn(page)).not.toHaveAttribute('aria-disabled', 'true');
   });

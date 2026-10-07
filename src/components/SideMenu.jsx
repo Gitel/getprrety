@@ -112,8 +112,9 @@ export default function SideMenu({ visible, onClose, navigation, currentScreen }
   const rtl = isRTL(i18n.language);
 
   const [confirmRetake, setConfirmRetake] = useState(false);
-  // True only when the server says booking is on. Hidden by default and on any error.
-  const [bookingEnabled, setBookingEnabled] = useState(false);
+  // Booking row state: 'loading' (placeholder keeps the row's space), 'on' (row shown) or 'off'
+  // (nothing; the server says disabled, or the request failed).
+  const [bookingState, setBookingState] = useState('loading');
   // Horizontal offset of the panel. It starts OFF-screen (-320 = left in English, +320 = right
   // in Hebrew) and is put back off-screen every time the menu closes (effect below), so the
   // first painted frame of an opening menu is never the fully-open panel.
@@ -125,14 +126,18 @@ export default function SideMenu({ visible, onClose, navigation, currentScreen }
   }, [visible]);
 
   // Ask the server on every opening whether booking is on; the "Book" row shows only if so.
-  // `cancelled` ignores a late answer after the menu closed or reopened.
+  // While closed we reset to 'loading', so the first frame of the next opening already shows the
+  // placeholder (the rows below never jump). `cancelled` ignores a late answer from an earlier
+  // opening (the cleanup runs when the menu closes or reopens).
   useEffect(() => {
-    if (!visible) return undefined;
+    if (!visible) {
+      setBookingState('loading');
+      return undefined;
+    }
     let cancelled = false;
-    setBookingEnabled(false);
     fetchBookingConfig()
-      .then(config => { if (!cancelled) setBookingEnabled(config?.enabled === true); })
-      .catch(() => { if (!cancelled) setBookingEnabled(false); });
+      .then(config => { if (!cancelled) setBookingState(config?.enabled === true ? 'on' : 'off'); })
+      .catch(() => { if (!cancelled) setBookingState('off'); });
     return () => { cancelled = true; };
   }, [visible]);
 
@@ -248,9 +253,17 @@ export default function SideMenu({ visible, onClose, navigation, currentScreen }
                 current={currentScreen === 'Messages'}
                 onPress={() => go('Messages')}
               />
-              {bookingEnabled ? (
+              {bookingState === 'on' ? (
                 <Item icon={'\uD83D\uDCC5'} label={t('menu:book')} current={currentScreen === 'Booking'}
                   onPress={() => go('Booking')} />
+              ) : null}
+              {bookingState === 'loading' ? (
+                // Empty row built like Item (non-breaking spaces), so it has the same height and
+                // the rows below do not move when the real row appears.
+                <View testID="menu-book-placeholder" style={s.item} aria-hidden>
+                  <Text style={s.itemIcon}>{'\u00A0'}</Text>
+                  <Text style={s.itemText}>{'\u00A0'}</Text>
+                </View>
               ) : null}
               <Item icon={'\uD83E\uDDF4'} label={t('menu:logProducts')} current={currentScreen === 'ProductCamera'}
                 onPress={() => go('ProductCamera')} />

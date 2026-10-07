@@ -93,7 +93,7 @@ export default function BookingScreen({ navigation }) {
   const canConfirm = Boolean(slot) && !sending;
 
   // In Hebrew, isolate marks keep digits/punctuation of a date from reordering the sentence.
-  const iso = text => (isRTL(lang) ? `⁨${text}⁩` : text);
+  const iso = text => (isRTL(lang) ? `\u2068${text}\u2069` : text);
   const align = isRTL(lang) ? { textAlign: 'right' } : null;
 
   function renderBody() {
@@ -163,9 +163,9 @@ export default function BookingScreen({ navigation }) {
               <Pressable
                 key={g.date}
                 testID={`booking-day-${g.date}`}
-                accessibilityState={{ selected: on }}
-                // react-native-web does not turn this into aria-selected here, so set it directly.
-                aria-selected={on}
+                // Radio role + aria-checked: screen readers announce the chosen day/time as selected.
+                role="radio"
+                aria-checked={on}
                 onPress={() => { setDay(g.date); setSlot(null); setSubmitError(null); }}
                 style={[s.chip, on && { backgroundColor: accent, borderColor: accent }]}
               >
@@ -183,9 +183,9 @@ export default function BookingScreen({ navigation }) {
               <Pressable
                 key={sl.startsAt}
                 testID={`booking-slot-${sl.time}`}
-                accessibilityState={{ selected: on }}
-                // react-native-web does not turn this into aria-selected here, so set it directly.
-                aria-selected={on}
+                // Radio role + aria-checked: screen readers announce the chosen day/time as selected.
+                role="radio"
+                aria-checked={on}
                 onPress={() => { setSlot(sl); setSubmitError(null); }}
                 style={[s.chip, on && { backgroundColor: accent, borderColor: accent }]}
               >

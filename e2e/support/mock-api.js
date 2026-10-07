@@ -62,6 +62,7 @@ export function createMock({ appOrigin }) {
   let railwayMode = 'fail';       // what /analyze-skin answers: 'fail' | 'hang'
   const railwayPending = [];      // held /analyze-skin requests while mode is 'hang'
   const overrides = new Map();    // "METHOD /path" -> { status, body }, see mock.override()
+  const delays = new Map();       // "METHOD /path" -> [ms, ...] one-shot answer delays, see mock.delay()
 
   // "Now" as the page sees it: the page clock starts at FIXED_ISO and keeps running, so the mock
   // (which runs in Node) adds the real time elapsed since it was created.
@@ -82,6 +83,14 @@ export function createMock({ appOrigin }) {
     try { body = request.postDataJSON() ?? {}; } catch { /* no or non-JSON body */ }
     const authed = request.headers().authorization === `Bearer ${fx.TOKEN}`;
     calls.push({ method, path, query: Object.fromEntries(url.searchParams), body, authed });
+
+    // A queued mock.delay() holds back the SEND of this answer. The answer itself is still worked
+    // out now, from the state at request time, so a test can change the state while it is held.
+    const ms = delays.get(key)?.shift();
+    if (ms) {
+      const realRoute = route;
+      route = { fulfill: async opts => { await new Promise(r => setTimeout(r, ms)); return realRoute.fulfill(opts).catch(() => {}); } };
+    }
 
     // A test can replace the answer of one endpoint (mock.override). The call is already logged.
     const forced = overrides.get(key);
@@ -285,6 +294,12 @@ export function createMock({ appOrigin }) {
     // The call still appears in mock.calls. method is upper-case, path has no query string.
     override(method, path, status, body) { overrides.set(`${method} ${path}`, { status, body }); },
     clearOverride(method, path) { overrides.delete(`${method} ${path}`); },
+    // Delays the answer of the NEXT call to one endpoint by ms (one-shot; call again to queue more):
+    //   mock.delay('GET', '/api/bookings/config', 1500);
+    delay(method, path, ms) {
+      const key = `${method} ${path}`;
+      delays.set(key, [...(delays.get(key) || []), ms]);
+    },
 
     // Call log helpers. Filter with a method and an exact path.
     get calls() { return calls; },

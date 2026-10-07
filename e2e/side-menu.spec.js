@@ -89,6 +89,87 @@ test.describe('open and close', () => {
     await expect(panel.getByText(t('menu:book'), { exact: true })).toHaveCount(0);
   });
 
+  // The booking row depends on GET /api/bookings/config, asked on EVERY opening of the menu.
+  const configCalls = mock => mock.callsTo('GET', '/api/bookings/config').length;
+  const closeMenu = async (page, t) => {
+    await page.getByRole('button', { name: t('menu:close') }).first().click();
+    await expect(panelOf(page, t)).toBeHidden();
+  };
+
+  test('the booking config is fetched again on every opening', async ({ page, mock, t }) => {
+    await page.goto('/');
+    await homeIsShowing(page, t);
+    await openMenu(page, t);
+    await expect.poll(() => configCalls(mock)).toBe(1);
+    await closeMenu(page, t);
+    await openMenu(page, t);
+    await expect.poll(() => configCalls(mock)).toBe(2);
+    await expect(panelOf(page, t).getByText(t('menu:book'), { exact: true })).toBeVisible();
+  });
+
+  test('a late answer from an earlier opening is ignored', async ({ page, mock, t }) => {
+    await page.goto('/');
+    await homeIsShowing(page, t);
+    // 1st opening: the answer ("enabled") is held back for 2 s.
+    mock.delay('GET', '/api/bookings/config', 2000);
+    await openMenu(page, t);
+    await expect.poll(() => configCalls(mock)).toBe(1);
+    await closeMenu(page, t);
+    // 2nd opening: booking is now disabled and this answer is immediate.
+    mock.booking({ enabled: false });
+    await openMenu(page, t);
+    await expect.poll(() => configCalls(mock)).toBe(2);
+    const panel = panelOf(page, t);
+    await expect(page.getByTestId('menu-book-placeholder')).toHaveCount(0);
+    // Wait until the stale "enabled" answer has surely been delivered, then check it changed nothing.
+    await page.waitForTimeout(2500);
+    await expect(panel.getByText(t('menu:book'), { exact: true })).toHaveCount(0);
+    await expect(page.getByTestId('menu-book-placeholder')).toHaveCount(0);
+  });
+
+  test('an empty placeholder holds the booking row place until the answer arrives; nothing below moves', async ({ page, mock, t }) => {
+    await page.goto('/');
+    await homeIsShowing(page, t);
+    mock.delay('GET', '/api/bookings/config', 1500);
+    await openMenu(page, t);
+    const panel = panelOf(page, t);
+    const placeholder = page.getByTestId('menu-book-placeholder');
+    const nextRow = panel.getByText(t('menu:logProducts'), { exact: true });
+
+    // Waiting for the answer: the placeholder is there, the row is not.
+    await expect(placeholder).toBeVisible();
+    await expect(panel.getByText(t('menu:book'), { exact: true })).toHaveCount(0);
+    const placeholderBox = await placeholder.boundingBox();
+    const before = await nextRow.boundingBox();
+
+    // The answer arrives: the placeholder is replaced by the real row.
+    const book = panel.getByText(t('menu:book'), { exact: true });
+    await expect(book).toBeVisible();
+    await expect(placeholder).toHaveCount(0);
+    const after = await nextRow.boundingBox();
+    expect(after.y).toBe(before.y);
+    // The real row has the same height as the placeholder that stood in for it.
+    const rowBox = await panel.getByRole('button', { name: t('menu:book') }).boundingBox();
+    expect(rowBox.height).toBe(placeholderBox.height);
+  });
+
+  test('the placeholder disappears when booking is disabled or the request fails', async ({ page, mock, t }) => {
+    mock.booking({ enabled: false });
+    mock.delay('GET', '/api/bookings/config', 800);
+    await page.goto('/');
+    await homeIsShowing(page, t);
+    await openMenu(page, t);
+    await expect(page.getByTestId('menu-book-placeholder')).toBeVisible();
+    await expect(page.getByTestId('menu-book-placeholder')).toHaveCount(0);
+    await closeMenu(page, t);
+    // An error answer behaves like "disabled".
+    mock.override('GET', '/api/bookings/config', 500, { error: 'boom' });
+    await openMenu(page, t);
+    await expect.poll(() => configCalls(mock)).toBe(2);
+    await expect(page.getByTestId('menu-book-placeholder')).toHaveCount(0);
+    await expect(panelOf(page, t).getByText(t('menu:book'), { exact: true })).toHaveCount(0);
+  });
+
   test('the X button, the backdrop and Escape all close it', async ({ page, t }) => {
     await page.goto('/');
     await homeIsShowing(page, t);
