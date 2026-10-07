@@ -83,6 +83,55 @@ const closeButtons = (page, t) => page.getByRole('button', { name: t('menu:close
 // Waits for the open animation to finish (full panel visible, no clip).
 const waitFullyOpen = (page) => expect.poll(async () => { const s = await snap(page); return s.displayed && s.clip === 'none' && s.farRevealed; }).toBe(true);
 
+
+// Records, after EVERY animation frame, whether the overlay shows the "open look" while it is
+// closing: displayed + pointer-events none (the closing state) + reveal without clip + visible dim.
+// The sampler above runs BEFORE the menu's own rAF callback, so it can never see the last frame.
+// Here requestAnimationFrame is wrapped: our check is queued after the app's callback and after the
+// microtasks React queues from it, i.e. it sees what the browser paints for that frame.
+async function installFlashLog(page) {
+  await page.evaluate(() => {
+    window.__flashFrames = 0;
+    window.__flashes = [];
+    const orig = window.requestAnimationFrame.bind(window);
+    window.requestAnimationFrame = (cb) => orig((ts) => {
+      cb(ts);
+      const check = (depth) => queueMicrotask(() => {
+        if (depth < 5) { check(depth + 1); return; }
+        const o = document.querySelector('[data-testid="side-menu"]');
+        const r = document.querySelector('[data-testid="side-menu-reveal"]');
+        const d = document.querySelector('[data-testid="side-menu-dim"]');
+        if (!o || !r || !d) return;
+        window.__flashFrames += 1;
+        const cs = getComputedStyle(o);
+        // dim opacity > 0.05 means darkness > 0.01 (the dim colour is 20% black).
+        if (cs.display !== 'none' && cs.pointerEvents === 'none' && getComputedStyle(r).clipPath === 'none'
+          && Number(getComputedStyle(d).opacity) > 0.05) window.__flashes.push(Math.round(ts));
+      });
+      check(0);
+    });
+  });
+}
+// Overlay is fully open: no clip, dim at 20%, focus inside the overlay.
+const expectFullyOpen = async (page) => {
+  await expect.poll(async () => { const x = await snap(page); return x.displayed && x.clip === 'none' && Math.abs(x.darkness - 0.2) < 0.01; }).toBe(true);
+  await expect.poll(() => page.evaluate(() => !!document.activeElement?.closest('[data-testid="side-menu"]'))).toBe(true);
+};
+// The transparent strip beside the panel (the last button inside the overlay, after the panel's X).
+const strip = (page, t) => overlay(page).getByRole('button', { name: t('menu:close') }).last();
+// The scrollable element inside the menu panel.
+const scrollTopOfMenu = (page) => page.evaluate(() => {
+  const panel = document.querySelector('[data-testid="side-menu-reveal"]');
+  const sc = Array.from(panel.querySelectorAll('*')).find((el) => el.scrollHeight > el.clientHeight + 5 && /auto|scroll/.test(getComputedStyle(el).overflowY));
+  return sc ? sc.scrollTop : null;
+});
+const scrollMenuToBottom = (page) => page.evaluate(() => {
+  const panel = document.querySelector('[data-testid="side-menu-reveal"]');
+  const sc = Array.from(panel.querySelectorAll('*')).find((el) => el.scrollHeight > el.clientHeight + 5 && /auto|scroll/.test(getComputedStyle(el).overflowY));
+  sc.scrollTop = sc.scrollHeight;
+  return sc.scrollTop;
+});
+
 // ---------------------------------------------------------------- A: animations ON
 test.describe('liquid menu animation', () => {
   test.use({ signedIn: true, contextOptions: { reducedMotion: 'no-preference' } });
@@ -137,7 +186,9 @@ test.describe('liquid menu animation', () => {
     await page.evaluate(() => window.__arm());
     await closeButtons(page, t).last().click();
     const frames = await samples(page);
-    expect(frames.some((f) => f.displayed && ((f.clip && f.clip !== 'none') || (f.originRevealed && !f.farRevealed)))).toBe(true);
+    // While closing the overlay has pointer-events none, so elementFromPoint never hits the
+    // reveal; the clip-path is the only meaningful "still flowing" signal here.
+    expect(frames.some((f) => f.displayed && f.clip && f.clip !== 'none')).toBe(true);
     await expect(overlay(page)).toBeHidden();
     await expect(page.getByText(t('home:greeting.morning'))).toBeVisible();
   });
@@ -154,7 +205,64 @@ test.describe('liquid menu animation', () => {
     await expect(overlay(page)).toBeHidden();
     await expect(page.getByText(t('settings:title'), { exact: true }).filter({ visible: true })).toBeVisible();
   });
+
+  // Regression: the last frame of a close used to paint the fully open panel (inline clip and dim
+  // cleared before display:none arrived one frame later).
+  for (const how of ['the strip', 'picking Settings']) {
+    test(`the end of the close never shows the open look (close via ${how})`, async ({ page, t }) => {
+      await page.goto('/');
+      await installSampler(page, t, false, false);
+      await openMenu(page, t);
+      await waitFullyOpen(page);
+      await installFlashLog(page);
+      if (how === 'the strip') await strip(page, t).click();
+      else await tapMenuItem(page, t, 'menu:settings');
+      await expect(overlay(page)).toBeHidden();
+      const { frames, flashes } = await page.evaluate(() => ({ frames: window.__flashFrames, flashes: window.__flashes }));
+      expect(frames).toBeGreaterThan(3); // the recorder really watched the close
+      expect(flashes).toEqual([]);
+    });
+  }
+
+  test('tapping the page while the menu is closing reaches the page and re-opens the menu', async ({ page, t }) => {
+    await page.goto('/');
+    await installSampler(page, t, false, false);
+    await openMenu(page, t);
+    await waitFullyOpen(page);
+    await strip(page, t).click();
+    // Mid-close the overlay is not tappable, so this tap lands on the hamburger underneath.
+    await page.getByRole('button', { name: t('menu:open') }).click();
+    await expectFullyOpen(page);
+  });
+
+  test('closing while it is still opening, then reopening, ends fully open', async ({ page, t }) => {
+    await page.goto('/');
+    await installSampler(page, t, false, false);
+    await page.getByRole('button', { name: t('menu:open') }).click();
+    await strip(page, t).click(); // closes mid-opening
+    await page.getByRole('button', { name: t('menu:open') }).click();
+    await expectFullyOpen(page);
+  });
 });
+
+// ---------------------------------------------------------------- A2: scroll reset on a short screen
+// A short viewport makes the menu scroll. After close + reopen it must start at the top again.
+for (const [label, motion] of [['reduced motion', 'reduce'], ['animations on', 'no-preference']]) {
+  test.describe(`menu scroll reset (${label})`, () => {
+    test.use({ signedIn: true, viewport: { width: 390, height: 420 }, contextOptions: { reducedMotion: motion } });
+
+    test('reopens scrolled to the top', async ({ page, t }) => {
+      await page.goto('/');
+      await openMenu(page, t);
+      await expect.poll(() => scrollTopOfMenu(page)).not.toBeNull(); // the menu really scrolls
+      expect(await scrollMenuToBottom(page)).toBeGreaterThan(50);
+      await page.keyboard.press('Escape');
+      await expect(overlay(page)).toBeHidden();
+      await openMenu(page, t);
+      await expect.poll(() => scrollTopOfMenu(page)).toBe(0);
+    });
+  });
+}
 
 // ---------------------------------------------------------------- B: reduced motion (default)
 test.describe('liquid menu with reduced motion', () => {
@@ -168,7 +276,9 @@ test.describe('liquid menu with reduced motion', () => {
     expect(s.clip).toBe('none');
     expect(s.darkness).toBeCloseTo(0.2, 2);
     await closeButtons(page, t).first().click();
-    await expect(overlay(page)).toBeHidden({ timeout: 500 });
+    // Right after the click the overlay must already be gone. A short poll (not a long wait) so a
+    // 300 ms animated close could NOT satisfy it.
+    await expect.poll(() => snap(page).then((x) => x.displayed), { timeout: 200 }).toBe(false);
   });
 
   test('keyboard: focus enters the menu, Tab stays inside, Escape closes and returns focus', async ({ page, t }) => {

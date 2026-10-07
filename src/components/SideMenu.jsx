@@ -109,8 +109,9 @@ function LanguageRow({ current, onPick }) {
 //   navigationRef  a ref (its identity never changes) holding the latest `navigation`; handlers
 //                  read navigationRef.current when the user taps, so they never use a stale object
 //   closedCount    bumps each time a close animation finishes; used to reset the local UI state
+//   scrollRef      a ref (stable identity) to the ScrollView; SideMenu resets its scroll on close
 // `visible` is NOT a prop on purpose: opening/closing the menu must not re-render the body.
-const MenuBody = memo(function MenuBody({ currentScreen, onClose, navigationRef, closedCount }) {
+const MenuBody = memo(function MenuBody({ currentScreen, onClose, navigationRef, closedCount, scrollRef }) {
   const { t, i18n } = useTranslation();
   const { analysis, user, unreadMessages, setAnalysis, setAnswers, logout } = useApp();
 
@@ -118,13 +119,11 @@ const MenuBody = memo(function MenuBody({ currentScreen, onClose, navigationRef,
   const [bookingFailed, setBookingFailed] = useState(false);
 
   // Forget the inline confirm and the booking error each time the menu has finished closing.
-  // The menu is always mounted, so its scroll position would be kept; reopen at the top as before.
-  // This runs when the overlay is already hidden, so there is no visible jump.
-  const scrollRef = useRef(null);
+  // (The scroll position is reset by SideMenu when the close ends, before display:none is applied:
+  // an element hidden with display:none has no box, so scrolling it here would do nothing.)
   useEffect(() => {
     setConfirmRetake(false);
     setBookingFailed(false);
-    scrollRef.current?.scrollTo?.({ y: 0, animated: false });
   }, [closedCount]);
 
   // Navigates to a menu screen following menuAction (see src/lib/sideMenu.js).
@@ -293,6 +292,8 @@ export default function SideMenu({ visible, onClose, navigation, currentScreen }
   const revealRef = useRef(null);
   // One ref per shadow band; their clip-path is written to the DOM each frame like the reveal's.
   const shadowRefs = useRef([]);
+  // The menu's ScrollView (owned here, passed to MenuBody) so the end of a close can reset its scroll.
+  const scrollRef = useRef(null);
   // 0 = fully hidden .. 1 = fully open. A ref (not state): it changes every frame.
   const progressRef = useRef(visible ? 1 : 0);
   const rafRef = useRef(0);
@@ -337,9 +338,26 @@ export default function SideMenu({ visible, onClose, navigation, currentScreen }
       bands.forEach(b => { b.style.clipPath = ''; });
       dim.style.opacity = '';
     };
+    // Writes the CLOSED look: empty clip on the reveal and every band, no dim.
+    const writeClosedLook = () => {
+      reveal.style.clipPath = EMPTY_POLYGON;
+      bands.forEach(b => { b.style.clipPath = EMPTY_POLYGON; });
+      dim.style.opacity = '0';
+    };
     // End of a close: hide the overlay and tell MenuBody it can reset.
-    const finishClose = () => {
-      clearInline();
+    // Called from an animation frame, a state update (setShown) is applied by React in a LATER
+    // task, so the browser paints this frame first. If we cleared the inline values here the
+    // overlay would flash fully open (no clip, full dim) for one frame. So the animated close
+    // writes the closed look and the overlay stays invisible until display:none arrives.
+    // Reduced motion runs in the layout effect (before paint, React re-renders synchronously),
+    // so clearing is safe there. Every open path starts from or ends at a state it writes itself.
+    const finishClose = (animated) => {
+      if (animated) writeClosedLook();
+      else clearInline();
+      // Back to the top for the next open. Done here, while the overlay is still displayed and
+      // invisible: once display:none is applied the element has no box and scrolling it does
+      // nothing, and some engines (WebKit) restore the old offset when it is shown again.
+      scrollRef.current?.scrollTo?.({ y: 0, animated: false });
       setShown(false);
       setClosedCount(n => n + 1);
     };
@@ -348,16 +366,12 @@ export default function SideMenu({ visible, onClose, navigation, currentScreen }
     if (prefersReducedMotion() || !width || !height) {
       progressRef.current = target;
       if (target) clearInline();
-      else finishClose();
+      else finishClose(false);
       return undefined;
     }
 
     // Starting values, in place before the first paint of the newly displayed overlay.
-    if (p0 === 0) {
-      reveal.style.clipPath = EMPTY_POLYGON;
-      bands.forEach(b => { b.style.clipPath = EMPTY_POLYGON; });
-      dim.style.opacity = '0';
-    }
+    if (p0 === 0) writeClosedLook();
 
     // Duration is scaled by the distance left, so reversing mid-way continues smoothly.
     const duration = (target ? OPEN_MS : CLOSE_MS) * Math.abs(target - p0);
@@ -372,7 +386,7 @@ export default function SideMenu({ visible, onClose, navigation, currentScreen }
       if (p === target) {
         rafRef.current = 0;
         if (target) clearInline();
-        else finishClose();
+        else finishClose(true);
         return;
       }
       const clip = liquidClipPath({ width, height, progress: p, timeMs: ts, rtl });
@@ -473,7 +487,8 @@ export default function SideMenu({ visible, onClose, navigation, currentScreen }
       ref={overlayRef}
       testID="side-menu"
       role="dialog"
-      aria-modal={true}
+      // While closing, focus is already back on the page, so it is no longer modal.
+      aria-modal={!closing}
       style={[s.overlay, !shown && s.overlayClosed, closing && s.overlayClosing]}
     >
       {/* Dim layer. Its opacity is written to the DOM every frame (never a React style key). */}
@@ -498,6 +513,7 @@ export default function SideMenu({ visible, onClose, navigation, currentScreen }
               onClose={onClose}
               navigationRef={navigationRef}
               closedCount={closedCount}
+              scrollRef={scrollRef}
             />
           </View>
         </View>
