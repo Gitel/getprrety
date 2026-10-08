@@ -65,6 +65,9 @@ test.describe('opening and the picker (English)', () => {
     await expect(page.getByTestId('booking-day-2026-10-04')).toHaveAttribute('aria-checked', 'false');
     // The chips are radios, so a screen reader announces the checked one as selected.
     await expect(page.getByRole('radio', { checked: true })).toHaveCount(1);
+    // N-4: the day chips and the time chips are two separate labelled radio groups.
+    await expect(page.getByRole('radiogroup', { name: t('booking:pickDay') })).toHaveCount(1);
+    await expect(page.getByRole('radiogroup', { name: t('booking:pickTime') })).toHaveCount(1);
     // Day 1 has three times (24 h, clinic time), none selected.
     await expect(slotButtons(page)).toHaveCount(3);
     for (const time of ['10:00', '10:30', '11:00']) {

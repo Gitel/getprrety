@@ -156,6 +156,8 @@ export default function BookingScreen({ navigation }) {
         )}
 
         <Text style={[s.label, align]}>{t('booking:pickDay')}</Text>
+        {/* radiogroup + label: a screen reader treats the day chips as one group, separate from the times */}
+        <View role="radiogroup" aria-label={t('booking:pickDay')}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.chips}>
           {groups.map(g => {
             const on = g.date === activeGroup.date;
@@ -174,9 +176,10 @@ export default function BookingScreen({ navigation }) {
             );
           })}
         </ScrollView>
+        </View>
 
         <Text style={[s.label, align]}>{t('booking:pickTime')}</Text>
-        <View style={s.times}>
+        <View style={s.times} role="radiogroup" aria-label={t('booking:pickTime')}>
           {activeGroup.slots.map(sl => {
             const on = slot?.startsAt === sl.startsAt;
             return (

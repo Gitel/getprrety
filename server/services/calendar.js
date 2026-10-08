@@ -12,9 +12,22 @@ const SCOPE = 'https://www.googleapis.com/auth/calendar';
 const TIMEOUT_MS = 8000; // every Google call is cut off after this long
 const CACHE_MS = 45 * 1000; // busy answers are reused for this long
 
+// ---- helpers for CalendarError (the class comment is right below them) ----
+// First Google reason in an object's errors[] list (or undefined).
+function reasonOf(obj) {
+  return obj && Array.isArray(obj.errors) && obj.errors[0] && obj.errors[0].reason;
+}
+
+// Network error code (e.g. 'ECONNRESET'): a STRING code on the error or on its own cause.
+function networkCodeOf(cause) {
+  const hit = [cause, cause && cause.cause].find(e => e && typeof e.code === 'string');
+  return hit && hit.code;
+}
+
 // Single error type for every calendar problem. `cause` keeps the original error for debugging.
 // Messages are fixed text: they must never include the key or anything decoded from it.
-// `reason` / `status` are the ONLY details meant for logs: short codes taken from Google's reply.
+// `reason` / `status` are the ONLY details meant for logs: short codes taken from Google's reply,
+// or fixed words for our own failures (credentials_invalid, not_configured, timeout).
 class CalendarError extends Error {
   constructor(message, cause, reason) {
     super(message);
@@ -22,7 +35,10 @@ class CalendarError extends Error {
     this.code = 'calendar_unavailable';
     if (cause !== undefined) this.cause = cause;
     // Google's reason (e.g. 'notFound') when we have one, kept only if it is a short plain word.
-    const googleReason = reason || (cause && Array.isArray(cause.errors) && cause.errors[0] && cause.errors[0].reason);
+    // The real client (gaxios) puts Google's errors[] on err.cause, sometimes one level deeper
+    // (cause.cause), so every place is checked. A network failure has no reason, only an error
+    // code such as ECONNRESET, which is used instead.
+    const googleReason = reason || reasonOf(cause) || (cause && reasonOf(cause.cause)) || networkCodeOf(cause);
     if (typeof googleReason === 'string' && /^[A-Za-z0-9_]{1,40}$/.test(googleReason)) this.reason = googleReason;
     // HTTP status of a failed Google call (numbers only).
     const status = cause && Number(cause.code || cause.status || (cause.response && cause.response.status));
@@ -71,7 +87,7 @@ function buildRealClient() {
     const auth = new JWT({ email: key.client_email, key: key.private_key, scopes: [SCOPE] });
     return createGoogleCalendar({ version: 'v3', auth });
   } catch (e) {
-    throw new CalendarError('Calendar credentials are invalid');
+    throw new CalendarError('Calendar credentials are invalid', undefined, 'credentials_invalid');
   }
 }
 
@@ -128,7 +144,7 @@ function createCalendarService({ client } = {}) {
   const useMock = () => isMockMode() && !client;
 
   function requireReady() {
-    if (!isConfigured()) throw new CalendarError('Calendar is not configured');
+    if (!isConfigured()) throw new CalendarError('Calendar is not configured', undefined, 'not_configured');
     if (!realClient) realClient = buildRealClient();
     return realClient;
   }

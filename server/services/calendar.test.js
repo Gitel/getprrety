@@ -1,5 +1,6 @@
 // Tests for services/calendar.js. Google is NEVER called: either the built-in mock calendar is
 // used (BOOKING_CALENDAR_MOCK=1) or a fake Google client is injected with createCalendarService.
+const { GaxiosError } = require('gaxios'); // the REAL error class the Google client throws (no network used)
 const SECRET = 'SUPER-SECRET-PRIVATE-KEY-123';
 const KEY_JSON = JSON.stringify({ client_email: 'svc@proj.iam.gserviceaccount.com', private_key: SECRET });
 const KEY_B64 = Buffer.from(KEY_JSON).toString('base64');
@@ -243,6 +244,69 @@ describe('real client behaviour with an injected fake Google client', () => {
     expect(cal.describeCalendarError(new Error('plain'))).toBe('');
   });
 
+  // N-1: real GaxiosError instances. The real client puts Google's errors[] on err.cause (AIP-193).
+  describe('N-1: log text for real Google client errors', () => {
+    // A Google HTTP error as the client builds it. Message and body hold the SECRET on purpose.
+    function httpError(status, reason) {
+      const res = { status, statusText: 'x', ok: false, headers: {}, config: {}, data: { error: { code: status, message: `bad ${SECRET}`, errors: [{ reason, message: `bad ${SECRET}` }] } } };
+      return new GaxiosError(`bad ${SECRET}`, { url: 'https://x' }, res, GaxiosError.extractAPIErrorFromResponse(res));
+    }
+    const run = async (err) => {
+      const client = fakeClient();
+      const { cal, svc } = build(client);
+      client.events.insert.mockRejectedValueOnce(err);
+      const out = await svc.createEvent({ bookingId: 'b1', startsAt: new Date(), endsAt: new Date(), summary: 's', description: 'd' }).catch(e => e);
+      return cal.describeCalendarError(out);
+    };
+
+    test.each([
+      [403, 'requiredAccessLevel'],
+      [404, 'notFound'],
+      [429, 'rateLimitExceeded'],
+    ])('HTTP %i keeps Google reason %s and the status, never the message or key', async (status, reason) => {
+      const text = await run(httpError(status, reason));
+      expect(text).toBe(`(Google: ${reason}, status ${status})`);
+      expect(text).not.toContain(SECRET);
+      expect(text).not.toContain('bad');
+    });
+
+    test('older shape: errors[] directly on the error itself is read too', async () => {
+      const err = Object.assign(httpError(403, 'ignored'), { errors: [{ reason: 'directReason' }] });
+      expect(await run(err)).toBe('(Google: directReason, status 403)');
+    });
+
+    test('a network error logs its code (ECONNRESET), no status, no message', async () => {
+      const net = Object.assign(new Error(`reset ${SECRET}`), { code: 'ECONNRESET' });
+      const text = await run(new GaxiosError(`reset ${SECRET}`, { url: 'https://x' }, undefined, net));
+      expect(text).toBe('(Google: ECONNRESET)');
+      expect(text).not.toContain(SECRET);
+    });
+
+    test('a reason that is not a plain word is dropped (no spaces, tags, long text)', () => {
+      const { cal } = build(fakeClient());
+      for (const bad of ['has spaces <x>', 'x'.repeat(41), `key ${SECRET}`]) {
+        const err = new cal.CalendarError('m', { code: 403, errors: [{ reason: bad }] });
+        expect(err.reason).toBeUndefined();
+        expect(cal.describeCalendarError(err)).toBe('(status 403)');
+      }
+    });
+
+    test('our own failures have fixed reasons: credentials_invalid and not_configured', async () => {
+      // Bad key: not valid base64 JSON.
+      process.env.GOOGLE_CALENDAR_ID = CAL_ID;
+      process.env.GOOGLE_SERVICE_ACCOUNT_JSON_B64 = Buffer.from('not json').toString('base64');
+      let cal = load();
+      let err = await cal.createCalendarService().getBusy(range).catch(e => e);
+      expect(cal.describeCalendarError(err)).toBe('(Google: credentials_invalid)');
+      // Not configured at all.
+      delete process.env.GOOGLE_CALENDAR_ID;
+      delete process.env.GOOGLE_SERVICE_ACCOUNT_JSON_B64;
+      cal = load();
+      err = await cal.createCalendarService().getBusy(range).catch(e => e);
+      expect(cal.describeCalendarError(err)).toBe('(Google: not_configured)');
+    });
+  });
+
   test('createEvent sends no attendees, no invite mail, the Jerusalem zone and our booking id', async () => {
     const client = fakeClient();
     const { svc } = build(client);
@@ -314,6 +378,7 @@ describe('real client behaviour with an injected fake Google client', () => {
     const err = await outcome;
     expect(err.name).toBe('CalendarError');
     expect(err.code).toBe('calendar_unavailable');
+    expect(err.reason).toBe('timeout'); // N-1: fixed reason for our own timeout
   });
 
   test('the error text never contains the key, even if the failing call mentions it', async () => {

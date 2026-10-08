@@ -77,9 +77,14 @@ test('the account is still deleted when releasing bookings fails', async () => {
   const f = fakes({ _id: ID, email: 'ada@example.com' });
   f.dataModels.Booking = { deleteMany: jest.fn(async () => ({ deletedCount: 0 })) };
   const releaseBookings = jest.fn(async () => { throw new Error('calendar down'); });
+  const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
   const result = await deleteUserAndData(ID, 'ada@example.com', { ...f, releaseBookings });
   expect(result.ok).toBe(true);
   expect(f.userModel.deleteOne).toHaveBeenCalled();
+  // N-6b: the log line names the error class only, never the message ("calendar down").
+  const logged = spy.mock.calls.map(c => c.join(' ')).join('|');
+  spy.mockRestore();
+  expect(logged).toBe('Releasing bookings before account deletion failed (Error)');
 });
 
 test('USER_DATA includes Booking', () => {

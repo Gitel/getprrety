@@ -918,10 +918,17 @@ describe('M-2: failures are logged with codes only', () => {
     expect(logged(spy)).not.toContain(USER_EMAIL);
   });
 
+  const BOOT_ENV = ['BOOKING_ENABLED', 'GOOGLE_CALENDAR_ID', 'GOOGLE_SERVICE_ACCOUNT_JSON_B64'];
+  let bootSaved;
+  beforeEach(() => { bootSaved = {}; BOOT_ENV.forEach(k => { bootSaved[k] = process.env[k]; }); });
+  afterEach(() => {
+    BOOT_ENV.forEach(k => { if (bootSaved[k] === undefined) delete process.env[k]; else process.env[k] = bootSaved[k]; });
+  });
+
   test('bookingBootLine: names the missing settings (never values), or says booking is enabled', () => {
     const { world } = userWorld();
     const deps = world.deps;
-    const savedKey = process.env.GOOGLE_SERVICE_ACCOUNT_JSON_B64;
+    // Env vars this test changes are put back afterwards (see afterEach below).
     delete process.env.BOOKING_ENABLED;
     delete process.env.GOOGLE_SERVICE_ACCOUNT_JSON_B64;
     process.env.GOOGLE_CALENDAR_ID = 'calendar-id-value-must-not-print';
@@ -933,7 +940,6 @@ describe('M-2: failures are logged with codes only', () => {
     process.env.BOOKING_ENABLED = '1';
     world.calendar.isConfigured.mockReturnValue(true);
     expect(bookingBootLine(deps)).toBe('booking enabled (Google calendar)');
-    if (savedKey !== undefined) process.env.GOOGLE_SERVICE_ACCOUNT_JSON_B64 = savedKey;
   });
 });
 
@@ -1017,6 +1023,16 @@ describe('L8: release on account deletion uses the stored calendar and logs ids'
     expect(logged(spy)).toContain('evt-5');
     expect(logged(spy)).not.toContain(SECRET);
     expect(logged(spy)).not.toContain(USER_EMAIL);
+  });
+});
+
+describe('N-6e: a from-only range past the window has no slots', () => {
+  test('from far beyond now + horizonDays (no to) -> ok with zero slots, not invalid_range', async () => {
+    const { deps } = userWorld();
+    // Window ends about 2026-11-06; the default `to` would be earlier than `from` without the clamp.
+    const result = await listSlots({ from: '2027-01-15' }, deps);
+    expect(result.ok).toBe(true);
+    expect(result.slots).toEqual([]);
   });
 });
 
