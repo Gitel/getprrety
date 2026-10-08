@@ -33,7 +33,6 @@ jobs:
           VITE_TERMS_URL: ${{ secrets.EXPO_PUBLIC_TERMS_URL }}
           VITE_PRIVACY_URL: ${{ secrets.EXPO_PUBLIC_PRIVACY_URL }}
           VITE_GOOGLE_WEB_CLIENT_ID: ${{ secrets.VITE_GOOGLE_WEB_CLIENT_ID }}
-          VITE_BOOKING_URL: ${{ secrets.VITE_BOOKING_URL }}
         run: |
           set -euo pipefail
           missing=()
@@ -51,13 +50,6 @@ jobs:
               *) echo "::error::$var must start with https:// — LEGAL_READY rejects anything else"; exit 1 ;;
             esac
           done
-          # VITE_BOOKING_URL is optional: it is NOT in the required list above. Without a
-          # valid https URL the "Book a consultation" menu item is simply hidden
-          # (BOOKING_READY in src/lib/booking.js), so only warn instead of failing.
-          case "${VITE_BOOKING_URL:-}" in
-            https://*) ;;
-            *) echo "::warning::VITE_BOOKING_URL is empty or does not start with https:// - the Book a consultation menu item will be hidden in this build" ;;
-          esac
           echo "All Vite web build values present."
 
       # `npm run build` is the project's Vite build script and writes the static
@@ -69,7 +61,6 @@ jobs:
           VITE_TERMS_URL: ${{ secrets.EXPO_PUBLIC_TERMS_URL }}
           VITE_PRIVACY_URL: ${{ secrets.EXPO_PUBLIC_PRIVACY_URL }}
           VITE_GOOGLE_WEB_CLIENT_ID: ${{ secrets.VITE_GOOGLE_WEB_CLIENT_ID }}
-          VITE_BOOKING_URL: ${{ secrets.VITE_BOOKING_URL }}
         run: npm run build
 
       - name: Upload web build to server

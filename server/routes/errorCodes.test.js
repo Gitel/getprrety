@@ -210,3 +210,36 @@ describe('profile routes', () => {
     expect(res.body).toEqual({ error: 'Unable to load profile', code: 'profile_load_failed' });
   });
 });
+
+// The booking routes send these codes; the app translates them with src/locales/{en,he}/errors.json.
+// This pins that every code has an entry in both languages and that the English text matches the
+// server text (see the "New error codes" table in AI/plans/in-app-booking-contract.md).
+describe('booking error codes have app translations', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const load = lang => JSON.parse(fs.readFileSync(path.join(__dirname, '../../src/locales', lang, 'errors.json'), 'utf8'));
+  const en = load('en');
+  const he = load('he');
+  const ENGLISH = {
+    booking_disabled: 'Booking is not available right now.',
+    slot_taken: 'Sorry, that time was just taken. Please choose another.',
+    limit_reached: 'You already have an upcoming consultation. To change it, message the clinic.',
+    slot_invalid: 'That time is not available. Please choose another.',
+    calendar_unavailable: 'We cannot reach the clinic calendar right now. Please try again in a moment.',
+    booking_rate_limited: 'Too many requests. Please wait a little and try again.',
+    invalid_range: 'Choose a valid range of dates.',
+    note_too_long: 'The note can be up to {{max}} characters.',
+    booking_load_failed: 'Unable to load bookings',
+    booking_failed: 'Unable to book the consultation',
+  };
+
+  test.each(Object.entries(ENGLISH))('%s: English text matches and a Hebrew text exists', (code, text) => {
+    expect(en[code]).toBe(text);
+    expect(typeof he[code]).toBe('string');
+    expect(he[code].length).toBeGreaterThan(0);
+  });
+
+  test('note_too_long keeps its {{max}} placeholder in Hebrew too', () => {
+    expect(he.note_too_long).toContain('{{max}}');
+  });
+});

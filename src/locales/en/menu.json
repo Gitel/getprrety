@@ -10,7 +10,6 @@
   "messagesUnread_one": "Messages, {{count}} unread",
   "messagesUnread_other": "Messages, {{count}} unread",
   "book": "Book a consultation",
-  "bookingError": "Could not open the booking page. Please try again.",
   "logProducts": "Log my products",
   "settings": "Settings",
   "retake": "Retake skin quiz",

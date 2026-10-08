@@ -1,0 +1,22 @@
+{
+  "title": "Book a consultation",
+  "subtitle": "Choose a time that suits you. Times are in the clinic's local time.",
+  "loading": "Loading available times...",
+  "loadFailed": "We could not load the available times. Please try again.",
+  "retry": "Try again",
+  "empty": "There are no free times right now. Please check back soon, or message the clinic.",
+  "pickDay": "Choose a day",
+  "pickTime": "Choose a time",
+  "noteLabel": "Anything the clinic should know? (optional)",
+  "notePlaceholder": "Please do not include medical details",
+  "selected": "Your appointment: {{when}}",
+  "confirm": "Confirm booking",
+  "confirming": "Booking...",
+  "bookFailed": "We could not book the consultation. Please try again.",
+  "noAnalysisWarning": "You have not completed your skin analysis yet. You can still book, but finishing it first helps the clinic prepare.",
+  "confirmedTitle": "Your consultation is booked",
+  "confirmedBody": "We look forward to seeing you. To change or cancel, send the clinic a message.",
+  "upcomingTitle": "Your upcoming consultation",
+  "upcomingHelp": "To change or cancel, send the clinic a message.",
+  "messageClinic": "Message the clinic"
+}

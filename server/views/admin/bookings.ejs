@@ -1,0 +1,53 @@
+<%#
+  Bookings list, one tab at a time. Rows come from bookings.listForAdmin; `date`/`time` are
+  already clinic-local (Asia/Jerusalem). Only the Upcoming tab offers Cancel.
+%>
+<%- include('_head', { title: 'Bookings' }) %>
+<%- include('_nav', { active: 'bookings' }) %>
+<main>
+  <% if (locals.notice) { %>
+    <div class="notice <%= notice.error ? 'error' : '' %>"><%= notice.text %></div>
+  <% } %>
+
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+    <h1 style="font-size: 20px; margin: 0;">Bookings</h1>
+    <a href="/admin/booking-settings" class="btn secondary">Booking settings</a>
+  </div>
+
+  <nav class="tabs sections" style="margin-bottom: 14px;">
+    <a href="/admin/bookings?tab=upcoming" class="<%= tab === 'upcoming' ? 'active' : '' %>">Upcoming</a>
+    <a href="/admin/bookings?tab=past" class="<%= tab === 'past' ? 'active' : '' %>">Past</a>
+    <a href="/admin/bookings?tab=cancelled" class="<%= tab === 'cancelled' ? 'active' : '' %>">Cancelled</a>
+  </nav>
+
+  <% if (!rows.length) { %>
+    <p class="muted">No bookings.</p>
+  <% } else { %>
+    <table>
+      <thead>
+        <tr><th>When</th><th>Client</th><th>Note</th><th>Status</th><% if (tab === 'upcoming') { %><th></th><% } %></tr>
+      </thead>
+      <tbody>
+        <% rows.forEach(function (b) { %>
+          <tr data-booking-id="<%= b.id %>">
+            <td class="when"><%= b.date %> <%= b.time %></td>
+            <td><a href="/admin/users/<%= b.userId %>"><%= b.userEmail %></a></td>
+            <td><%= b.note %></td>
+            <td><%= b.status %></td>
+            <% if (tab === 'upcoming') { %>
+              <td>
+                <%# data-confirm: the shared script in _foot asks before submitting. %>
+                <form class="inline-form" method="post" action="/admin/bookings/<%= b.id %>/cancel"
+                      data-confirm="Cancel this booking and remove it from the calendar?">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                  <button type="submit" class="small danger">Cancel booking</button>
+                </form>
+              </td>
+            <% } %>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  <% } %>
+</main>
+<%- include('_foot') %>

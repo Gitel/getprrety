@@ -20,6 +20,8 @@ const ACTIONS = [
   'catalogue_photo_replaced',   // Products page: product photo uploaded
   'catalogue_product_archived', // Products page: product hidden from the catalogue
   'catalogue_product_restored', // Products page: archived product brought back
+  'booking_cancelled',          // Bookings page: admin cancelled a booking
+  'booking_settings_updated',   // Booking settings page: hours / slot rules changed
 ];
 
 // Who changed what, and when. Records the NAMES of changed fields, never their values:
@@ -33,6 +35,8 @@ const adminAuditLogSchema = new mongoose.Schema({
   // Only for the catalogue_* actions: which product was touched.
   catalogueProductId: { type: mongoose.Schema.Types.ObjectId, ref: 'CatalogueProduct', default: null },
   // Only for admin_added / admin_removed: which admin account was granted or revoked.
+  // Only for booking_cancelled: which booking was cancelled (userId is set too).
+  bookingId:        { type: mongoose.Schema.Types.ObjectId, ref: 'Booking', default: null },
   targetAdminEmail: { type: String, lowercase: true, trim: true, default: null },
   fields:           { type: [String], default: [] },
 }, { timestamps: true });

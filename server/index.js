@@ -24,6 +24,7 @@ const skinScanRoutes = require('./routes/skinScan');
 const aiRoutes       = require('./routes/ai');
 const cityRoutes     = require('./routes/cities');
 const messageRoutes  = require('./routes/messages');
+const bookingRoutes  = require('./routes/bookings');
 const routineProgressRoutes = require('./routes/routineProgress');
 const adminRoutes    = require('./routes/admin');
 const skinScanPoller = require('./jobs/skinScanPoller');
@@ -67,6 +68,7 @@ app.use('/api/activity',  activityRoutes);
 app.use('/api/ai',        aiRoutes);
 app.use('/api/cities',    cityRoutes);
 app.use('/api/messages',  messageRoutes); // in-app messages with the clinic
+app.use('/api/bookings',  bookingRoutes); // in-app consultation booking
 app.use('/api/routine-progress', routineProgressRoutes); // Home step ticks, per user per day
 
 // Server-rendered clinic admin dashboard (Google sign-in + email allow-list)
@@ -95,6 +97,10 @@ console[mailProblem ? 'error' : 'log'](
     ? `⚠️  Clinic notification email DISABLED — ${mailProblem}. New-client emails will not be sent.`
     : '✉️  Clinic notification email configured'
 );
+
+// In-app booking: say at boot whether it is on and, if not, which settings are missing (names only,
+// never values), so a silent "menu item missing" can be explained from `pm2 logs`.
+console.log(`📅 ${require('./services/bookings').bookingBootLine()}`);
 
 mongoose
   .connect(process.env.MONGODB_URI)

@@ -237,3 +237,21 @@ export const CITIES = [
 // computes for the SR routine above (src/lib/homeRoutine.js routineKeyFor); the mock
 // computes it the same way, see routineKeyFor() in mock-api.js.
 export const PROGRESS_TICKS = { am: [0], pm: [] };
+
+// In-app booking (GET /api/bookings/slots). Clinic-local times (Asia/Jerusalem, UTC+3 in October):
+// Thu 2026-10-01 10:00 / 10:30 / 11:00 and Sun 2026-10-04 10:00 / 10:30. `date` and `time` are the
+// clinic wall clock, `startsAt` / `endsAt` are UTC ISO strings (slots are 30 minutes long).
+const slot = (startsAt, endsAt, date, time) => ({ startsAt, endsAt, date, time });
+export const BOOKING_SLOTS = [
+  slot('2026-10-01T07:00:00.000Z', '2026-10-01T07:30:00.000Z', '2026-10-01', '10:00'),
+  slot('2026-10-01T07:30:00.000Z', '2026-10-01T08:00:00.000Z', '2026-10-01', '10:30'),
+  slot('2026-10-01T08:00:00.000Z', '2026-10-01T08:30:00.000Z', '2026-10-01', '11:00'),
+  slot('2026-10-04T07:00:00.000Z', '2026-10-04T07:30:00.000Z', '2026-10-04', '10:00'),
+  slot('2026-10-04T07:30:00.000Z', '2026-10-04T08:00:00.000Z', '2026-10-04', '10:30'),
+];
+
+// An already confirmed upcoming consultation (GET /api/bookings/mine -> upcoming).
+export const BOOKING_UPCOMING = {
+  id: 'booking-1', startsAt: '2026-10-04T07:00:00.000Z', endsAt: '2026-10-04T07:30:00.000Z',
+  date: '2026-10-04', time: '10:00', status: 'confirmed', note: '',
+};

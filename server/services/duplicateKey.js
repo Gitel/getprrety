@@ -12,4 +12,12 @@ function isDuplicateEmail(err) {
   return /index:\s*email_1\b/.test(String(err.message || ''));
 }
 
-module.exports = { isDuplicateEmail };
+// Same idea for the booking double-booking guard: the partial unique index on
+// Booking.startsAt (startsAt_1) fires when two confirmed bookings share a start time.
+function isDuplicateStartsAt(err) {
+  if (err?.code !== 11000) return false;
+  if (err.keyPattern) return Boolean(err.keyPattern.startsAt);
+  return /index:\s*startsAt_1\b/.test(String(err.message || ''));
+}
+
+module.exports = { isDuplicateEmail, isDuplicateStartsAt };

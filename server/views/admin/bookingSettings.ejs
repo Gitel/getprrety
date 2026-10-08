@@ -1,0 +1,57 @@
+<%#
+  Booking settings form. `form` is the flat shape built in routes/admin.js (stored values on
+  GET, the typed values after a validation error). The time zone is fixed, so it is text only.
+%>
+<%- include('_head', { title: 'Booking settings' }) %>
+<%- include('_nav', { active: 'bookings' }) %>
+<main>
+  <% if (locals.notice) { %>
+    <div class="notice <%= notice.error ? 'error' : '' %>"><%= notice.text %></div>
+  <% } %>
+
+  <h1 style="font-size: 20px; margin: 0 0 6px;">Booking settings</h1>
+  <p class="muted">Time zone: Asia/Jerusalem</p>
+
+  <div class="card">
+    <form method="post" action="/admin/booking-settings">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+      <label for="enabled"><input type="checkbox" id="enabled" name="enabled" value="1" <%= form.enabled ? 'checked' : '' %>> Booking enabled</label>
+
+      <label for="slotMinutes">Slot length (minutes)</label>
+      <select id="slotMinutes" name="slotMinutes">
+        <% slotOptions.forEach(function (m) { %>
+          <option value="<%= m %>" <%= String(form.slotMinutes) === String(m) ? 'selected' : '' %>><%= m %></option>
+        <% }); %>
+      </select>
+
+      <label for="bufferMinutes">Buffer between consultations (minutes)</label>
+      <input type="number" id="bufferMinutes" name="bufferMinutes" min="0" max="60" value="<%= form.bufferMinutes %>">
+
+      <label for="leadHours">Minimum notice (hours)</label>
+      <input type="number" id="leadHours" name="leadHours" min="0" max="168" value="<%= form.leadHours %>">
+
+      <label for="horizonDays">Booking window (days)</label>
+      <input type="number" id="horizonDays" name="horizonDays" min="1" max="30" value="<%= form.horizonDays %>">
+
+      <h2 style="font-size: 15px; margin-top: 18px;">Opening hours</h2>
+      <%# One row per weekday, Sunday first. An unticked day is closed (dropped by the service). %>
+      <% weekdays.forEach(function (name, d) { %>
+        <div style="display: flex; gap: 14px; align-items: flex-end; flex-wrap: wrap;">
+          <label for="day<%= d %>_enabled" style="min-width: 130px;"><input type="checkbox" id="day<%= d %>_enabled" name="day<%= d %>_enabled" value="1" <%= form.days[d].enabled ? 'checked' : '' %>> <%= name %></label>
+          <div>
+            <label for="day<%= d %>_open"><%= name %> opens</label>
+            <input type="text" inputmode="numeric" placeholder="HH:MM" style="max-width: 90px;" id="day<%= d %>_open" name="day<%= d %>_open" value="<%= form.days[d].open %>">
+          </div>
+          <div>
+            <label for="day<%= d %>_close"><%= name %> closes</label>
+            <input type="text" inputmode="numeric" placeholder="HH:MM" style="max-width: 90px;" id="day<%= d %>_close" name="day<%= d %>_close" value="<%= form.days[d].close %>">
+          </div>
+        </div>
+      <% }); %>
+
+      <p><button type="submit">Save settings</button></p>
+    </form>
+  </div>
+</main>
+<%- include('_foot') %>

@@ -425,3 +425,40 @@ describe('catalogue pages', () => {
     expect(html).toContain('<a href="/admin/catalogue/64b0000000000000000000c1">product</a>');
   });
 });
+
+describe('booking pages', () => {
+  const row = {
+    id: '64b0000000000000000000b1', userId: '64b0000000000000000000aa',
+    userEmail: 'evil"><script>x</script>@example.com', date: '2026-10-08', time: '10:00',
+    note: '<b>note</b>', status: 'confirmed',
+  };
+
+  test('upcoming tab lists rows with a CSRF-protected cancel form, escaped', async () => {
+    const html = await render('bookings', { tab: 'upcoming', rows: [row] });
+    expect(html).toContain('<td class="when">2026-10-08 10:00</td>');
+    expect(html).toContain('action="/admin/bookings/64b0000000000000000000b1/cancel"');
+    expect(html).toContain('name="_csrf" value="TEST_CSRF_TOKEN"');
+    expect(html).not.toContain('<script>x');
+    expect(html).toContain('&lt;b&gt;note&lt;/b&gt;');
+  });
+
+  test('past tab has no cancel button and an empty tab says so', async () => {
+    expect(await render('bookings', { tab: 'past', rows: [row] })).not.toContain('Cancel booking');
+    expect(await render('bookings', { tab: 'cancelled', rows: [] })).toContain('<p class="muted">No bookings.</p>');
+  });
+
+  test('settings page renders typed values and the invalid notice', async () => {
+    const days = Array.from({ length: 7 }, () => ({ enabled: false, open: '', close: '' }));
+    days[0] = { enabled: true, open: '25:99', close: '18:00' };
+    const html = await render('bookingSettings', {
+      form: { enabled: true, slotMinutes: 30, bufferMinutes: '15', leadHours: 12, horizonDays: 30, days },
+      weekdays: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+      slotOptions: [15, 20, 30, 45, 60],
+      notice: { text: 'Please check the settings', error: true },
+    });
+    expect(html).toContain('Time zone: Asia/Jerusalem');
+    expect(html).toContain('name="day0_open" value="25:99"');
+    expect(html).toContain('name="bufferMinutes" min="0" max="60" value="15"');
+    expect(html).toContain('<div class="notice error">Please check the settings</div>');
+  });
+});

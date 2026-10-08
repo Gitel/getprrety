@@ -64,3 +64,12 @@ export async function openLogin(page, t) {
   await page.getByText(sentence, { exact: true }).click();
   await expect(page.getByText(t('auth:login.tagline'), { exact: true })).toBeVisible();
 }
+
+// Boots on Home, opens the side menu, taps the booking row and waits for the booking screen.
+// The row only shows once GET /api/bookings/config answered enabled, so the tap auto-waits for it.
+export async function openBooking(page, t) {
+  await page.goto('/');
+  await openMenu(page, t);
+  await panelOf(page, t).getByText(t('menu:book'), { exact: true }).click();
+  await expect(page.getByTestId('booking-screen')).toBeVisible();
+}
