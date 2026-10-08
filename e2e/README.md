@@ -62,6 +62,9 @@ option is silently ignored by Playwright; `smoke.spec.js` guards the default.
   clinic Welcome with a known `?ref=`); Sign up exists only after the quiz (see `support/quiz.js`).
 - Quiz helpers, `support/quiz.js`: `NAME`, `nameVars`, `walkQuizToLoading`,
   `expectProfileAfterQuiz`, `finishOnboardingToHome`.
+- `page.getByText(...)` / `page.getByLabel(...)` only see VISIBLE elements (the always-mounted side
+  menu is hidden and repeats on-screen words); to find a hidden element on purpose use
+  `page.locator(...)` or `page.getByTestId(...)`. See `support/test.js`.
 - Options `signedIn` and `lang` seed the token / stored language before the app starts.
 - The clock is fixed at 2026-09-29 09:00 UTC (and keeps running), `Math.random` is seeded and
   geolocation is denied.

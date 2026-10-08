@@ -46,6 +46,27 @@ export const test = base.extend({
   }, { auto: true }],
 
   t: async ({ lang }, use) => { await use(makeT(lang)); },
+
+  // Override of the built-in `page` fixture.
+  // WHY: the side menu is always mounted while signed in (hidden with display:none when closed),
+  // so words like "Settings", "Terms of Use" or "Messages, 1 unread" exist twice in the DOM: once
+  // on the visible screen and once inside the hidden menu. Playwright's getByText/getByLabel DO
+  // match text inside display:none subtrees, which caused strict-mode "resolved to 2 elements"
+  // errors, "element is not visible" click timeouts and wrong toHaveCount(0) results.
+  // WHAT: only the page-level page.getByText(...) and page.getByLabel(...) now return the original
+  // locator narrowed with .filter({ visible: true }). Locator-level chained lookups
+  // (locator.getByText...), getByRole (already ignores hidden elements), getByTestId and
+  // page.locator(...) are untouched.
+  // SIDE EFFECT: toHaveCount(0) through page.getByText/getByLabel now means "none VISIBLE". To look
+  // up a hidden element on purpose, use page.locator(...) or page.getByTestId(...).
+  page: async ({ page }, use) => {
+    // Bind the originals first so our replacements can call them (no infinite recursion).
+    const originalGetByText = page.getByText.bind(page);
+    const originalGetByLabel = page.getByLabel.bind(page);
+    page.getByText = (...args) => originalGetByText(...args).filter({ visible: true });
+    page.getByLabel = (...args) => originalGetByLabel(...args).filter({ visible: true });
+    await use(page);
+  },
 });
 
 export { expect };

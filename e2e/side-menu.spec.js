@@ -2,7 +2,8 @@
 // app does TODAY. Source of truth: App.jsx (AppNavigator), src/components/SideMenu.jsx,
 // src/lib/sideMenu.js (menuAction), src/lib/languageSync.js, src/lib/retake.js.
 //
-// The menu is rendered by react-native-web's Modal, i.e. in a portal at the end of <body>.
+// The menu is an always-mounted overlay (testID side-menu) rendered next to the screen and hidden
+// with display:none while closed.
 // Its panel is labelled t('menu:panel'), so menu rows are looked up INSIDE that panel; this
 // keeps them apart from same-named things on the screen behind (e.g. Home's own message card).
 import { test, expect } from './support/test.js';
@@ -239,7 +240,7 @@ test.describe('open and close', () => {
     await page.getByRole('button', { name: t('menu:close') }).last().click();
     await expect(panel).toBeHidden();
 
-    // Escape key (the Modal's onRequestClose).
+    // Escape key (a document keyup listener in SideMenu.jsx).
     await openMenu(page, t);
     await page.keyboard.press('Escape');
     await expect(panel).toBeHidden();
