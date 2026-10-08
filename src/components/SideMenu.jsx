@@ -17,6 +17,13 @@ import { rescheduleReminders } from '../lib/notifications';
 import { eraText } from '../lib/eraText';
 import { quizEntryScreen } from '../lib/welcomeVariants';
 
+// The last booking answer this app session got ('on' or 'off'), or null before any answer.
+// Module-level (not state/ref) on purpose: it must survive the menu closing and be shared by every
+// screen's SideMenu, and it lives in memory only, so a reload starts with no answer again.
+// Later openings start from it (no blank placeholder, rows do not move) while the config is
+// re-fetched in the background.
+let lastBookingAnswer = null;
+
 // Slide-in length in milliseconds.
 const SLIDE_MS = 200;
 
@@ -112,9 +119,12 @@ export default function SideMenu({ visible, onClose, navigation, currentScreen }
   const rtl = isRTL(i18n.language);
 
   const [confirmRetake, setConfirmRetake] = useState(false);
-  // Booking row state: 'loading' (placeholder keeps the row's space), 'on' (row shown) or 'off'
-  // (nothing; the server says disabled, or the request failed).
-  const [bookingState, setBookingState] = useState('loading');
+  // Answer of THIS opening: null until it arrives, then 'on' (row shown) or 'off' (nothing; the
+  // server says disabled, or the request failed).
+  const [openingAnswer, setOpeningAnswer] = useState(null);
+  // What the booking row shows: this opening's answer, else the last known answer, else
+  // 'loading' (only the very first opening: an empty placeholder keeps the row's space).
+  const bookingState = openingAnswer ?? lastBookingAnswer ?? 'loading';
   // Horizontal offset of the panel. It starts OFF-screen (-320 = left in English, +320 = right
   // in Hebrew) and is put back off-screen every time the menu closes (effect below), so the
   // first painted frame of an opening menu is never the fully-open panel.
@@ -126,18 +136,23 @@ export default function SideMenu({ visible, onClose, navigation, currentScreen }
   }, [visible]);
 
   // Ask the server on every opening whether booking is on; the "Book" row shows only if so.
-  // While closed we reset to 'loading', so the first frame of the next opening already shows the
-  // placeholder (the rows below never jump). `cancelled` ignores a late answer from an earlier
-  // opening (the cleanup runs when the menu closes or reopens).
+  // While closed we forget this opening's answer, so the next opening starts from the last known
+  // answer (or the placeholder on the first one). `cancelled` ignores a late answer from an
+  // earlier opening (the cleanup runs when the menu closes or reopens), so it is never stored.
   useEffect(() => {
     if (!visible) {
-      setBookingState('loading');
+      setOpeningAnswer(null);
       return undefined;
     }
     let cancelled = false;
+    const answer = value => {
+      if (cancelled) return;
+      lastBookingAnswer = value;
+      setOpeningAnswer(value);
+    };
     fetchBookingConfig()
-      .then(config => { if (!cancelled) setBookingState(config?.enabled === true ? 'on' : 'off'); })
-      .catch(() => { if (!cancelled) setBookingState('off'); });
+      .then(config => answer(config?.enabled === true ? 'on' : 'off'))
+      .catch(() => answer('off'));
     return () => { cancelled = true; };
   }, [visible]);
 

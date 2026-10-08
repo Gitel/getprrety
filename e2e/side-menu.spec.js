@@ -170,6 +170,60 @@ test.describe('open and close', () => {
     await expect(panelOf(page, t).getByText(t('menu:book'), { exact: true })).toHaveCount(0);
   });
 
+  // Only the FIRST opening of an app session has no answer yet and shows the placeholder; later
+  // openings start from the last answer and re-fetch in the background.
+  test('booking off: the first opening shows the placeholder; the second shows none and nothing moves', async ({ page, mock, t }) => {
+    mock.booking({ enabled: false });
+    mock.delay('GET', '/api/bookings/config', 800);
+    await page.goto('/');
+    await homeIsShowing(page, t);
+    await openMenu(page, t);
+    await expect(page.getByTestId('menu-book-placeholder')).toBeVisible();
+    await expect(page.getByTestId('menu-book-placeholder')).toHaveCount(0);
+    await closeMenu(page, t);
+
+    // Second opening: slow answer again, but there is no placeholder and the rows stay put.
+    mock.delay('GET', '/api/bookings/config', 800);
+    await openMenu(page, t);
+    const nextRow = panelOf(page, t).getByText(t('menu:logProducts'), { exact: true });
+    const before = await nextRow.boundingBox();
+    await expect(page.getByTestId('menu-book-placeholder')).toHaveCount(0);
+    await expect.poll(() => configCalls(mock)).toBe(2);
+    await page.waitForTimeout(1200); // the background answer has arrived by now
+    expect((await nextRow.boundingBox()).y).toBe(before.y);
+    await expect(page.getByTestId('menu-book-placeholder')).toHaveCount(0);
+    await expect(panelOf(page, t).getByText(t('menu:book'), { exact: true })).toHaveCount(0);
+  });
+
+  test('booking on: the second opening shows the row at once, before the new answer', async ({ page, mock, t }) => {
+    await page.goto('/');
+    await homeIsShowing(page, t);
+    await openMenu(page, t);
+    await expect(panelOf(page, t).getByText(t('menu:book'), { exact: true })).toBeVisible();
+    await closeMenu(page, t);
+    mock.delay('GET', '/api/bookings/config', 1500);
+    await openMenu(page, t);
+    // Well inside the 1.5 s the new answer is held back: the row comes from the last answer.
+    await expect(panelOf(page, t).getByText(t('menu:book'), { exact: true })).toBeVisible({ timeout: 700 });
+    await expect(page.getByTestId('menu-book-placeholder')).toHaveCount(0);
+    await expect.poll(() => configCalls(mock)).toBe(2);
+  });
+
+  test('the answer changes between openings: the second starts with the row, then it disappears', async ({ page, mock, t }) => {
+    await page.goto('/');
+    await homeIsShowing(page, t);
+    await openMenu(page, t);
+    const book = panelOf(page, t).getByText(t('menu:book'), { exact: true });
+    await expect(book).toBeVisible();
+    await closeMenu(page, t);
+    mock.booking({ enabled: false });
+    mock.delay('GET', '/api/bookings/config', 1000);
+    await openMenu(page, t);
+    await expect(book).toBeVisible();                       // last answer (enabled) shown first
+    await expect(book).toHaveCount(0);                      // the new answer (disabled) wins
+    await expect(page.getByTestId('menu-book-placeholder')).toHaveCount(0);
+  });
+
   test('the X button, the backdrop and Escape all close it', async ({ page, t }) => {
     await page.goto('/');
     await homeIsShowing(page, t);
