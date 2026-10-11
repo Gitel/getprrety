@@ -1,8 +1,8 @@
 const mongoose = require('mongoose');
 
 const rateLimitBucketSchema = new mongoose.Schema({
-  // auth_admin = /admin sign-in throttle, msg_user = in-app message replies per user.
-  scope: { type: String, enum: ['scan_ip', 'scan_global', 'ai_user', 'auth_admin', 'msg_user'], required: true },
+  // analysis_ip/global are separate hourly budgets for paid, anonymous Bedrock analysis calls.
+  scope: { type: String, enum: ['scan_ip', 'scan_global', 'analysis_ip', 'analysis_global', 'ai_user', 'auth_admin', 'msg_user'], required: true },
   key: { type: String, required: true },
   windowStart: { type: Date, required: true },
   count: { type: Number, default: 0 },

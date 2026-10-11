@@ -1,30 +1,39 @@
 const SkinScan = require('../../models/SkinScan');
 const { computeSignals, SIGNAL_KEYS } = require('./signals');
+const { completeJson, isConfigured } = require('../bedrock/client');
+const { sanitizeQuiz, eligibleProducts } = require('../bedrock/analysisContract');
+const { loadCatalogue } = require('../bedrock/catalogue');
 
 // The written half of the Profile score section ("Start here", and per signal: potential
-// score, weeks, what drags it, why, what moves it, shelf line, product). Gemini writes it on
-// the Railway service; this module asks for it ONCE per complete scan and stores the
-// sanitized answer on the scan. Contract: AI/plans/score-page.md ("Railway contract").
+// score, weeks, what drags it, why, what moves it, shelf line, product). Bedrock writes it;
+// this module asks once per complete scan and stores only the sanitized answer on the scan.
 //
 // Flow: GET /api/skin-scan/:id on a complete scan -> maybeRequestReading() claims the scan
-// (readingStatus null -> 'pending'), calls Railway in the background and writes 'ready' or
-// 'failed'. Only scans somebody is looking at cost a Gemini call, and a claim left 'pending'
+// (readingStatus null -> 'pending'), calls Bedrock in the background and writes 'ready' or
+// 'failed'. Only scans somebody is looking at cost a provider call, and a claim left 'pending'
 // by a server restart is taken over by the next GET once it is STALE_PENDING_MS old.
 
-const READING_TIMEOUT_MS = 45000; // same ceiling as the Era analysis call in the app
+const READING_TIMEOUT_MS = 45000; // Keep score-reading within the same provider deadline as Era analysis.
 const STALE_PENDING_MS = 2 * 60 * 1000;
 
-// Max lengths for Railway's strings; longer text is cut, not rejected.
+// Max lengths for generated strings; longer text is cut, not rejected.
 const CAPS = {
   title: 80, body: 600, text: 400, weeks: 40, shelf: 200, productName: 120, actives: 160,
 };
 const SHELF_STATUSES = ['own', 'missing'];
+const NON_INGREDIENT_IRRITANTS = new Set(['none', 'nothing', 'no', 'no irritants', 'cold', 'hot_water']);
 
-// Unset -> the feature is off: nothing is requested or stored, and the app is told
-// 'unavailable' (numbers only). Trailing slashes are dropped so `${base}/score-reading` is clean.
-function railwayUrl() {
-  const url = process.env.RAILWAY_API_URL;
-  return typeof url === 'string' && url.trim() ? url.trim().replace(/\/+$/, '') : null;
+function hasCompleteSafetyAnswers(quiz) {
+  const pregnancy = quiz.pregnant_or_ttc ?? quiz.pregnancy_caution;
+  const pregnancyAnswered = typeof pregnancy === 'boolean' || pregnancy === 'yes' || pregnancy === 'no';
+  const hasAnswer = value => Array.isArray(value) && value.some(item => typeof item === 'string' && item.trim());
+  return pregnancyAnswered && hasAnswer(quiz.allergies) && hasAnswer(quiz.irritants);
+}
+
+function hasReportedIngredientIrritant(quiz) {
+  const reports = [quiz.irritants, quiz.irritants_other].flatMap(value => Array.isArray(value) ? value : [value]);
+  return reports.some(value => typeof value === 'string'
+    && value.trim() && !NON_INGREDIENT_IRRITANTS.has(value.trim().toLowerCase()));
 }
 
 // Trimmed, length-capped plain text, or null. Never interpreted as HTML by the app.
@@ -45,7 +54,7 @@ function httpsUrl(value) {
   }
 }
 
-// The body sent to Railway: the whitelisted quiz answers stored at scan init
+// The body sent for score-reading: the whitelisted quiz answers stored at scan init
 // (src/lib/skinScan.js scanQuizAnswers) plus the scores. Signals without a score are left out.
 function buildReadingRequest(scan) {
   const view = computeSignals(scan.merged) || { overall: null, skinAge: null, skinType: null, signals: [] };
@@ -62,7 +71,7 @@ function buildReadingRequest(scan) {
   };
 }
 
-// One signal entry from Railway -> the stored shape, or null when nothing in it is usable.
+// One signal entry from the model -> the stored shape, or null when nothing in it is usable.
 // `score` is today's signal score: a "possible" score must be an integer from score to 100.
 function sanitizeSignal(entry, score) {
   const potential = Number.isInteger(entry.potential) && typeof score === 'number'
@@ -99,7 +108,7 @@ function sanitizeSignal(entry, score) {
   return hasContent ? signal : null;
 }
 
-// Railway's JSON -> { startHere, signals } in the app's shape, or null when nothing is usable.
+// Model JSON -> { startHere, signals } in the app's shape, or null when nothing is usable.
 // Unknown keys are ignored; a bad signal entry is dropped on its own; one entry per signal key.
 function sanitizeReading(body, signals = []) {
   if (!body || typeof body !== 'object') return null;
@@ -128,36 +137,93 @@ function sanitizeReading(body, signals = []) {
 // the next GET /api/skin-scan/:id asks, so the app keeps polling.
 function readingStatusFor(scan) {
   if (scan.readingStatus === 'ready' || scan.readingStatus === 'failed') return scan.readingStatus;
-  return railwayUrl() ? 'pending' : 'unavailable';
+  return isConfigured() ? 'pending' : 'unavailable';
 }
 
-async function callRailway(base, scan) {
+const readingSchema = {
+  type: 'object', additionalProperties: false, required: ['start_here', 'signals'],
+  properties: {
+    start_here: { anyOf: [
+      { type: 'null' },
+      { type: 'object', additionalProperties: false, required: ['title', 'body'], properties: {
+        title: { type: 'string' }, body: { type: 'string' },
+      } },
+    ] },
+    signals: { type: 'array', maxItems: 20, items: {
+      type: 'object', additionalProperties: false,
+      required: ['key', 'potential', 'weeks', 'driver', 'why', 'lever', 'shelf', 'product'],
+      properties: {
+        key: { type: 'string', enum: SIGNAL_KEYS },
+        potential: { type: ['integer', 'null'], minimum: 0, maximum: 100 },
+        weeks: { type: ['string', 'null'] }, driver: { type: ['string', 'null'] },
+        why: { type: ['string', 'null'] }, lever: { type: ['string', 'null'] },
+        shelf: { anyOf: [
+          { type: 'null' },
+          { type: 'object', additionalProperties: false, required: ['status', 'text'], properties: {
+            status: { type: 'string', enum: SHELF_STATUSES }, text: { type: 'string' },
+          } },
+        ] },
+        product: { anyOf: [
+          { type: 'null' },
+          { type: 'object', additionalProperties: false, required: ['name', 'actives', 'url'], properties: {
+            name: { type: 'string' }, actives: { type: ['string', 'null'] }, url: { type: ['string', 'null'] },
+          } },
+        ] },
+      },
+    } },
+  },
+};
+
+async function callBedrock(scan) {
   const request = buildReadingRequest(scan);
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), READING_TIMEOUT_MS);
-  try {
-    const res = await fetch(`${base}/score-reading`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(request),
-      signal: controller.signal,
-    });
-    if (!res.ok) throw new Error(`Railway score-reading ${res.status}`);
-    const reading = sanitizeReading(await res.json(), request.scan.signals);
-    if (!reading) throw new Error('Railway score-reading returned nothing usable');
-    return reading;
-  } finally {
-    clearTimeout(timer);
-  }
+  const safeRequest = { ...request, quizAnswers: sanitizeQuiz(request.quizAnswers) };
+  // The version marker is stored only for scans whose original quiz included the safety answers.
+  const safetyComplete = request.quizAnswers.safetyContextVersion === 1
+    && hasCompleteSafetyAnswers(safeRequest.quizAnswers)
+    && !hasReportedIngredientIrritant(safeRequest.quizAnswers);
+  // Legacy snapshots may lack safety answers; still write score prose, but do not suggest products without explicit clearance.
+  const catalogue = safetyComplete ? eligibleProducts(loadCatalogue(), safeRequest.quizAnswers) : [];
+  safeRequest.eligible_catalogue = catalogue.map(product => ({
+    name: product.name,
+    keyActives: product.keyActives,
+    ingredients: product.ingredients,
+    pregnancy: product.pregnancy,
+  }));
+  const output = await completeJson({
+    schema: readingSchema,
+    schemaName: 'skin_score_reading',
+    maxOutputTokens: 2_000,
+    system: `Write concise, supportive score-reading copy in ${request.language === 'he' ? 'Hebrew' : 'English'} using only supplied quiz and score data. Never diagnose or promise a score change. Only mention a product whose exact name and ingredients appear in eligible_catalogue; otherwise set product to null. Never invent a product URL. Return start_here and signals in the required JSON shape.`,
+    messages: [{ role: 'user', content: JSON.stringify(safeRequest) }],
+    timeoutMs: READING_TIMEOUT_MS,
+  });
+  const productsByName = new Map(catalogue.map(product => [product.name.trim().toLowerCase(), product]));
+  const verifiedOutput = {
+    ...output,
+    signals: (output.signals || []).map(signal => {
+      const suggested = signal?.product;
+      const product = suggested && productsByName.get(String(suggested.name || '').trim().toLowerCase());
+      return {
+        ...signal,
+        product: product ? {
+          name: product.name,
+          actives: product.keyActives.join(', ').slice(0, CAPS.actives),
+          url: null,
+        } : null,
+      };
+    }),
+  };
+  const reading = sanitizeReading(verifiedOutput, request.scan.signals);
+  if (!reading) throw new Error('BEDROCK_READING_INVALID');
+  return reading;
 }
 
-// Asks Railway for the copy if this complete scan has none yet. Safe to call on every poll:
+// Asks Bedrock for the copy if this complete scan has none yet. Safe to call on every poll:
 // the cheap checks on the loaded doc skip the DB in the common case, and the atomic
 // findOneAndUpdate means concurrent polls can never start two paid calls for one scan.
-// Resolves true when this call made the request. Never throws for a Railway failure.
+// Resolves true when this call made the request. Never throws for a provider failure.
 async function maybeRequestReading(scan, now = Date.now()) {
-  const base = railwayUrl();
-  if (!base || !scan || scan.status !== 'complete') return false;
+  if (!isConfigured() || !scan || scan.status !== 'complete') return false;
   if (scan.readingStatus === 'ready' || scan.readingStatus === 'failed') return false;
   const staleBefore = new Date(now - STALE_PENDING_MS);
   if (scan.readingStatus === 'pending' && scan.readingRequestedAt > staleBefore) return false;
@@ -179,10 +245,10 @@ async function maybeRequestReading(scan, now = Date.now()) {
 
   let reading = null;
   try {
-    reading = await callRailway(base, claimed);
+    reading = await callBedrock(claimed);
   } catch (err) {
-    // Scan id + reason only: no quiz answers or scores in the logs.
-    console.warn(`score-reading for scan ${claimed._id} failed: ${err.name === 'AbortError' ? 'timeout' : err.message}`);
+    // Log only an error category; never include quiz answers, scores or upstream details.
+    console.warn(`score-reading for scan ${claimed._id} failed: ${err.code || err.name || 'provider_error'}`);
   }
 
   // Written only while our claim still stands, so a late answer cannot overwrite a newer claim.
@@ -199,6 +265,8 @@ module.exports = {
   STALE_PENDING_MS,
   buildReadingRequest,
   sanitizeReading,
+  readingSchema,
+  callBedrock,
   readingStatusFor,
   maybeRequestReading,
 };

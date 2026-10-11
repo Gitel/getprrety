@@ -5,6 +5,7 @@ const { readCase, readCatalogue, runEvaluations } = require('./runner.cjs');
 const contract = require('./contract.cjs');
 
 const REPO_ROOT = path.resolve(__dirname, '../..');
+const DEFAULT_CATALOGUE = path.join(REPO_ROOT, 'server/data/catalogue-seed/products.json');
 
 function parseArgs(argv) {
   const options = {};
@@ -21,15 +22,24 @@ function parseArgs(argv) {
   return options;
 }
 
-function numberOption(options, key, fallback, minimum) {
+function numberOption(options, key, fallback, minimum, maximum = Number.POSITIVE_INFINITY) {
   const value = options[key] == null ? fallback : Number(options[key]);
-  if (!Number.isFinite(value) || value < minimum) throw new Error(`--${key} must be a number >= ${minimum}`);
+  if (!Number.isFinite(value) || value < minimum || value > maximum) {
+    throw new Error(`--${key} must be a number between ${minimum} and ${maximum}`);
+  }
   return value;
 }
 
 function isInside(parent, candidate) {
   const relative = path.relative(path.resolve(parent), path.resolve(candidate));
   return relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative));
+}
+
+// A stopped run is incomplete even when every result collected before the stop was valid.
+function isSuccessfulReport(report, expectedResultCount) {
+  return !report.stopReason
+    && report.results.length === expectedResultCount
+    && report.results.every(result => result.valid && result.withinAnalysisCostCeiling === true);
 }
 
 // An explicit server folder avoids loading a different project's .env by accident.
@@ -47,22 +57,23 @@ function getToken(serverDirectory) {
 async function runCli(argv = process.argv.slice(2)) {
   const options = parseArgs(argv);
   if (options.help) {
-    process.stdout.write('Usage: node run.cjs --input-dir DIR --catalogue FILE --output FILE [--server-dir DIR] [--max-cases N] [--languages en,he] [--max-run-cost USD]\n');
+    process.stdout.write('Usage: node run.cjs --input-dir DIR --output FILE [--catalogue FILE] [--server-dir DIR] [--max-cases N] [--languages en,he] [--max-run-cost USD] [--max-attempts 1|2]\n');
     return 0;
   }
-  for (const required of ['input-dir', 'catalogue', 'output']) {
+  for (const required of ['input-dir', 'output']) {
     if (!options[required]) throw new Error(`--${required} is required`);
   }
   const outputFile = path.resolve(options.output);
   if (isInside(REPO_ROOT, outputFile)) throw new Error('--output must be outside the evaluation git worktree');
 
   const inputDirectory = path.resolve(options['input-dir']);
-  const catalogueFile = path.resolve(options.catalogue);
+  const catalogueFile = path.resolve(options.catalogue || DEFAULT_CATALOGUE);
   if (isInside(REPO_ROOT, inputDirectory)) throw new Error('--input-dir must be outside the evaluation git worktree');
-  if (isInside(REPO_ROOT, catalogueFile)) throw new Error('--catalogue must be outside the evaluation git worktree');
   const maxCases = numberOption(options, 'max-cases', 6, 1);
   const maxRunCostUsd = numberOption(options, 'max-run-cost', 3, 0.01);
-  const maxAnalysisCostUsd = numberOption(options, 'max-analysis-cost', 0.25, 0.01);
+  const maxAnalysisCostUsd = numberOption(options, 'max-analysis-cost', 0.25, 0.01, 0.25);
+  const maxAttempts = numberOption(options, 'max-attempts', 1, 1);
+  if (!Number.isInteger(maxAttempts) || maxAttempts > 2) throw new Error('--max-attempts must be either 1 or 2');
   const languages = String(options.languages || 'en,he').split(',').map(value => value.trim()).filter(Boolean);
   if (!languages.length || languages.some(language => !['en', 'he'].includes(language))) {
     throw new Error('--languages must be a comma-separated list containing only en and/or he');
@@ -85,6 +96,7 @@ async function runCli(argv = process.argv.slice(2)) {
     token,
     maxRunCostUsd,
     maxAnalysisCostUsd,
+    maxAttempts,
     onAttempt: progress => process.stdout.write(`${JSON.stringify({ type: 'attempt', ...progress })}\n`),
   });
   report.generatedAt = new Date().toISOString();
@@ -104,7 +116,8 @@ async function runCli(argv = process.argv.slice(2)) {
     withinAnalysisCostCeiling: result.withinAnalysisCostCeiling,
   }));
   process.stdout.write(`${JSON.stringify({ output: outputFile, totalCostUsd: report.totalCostUsd, stopReason: report.stopReason, results: summary })}\n`);
-  return report.results.every(result => result.valid && result.withinAnalysisCostCeiling === true) ? 0 : 1;
+  const expectedResultCount = cases.length * languages.length;
+  return isSuccessfulReport(report, expectedResultCount) ? 0 : 1;
 }
 
 if (require.main === module) {
@@ -115,4 +128,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { parseArgs, numberOption, isInside, getToken, runCli };
+module.exports = { parseArgs, numberOption, isInside, isSuccessfulReport, getToken, runCli };

@@ -52,6 +52,8 @@ app.use(cors({
 // Skin scan uploads contain up to three base64 images and have their own strict per-image checks.
 // Keep the general API limit small so photos can never leak into analysis/profile documents again.
 app.use('/api/skin-scan', express.json({ limit: '35mb' }), skinScanRoutes);
+// Skin photos are sent as labelled base64 data for Bedrock; parse this one route before the 1 MB API limit.
+app.use('/api/ai/analyze-skin', express.json({ limit: '35mb' }));
 app.use(express.json({ limit: '1mb' }));
 
 // Health check
