@@ -2,7 +2,7 @@ const Ajv = require('ajv');
 
 const BASE_URL = 'https://bedrock-mantle.us-west-2.api.aws/openai/v1';
 const MODEL = 'xai.grok-4.6';
-const TIMEOUT_MS = 45_000;
+const TIMEOUT_MS = 60_000;
 const MAX_OUTPUT_TOKENS = 8_000;
 const MAX_REPORTED_COST_USD = 0.25;
 

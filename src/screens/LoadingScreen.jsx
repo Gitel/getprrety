@@ -3,7 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { C, QUESTIONS, buildFallback } from '../constants';
-import { analyzeWithRailway } from '../lib/analyzeWithRailway';
+import { analyzeSkin } from '../lib/analyzeWithRailway';
 import { pollScan } from '../lib/skinScan';
 import { persistAnalysis, withSavedId, skipRetrySave } from '../lib/persistAnalysis';
 import { logActivity } from '../lib/logActivity';
@@ -28,7 +28,7 @@ const SCAN_WAIT_COPY = [
 ];
 
 export default function LoadingScreen({ navigation, route }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   // Set by FallbackBanner's "Try again": a re-run of an analysis that already fell back.
   const isRetry = Boolean(route?.params?.retry);
   const { answers, user, setAnalysis, analysisSaveFailed, setAnalysisSaveFailed } = useApp();
@@ -141,12 +141,12 @@ export default function LoadingScreen({ navigation, route }) {
     }
     advanceStage(0);
 
-    analyzeWithRailway(answers || {})
+    analyzeSkin(answers || {}, i18n.language)
       .then(analysis => {
         apiRef.result = analysis;
       })
       .catch(err => {
-        console.warn('Railway fallback:', err.message);
+        console.warn('Bedrock fallback:', err.message);
         // Stamp the canned template as a fallback, with the reason, so it is never
         // mistaken for a personalized result (saved with the analysis; shown as a
         // banner in the app, a marker on /admin and a label in the clinic email).

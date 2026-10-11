@@ -104,10 +104,15 @@ function buildClinicEmailHtml({ analysis, user }) {
   const genericBlock = isGenericResult(analysis)
     ? `<p style="color:#8a5a00;font-weight:bold;">&#9888; Generic result: the AI skin analysis was unavailable. The era and routine below are a standard template, not personalized for this client.</p>`
     : '';
+  // Name the live provider in clinic mail so a saved Bedrock result remains distinguishable.
+  const providerBlock = analysis?.source === 'bedrock'
+    ? '<p><strong>Analysis provider:</strong> Bedrock</p>'
+    : '';
 
   return `
     ${allergyBlock}
     ${genericBlock}
+    ${providerBlock}
     <p><strong>${esc(name)}</strong> &middot; ${esc(email)} &middot; ${esc(phone)}</p>
     <p><strong>Skin Era:</strong> ${esc(eraName)}</p>
     <p><strong>Top concerns:</strong> ${esc(concerns)}</p>

@@ -146,6 +146,29 @@ function isPregnancyCaution(quiz = {}) {
     || quiz.hormones?.trying_to_conceive === 'yes' || quiz.hormones?.breastfeeding === 'yes';
 }
 
+function hasExplicitSafetyAnswer(value) {
+  // A visible choice such as "none" is explicit; absent and empty selections are unanswered.
+  return (Array.isArray(value) ? value : [value])
+    .some(item => typeof item === 'string' && item.trim().length > 0);
+}
+
+function hasKnownPregnancyAnswer(quiz = {}) {
+  // A single positive is enough for caution, but one negative hormone answer is not an aggregate negative.
+  const positive = isPregnancyCaution(quiz);
+  const aggregate = quiz.pregnant_or_ttc === 'yes' || quiz.pregnant_or_ttc === 'no'
+    || typeof quiz.pregnant_or_ttc === 'boolean'
+    || typeof quiz.pregnancy_caution === 'boolean';
+  const allHormonesAnswered = ['pregnant', 'trying_to_conceive', 'breastfeeding']
+    .every(key => ['yes', 'no', true, false].includes(quiz.hormones?.[key]));
+  return positive || aggregate || allHormonesAnswered;
+}
+
+function hasCompleteSafetyContext(quiz = {}) {
+  return hasExplicitSafetyAnswer(quiz.allergies)
+    && hasExplicitSafetyAnswer(quiz.irritants)
+    && hasKnownPregnancyAnswer(quiz);
+}
+
 function normalizedList(value) {
   const values = Array.isArray(value) ? value : [value];
   return values.filter(item => item !== undefined && item !== null).map(item => String(item).trim().toLowerCase())
@@ -228,6 +251,9 @@ function productSafetyIssue(product, quiz = {}) {
 function eligibilityLimitations(quiz = {}) {
   const allergies = allergiesFromQuiz(quiz);
   const limits = [];
+  if (!hasCompleteSafetyContext(quiz)) {
+    limits.push('Allergy, irritant, and pregnancy answers are incomplete; no catalogue product can be confidently selected.');
+  }
   if (allergies.some(isBroadAllergy)) limits.push('A broad allergy answer does not identify a specific ingredient; no catalogue product can be confidently selected.');
   if (hasUnresolvedSensitivityLabel(allergies) || hasUnresolvedFreeText(quiz, 'allergies_other')) limits.push('A reported allergy or sensitivity label could not be mapped to a known ingredient; no catalogue product can be confidently selected.');
   const irritants = [...normalizedList(quiz.irritants), ...normalizedList(quiz.irritants_other)]
@@ -238,6 +264,7 @@ function eligibilityLimitations(quiz = {}) {
 
 function eligibleProducts(catalogue = [], quiz = {}) {
   // Filter uncertain safety matches before building model input so the model cannot select them.
+  if (!hasCompleteSafetyContext(quiz)) return [];
   return catalogue.filter(product => product && String(product._id || '').trim()
     && product.use === 'home' && product.archived !== true
     && (!isPregnancyCaution(quiz) || product.pregnancy === 'safe')
@@ -476,6 +503,6 @@ function validateOutput(output, caseData = {}, catalogue = []) {
 
 module.exports = {
   ERA_IDS, ROUTINE_CATEGORY_IDS, outputSchema, buildMessages, validateOutput,
-  sanitizeQuiz, eligibleProducts, isPregnancyCaution, allergiesFromQuiz, activeIrritantClasses,
+  sanitizeQuiz, eligibleProducts, hasCompleteSafetyContext, isPregnancyCaution, allergiesFromQuiz, activeIrritantClasses,
   productSafetyIssue, eligibilityLimitations,
 };

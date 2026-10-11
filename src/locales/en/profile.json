@@ -2,6 +2,7 @@
   "saveFailed": "We couldn't save this assessment — it may not appear next time you open the app.",
   "eraEyebrow": "Your skin is in",
   "analysisTitle": "🔬 Skin Analysis",
+  "safety": { "title": "Safety notes" },
   "insightsTitle": "💡 Key Insights",
   "audit": {
     "title": "🧴 Product Audit",

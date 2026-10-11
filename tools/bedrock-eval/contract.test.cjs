@@ -5,6 +5,9 @@ const contract = require('./contract.cjs');
 const { buildMessages, eligibleProducts, eligibilityLimitations, outputSchema, sanitizeQuiz, validateOutput } = contract;
 const { minimizeQuiz } = require('./extract.cjs');
 
+// Product-selection tests use explicit answers; incomplete-context behavior is tested separately.
+const completeSafety = (answers = {}) => ({ allergies: ['none'], irritants: ['nothing'], pregnant_or_ttc: 'no', ...answers });
+
 const catalogue = [
   { _id: 'cream-1', name: 'Gentle Cream', category: 'face_creams', use: 'home', pregnancy: 'safe', archived: false,
     keyActives: ['Glycerin'], strengths: [], suitableFor: ['Sensitive skin'], ingredients: 'Water, Glycerin, Ceramide' },
@@ -67,20 +70,20 @@ test('production server and evaluator share the same prompt and schema contract'
   assert.deepEqual(outputSchema.$defs.routineStep.properties.category_id.enum, ['cleanse', 'treat', 'moisturize', 'protect', 'other']);
   const validate = new Ajv({ allErrors: true, strict: true }).compile(outputSchema);
   assert.equal(validate(validOutput()), true, JSON.stringify(validate.errors));
-  assert.deepEqual(validateOutput(validOutput(), { quiz: {}, language: 'en', images: [] }, catalogue).errors, []);
+  assert.deepEqual(validateOutput(validOutput(), { quiz: completeSafety(), language: 'en', images: [] }, catalogue).errors, []);
 });
 
 test('message builder excludes identifying fields and only includes eligible home products', () => {
   const { system, messages } = buildMessages({ quiz: {
     name: 'Private Name', email: 'person@example.test', birthday: '01/02/1990', pregnancy_caution: true,
-    age: '25-34', gender: 'she', concerns: ['dryness'], allergies: ['none'],
+    age: '25-34', gender: 'she', concerns: ['dryness'], allergies: ['none'], irritants: ['nothing'],
   }, language: 'en', images: [], catalogue });
   const requestText = messages[0].content[0].text;
   const request = JSON.parse(requestText.replace('Evaluation input JSON:\n', ''));
   assert.match(system, /category IDs and order must exactly cover/i);
   assert.doesNotMatch(requestText, /Private Name|person@example\.test|01\/02\/1990/);
   assert.deepEqual(request.eligible_catalogue.map(product => product.id), ['cream-1', 'spf-1', 'citric-1', 'no-ingredients']);
-  assert.deepEqual(eligibleProducts(catalogue, { pregnant_or_ttc: 'yes' }).map(item => item._id), ['cream-1', 'spf-1', 'citric-1', 'no-ingredients']);
+  assert.deepEqual(eligibleProducts(catalogue, completeSafety({ pregnant_or_ttc: 'yes' })).map(item => item._id), ['cream-1', 'spf-1', 'citric-1', 'no-ingredients']);
 });
 
 test('legacy quiz fields exported from existing analyses remain available to the shared contract', () => {
@@ -103,7 +106,7 @@ test('route and prompt share a whitelist sanitizer that preserves legacy answer 
   }), { identity: 'they', fitzpatrick: 'III', current_products: ['cleanser'], age: '25-34' });
   const legacyHormoneAnswer = sanitizeQuiz({ hormones: { trying_to_conceive: 'yes' } });
   assert.deepEqual(legacyHormoneAnswer, { pregnancy_caution: true });
-  assert.ok(eligibleProducts(catalogue, legacyHormoneAnswer).every(product => product.pregnancy === 'safe'));
+  assert.ok(eligibleProducts(catalogue, completeSafety(legacyHormoneAnswer)).every(product => product.pregnancy === 'safe'));
 });
 
 test('quiz sanitizer rejects oversized values, nested payload objects, non-finite values, and inherited keys', () => {
@@ -119,21 +122,50 @@ test('quiz sanitizer rejects oversized values, nested payload objects, non-finit
     { age: 31, stress: 4, fitzpatrick: 3, event_type: 'wedding', allergies: ['none'] });
 });
 
-test('missing pregnancy answers stay absent while an explicit no stays false', () => {
+test('missing and single-hormone negative answers stay incomplete while an aggregate no is complete', () => {
   const absent = minimizeQuiz({ gender: 'she' }, new Date('2026-10-08T00:00:00.000Z'));
   const explicitNo = minimizeQuiz({ pregnant: 'no' }, new Date('2026-10-08T00:00:00.000Z'));
   const requestQuiz = quiz => JSON.parse(buildMessages({ quiz, language: 'en', images: [], catalogue }).messages[0].content[0].text
     .replace('Evaluation input JSON:\n', '')).quiz;
   assert.equal(Object.hasOwn(requestQuiz(absent), 'pregnancy_caution'), false);
-  assert.equal(requestQuiz(explicitNo).pregnancy_caution, false);
-  assert.ok(eligibleProducts(catalogue, absent).some(product => product._id === 'retinoid-1'));
-  assert.ok(eligibleProducts(catalogue, { pregnant_or_ttc: 'yes' }).every(product => product.pregnancy === 'safe'));
+  assert.equal(Object.hasOwn(requestQuiz(explicitNo), 'pregnancy_caution'), false);
+  assert.deepEqual(eligibleProducts(catalogue, absent), []);
+  assert.deepEqual(eligibleProducts(catalogue, { allergies: ['none'], irritants: ['nothing'], pregnant: 'no' }), []);
+  assert.ok(eligibleProducts(catalogue, completeSafety({ pregnant_or_ttc: 'no' })).some(product => product._id === 'retinoid-1'));
+  assert.ok(eligibleProducts(catalogue, completeSafety({ pregnant_or_ttc: 'yes' })).every(product => product.pregnancy === 'safe'));
+});
+
+test('catalogue picks require explicit allergy, irritant, and pregnancy answers', () => {
+  const partial = [
+    {},
+    { allergies: ['none'], irritants: ['nothing'] },
+    { allergies: [], irritants: ['nothing'], pregnant_or_ttc: 'no' },
+    { allergies: ['none'], irritants: [''], pregnant_or_ttc: 'no' },
+    { allergies: ['none'], irritants: ['nothing'], pregnant_or_ttc: 'maybe' },
+  ];
+  for (const quiz of partial) assert.deepEqual(eligibleProducts(catalogue, quiz), []);
+
+  // A positive answer remains a caution even when another required safety answer is missing.
+  const positiveButPartial = { allergies: ['none'], pregnant_or_ttc: 'yes' };
+  assert.equal(contract.isPregnancyCaution(positiveButPartial), true);
+  assert.deepEqual(eligibleProducts(catalogue, positiveButPartial), []);
+  assert.match(eligibilityLimitations(positiveButPartial).join(' '), /answers are incomplete/i);
+
+  assert.deepEqual(eligibleProducts(catalogue, completeSafety({ pregnant_or_ttc: true })).map(item => item._id),
+    ['cream-1', 'spf-1', 'citric-1', 'no-ingredients']);
+
+  const incompleteBuild = buildMessages({ quiz: { allergies: ['none'], irritants: ['nothing'] }, catalogue });
+  const incompleteMessage = incompleteBuild.messages[0].content[0].text;
+  const request = JSON.parse(incompleteMessage.replace('Evaluation input JSON:\n', ''));
+  assert.deepEqual(request.eligible_catalogue, []);
+  assert.match(request.product_selection_limitations.join(' '), /answers are incomplete/i);
+  assert.match(incompleteBuild.system, /routine/i);
 });
 
 test('broad allergies and missing ingredient lists prevent confident product selection', () => {
-  assert.deepEqual(eligibleProducts(catalogue, { allergies: ['cosmetics'] }), []);
-  assert.deepEqual(eligibleProducts(catalogue, { allergies: ['allergic to cosmetics / skincare'] }), []);
-  assert.deepEqual(eligibleProducts(catalogue, { allergies: ['ceramide'] }).map(item => item._id), ['spf-1', 'citric-1', 'retinoid-1']);
+  assert.deepEqual(eligibleProducts(catalogue, completeSafety({ allergies: ['cosmetics'] })), []);
+  assert.deepEqual(eligibleProducts(catalogue, completeSafety({ allergies: ['allergic to cosmetics / skincare'] })), []);
+  assert.deepEqual(eligibleProducts(catalogue, completeSafety({ allergies: ['ceramide'] })).map(item => item._id), ['spf-1', 'citric-1', 'retinoid-1']);
   const built = buildMessages({ quiz: { allergies: ['cosmetics'] }, catalogue });
   const request = JSON.parse(built.messages[0].content[0].text.replace('Evaluation input JSON:\n', ''));
   assert.equal(request.eligible_catalogue.length, 0);
@@ -141,29 +173,29 @@ test('broad allergies and missing ingredient lists prevent confident product sel
 });
 
 test('controlled allergy and irritant aliases cover fragrance, AHA/BHA, retinoids, and sulfates', () => {
-  assert.deepEqual(eligibleProducts(catalogue, { allergies: ['fragrance'] }).map(item => item._id), ['cream-1', 'spf-1', 'citric-1', 'retinoid-1']);
-  assert.deepEqual(eligibleProducts(catalogue, { irritants: ['acids'] }).map(item => item._id), ['cream-1', 'spf-1', 'retinoid-1']);
-  assert.deepEqual(eligibleProducts(catalogue, { ahas_bhas: true }).map(item => item._id), ['cream-1', 'spf-1', 'retinoid-1']);
-  assert.deepEqual(eligibleProducts(catalogue, { has_bhas: true }).map(item => item._id), ['cream-1', 'spf-1', 'citric-1', 'retinoid-1']);
-  assert.deepEqual(eligibleProducts(catalogue, { allergies: ['ahas_bhas'] }).map(item => item._id), ['cream-1', 'spf-1', 'retinoid-1']);
+  assert.deepEqual(eligibleProducts(catalogue, completeSafety({ allergies: ['fragrance'] })).map(item => item._id), ['cream-1', 'spf-1', 'citric-1', 'retinoid-1']);
+  assert.deepEqual(eligibleProducts(catalogue, completeSafety({ irritants: ['acids'] })).map(item => item._id), ['cream-1', 'spf-1', 'retinoid-1']);
+  assert.deepEqual(eligibleProducts(catalogue, completeSafety({ ahas_bhas: true })).map(item => item._id), ['cream-1', 'spf-1', 'retinoid-1']);
+  assert.deepEqual(eligibleProducts(catalogue, completeSafety({ has_bhas: true })).map(item => item._id), ['cream-1', 'spf-1', 'citric-1', 'retinoid-1']);
+  assert.deepEqual(eligibleProducts(catalogue, completeSafety({ allergies: ['ahas_bhas'] })).map(item => item._id), ['cream-1', 'spf-1', 'retinoid-1']);
   const fragranced = [...catalogue, { ...catalogue[0], _id: 'fragranced-1', ingredients: 'Water, Parfum' }];
-  assert.ok(!eligibleProducts(fragranced, { allergies_other: 'fragrance sensitivity' }).some(item => item._id === 'fragranced-1'));
-  assert.deepEqual(eligibleProducts(catalogue, { retinoids: true }).map(item => item._id), ['cream-1', 'spf-1', 'citric-1']);
-  assert.deepEqual(eligibleProducts(catalogue, { sulfates: true }).map(item => item._id), ['cream-1', 'spf-1', 'citric-1', 'retinoid-1']);
+  assert.ok(!eligibleProducts(fragranced, completeSafety({ allergies_other: 'fragrance sensitivity' })).some(item => item._id === 'fragranced-1'));
+  assert.deepEqual(eligibleProducts(catalogue, completeSafety({ retinoids: true })).map(item => item._id), ['cream-1', 'spf-1', 'citric-1']);
+  assert.deepEqual(eligibleProducts(catalogue, completeSafety({ sulfates: true })).map(item => item._id), ['cream-1', 'spf-1', 'citric-1', 'retinoid-1']);
   const seedSulfateProduct = { ...catalogue[0], _id: 'seed-sulfate', ingredients: 'Water, Sodium Coceth Sulfate' };
-  assert.ok(!eligibleProducts([seedSulfateProduct], { sulfates: true }).length,
+  assert.ok(!eligibleProducts([seedSulfateProduct], completeSafety({ sulfates: true })).length,
     'the actual seeded Sodium Coceth Sulfate ingredient must match the sulfate irritant class');
-  assert.deepEqual(eligibleProducts(catalogue, { irritants: ['nothing'] }).map(item => item._id),
-    eligibleProducts(catalogue, {}).map(item => item._id));
+  assert.deepEqual(eligibleProducts(catalogue, completeSafety({ irritants: ['nothing'] })).map(item => item._id),
+    eligibleProducts(catalogue, completeSafety()).map(item => item._id));
 });
 
 test('free-text known labels map to ingredient aliases and unresolved labels block picks', () => {
   const peppermint = { ...catalogue[0], _id: 'peppermint-1', ingredients: 'Water, PeppermintLeafExtract' };
-  assert.ok(!eligibleProducts([peppermint], { allergies_other: 'peppermint sensitivity' }).length);
-  assert.ok(!eligibleProducts([peppermint], { irritants_other: 'peppermint sensitivity' }).length);
-  assert.deepEqual(eligibleProducts(catalogue, { allergies_other: 'unknown botanical sensitivity' }), []);
+  assert.ok(!eligibleProducts([peppermint], completeSafety({ allergies_other: 'peppermint sensitivity' })).length);
+  assert.ok(!eligibleProducts([peppermint], completeSafety({ irritants_other: 'peppermint sensitivity' })).length);
+  assert.deepEqual(eligibleProducts(catalogue, completeSafety({ allergies_other: 'unknown botanical sensitivity' })), []);
   assert.match(eligibilityLimitations({ allergies_other: 'unknown botanical sensitivity' }).join(' '), /could not be mapped/i);
-  assert.deepEqual(eligibleProducts(catalogue, { irritants_other: 'unknown ingredient sensitivity' }), []);
+  assert.deepEqual(eligibleProducts(catalogue, completeSafety({ irritants_other: 'unknown ingredient sensitivity' })), []);
   assert.match(eligibilityLimitations({ irritants_other: 'unknown ingredient sensitivity' }).join(' '), /could not be mapped/i);
 });
 
@@ -174,7 +206,7 @@ test('generic routine puts cleansing first, treatment before moisturizer, and AM
     { category_id: 'cleanse', category: 'Cleanser', instruction: 'Cleanse gently.' },
     { category_id: 'protect', category: 'Sun protection', instruction: 'Apply sunscreen.' },
   ];
-  let errors = validateOutput(output, { quiz: {}, language: 'en', images: [] }, catalogue).errors;
+  let errors = validateOutput(output, { quiz: completeSafety(), language: 'en', images: [] }, catalogue).errors;
   assert.ok(errors.some(error => error.includes('AM routine must start with cleanse')));
 
   output.era.routine.am = [
@@ -183,7 +215,7 @@ test('generic routine puts cleansing first, treatment before moisturizer, and AM
     { category_id: 'treat', category: 'Treatment', instruction: 'Apply treatment.' },
     { category_id: 'protect', category: 'Sun protection', instruction: 'Apply sunscreen.' },
   ];
-  errors = validateOutput(output, { quiz: {}, language: 'en', images: [] }, catalogue).errors;
+  errors = validateOutput(output, { quiz: completeSafety(), language: 'en', images: [] }, catalogue).errors;
   assert.ok(errors.some(error => error.includes('AM treatment must come before moisturize')));
 
   output.era.routine.am = [
@@ -191,53 +223,53 @@ test('generic routine puts cleansing first, treatment before moisturizer, and AM
     { category_id: 'protect', category: 'Sun protection', instruction: 'Apply sunscreen.' },
     { category_id: 'moisturize', category: 'Moisturizer', instruction: 'Apply moisturizer.' },
   ];
-  errors = validateOutput(output, { quiz: {}, language: 'en', images: [] }, catalogue).errors;
+  errors = validateOutput(output, { quiz: completeSafety(), language: 'en', images: [] }, catalogue).errors;
   assert.ok(errors.some(error => error.includes('AM routine must end with protect')));
 });
 
 test('generic cleanser and SPF coverage, category order, and duplicates are checked', () => {
   const output = validOutput();
   output.srProducts.am = [];
-  let errors = validateOutput(output, { quiz: {}, language: 'en', images: [] }, catalogue).errors;
+  let errors = validateOutput(output, { quiz: completeSafety(), language: 'en', images: [] }, catalogue).errors;
   assert.ok(errors.some(error => error.includes('category/order coverage')));
 
   output.srProducts.am = validOutput().srProducts.am;
   output.srProducts.am = [unmatched('cleanse', 1), { ...unmatched('moisturize', 2), no_match_note: '',
     sr_product_id: 'cream-1', sr_product_name: 'Gentle Cream' }];
-  errors = validateOutput(output, { quiz: {}, language: 'en', images: [] }, catalogue).errors;
+  errors = validateOutput(output, { quiz: completeSafety(), language: 'en', images: [] }, catalogue).errors;
   assert.ok(errors.some(error => error.includes('category/order coverage'))); // Reproduces the prior response that omitted SPF.
 
   output.srProducts.am = [unmatched('protect', 1), unmatched('cleanse', 2)];
-  errors = validateOutput(output, { quiz: {}, language: 'en', images: [] }, catalogue).errors;
+  errors = validateOutput(output, { quiz: completeSafety(), language: 'en', images: [] }, catalogue).errors;
   assert.ok(errors.some(error => error.includes('category/order coverage')));
 
   output.srProducts.am = validOutput().srProducts.am;
   output.srProducts.am[1].step = 3;
-  errors = validateOutput(output, { quiz: {}, language: 'en', images: [] }, catalogue).errors;
+  errors = validateOutput(output, { quiz: completeSafety(), language: 'en', images: [] }, catalogue).errors;
   assert.ok(errors.some(error => error.includes('step number must match its routine position')));
 
   output.era.routine.pm.push({ category_id: 'cleanse', category: 'Second cleanser', instruction: 'Cleanse again.' });
-  errors = validateOutput(output, { quiz: {}, language: 'en', images: [] }, catalogue).errors;
+  errors = validateOutput(output, { quiz: completeSafety(), language: 'en', images: [] }, catalogue).errors;
   assert.ok(errors.some(error => error.includes('routine repeats category cleanse')));
 });
 
 test('unmatched cleanser and sunscreen require a useful note and no product name or ID', () => {
   const output = validOutput();
   output.srProducts.am[0].no_match_note = '';
-  let errors = validateOutput(output, { quiz: {}, language: 'en', images: [] }, catalogue).errors;
+  let errors = validateOutput(output, { quiz: completeSafety(), language: 'en', images: [] }, catalogue).errors;
   assert.ok(errors.some(error => error.includes('useful no_match_note')));
   output.srProducts.am[0].sr_product_name = 'Invented cleanser';
-  errors = validateOutput(output, { quiz: {}, language: 'en', images: [] }, catalogue).errors;
+  errors = validateOutput(output, { quiz: completeSafety(), language: 'en', images: [] }, catalogue).errors;
   assert.ok(errors.some(error => error.includes('product name without a catalogue id')));
 
   const sunscreen = output.srProducts.am[2];
   sunscreen.sr_product_id = 'spf-1'; sunscreen.sr_product_name = 'Daily SPF'; sunscreen.no_match_note = '';
-  errors = validateOutput(output, { quiz: {}, language: 'en', images: [] }, catalogue).errors;
+  errors = validateOutput(output, { quiz: completeSafety(), language: 'en', images: [] }, catalogue).errors;
   assert.ok(errors.some(error => error.includes('no catalogue SPF value is verified')));
 
   output.srProducts.am[0].sr_product_id = '';
   output.srProducts.am[0].sr_product_name = '';
-  errors = validateOutput(output, { quiz: {}, language: 'en', images: [] }, catalogue).errors;
+  errors = validateOutput(output, { quiz: completeSafety(), language: 'en', images: [] }, catalogue).errors;
   assert.ok(errors.some(error => error.includes('has an empty catalogue ID')));
 });
 
@@ -250,30 +282,30 @@ test('routine product categories reject clear cleanser and moisturizer mismatche
   const output = validOutput();
   output.srProducts.am[0] = { ...output.srProducts.am[0], sr_product_id: 'cream-1',
     sr_product_name: 'Gentle Cream', no_match_note: '' };
-  let errors = validateOutput(output, { quiz: {}, language: 'en', images: [] }, catalogueWithCleanser).errors;
+  let errors = validateOutput(output, { quiz: completeSafety(), language: 'en', images: [] }, catalogueWithCleanser).errors;
   assert.ok(errors.some(error => error.includes('not compatible with cleanse')));
 
   output.srProducts.am[0] = { ...unmatched('cleanse', 1), sr_product_id: 'seed-peel',
     sr_product_name: 'Whitening Peeling Acid', no_match_note: '' };
-  errors = validateOutput(output, { quiz: {}, language: 'en', images: [] }, catalogueWithCleanser).errors;
+  errors = validateOutput(output, { quiz: completeSafety(), language: 'en', images: [] }, catalogueWithCleanser).errors;
   assert.ok(errors.some(error => error.includes('not compatible with cleanse')));
 
   output.srProducts.am[0] = { ...unmatched('cleanse', 1) };
   output.srProducts.am[1] = { ...output.srProducts.am[1], sr_product_id: 'seed-cleanser',
     sr_product_name: 'Herbal Cleansing Mousse', no_match_note: '' };
-  errors = validateOutput(output, { quiz: {}, language: 'en', images: [] }, catalogueWithCleanser).errors;
+  errors = validateOutput(output, { quiz: completeSafety(), language: 'en', images: [] }, catalogueWithCleanser).errors;
   assert.ok(errors.some(error => error.includes('not compatible with moisturize')));
 
   output.srProducts.am[1] = { ...output.srProducts.am[1], sr_product_id: 'citric-1',
     sr_product_name: 'Citric Toner', no_match_note: '' };
-  errors = validateOutput(output, { quiz: {}, language: 'en', images: [] }, catalogueWithCleanser).errors;
+  errors = validateOutput(output, { quiz: completeSafety(), language: 'en', images: [] }, catalogueWithCleanser).errors;
   assert.ok(errors.some(error => error.includes('not compatible with moisturize')));
 });
 
 test('event preparation must be null when the quiz has no event or marks none', () => {
   const output = validOutput();
   output.era.event_prep = { summary: 'Prepare for your event.', steps: [] };
-  assert.ok(validateOutput(output, { quiz: {}, language: 'en', images: [] }, catalogue).errors
+  assert.ok(validateOutput(output, { quiz: completeSafety(), language: 'en', images: [] }, catalogue).errors
     .some(error => error.includes('event_prep must be null')));
   assert.ok(validateOutput(output, { quiz: { event_type: 'none' }, language: 'en', images: [] }, catalogue).errors
     .some(error => error.includes('event_prep must be null')));
@@ -286,13 +318,13 @@ test('audit replacement fields must be null except for a known replacement ID an
   const output = validOutput();
   const item = output.era.product_audit.current_products_assessment[0];
   item.verdict = 'keep';
-  let errors = validateOutput(output, { quiz: {}, language: 'en', images: [] }, catalogue).errors;
+  let errors = validateOutput(output, { quiz: completeSafety(), language: 'en', images: [] }, catalogue).errors;
   assert.ok(errors.some(error => error.includes('must have null replacement fields')));
   item.verdict = 'replace'; item.suggested_replacement_product_id = null; item.suggested_replacement = null;
-  errors = validateOutput(output, { quiz: {}, language: 'en', images: [] }, catalogue).errors;
+  errors = validateOutput(output, { quiz: completeSafety(), language: 'en', images: [] }, catalogue).errors;
   assert.ok(errors.some(error => error.includes('replacement requires a known catalogue ID')));
   item.suggested_replacement_product_id = 'cream-1'; item.suggested_replacement = 'Not Gentle Cream';
-  errors = validateOutput(output, { quiz: {}, language: 'en', images: [] }, catalogue).errors;
+  errors = validateOutput(output, { quiz: completeSafety(), language: 'en', images: [] }, catalogue).errors;
   assert.ok(errors.some(error => error.includes('name does not match its catalogue id')));
 });
 
@@ -306,15 +338,15 @@ test('null allergy answers do not create a fake restriction and blank required p
 
   output.era.skin_analysis.summary = '   ';
   output.era.routine.am[0].instruction = '';
-  const blank = validateOutput(output, { quiz: {}, language: 'en', images: [] }, catalogue).errors;
+  const blank = validateOutput(output, { quiz: completeSafety(), language: 'en', images: [] }, catalogue).errors;
   assert.ok(blank.includes('skin analysis summary must not be empty'));
   assert.ok(blank.includes('AM routine step 1 instruction must not be empty'));
 });
 
 test('image context labels are retained and shelf analysis requires a shelf image', () => {
-  const noPhotos = buildMessages({ quiz: {}, language: 'he', images: [], catalogue: [] }).messages[0].content;
+  const noPhotos = buildMessages({ quiz: completeSafety(), language: 'he', images: [], catalogue: [] }).messages[0].content;
   assert.match(noPhotos[0].text, /No images were provided/);
-  const withShelf = buildMessages({ quiz: {}, language: 'he', catalogue: [], images: [
+  const withShelf = buildMessages({ quiz: completeSafety(), language: 'he', catalogue: [], images: [
     { angle: 'shelf-front', mediaType: 'image/jpeg', base64: 'ZmFrZQ==' },
   ] }).messages[0].content;
   assert.equal(withShelf[1].text, 'Photo angle: shelf-front.');
@@ -323,13 +355,13 @@ test('image context labels are retained and shelf analysis requires a shelf imag
   const output = validOutput();
   output.shelfAnalysis = { identified_products: [], shelf_summary: { overall_note: 'No visible products.' },
     transition_plan: { first_sr_purchase: '', first_sr_purchase_product_id: null } };
-  assert.ok(validateOutput(output, { quiz: {}, language: 'en', images: [] }, catalogue).errors
+  assert.ok(validateOutput(output, { quiz: completeSafety(), language: 'en', images: [] }, catalogue).errors
     .some(error => error.includes('shelfAnalysis must be null')));
-  assert.ok(!validateOutput(output, { quiz: {}, language: 'en', images: [{ angle: 'shelf-front' }] }, catalogue).errors
+  assert.ok(!validateOutput(output, { quiz: completeSafety(), language: 'en', images: [{ angle: 'shelf-front' }] }, catalogue).errors
     .some(error => error.includes('shelfAnalysis must be null')));
 });
 
 test('language validation rejects English analysis prose when Hebrew was requested', () => {
-  assert.ok(validateOutput(validOutput(), { quiz: {}, language: 'he' }, catalogue).errors
+  assert.ok(validateOutput(validOutput(), { quiz: completeSafety(), language: 'he' }, catalogue).errors
     .some(error => error.includes('requested language')));
 });

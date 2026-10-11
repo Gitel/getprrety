@@ -219,7 +219,7 @@ describe('maybeRequestReading', () => {
     expect(JSON.parse(request.messages[0].content).quizAnswers).toEqual({
       water_intake: 'less_1l', pregnancy_caution: false, allergies: ['none'], irritants: ['nothing'],
     });
-    expect(request.timeoutMs).toBe(45000);
+    expect(request.timeoutMs).toBe(60_000);
 
     const [writeFilter, write] = SkinScan.updateOne.mock.calls[0];
     expect(writeFilter).toEqual({ _id: 'scan1', readingStatus: 'pending', readingRequestedAt: requestedAt });

@@ -32,7 +32,7 @@ node run.cjs `
 
 `AWS_BEARER_TOKEN_BEDROCK` from the process environment takes precedence. Otherwise, `--server-dir` loads its existing `.env` with that folder's installed `dotenv` module. The secret is kept in memory and is never printed or written to the report. The endpoint and model are fixed in code to Oregon's Bedrock Mantle endpoint and `xai.grok-4.6`.
 
-The tool runs cases and languages sequentially. Each attempt has a 45-second timeout and an 8,000-token output cap. `--max-attempts` accepts `1` or `2` and defaults to `1`; invalid JSON, schema, or semantic output stays invalid, and no correction prompt is sent. Two attempts are available only when explicitly requested for a comparison. API, network, refusal, and timeout failures are never automatically retried. The report records the selected attempt limit. Full model output is written only to the explicit `--output` path, which must be outside this worktree. Standard output emits progress after each attempt and a final summary; it contains only case IDs, language, status, latency, finish reason, and token-based cost metrics.
+The tool runs cases and languages sequentially. Each attempt has a 60-second timeout and an 8,000-token output cap. `--max-attempts` accepts `1` or `2` and defaults to `1`; invalid JSON, schema, or semantic output stays invalid, and no correction prompt is sent. Two attempts are available only when explicitly requested for a comparison. API, network, refusal, and timeout failures are never automatically retried. The report records the selected attempt limit. Full model output is written only to the explicit `--output` path, which must be outside this worktree. Standard output emits progress after each attempt and a final summary; it contains only case IDs, language, status, latency, finish reason, and token-based cost metrics.
 
 ## Cost and limits
 
@@ -48,7 +48,7 @@ Pricing and model capabilities: [AWS Grok 4.6 model card](https://docs.aws.amazo
 
 The live pilot returned structurally valid JSON with a non-empty SR routine that omitted SPF; the app's home routine prefers SR steps when they exist. The production gate therefore remains failed pending a prompt/contract fix and a passing rerun, even if the response is marked valid.
 
-The runner's normal timeout is 45 seconds. A separate pilot diagnostic used a 90-second timeout; that diagnostic is a distinct attempt and must not be reported as a passing 45-second run. Any case that failed at the 45-second limit remains a failure for that configured run.
+The earlier pilot waves used a 45-second timeout and remain failures for those configured runs. A separate pilot diagnostic used a 90-second timeout; it is a distinct attempt and does not change those historical results. Current evaluator runs use the 60-second timeout described above.
 
 ## Test scope
 

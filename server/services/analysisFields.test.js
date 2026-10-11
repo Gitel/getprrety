@@ -8,6 +8,7 @@ const {
   sanitizeShelfAnalysis,
   LIMITS,
 } = require('./analysisFields');
+const { products: savedProducts } = require('../data/catalogue-seed/products.json');
 
 const GARBAGE = [undefined, null, 42, 'string', true, [], () => {}];
 
@@ -33,6 +34,12 @@ describe('sanitizeRoutine', () => {
       am: [{ name: 'Cleanse', description: 'Gently' }],
       pm: [{ name: '', description: 'Only a description' }],
     });
+  });
+
+  test('preserves the validated routine category needed to reconnect a saved generic instruction', () => {
+    const out = sanitizeRoutine({ am: [{ category_id: 'protect', name: 'Sunscreen', description: 'Use SPF 30+' }] });
+    expect(out.am).toEqual([{ category_id: 'protect', name: 'Sunscreen', description: 'Use SPF 30+' }]);
+    expect(sanitizeRoutine({ am: [{ category_id: 'admin-value', name: 'Step' }] }).am[0]).not.toHaveProperty('category_id');
   });
 
   test('caps the number of steps and string lengths', () => {
@@ -110,7 +117,7 @@ describe('sanitizeSrProducts', () => {
       bundle_note: 'Note',
       era_hero_product: { sr_product_name: 'Hero', hero_reason: 'Because', sr_product_id: 'x' },
       am: [
-        { step: 9, routine_category: 'Cleanse', sr_product_id: 'sr-1', sr_product_name: 'Foam', key_actives_matched: ['ceramides', 5, {}, ''] },
+        { step: 9, category_id: 'cleanse', routine_category: 'Cleanse', sr_product_id: 'sr-1', sr_product_name: 'Foam', key_actives_matched: ['ceramides', 5, {}, ''] },
         { routine_category: '', sr_product_name: '', no_match_note: '' }, // empty: dropped
         { step: 2, routine_category: 'Moisturize', no_match_note: 'Buy any' },
       ],
@@ -118,10 +125,11 @@ describe('sanitizeSrProducts', () => {
       __proto__: { polluted: true },
     });
     expect(out.bundle_note).toBe('Note');
-    expect(out.era_hero_product).toEqual({ sr_product_name: 'Hero', hero_reason: 'Because' });
+    expect(out.era_hero_product).toEqual({ sr_product_name: 'Hero', sr_product_id: 'x', hero_reason: 'Because' });
     expect(out.am.map(s => s.step)).toEqual([1, 2]);
     expect(out.am[0].key_actives_matched).toEqual(['ceramides', '5']);
-    expect(out.am[1]).toMatchObject({ routine_category: 'Moisturize', sr_product_id: '', no_match_note: 'Buy any' });
+    expect(out.am[0].category_id).toBe('cleanse');
+    expect(out.am[1]).toMatchObject({ routine_category: 'Moisturize', sr_product_id: null, no_match_note: 'Buy any' });
     expect(out.pm).toEqual([]);
     expect(out.polluted).toBeUndefined();
   });
@@ -129,6 +137,42 @@ describe('sanitizeSrProducts', () => {
   test('a product name typed without a catalogue id still shows in the app', () => {
     const out = sanitizeSrProducts({ am: [{ routine_category: 'SPF', sr_product_name: 'Sun Guard' }] });
     expect(out.am[0].sr_product_id).toBe('admin-entered');
+  });
+
+  test('preserves saved catalogue IDs through hero, routine, shelf substitute, and transition sanitizers', () => {
+    const id = savedProducts[0].seedKey;
+    const sr = sanitizeSrProducts({
+      era_hero_product: { sr_product_id: id, sr_product_name: savedProducts[0].name, hero_reason: 'Hero' },
+      am: [{ routine_category: 'Cleanse', sr_product_id: id, sr_product_name: savedProducts[0].name }],
+    });
+    const shelf = sanitizeShelfAnalysis({
+      identified_products: [{ product_name: 'Current cleanser', sr_substitute_name: savedProducts[0].name, sr_substitute_product_id: id }],
+      transition_plan: { first_sr_purchase: savedProducts[0].name, first_sr_purchase_product_id: id },
+    });
+    expect(sr.era_hero_product.sr_product_id).toBe(id);
+    expect(sr.am[0].sr_product_id).toBe(id);
+    expect(shelf.identified_products[0].sr_substitute_product_id).toBe(id);
+    expect(shelf.transition_plan.first_sr_purchase_product_id).toBe(id);
+  });
+
+  test('catalogue IDs are bounded and become null when their associated product name is absent', () => {
+    const longId = 'x'.repeat(150);
+    const sr = sanitizeSrProducts({
+      era_hero_product: { sr_product_id: longId, sr_product_name: 'Hero' },
+      am: [
+        { routine_category: 'Cleanse', sr_product_id: 'seed-without-name', sr_product_name: '' },
+        { routine_category: 'Treat', sr_product_id: longId, sr_product_name: 'Serum' },
+      ],
+    });
+    const shelf = sanitizeShelfAnalysis({
+      identified_products: [{ product_name: 'Current item', sr_substitute_product_id: 'seed-without-name', sr_substitute_name: '' }],
+      transition_plan: { first_sr_purchase: '', first_sr_purchase_product_id: 'seed-without-name' },
+    });
+    expect(sr.era_hero_product.sr_product_id).toHaveLength(100);
+    expect(sr.am[0].sr_product_id).toBeNull();
+    expect(sr.am[1].sr_product_id).toBe('x'.repeat(100));
+    expect(shelf.identified_products[0].sr_substitute_product_id).toBeNull();
+    expect(shelf.transition_plan.first_sr_purchase_product_id).toBeNull();
   });
 
   test('nothing to show becomes null (the app hides the section)', () => {
@@ -153,7 +197,7 @@ describe('sanitizeShelfAnalysis', () => {
     expect(out.identified_products[0].secret).toBeUndefined();
     expect(out.identified_products[1].status).toBe('unknown');
     expect(out.shelf_summary).toEqual({ overall_note: 'Mostly fine' });
-    expect(out.transition_plan).toEqual({ first_sr_purchase: 'SPF' });
+    expect(out.transition_plan).toEqual({ first_sr_purchase: 'SPF', first_sr_purchase_product_id: null });
   });
 
   test('no identifiable products becomes null (the app hides the section)', () => {
@@ -169,5 +213,5 @@ describe('sanitizeShelfAnalysis', () => {
 
 test('SR step: clearing the product name also clears the id, so the app shows no_match_note', () => {
   const out = sanitizeSrProducts({ am: [{ routine_category: 'SPF', sr_product_id: 'sr-9', sr_product_name: '', no_match_note: 'Any SPF 50' }] });
-  expect(out.am[0].sr_product_id).toBe('');
+  expect(out.am[0].sr_product_id).toBeNull();
 });

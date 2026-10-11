@@ -67,6 +67,8 @@
       <% if (analysis.fallbackReason) { %><br><code><%= analysis.fallbackReason %></code><% } %>
     </div>
   <% } %>
+  <%# Show the provider explicitly so admins can distinguish a Bedrock result from a legacy one. %>
+  <% if (analysis.source === 'bedrock') { %><div class="ok">Analysis provider: Bedrock</div><% } %>
   <%- include('_edit_fields') %>
 
   <%- include('_edit_routine') %>

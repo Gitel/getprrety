@@ -1,6 +1,11 @@
-import { mapToAppFormat, buildQuizPayload, ageFromBirthday, ageRange } from './analyzeWithRailway';
+import { mapToAppFormat, buildQuizPayload, minimizeQuizAnswers, buildProductSafetyContext, analyzeSkin, ageFromBirthday, ageRange } from './analyzeWithRailway';
+import { fetchProductRecs } from '../constants';
 
 jest.mock('./auth');
+jest.mock('./api', () => ({ api: { post: jest.fn() } }));
+jest.mock('./downscaleImage', () => ({ downscaleDataUrl: jest.fn(async value => value) }));
+
+import { api } from './api';
 
 const TODAY = new Date(2026, 8, 23); // 23 Sep 2026, month is 0-based
 
@@ -34,6 +39,38 @@ describe('buildQuizPayload - fields restored/fixed for Gemini', () => {
     expect(buildQuizPayload({ event: 'no_event' }, TODAY).event_type).toBe('none');
     expect(buildQuizPayload({}, TODAY).event_type).toBe('none');
     expect(buildQuizPayload({ event: 'wedding' }, TODAY).event_type).toBe('wedding');
+  });
+});
+
+describe('minimizeQuizAnswers safety answers', () => {
+  test('leaves skipped allergy and irritant questions absent instead of inventing no answers', () => {
+    const payload = minimizeQuizAnswers({ gender: 'she' });
+    expect(payload).not.toHaveProperty('allergies');
+    expect(payload).not.toHaveProperty('allergies_other');
+    expect(payload).not.toHaveProperty('irritants');
+    expect(payload).not.toHaveProperty('irritants_other');
+    expect(payload).not.toHaveProperty('pregnant_or_ttc');
+    expect(payload).not.toHaveProperty('hormones');
+  });
+
+  test('keeps positive pregnancy caution when only one hormone answer is present', () => {
+    const payload = minimizeQuizAnswers({ gender: 'she', hormones: { pregnant: 'yes' } });
+    expect(payload.pregnant_or_ttc).toBe('yes');
+    expect(payload).not.toHaveProperty('hormones');
+  });
+
+  test('omits a negative for partially answered hormones but emits one for complete explicit answers', () => {
+    expect(minimizeQuizAnswers({ gender: 'she', hormones: { pregnant: 'no' } })).not.toHaveProperty('pregnant_or_ttc');
+    const complete = minimizeQuizAnswers({
+      gender: 'she', hormones: { pregnant: 'no', trying_to_conceive: 'no', breastfeeding: 'no' },
+      allergies: ['none'], irritants: ['nothing'],
+    });
+    expect(complete).toMatchObject({ pregnant_or_ttc: 'no', allergies: ['none'], irritants: ['nothing'] });
+  });
+
+  test('retains valid explicit legacy pregnancy answers and explicit inapplicability', () => {
+    expect(minimizeQuizAnswers({ pregnant_or_ttc: 'no' }).pregnant_or_ttc).toBe('no');
+    expect(minimizeQuizAnswers({ gender: 'he' }).pregnant_or_ttc).toBe('no');
   });
 });
 
@@ -106,4 +143,82 @@ describe('mapToAppFormat', () => {
     expect(() => mapToAppFormat({ error: 'quota exceeded' }, {})).toThrow('Invalid analysis response');
     expect(() => mapToAppFormat(null, {})).toThrow('Invalid analysis response');
   });
+
+  test('preserves the provider source returned by the backend', () => {
+    expect(mapToAppFormat({ ...railway(), source: 'bedrock' }, {}).source).toBe('bedrock');
+  });
+});
+
+describe('Bedrock request', () => {
+  beforeEach(() => api.post.mockReset());
+
+  test('sends mapped quiz answers, labelled downscaled images, and the current supported language', async () => {
+    const response = { ...railway(), source: 'bedrock' };
+    api.post.mockResolvedValueOnce(response);
+    const answers = {
+      gender: 'she', tone: 'III', skin_goals: ['acne'],
+      front: 'data:image/jpeg;base64,Zm9udA==',
+      shelf_photos: ['data:image/jpeg;base64,c2hlbGY='],
+    };
+
+    const result = await analyzeSkin(answers, 'he-IL');
+    const [path, body, options] = api.post.mock.calls[0];
+    expect(path).toBe('/api/ai/analyze-skin');
+    expect(body.quizAnswers).toMatchObject({ identity: 'she', fitzpatrick: 3 });
+    expect(body.language).toBe('he');
+    expect(body.images).toEqual([
+      { angle: 'front', mediaType: 'image/jpeg', base64: 'Zm9udA==' },
+      { angle: 'shelf', mediaType: 'image/jpeg', base64: 'c2hlbGY=' },
+    ]);
+    expect(options).toEqual({ timeoutMs: 60000 });
+    expect(result.source).toBe('bedrock');
+  });
+
+  test('rejects an image over the provider request limit before posting', async () => {
+    const large = 'A'.repeat(Math.ceil((8 * 1024 * 1024 + 1) * 4 / 3));
+    await expect(analyzeSkin({ front: `data:image/jpeg;base64,${large}` }, 'en')).rejects.toThrow('image is too large');
+    expect(api.post).not.toHaveBeenCalled();
+  });
+
+  test('preserves a provider timeout/error for LoadingScreen fallback handling', async () => {
+    api.post.mockRejectedValueOnce(new Error('Request timed out after 60000ms'));
+    await expect(analyzeSkin({}, 'en')).rejects.toThrow('60000ms');
+  });
+});
+
+test('buildProductSafetyContext keeps only minimized product-safety quiz fields', () => {
+  expect(buildProductSafetyContext({
+    gender: 'she', hormones: { pregnant: 'yes', breastfeeding: 'no', trying_to_conceive: 'no' }, allergies: ['fragrance'], allergies_other: 'latex',
+    irritants: ['ahas_bhas'], irritants_other: 'peppermint', health_conditions: ['diabetes'],
+    diagnosed_conditions: ['eczema'], name: 'Private Name', birthday: '1/1/1990', front: 'private photo',
+  })).toEqual({
+    pregnant_or_ttc: 'yes', allergies: ['fragrance'], allergies_other: 'latex',
+    irritants: ['ahas_bhas'], irritants_other: 'peppermint', health_conditions: ['diabetes'],
+    diagnosed_conditions: ['eczema'],
+  });
+});
+
+test('legacy saved answers stay incomplete instead of receiving invented safety defaults', () => {
+  expect(buildProductSafetyContext({ name: 'Private Name', skin_goals: ['acne'] })).toEqual({});
+  expect(buildProductSafetyContext({ allergies: ['none'], irritants: ['nothing'] })).toEqual({
+    allergies: ['none'], irritants: ['nothing'],
+  });
+});
+
+test('current explicit no-restriction answers preserve their sentinels and pregnancy answer', () => {
+  expect(buildProductSafetyContext({
+    gender: 'she', hormones: { pregnant: 'no', breastfeeding: 'no', trying_to_conceive: 'no' },
+    allergies: ['none'], irritants: ['nothing'],
+  })).toEqual({ pregnant_or_ttc: 'no', allergies: ['none'], irritants: ['nothing'] });
+});
+
+test('product recommendation request forwards language and minimized safety context', async () => {
+  api.post.mockResolvedValueOnce({ add: [], replace: [] });
+  await fetchProductRecs({ add: [{ product: 'Moisturizer' }], replace: [] }, 'Israel', 'Barrier Era', {
+    language: 'he', safetyContext: { pregnant_or_ttc: 'yes', allergies: ['fragrance'] },
+  });
+  expect(api.post).toHaveBeenCalledWith('/api/ai/product-recommendations', {
+    productAudit: { add: [{ product: 'Moisturizer' }], replace: [] }, country: 'Israel', eraName: 'Barrier Era',
+    language: 'he', safetyContext: { pregnant_or_ttc: 'yes', allergies: ['fragrance'] },
+  }, { timeoutMs: 60000 });
 });

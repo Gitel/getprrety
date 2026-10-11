@@ -25,7 +25,7 @@ test('uses the fixed Oregon model, strict schema, and server-only bearer token',
     reasoning_effort: 'low',
     response_format: { type: 'json_schema', json_schema: { strict: true, schema } },
   });
-  expect(TIMEOUT_MS).toBe(45_000);
+  expect(TIMEOUT_MS).toBe(60_000);
 });
 
 test('does not call the provider when the server token is missing', async () => {

@@ -17,7 +17,7 @@ const text = (page, value) => page.getByText(value, { exact: true });
 //   multi with groups, priority (top concern), hormones, slider, event, event date,
 //   photos (skipped), shelf (skipped), completion.
 // Each step first waits for its own question text, so it never clicks on the previous screen.
-export async function walkQuizToLoading(page, t) {
+export async function walkQuizToLoading(page, t, { skipHormones = false } = {}) {
   const q = id => text(page, t(`quiz:${id}.question`, nameVars));
   const opt = (id, value) => text(page, t(`quiz:${id}.options.${value}.label`));
   const cta = key => text(page, t(`quiz:ui.${key}`));
@@ -104,10 +104,16 @@ export async function walkQuizToLoading(page, t) {
   await text(page, t('quiz:allergies.extraOptions.none.label')).click();
   await cta('next').click();
 
-  // hormones: only asked when gender is "she". Its CTA is always enabled; pick one chip anyway
-  // (every field has a "No" chip, so take the first one).
+  // By default answer the safety fields explicitly; skipHormones exercises optional unanswered
+  // inputs so the analysis request cannot invent a negative pregnancy answer.
   await expect(q('hormones')).toBeVisible();
-  await text(page, t('quiz:hormones.fields.pregnant.options.no.label')).first().click();
+  if (!skipHormones) {
+    const pregnancyFields = ['pregnant', 'breastfeeding', 'trying_to_conceive'];
+    for (const [index, field] of pregnancyFields.entries()) {
+      // All three answers use identical visible copy, so the index targets the matching field row.
+      await text(page, t(`quiz:hormones.fields.${field}.options.no.label`)).nth(index).click();
+    }
+  }
   await cta('continue').click();
 
   await expect(text(page, t('quiz:chapter_4.headline'))).toBeVisible();

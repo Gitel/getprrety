@@ -48,6 +48,9 @@ test('quiz minimization retains allowed fields and drops identifying or unrestri
 test('missing pregnancy answers remain missing; an explicit positive is normalized', () => {
   assert.deepEqual(minimizeQuiz({ hormones: { pregnant: 'not_answered' } }, date), {});
   assert.deepEqual(minimizeQuiz({ hormones: { breastfeeding: 'yes' } }, date), { pregnancy_caution: true });
+  assert.equal(minimizeQuiz({ pregnant: 'no' }, date).pregnancy_caution, undefined);
+  assert.equal(minimizeQuiz({ pregnant: 'no', hormones: { pregnant: 'no', trying_to_conceive: 'no', breastfeeding: 'no' } }, date).pregnancy_caution, false);
+  assert.equal(minimizeQuiz({ pregnant_or_ttc: 'no' }, date).pregnancy_caution, false);
   assert.equal(minimizeQuiz({ pregnant: 'no', pregnant_or_ttc: 'yes' }, date).pregnancy_caution, true);
   assert.equal(minimizeQuiz({ pregnant_or_ttc: 'yes', hormones: { pregnant: 'no', trying_to_conceive: 'no', breastfeeding: 'no' } }, date).pregnancy_caution, true);
   assert.equal(minimizeQuiz({ pregnancy_caution: true, hormones: { pregnant: 'no', trying_to_conceive: 'no', breastfeeding: 'no' } }, date).pregnancy_caution, true);
@@ -63,7 +66,7 @@ test('legacy answer names, existing age, numeric stress, and safety normalizatio
   }, date), {
     concerns: ['breakouts'], smoke: 'daily', diabetes: 'yes', pregnant: 'no', event: 'wedding',
     stress: 4, age: '25-34', allergies_other: 'fragrance sensitivity',
-    diagnosed_conditions_other: 'eczema', pregnancy_caution: false, diabetes_caution: true,
+    diagnosed_conditions_other: 'eczema', diabetes_caution: true,
   });
   assert.equal(minimizeQuiz({ pregnant: 'yes', hormones: { pregnant: 'no', trying_to_conceive: 'no', breastfeeding: 'no' } }, date).pregnancy_caution, true);
   assert.equal(minimizeQuiz({ has_diabetes: 'no', health_conditions: ['diabetes'] }, date).diabetes_caution, true);

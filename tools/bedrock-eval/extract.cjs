@@ -108,11 +108,13 @@ function minimizeQuiz(answers, createdAt) {
     answers.pregnant_or_ttc,
     ...['pregnant', 'trying_to_conceive', 'breastfeeding'].map((key) => answers.hormones?.[key]),
   ];
-  const suppliedPregnancyValues = pregnancyValues.filter((value) => value !== undefined && value !== null && value !== '');
-  const pregnancyFlags = suppliedPregnancyValues.map(answerFlag);
+  const pregnancyFlags = pregnancyValues.filter((value) => value !== undefined && value !== null && value !== '')
+    .map(answerFlag);
+  const allHormonesNegative = ['pregnant', 'trying_to_conceive', 'breastfeeding']
+    .every((key) => ['no', false].includes(answers.hormones?.[key]));
   if (pregnancyFlags.some((value) => value === true)) quiz.pregnancy_caution = true;
   else if (typeof answers.pregnancy_caution === 'boolean') quiz.pregnancy_caution = answers.pregnancy_caution;
-  else if (pregnancyFlags.length && pregnancyFlags.every((value) => value === false)) quiz.pregnancy_caution = false;
+  else if (['no', false].includes(answers.pregnant_or_ttc) || allHormonesNegative) quiz.pregnancy_caution = false;
   else delete quiz.pregnancy_caution;
 
   const diabetesFlags = [answerFlag(answers.diabetes), answerFlag(answers.has_diabetes)];

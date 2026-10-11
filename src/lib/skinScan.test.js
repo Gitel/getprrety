@@ -15,7 +15,8 @@ describe('scanQuizAnswers - the whitelist stored on the scan', () => {
     work_environment: 'office', irritants: ['fragrance'], routine_products: ['cleanser', 'serum'],
     water_intake: 'less_1l', sleep: '6_7', stress: 7, alcohol: 'rarely', smoke: 'never', exercise: 'weekly',
     allergies: ['none'], diagnosed_conditions: ['none'], health_conditions: ['diabetes'],
-    hormones: { pregnant: 'no', breastfeeding: 'no' },
+    allergies_other: 'latex sensitivity', irritants_other: 'peppermint oil',
+    hormones: { pregnant: 'no', breastfeeding: 'no', trying_to_conceive: 'no' },
     front: 'data:image/jpeg;base64,AAAA', skinScanToken: 'secret',
   };
   const result = scanQuizAnswers(full, TODAY);
@@ -25,6 +26,9 @@ describe('scanQuizAnswers - the whitelist stored on the scan', () => {
       skin_goals: ['dryness', 'pigmentation'], top_concern: 'dryness', post_cleanse_feel: 'tight_then_oily',
       gender: 'she', tone: 'III', routine_products: ['cleanser', 'serum'], water_intake: 'less_1l', stress: 7,
     });
+    expect(result.allergies_other).toBe('latex sensitivity');
+    expect(result.irritants_other).toBe('peppermint oil');
+    expect(result.safetyContextVersion).toBe(1);
   });
 
   test('sends age instead of the birthday', () => {
@@ -47,6 +51,19 @@ describe('scanQuizAnswers - the whitelist stored on the scan', () => {
   test('unanswered questions are left out rather than sent as null', () => {
     const partial = scanQuizAnswers({ skin_goals: ['acne'], top_concern: null });
     expect(partial).toEqual({ skin_goals: ['acne'], pregnancy_caution: false });
+  });
+
+  test('does not mark an incomplete legacy safety snapshot as current', () => {
+    const legacy = scanQuizAnswers({ allergies: ['none'], irritants: ['nothing'] });
+    expect(legacy.safetyContextVersion).toBeUndefined();
+    expect(scanQuizAnswers({ gender: 'he', allergies: ['  '], irritants: ['nothing'] }).safetyContextVersion).toBeUndefined();
+  });
+
+  test('caps free-text allergy and irritant notes before storing the scan snapshot', () => {
+    const long = 'x'.repeat(300);
+    const result = scanQuizAnswers({ allergies_other: long, irritants_other: long });
+    expect(result.allergies_other).toHaveLength(240);
+    expect(result.irritants_other).toHaveLength(240);
   });
 });
 

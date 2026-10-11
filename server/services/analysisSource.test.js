@@ -1,6 +1,7 @@
 const { analysisSourceFromBody, geminiExtrasFromBody } = require('../routes/analysis');
+const SkinAnalysis = require('../models/SkinAnalysis');
 
-// The product routine, shelf audit, safety flags etc. relayed from the Railway response.
+// Provider output fields relayed into persistence by the client.
 describe('geminiExtrasFromBody', () => {
   test('keeps object/array extras and nulls the missing ones', () => {
     const srProducts = { am: [{ step: 1, routine_category: 'cleanser', sr_product_name: 'Gentle Wash' }], pm: [] };
@@ -25,12 +26,17 @@ describe('geminiExtrasFromBody', () => {
   });
 });
 
-// SkinAnalysis.source tells a real Gemini result apart from the canned fallback.
+// SkinAnalysis.source lets support distinguish provider results from the generic fallback.
 // It is diagnostic metadata, so bad input degrades to null instead of failing the save.
 describe('analysisSourceFromBody', () => {
   test('keeps a gemini result without a reason', () => {
     expect(analysisSourceFromBody({ source: 'gemini', fallbackReason: 'ignored' }))
       .toEqual({ source: 'gemini', fallbackReason: null });
+  });
+
+  test('keeps a Bedrock result without a fallback reason', () => {
+    expect(analysisSourceFromBody({ source: 'bedrock', fallbackReason: 'ignored' }))
+      .toEqual({ source: 'bedrock', fallbackReason: null });
   });
 
   test('keeps a fallback with its trimmed reason', () => {
@@ -53,4 +59,8 @@ describe('analysisSourceFromBody', () => {
     expect(analysisSourceFromBody({ source: 'fallback', fallbackReason: { a: 1 } }))
       .toEqual({ source: 'fallback', fallbackReason: null });
   });
+});
+
+test('the saved source enum accepts Bedrock provenance', () => {
+  expect(SkinAnalysis.schema.path('source').enumValues).toContain('bedrock');
 });
