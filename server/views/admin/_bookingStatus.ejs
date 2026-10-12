@@ -1,0 +1,27 @@
+<%#
+  Status words for one booking row `b` (from bookings.listForAdmin / listForUser), shared by
+  the Bookings page and the user page card so both say the same thing:
+    pending_payment -> "Awaiting payment until HH:MM" (HH:MM = hold end, clinic time Asia/Jerusalem)
+    confirmed       -> "Confirmed" (+ "Calendar pending" while the calendar event is not written yet)
+    expired / cancelled -> "Expired" / "Cancelled"
+-%>
+<%
+  var statusText = '';
+  if (b.status === 'pending_payment') {
+    statusText = 'Awaiting payment';
+    if (b.holdExpiresAt) {
+      // hourCycle h23 keeps midnight as 00:xx (some engines print 24:xx with hour12:false).
+      statusText += ' until ' + new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+      }).format(new Date(b.holdExpiresAt));
+    }
+  } else if (b.status === 'confirmed') {
+    statusText = 'Confirmed';
+  } else if (b.status === 'expired') {
+    statusText = 'Expired';
+  } else if (b.status === 'cancelled') {
+    statusText = 'Cancelled';
+  } else {
+    statusText = String(b.status || '');
+  }
+-%><%= statusText %><% if (b.status === 'confirmed' && b.calendarSynced === false) { %> <span class="muted">Calendar pending</span><% } -%>

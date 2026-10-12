@@ -7,6 +7,15 @@
       if (!window.confirm(form.getAttribute('data-confirm'))) event.preventDefault();
     });
   });
+  // Any <button data-copy="#some-input"> copies that element's value to the clipboard and
+  // then says "Copied". Used for sign-in links and invite links.
+  document.querySelectorAll('button[data-copy]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var source = document.querySelector(btn.getAttribute('data-copy'));
+      if (!source || !navigator.clipboard) return;
+      navigator.clipboard.writeText(source.value).then(function () { btn.textContent = 'Copied'; });
+    });
+  });
 </script>
 </body>
 </html>
