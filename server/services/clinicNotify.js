@@ -208,4 +208,6 @@ async function notifyClinicOfReply({ userId, body }, { client } = {}) {
   return { sent: true };
 }
 
-module.exports = { notifyClinic, buildClinicEmailHtml, mailConfigError, notifyClinicOfReply };
+// getClient and esc are also exported so services/mail.js can reuse the Postmark client and the
+// HTML escaper (no behaviour change).
+module.exports = { notifyClinic, buildClinicEmailHtml, mailConfigError, notifyClinicOfReply, getClient, esc };

@@ -18,6 +18,9 @@ const RULES = {
   google: { scope: 'auth_google', limit: () => Number(process.env.AUTH_GOOGLE_IP_15MIN_LIMIT || 30), windowMs: 15 * 60 * 1000 },
   // /admin Google sign-in. Only a handful of people ever sign in here, so 20 failed
   // attempts per IP per 15 minutes is generous for them and useless to anyone probing.
+  // One-time sign-in / invite link redeem. Links are 256-bit secrets so guessing is hopeless;
+  // this only caps noise and lookups from one IP.
+  link:   { scope: 'auth_link',   limit: () => 20, windowMs: 15 * 60 * 1000 },
   admin:  { scope: 'auth_admin',  limit: () => 20, windowMs: 15 * 60 * 1000 },
 };
 
