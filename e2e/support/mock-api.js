@@ -16,6 +16,10 @@ import { FIXED_ISO } from './page-init.js';
 
 export const MOCK_API_ORIGIN = 'http://api.e2e.test';
 const RAILWAY_HOST = 'getpretty-api-production.up.railway.app';
+// The fake Shopify store the checkout link points at, and how long a payment hold lasts.
+const CHECKOUT_HOST = 'shop.e2e.test';
+const CHECKOUT_BASE = `https://${CHECKOUT_HOST}/cart/12345:1`;
+const HOLD_MINUTES = 15;
 
 // Authorization must be listed by name: "*" does not cover it in a preflight.
 const CORS = {
@@ -68,6 +72,13 @@ export function createMock({ appOrigin }) {
   // (which runs in Node) adds the real time elapsed since it was created.
   const startedAt = Date.now();
   const nowIso = () => new Date(Date.parse(FIXED_ISO) + (Date.now() - startedAt)).toISOString();
+
+  // Puts the slot of a booking back into the free-slot list (kept sorted by start time).
+  const releaseSlot = ({ startsAt, endsAt, date, time }) => {
+    if (state.booking.slots.some(sl => sl.startsAt === startsAt)) return;
+    state.booking.slots = [...state.booking.slots, { startsAt, endsAt, date, time }]
+      .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+  };
 
   const json = (route, status, body) => route.fulfill({
     status, headers: CORS, contentType: 'application/json', body: JSON.stringify(body ?? {}),
@@ -123,6 +134,26 @@ export function createMock({ appOrigin }) {
     if (key === 'POST /api/auth/login' || key === 'POST /api/auth/google') {
       // toPublicUser always includes language (null when the user never chose one).
       return json(route, 200, { token: fx.TOKEN, user: { ...state.user, language: state.user.language ?? null } });
+    }
+    if (key === 'POST /api/auth/link/redeem') {
+      // Sign-in links (shapes like server/routes/auth.js). The call (with its body) is in mock.calls.
+      // After a success the app stores fx.TOKEN, so later authed calls are accepted as usual.
+      if (body.token === 'valid-signin-token') {
+        return json(route, 200, { token: fx.TOKEN, user: { ...state.user, language: state.user.language ?? null }, isNew: false });
+      }
+      if (body.token === 'invite-token') {
+        // A first-time invite needs the consent stamp; without it the link is NOT consumed.
+        if (!body.consentAcceptedAt) {
+          return json(route, 400, { error: 'Please accept the terms and privacy policy.', code: 'consent_required' });
+        }
+        state.user = {
+          _id: 'user-invited', id: 'user-invited', firstName: 'Noa', email: 'noa@example.test',
+          termsAcceptedAt: body.consentAcceptedAt, consentVersion: body.consentVersion,
+          skincareTiming: null, language: null,
+        };
+        return json(route, 201, { token: fx.TOKEN, user: state.user, isNew: true });
+      }
+      return json(route, 400, { error: 'This link is no longer valid.', code: 'link_invalid' });
     }
     if (key === 'GET /api/auth/me' || key === 'GET /api/profile') {
       return deny() || json(route, 200, { user: state.user });
@@ -193,6 +224,10 @@ export function createMock({ appOrigin }) {
       if (deny()) return undefined;
       const b = state.booking;
       if (!b.enabled) return json(route, 404, { error: 'Booking is not available right now.', code: 'booking_disabled' });
+      // The limit only applies to a CONFIRMED upcoming booking. A live hold is simply replaced below.
+      if (b.upcoming && b.upcoming.status === 'confirmed') {
+        return json(route, 409, { error: 'You already have an upcoming consultation.', code: 'limit_reached' });
+      }
       const slot = b.slots.find(sl => sl.startsAt === body.startsAt);
       if (b.slotTakenOnce) {
         // Someone else got there first: the slot disappears and the flag resets.
@@ -201,7 +236,15 @@ export function createMock({ appOrigin }) {
         return json(route, 409, { error: 'Sorry, that time was just taken. Please choose another.', code: 'slot_taken' });
       }
       if (!slot) return json(route, 422, { error: 'That time is not available. Please choose another.', code: 'slot_invalid' });
-      const booking = { id: 'booking-new', startsAt: slot.startsAt, endsAt: slot.endsAt, date: slot.date, time: slot.time, status: 'confirmed', note: String(body.note || '') };
+      // A second booking replaces the user's live hold: the old hold's slot goes back to the list.
+      if (b.upcoming && b.upcoming.status === 'pending_payment') releaseSlot(b.upcoming);
+      // The paid flow: the booking starts as a 15 minute hold with a Shopify checkout link.
+      const booking = {
+        id: 'booking-new', startsAt: slot.startsAt, endsAt: slot.endsAt, date: slot.date, time: slot.time,
+        status: 'pending_payment', note: String(body.note || ''),
+        holdExpiresAt: new Date(Date.parse(nowIso()) + HOLD_MINUTES * 60_000).toISOString(),
+        checkoutUrl: `${CHECKOUT_BASE}?attributes%5Bgetpretty_booking%5D=booking-new&checkout%5Bemail%5D=${encodeURIComponent(state.user.email)}`,
+      };
       b.upcoming = booking;
       b.slots = b.slots.filter(sl => sl.startsAt !== body.startsAt);
       return json(route, 201, { booking, warning: state.analysis ? null : 'no_analysis' });
@@ -258,6 +301,10 @@ export function createMock({ appOrigin }) {
         return undefined;
       }
       return route.fulfill({ status: 503, headers: CORS, contentType: 'application/json', body: '{"error":"e2e: analysis service is offline"}' });
+    }
+    // The Shopify checkout host: a tiny page so the pop-up loads (and is not counted as blocked).
+    if (u.hostname === CHECKOUT_HOST) {
+      return route.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html><html><body>e2e checkout</body></html>' });
     }
     // Empty but successful, so the page does not wait on them (the Google button stays empty).
     if (u.hostname === 'fonts.googleapis.com') return route.fulfill({ status: 200, contentType: 'text/css', body: '' });
@@ -316,6 +363,20 @@ export function createMock({ appOrigin }) {
     },
 
     // Used by the teardown check in test.js.
+    // Paid flow helpers (what the Shopify webhook / the hold sweep do on the real server):
+    //   payBooking(): the live hold becomes a confirmed booking (no hold time, no checkout link).
+    //   expireHold(): the hold runs out; upcoming is gone and its slot is free again.
+    payBooking() {
+      const up = state.booking.upcoming;
+      if (up) state.booking.upcoming = { ...up, status: 'confirmed', holdExpiresAt: null, checkoutUrl: null };
+    },
+    expireHold() {
+      const up = state.booking.upcoming;
+      if (!up) return;
+      releaseSlot(up);
+      state.booking.upcoming = null;
+    },
+
     unmocked: () => [...unmocked],
     blockedHosts: () => [...blockedHosts],
   };
