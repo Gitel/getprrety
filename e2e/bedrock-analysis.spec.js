@@ -29,6 +29,9 @@ function bedrockResponse(language = 'en') {
     ? { summary: 'התשובות מצביעות על צורך בשגרה עדינה.', cleanser: 'ניקוי עדין', moisturizer: 'קרם לחות', sunscreen: 'הגנה מהשמש', useSpf: 'השתמשי במסנן קרינה רחב טווח SPF 30 ומעלה בכל בוקר.' }
     : { summary: 'Your answers support a simple, gentle routine.', cleanser: 'Gentle cleanser', moisturizer: 'Moisturizer', sunscreen: 'Sunscreen', useSpf: 'Use a broad-spectrum SPF 30 or higher each morning.' };
   const productId = '64b000000000000000000001';
+  const routineLabels = hebrew
+    ? { cleanse: '\u05e0\u05d9\u05e7\u05d5\u05d9', moisturize: '\u05dc\u05d7\u05d5\u05ea', protect: '\u05d4\u05d2\u05e0\u05d4' }
+    : { cleanse: 'Cleanse', moisturize: 'Moisturize', protect: 'Protect' };
   const srStep = (step, category_id, routine_category, matched) => ({
     step, category_id, routine_category,
     sr_product_id: matched ? productId : null,
@@ -44,13 +47,13 @@ function bedrockResponse(language = 'en') {
       skin_analysis: { summary: words.summary, key_insights: [] },
       routine: {
         am: [
-          { category_id: 'cleanse', category: words.cleanser, instruction: 'Cleanse gently.' },
-          { category_id: 'moisturize', category: words.moisturizer, instruction: 'Apply moisturizer.' },
-          { category_id: 'protect', category: words.sunscreen, instruction: words.useSpf },
+          { category_id: 'cleanse', category: routineLabels.cleanse, instruction: 'Cleanse gently.' },
+          { category_id: 'moisturize', category: routineLabels.moisturize, instruction: 'Apply moisturizer.' },
+          { category_id: 'protect', category: routineLabels.protect, instruction: words.useSpf },
         ],
         pm: [
-          { category_id: 'cleanse', category: words.cleanser, instruction: 'Cleanse gently.' },
-          { category_id: 'moisturize', category: words.moisturizer, instruction: 'Apply moisturizer.' },
+          { category_id: 'cleanse', category: routineLabels.cleanse, instruction: 'Cleanse gently.' },
+          { category_id: 'moisturize', category: routineLabels.moisturize, instruction: 'Apply moisturizer.' },
         ],
       },
       product_audit: {
@@ -74,15 +77,23 @@ function bedrockResponse(language = 'en') {
 }
 
 // The server hydrates compact model output before returning canonical fields to the client.
-function hydratedCompactBedrockResponse() {
-  const canonical = bedrockResponse('en');
-  const productId = canonical.srProducts.era_hero_product.sr_product_id;
-  const productName = 'Hydrated Calm Cream';
-  canonical.srProducts.era_hero_product.sr_product_name = productName;
-  for (const period of ['am', 'pm']) for (const step of canonical.srProducts[period]) {
-    if (step.sr_product_id) step.sr_product_name = productName;
+function hydratedCompactBedrockResponse(language = 'en', eligibleCatalogue = [{ _id: '64b000000000000000000001', name: 'Hydrated Calm Cream' }]) {
+  const canonical = bedrockResponse(language);
+  if (eligibleCatalogue.length === 0) {
+    canonical.srProducts = null;
+    canonical.era.product_audit.current_products_assessment = [];
+    canonical.era.product_audit.most_urgent_gap = null;
   }
-  canonical.shelfAnalysis = {
+  const productName = 'Hydrated Calm Cream';
+  let productId = null;
+  if (canonical.srProducts) {
+    productId = canonical.srProducts.era_hero_product.sr_product_id;
+    canonical.srProducts.era_hero_product.sr_product_name = productName;
+    for (const period of ['am', 'pm']) for (const step of canonical.srProducts[period]) {
+      if (step.sr_product_id) step.sr_product_name = productName;
+    }
+  }
+  canonical.shelfAnalysis = eligibleCatalogue.length === 0 ? null : {
     identified_products: [{ status: 'compatible', brand: 'Photo Brand', product_name: 'Photo Cream',
       category: 'face_creams', status_reason: 'The visible product appears compatible.',
       use_instruction: 'Use as directed.', sr_substitute_name: productName, sr_substitute_product_id: productId }],
@@ -90,18 +101,23 @@ function hydratedCompactBedrockResponse() {
     transition_plan: { first_sr_purchase: productName, first_sr_purchase_product_id: productId },
   };
   const compact = structuredClone(canonical);
+  for (const period of ['am', 'pm']) for (const step of compact.era.routine[period]) delete step.category;
   for (const item of compact.era.product_audit.current_products_assessment) delete item.suggested_replacement;
-  delete compact.srProducts.era_hero_product.sr_product_name;
-  for (const period of ['am', 'pm']) for (const step of compact.srProducts[period]) {
-    delete step.step;
-    delete step.sr_product_name;
-    step.explanation = step.sr_product_id ? step.match_reason : step.no_match_note;
-    delete step.match_reason;
-    delete step.no_match_note;
+  if (compact.srProducts) {
+    delete compact.srProducts.era_hero_product.sr_product_name;
+    for (const period of ['am', 'pm']) for (const step of compact.srProducts[period]) {
+      delete step.step;
+      delete step.sr_product_name;
+      step.explanation = step.sr_product_id ? step.match_reason : step.no_match_note;
+      delete step.match_reason;
+      delete step.no_match_note;
+    }
   }
-  for (const item of compact.shelfAnalysis.identified_products) delete item.sr_substitute_name;
-  delete compact.shelfAnalysis.transition_plan.first_sr_purchase;
-  return hydrateCompactOutput(compact, { eligibleProducts: [{ _id: productId, name: productName }] });
+  if (compact.shelfAnalysis) {
+    for (const item of compact.shelfAnalysis.identified_products) delete item.sr_substitute_name;
+    delete compact.shelfAnalysis.transition_plan.first_sr_purchase;
+  }
+  return hydrateCompactOutput(compact, { eligibleProducts: eligibleCatalogue, language });
 }
 
 async function interceptAnalysis(page, results) {
@@ -371,7 +387,8 @@ test.describe('Hebrew Bedrock safety copy', () => {
   test.use({ lang: 'he' });
 
   test('sends Hebrew as the analysis language and displays the returned safety flag in RTL', async ({ page, t }) => {
-    const calls = await interceptAnalysis(page, [{ status: 200, body: bedrockResponse('he') }]);
+    // The no-eligible-products response proves generic routine guidance remains available without SR steps.
+    const calls = await interceptAnalysis(page, [{ status: 200, body: hydratedCompactBedrockResponse('he', []) }]);
     await page.goto('/');
     await walkQuizToLoading(page, t);
     await expect.poll(() => calls.length, { timeout: 10_000 }).toBe(1);
@@ -382,6 +399,10 @@ test.describe('Hebrew Bedrock safety copy', () => {
     await page.getByText(t('auth:signup.ctaAfterQuiz'), { exact: true }).click();
     await finishSignupOnboarding(page, t);
     await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+    await openHome(page, t);
+    await page.getByText(t('home:tabs.am'), { exact: true }).click();
+    await expect(page.getByText('\u05d4\u05d2\u05e0\u05d4', { exact: true })).toBeVisible();
+    await expect(page.getByText('Hydrated Calm Cream', { exact: true })).toHaveCount(0);
     await openProfileFromHome(page, t);
     await expect(page.getByText(SAFETY_TEXT.he, { exact: false })).toBeVisible({ timeout: 30_000 });
   });

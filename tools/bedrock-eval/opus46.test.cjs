@@ -174,6 +174,12 @@ test('shelf photo narrows no-event wire schema consistently while preserving eve
     }
 
     const inferredOutput = validNoImageOutput();
+    // The probe's empty quiz has no eligible SR products, so simulate the compact schema exactly.
+    for (const period of ['am', 'pm']) for (const step of inferredOutput.era.routine[period]) delete step.category;
+    inferredOutput.srProducts = null;
+    inferredOutput.shelfAnalysis = { identified_products: [], shelf_summary: { overall_note: 'Products reviewed.' },
+      transition_plan: { first_sr_purchase: '', first_sr_purchase_product_id: null } };
+    delete inferredOutput.shelfAnalysis.transition_plan.first_sr_purchase;
     let inferredSchema;
     const analysis = await main(['--mode', 'analysis', '--case-id', 'case-aaaaaaaaaa', '--input-dir', directory,
       '--count-report', path.join(directory, 'case-aaaaaaaaaa-count.json'), '--output', path.join(directory, 'analysis.json')], {

@@ -299,7 +299,7 @@ async function main(argv = process.argv.slice(2), deps = {}) {
   if (!hasShelfPhoto) baseWireSchema.properties.shelfAnalysis = { type: 'null' };
   // Mirror analysisContract.hasNoEvent: accepted outputs must set event_prep to null when no event was supplied.
   if (hasShelfPhoto && hasNoEvent(testCase.quiz)) baseWireSchema.properties.era.properties.event_prep = { type: 'null' };
-  const wireSchema = makeCompactWireSchema(baseWireSchema);
+  const wireSchema = makeCompactWireSchema(baseWireSchema, { hasEligibleProducts: eligibleCatalogue.length > 0 });
   // Keep the canonical prompt fingerprint separate from the compact-only count/inference prompt.
   const compactBuilt = { ...built, system: `${built.system}\n\n${COMPACT_SYSTEM_INSTRUCTIONS}` };
   const converse = toConverse(compactBuilt, wireSchema);
@@ -361,7 +361,7 @@ async function main(argv = process.argv.slice(2), deps = {}) {
       let canonicalOutput = null;
       if (!wireSchemaErrors.length) {
         try {
-          canonicalOutput = hydrateCompactOutput(inferred.output, { eligibleProducts: eligibleCatalogue });
+          canonicalOutput = hydrateCompactOutput(inferred.output, { eligibleProducts: eligibleCatalogue, language });
         } catch {
           // Keep model-supplied product IDs and labels out of error details and saved reports.
           report.hydrationErrorCount = 1;

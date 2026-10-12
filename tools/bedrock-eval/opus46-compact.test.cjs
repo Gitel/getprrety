@@ -76,6 +76,7 @@ function canonicalOutput(language = 'en') {
 function compactOutput(canonical) {
   // Simulate the exact field reductions in the wire contract, retaining semantic text and stable IDs.
   const wire = structuredClone(canonical);
+  for (const period of ['am', 'pm']) for (const step of wire.era.routine[period]) delete step.category;
   for (const item of wire.era.product_audit.current_products_assessment) delete item.suggested_replacement;
   delete wire.srProducts.era_hero_product.sr_product_name;
   for (const period of ['am', 'pm']) for (const step of wire.srProducts[period]) {
@@ -93,14 +94,18 @@ function compactOutput(canonical) {
 const compactSchema = makeCompactWireSchema(makeWireSchema(outputSchema));
 const validateCompact = new Ajv({ allErrors: true, strict: true, allowUnionTypes: true }).compile(compactSchema);
 
-test('compact core-three schema is immutable, smaller, and excludes server-restored labels/numbering', () => {
+test('compact all-five schema is immutable, smaller, and excludes server-restored labels/numbering', () => {
   const before = structuredClone(outputSchema);
   const generic = makeWireSchema(outputSchema);
   const compact = makeCompactWireSchema(generic);
-  assert.equal(COMPACT_CONTRACT_VERSION, 'opus46-compact-core3-v1');
+  assert.equal(COMPACT_CONTRACT_VERSION, 'opus46-compact-all5-v1');
   assert.deepEqual(outputSchema, before);
   assert.ok(Buffer.byteLength(JSON.stringify(compact)) < Buffer.byteLength(JSON.stringify(generic)));
   assert.ok(compact.$defs.srStep.required.includes('explanation'));
+  assert.equal('category' in compact.$defs.routineStep.properties, false);
+  assert.ok(compact.$defs.routineStep.required.includes('category_id'));
+  assert.equal('category' in compact.$defs.routineStep.required, false);
+  assert.equal('routine_category' in compact.$defs.srStep.properties, true);
   for (const key of ['step', 'sr_product_name', 'match_reason', 'no_match_note']) assert.equal(key in compact.$defs.srStep.properties, false);
   assert.equal('suggested_replacement' in compact.properties.era.properties.product_audit.properties.current_products_assessment.items.properties, false);
   assert.equal('sr_product_name' in compact.properties.srProducts.properties.era_hero_product.properties, false);
@@ -108,13 +113,16 @@ test('compact core-three schema is immutable, smaller, and excludes server-resto
   assert.equal('first_sr_purchase' in compact.properties.shelfAnalysis.properties.transition_plan.properties, false);
   assert.deepEqual(compact.properties.era.properties.safety_flags, generic.properties.era.properties.safety_flags);
   assert.deepEqual(compact.properties.era.properties.routine, generic.properties.era.properties.routine);
+  const invalid = compactOutput(canonicalOutput());
+  invalid.era.routine.am[0].category = 'model-invented-label';
+  assert.equal(validateCompact(invalid), false);
 });
 
 test('English compact response hydrates exact names and step order then passes canonical/schema/semantic validation', () => {
   const output = canonicalOutput('en');
   const wire = compactOutput(output);
   assert.equal(validateCompact(wire), true);
-  const hydrated = hydrateCompactOutput(wire, { eligibleProducts: eligible });
+  const hydrated = hydrateCompactOutput(wire, { eligibleProducts: eligible, language: 'en' });
   assert.deepEqual(hydrated, output);
   assert.deepEqual(validateAjvOutput(hydrated), []);
   assert.deepEqual(validateOutput(hydrated, { quiz, language: 'en', images: [{ angle: 'shelf' }] }, catalogue).errors, []);
@@ -129,10 +137,12 @@ test('Hebrew compact response keeps localized explanations and canonical fields 
   const output = canonicalOutput('he');
   const wire = compactOutput(output);
   assert.equal(validateCompact(wire), true);
-  const hydrated = hydrateCompactOutput(wire, { eligibleProducts: eligible });
+  const hydrated = hydrateCompactOutput(wire, { eligibleProducts: eligible, language: 'he' });
   assert.deepEqual(validateAjvOutput(hydrated), []);
   assert.deepEqual(validateOutput(hydrated, { quiz, language: 'he', images: [{ angle: 'shelf' }] }, catalogue).errors, []);
   assert.equal(hydrated.era.safety_flags[0], output.era.safety_flags[0]);
+  assert.deepEqual(hydrated.era.routine.am.map(step => step.category), ['ניקוי', 'לחות', 'הגנה']);
+  assert.deepEqual(hydrated.era.routine.pm.map(step => step.category), ['ניקוי', 'לחות']);
   assert.equal(hydrated.srProducts.am[0].match_reason, output.srProducts.am[0].match_reason);
   assert.equal(hydrated.srProducts.am[2].no_match_note, output.srProducts.am[2].no_match_note);
 });
@@ -176,7 +186,7 @@ test('null catalogue IDs restore canonical null/empty values and non-replacement
   assert.equal(hydrated.shelfAnalysis.transition_plan.first_sr_purchase, '');
 });
 
-test('an old pre-compact count fingerprint is rejected before a paid request and leaves a durable gate record', async t => {
+test('a stale core-three count fingerprint is rejected before a paid request and leaves a durable gate record', async t => {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'opus-compact-stale-count-'));
   t.after(() => fs.rm(directory, { recursive: true, force: true }));
   const caseId = 'case-compact-stale';
@@ -191,7 +201,7 @@ test('an old pre-compact count fingerprint is rejected before a paid request and
       getToken: () => 'test-token', fetchImpl: async () => new Response(JSON.stringify({ inputTokens: 10_000 })),
     });
     assert.equal(count.status, 'counted');
-    await fs.writeFile(countFile, JSON.stringify({ ...count, promptSha256: 'old-canonical-wire-fingerprint' }));
+    await fs.writeFile(countFile, JSON.stringify({ ...count, promptSha256: 'old-core3-prompt-fingerprint' }));
     let paidCalls = 0;
     const analysis = await main(['--mode', 'analysis', '--case-id', caseId, '--input-dir', directory,
       '--count-report', countFile, '--output', resultFile], {
@@ -200,7 +210,65 @@ test('an old pre-compact count fingerprint is rejected before a paid request and
     assert.equal(analysis.failureCategory, 'budget');
     assert.equal(analysis.automaticRetries, 0);
     assert.equal(paidCalls, 0);
-    assert.equal((await fs.readFile(resultFile, 'utf8')).includes('old-canonical-wire-fingerprint'), false);
+    assert.equal((await fs.readFile(resultFile, 'utf8')).includes('old-core3-prompt-fingerprint'), false);
+  } finally {
+    process.exitCode = previousExitCode;
+  }
+});
+
+test('empty eligible catalogue removes SR schema, accepts only null SR output, and keeps valid analysis quality and cost', async t => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'opus-compact-empty-catalogue-'));
+  t.after(() => fs.rm(directory, { recursive: true, force: true }));
+  const caseId = 'case-compact-empty-catalogue';
+  const caseDirectory = path.join(directory, caseId);
+  // An unresolved allergy label safely excludes every catalogue item for this fixture.
+  const emptyQuiz = { allergies: ['unmapped-allergy'], irritants: ['nothing'], pregnant_or_ttc: 'no' };
+  assert.deepEqual(eligibleProducts(catalogue, emptyQuiz), []);
+  await fs.mkdir(caseDirectory);
+  await fs.writeFile(path.join(caseDirectory, 'case.json'), JSON.stringify({ caseId, quiz: emptyQuiz, images: [] }));
+  const countFile = path.join(directory, 'count.json');
+  const resultFile = path.join(directory, 'analysis.json');
+  const previousExitCode = process.exitCode;
+  const usage = { inputTokens: 100, outputTokens: 20, cacheReadInputTokens: 0, cacheWriteInputTokens: 0 };
+  try {
+    const count = await main(['--mode', 'count', '--case-id', caseId, '--input-dir', directory, '--output', countFile], {
+      getToken: () => 'test-token', fetchImpl: async (_url, init) => {
+        const schema = JSON.parse(init.body).input.converse.additionalModelRequestFields.output_config.format.schema;
+        assert.deepEqual(schema.properties.srProducts, { type: 'null' });
+        assert.equal(Object.hasOwn(schema.$defs, 'srStep'), false);
+        return new Response(JSON.stringify({ inputTokens: 10_000 }));
+      },
+    });
+    const output = compactOutput(canonicalOutput());
+    output.srProducts = null;
+    output.shelfAnalysis = null;
+    output.era.product_audit.current_products_assessment = [];
+    output.era.product_audit.most_urgent_gap = null;
+    const analysis = await main(['--mode', 'analysis', '--case-id', caseId, '--input-dir', directory,
+      '--count-report', countFile, '--output', resultFile], {
+      getToken: () => 'test-token', fetchImpl: async (_url, init) => {
+        const schema = JSON.parse(JSON.parse(init.body).outputConfig.textFormat.structure.jsonSchema.schema);
+        assert.deepEqual(schema.properties.srProducts, { type: 'null' });
+        assert.equal(Object.hasOwn(schema.$defs, 'srStep'), false);
+        return new Response(JSON.stringify({ output: { message: { content: [{ text: JSON.stringify(output) }] } }, usage, stopReason: 'end_turn' }));
+      },
+    });
+    assert.equal(count.status, 'counted');
+    assert.equal(analysis.status, 'valid');
+    assert.equal(analysis.promptSha256, count.promptSha256);
+    assert.equal(analysis.costUsd, reportedCostUsd(usage));
+    assert.equal(analysis.costUnknown, false);
+    assert.ok(analysis.qualityMetrics && typeof analysis.qualityMetrics === 'object');
+    assert.equal(analysis.wireSchemaErrorCount, 0);
+    assert.equal(analysis.canonicalSchemaErrorCount, 0);
+    assert.equal(analysis.semanticErrorCount, 0);
+    assert.equal(JSON.parse(await fs.readFile(resultFile, 'utf8')).status, 'valid');
+
+    const noCatalogueValidator = new Ajv({ allErrors: true, strict: true, allowUnionTypes: true })
+      .compile(makeCompactWireSchema(makeWireSchema(outputSchema), { hasEligibleProducts: false }));
+    const invalid = compactOutput(canonicalOutput());
+    invalid.shelfAnalysis = null;
+    assert.equal(noCatalogueValidator(invalid), false);
   } finally {
     process.exitCode = previousExitCode;
   }
