@@ -18,5 +18,11 @@
   "confirmedBody": "We look forward to seeing you. To change or cancel, send the clinic a message.",
   "upcomingTitle": "Your upcoming consultation",
   "upcomingHelp": "To change or cancel, send the clinic a message.",
-  "messageClinic": "Message the clinic"
+  "messageClinic": "Message the clinic",
+  "continueToPayment": "Continue to payment",
+  "awaitingTitle": "Complete your payment",
+  "awaitingBody": "Your time is held until {{time}}. Pay before then to confirm your consultation.",
+  "payNow": "Pay now",
+  "chooseOther": "Choose a different time",
+  "holdExpired": "Your held time ran out before payment. Please choose a time again."
 }

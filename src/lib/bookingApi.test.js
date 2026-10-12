@@ -1,7 +1,7 @@
 // Pure helpers of the booking client (src/lib/bookingApi.js). Written before the module exists.
 // Contract: AI/plans/in-app-booking-contract.md section 8.
 import { weekdayNames, monthNames } from './formatting';
-import { MAX_NOTE_LENGTH, groupSlotsByDate, formatSlotDay, formatBookingWhen } from './bookingApi';
+import { MAX_NOTE_LENGTH, groupSlotsByDate, formatSlotDay, formatBookingWhen, isLiveHold, clinicHHMM } from './bookingApi';
 
 // Same shape the server sends: clinic-local `date` / `time` next to the UTC instants.
 const slot = (date, time) => ({ startsAt: `${date}T${time}:00.000Z`, endsAt: `${date}T${time}:30.000Z`, date, time });
@@ -60,5 +60,31 @@ describe('formatBookingWhen', () => {
     const out = formatBookingWhen(booking, 'he');
     expect(out).toBe(`${formatSlotDay('2026-10-01', 'he')}, 10:00`);
     expect(out).not.toMatch(/AM|PM/);
+  });
+});
+
+describe('isLiveHold', () => {
+  const now = Date.parse('2026-10-01T10:00:00Z');
+  const hold = (over = {}) => ({ status: 'pending_payment', holdExpiresAt: '2026-10-01T10:10:00Z', ...over });
+  test('true for a pending booking whose hold is in the future', () => {
+    expect(isLiveHold(hold(), now)).toBe(true);
+  });
+  test('false when expired, not pending, or missing', () => {
+    expect(isLiveHold(hold({ holdExpiresAt: '2026-10-01T09:59:00Z' }), now)).toBe(false);
+    expect(isLiveHold(hold({ status: 'confirmed' }), now)).toBe(false);
+    expect(isLiveHold(hold({ holdExpiresAt: null }), now)).toBe(false);
+    expect(isLiveHold(null, now)).toBe(false);
+  });
+});
+
+describe('clinicHHMM', () => {
+  test('uses clinic time (summer UTC+3, winter UTC+2), not the device zone', () => {
+    expect(clinicHHMM('2026-07-01T07:05:00Z')).toBe('10:05');
+    expect(clinicHHMM('2026-01-01T07:05:00Z')).toBe('09:05');
+    expect(clinicHHMM('2026-07-01T21:30:00Z')).toBe('00:30'); // midnight shows 00, not 24
+  });
+  test('invalid input gives an empty string', () => {
+    expect(clinicHHMM('nope')).toBe('');
+    expect(clinicHHMM(null)).toBe('');
   });
 });

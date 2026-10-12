@@ -7,16 +7,25 @@ import { MenuButton } from '../components/SideMenu';
 import { useApp } from '../context/AppContext';
 import { errorText } from '../lib/errorText';
 import { formatTime } from '../lib/formatting';
+import { onAppResume } from '../lib/resumeRefresh';
+import { openCheckout } from '../lib/openCheckout';
 import { isRTL } from '../lib/language';
 import {
   fetchSlots, fetchMine, createBooking, groupSlotsByDate, formatSlotDay, formatBookingWhen,
-  MAX_NOTE_LENGTH,
+  isLiveHold, clinicHHMM, MAX_NOTE_LENGTH,
 } from '../lib/bookingApi';
 
-// Book a consultation. Flow (see AI/plans/in-app-booking-contract.md section 8):
+// How often the waiting-for-payment panel re-checks the server (ms).
+const PAYMENT_POLL_MS = 5000;
+
+// Book a consultation. Flow (see AI/plans/in-app-booking-contract.md section 8 and
+// AI/plans/paid-booking-and-signin-link-contract.md section 6):
 //  - load the user's bookings and the free times;
 //  - if the user already has an upcoming booking, show it (one at a time) instead of the picker;
-//  - otherwise pick a day, a time, optionally write a note, and confirm.
+//  - otherwise pick a day, a time, optionally write a note, and continue to payment:
+//    the server holds the time for a few minutes (status pending_payment) and we show a
+//    waiting panel with a Pay now button; while it is shown we poll until the booking is
+//    confirmed (paid) or the hold runs out.
 // All times shown are CLINIC time, taken from the server's date/time fields.
 export default function BookingScreen({ navigation }) {
   const { t, i18n } = useTranslation();
@@ -33,7 +42,21 @@ export default function BookingScreen({ navigation }) {
   const [note, setNote] = useState('');
   const [sending, setSending] = useState(false);
   const [submitError, setSubmitError] = useState(null);
-  const [confirmed, setConfirmed] = useState(null);   // { booking, warning } after a success
+  const [confirmed, setConfirmed] = useState(null);   // { booking, warning } once paid
+  const [pending, setPending] = useState(null);       // { booking, warning } while waiting for payment
+  const [holdExpired, setHoldExpired] = useState(false); // show the 'time ran out' notice above the picker
+
+  // Put the server's "upcoming" booking in the right place: a live unpaid hold opens the
+  // waiting panel, anything else is the normal "your upcoming consultation" card.
+  function applyMine(mine) {
+    const up = mine.upcoming || null;
+    if (isLiveHold(up)) {
+      setPending(prev => (prev && prev.booking.id === up.id ? prev : { booking: up, warning: null }));
+      setUpcoming(null);
+    } else {
+      setUpcoming(up);
+    }
+  }
 
   // Fetch the bookings and the free times together; any failure shows the retry state.
   const load = useCallback(async () => {
@@ -41,7 +64,7 @@ export default function BookingScreen({ navigation }) {
     setLoadError(null);
     try {
       const [mine, free] = await Promise.all([fetchMine(), fetchSlots()]);
-      setUpcoming(mine.upcoming || null);
+      applyMine(mine);
       setGroups(groupSlotsByDate(free.slots || []));
     } catch (err) {
       setLoadError(errorText(err, t, 'booking:loadFailed'));
@@ -63,18 +86,19 @@ export default function BookingScreen({ navigation }) {
   }
 
   async function reloadMine() {
-    try { setUpcoming((await fetchMine()).upcoming || null); } catch { /* keep what we show */ }
+    try { applyMine(await fetchMine()); } catch { /* keep what we show */ }
   }
 
   async function confirm() {
     if (!slot || sending) return;
     setSending(true);
     setSubmitError(null);
+    setHoldExpired(false);
     try {
       // The body is always { startsAt, note }; no note is sent as ''.
       const result = await createBooking({ startsAt: slot.startsAt, note: note.trim() });
-      setConfirmed(result);
-      reloadMine();
+      // 201 pending_payment: the time is held; show the waiting panel (no server call needed).
+      setPending(result);
     } catch (err) {
       setSubmitError(errorText(err, t, 'booking:bookFailed'));
       if (err.code === 'slot_taken' || err.code === 'slot_invalid') {
@@ -87,6 +111,34 @@ export default function BookingScreen({ navigation }) {
       setSending(false);
     }
   }
+
+  // While the waiting panel is visible, ask the server every few seconds (and when the app
+  // returns to the foreground, e.g. after paying in another window) whether the booking is paid.
+  // The effect depends on the booking id only, so leaving the panel clears the timer.
+  const pendingId = pending?.booking.id;
+  useEffect(() => {
+    if (!pendingId) return undefined;
+    let stopped = false;
+    async function check() {
+      let mine;
+      try { mine = await fetchMine(); } catch { return; } // a network blip: try again next tick
+      if (stopped) return;
+      const up = mine.upcoming || null;
+      if (up && up.id === pendingId && up.status === 'confirmed') {
+        // Paid: the Shopify webhook confirmed it.
+        setConfirmed({ booking: up, warning: pending.warning });
+        setPending(null);
+      } else if (!(up && up.id === pendingId && isLiveHold(up))) {
+        // Hold ran out (or was replaced/cancelled): back to the picker with a notice.
+        setPending(null);
+        setHoldExpired(true);
+        reloadSlots();
+      }
+    }
+    const timer = setInterval(check, PAYMENT_POLL_MS);
+    const stopResume = onAppResume(check);
+    return () => { stopped = true; clearInterval(timer); stopResume(); };
+  }, [pendingId]);
 
   // The selected day falls back to the first day if it has disappeared after a refetch.
   const activeGroup = groups.find(g => g.date === day) || groups[0] || null;
@@ -126,6 +178,40 @@ export default function BookingScreen({ navigation }) {
         </View>
       );
     }
+    if (pending) {
+      return (
+        <View testID="booking-awaiting-payment" style={s.card}>
+          <Text style={[s.cardTitle, align]}>{t('booking:awaitingTitle')}</Text>
+          <Text testID="booking-selected-when" style={[s.when, align]}>
+            {iso(formatBookingWhen(pending.booking, lang))}
+          </Text>
+          {/* The deadline is shown in CLINIC time (Asia/Jerusalem), never the phone's zone. */}
+          <Text testID="booking-hold-until" style={[s.body, align]}>
+            {t('booking:awaitingBody', { time: iso(formatTime(clinicHHMM(pending.booking.holdExpiresAt), lang)) })}
+          </Text>
+          {pending.warning === 'no_analysis' && (
+            <Text testID="booking-no-analysis-warning" style={[s.warning, align]}>
+              {t('booking:noAnalysisWarning')}
+            </Text>
+          )}
+          <Pressable
+            testID="booking-pay-now"
+            onPress={() => openCheckout(pending.booking.checkoutUrl)}
+            style={[s.button, { backgroundColor: accent }]}
+          >
+            <Text style={s.buttonText}>{t('booking:payNow')}</Text>
+          </Pressable>
+          {/* No server call: the next POST replaces this hold. */}
+          <Pressable
+            testID="booking-choose-other"
+            onPress={() => { setPending(null); setSlot(null); reloadSlots(); }}
+            style={[s.button, s.buttonGhost]}
+          >
+            <Text style={[s.buttonText, { color: accent }]}>{t('booking:chooseOther')}</Text>
+          </Pressable>
+        </View>
+      );
+    }
     if (upcoming) {
       return (
         <View testID="booking-upcoming" style={s.card}>
@@ -149,6 +235,9 @@ export default function BookingScreen({ navigation }) {
     }
     return (
       <View>
+        {holdExpired && (
+          <Text testID="booking-hold-expired" style={[s.warning, align]}>{t('booking:holdExpired')}</Text>
+        )}
         {!analysis && (
           <Text testID="booking-no-analysis-warning" style={[s.warning, align]}>
             {t('booking:noAnalysisWarning')}
@@ -225,7 +314,7 @@ export default function BookingScreen({ navigation }) {
           accessibilityState={{ disabled: !canConfirm }}
           style={[s.button, { backgroundColor: accent }, !canConfirm && { opacity: 0.5 }]}
         >
-          <Text style={s.buttonText}>{sending ? t('booking:confirming') : t('booking:confirm')}</Text>
+          <Text style={s.buttonText}>{sending ? t('booking:confirming') : t('booking:continueToPayment')}</Text>
         </Pressable>
       </View>
     );
@@ -269,6 +358,7 @@ const s = StyleSheet.create({
   warning:     { fontFamily: 'DMSans_400Regular', fontSize: 12, color: C.muted, backgroundColor: C.accentLight, borderRadius: 10, padding: 10, marginTop: 8 },
   button:      { borderRadius: 12, paddingVertical: 13, paddingHorizontal: 20, alignItems: 'center', marginTop: 16 },
   buttonText:  { fontFamily: 'DMSans_500Medium', fontSize: 14, color: '#FFFFFF' },
+  buttonGhost: { backgroundColor: 'transparent', borderWidth: 1, borderColor: C.border },
   card:        { backgroundColor: C.card, borderWidth: 1, borderColor: C.border, borderRadius: 16, padding: 18 },
   cardTitle:   { fontFamily: 'CormorantGaramond_500Medium', fontSize: 20, color: C.text, marginBottom: 6 },
   when:        { fontFamily: 'DMSans_500Medium', fontSize: 15, color: C.text, marginBottom: 10 },

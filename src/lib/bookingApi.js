@@ -49,3 +49,26 @@ export function formatSlotDay(date, lang) {
 // { date, time } -> 'Thu, 1 October, 10:00 AM' (he: 24 h).
 export const formatBookingWhen = (booking, lang) =>
   `${formatSlotDay(booking.date, lang)}, ${formatTime(booking.time, lang)}`;
+
+// Time zone of the clinic. A payment hold deadline is shown in THIS zone, never the phone's.
+export const CLINIC_TIME_ZONE = 'Asia/Jerusalem';
+
+// True for a booking still waiting for payment whose hold has not run out yet.
+// `now` is injectable (ms) so tests do not depend on the clock.
+export function isLiveHold(booking, now = Date.now()) {
+  if (!booking || booking.status !== 'pending_payment' || !booking.holdExpiresAt) return false;
+  const until = Date.parse(booking.holdExpiresAt);
+  return Number.isFinite(until) && until > now;
+}
+
+// ISO instant -> 'HH:MM' (24 h) in clinic time, or '' when the value is missing/invalid.
+// formatToParts is used (instead of toLocaleTimeString) so the output shape is stable on every engine.
+export function clinicHHMM(iso) {
+  const ms = Date.parse(iso);
+  if (!Number.isFinite(ms)) return '';
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: CLINIC_TIME_ZONE, hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).formatToParts(new Date(ms));
+  const get = type => parts.find(p => p.type === type)?.value || '00';
+  return `${get('hour')}:${get('minute')}`;
+}
