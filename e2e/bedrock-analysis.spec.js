@@ -393,14 +393,18 @@ test.describe('Hebrew Bedrock safety copy', () => {
     await walkQuizToLoading(page, t);
     await expect.poll(() => calls.length, { timeout: 10_000 }).toBe(1);
     expect(calls[0].body.language).toBe('he');
+    await expect(page.getByText(SAFETY_TEXT.he, { exact: false })).toBeVisible();
     await page.getByText(t('profile:cta'), { exact: true }).click();
     await page.getByPlaceholder(t('auth:signup.emailPlaceholder')).fill('dana-he@example.test');
     await page.getByPlaceholder(t('auth:signup.passwordPlaceholder')).fill('password123');
     await page.getByText(t('auth:signup.ctaAfterQuiz'), { exact: true }).click();
     await finishSignupOnboarding(page, t);
     await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
-    await openProfileFromHome(page, t);
-    await expect(page.getByText(SAFETY_TEXT.he, { exact: false })).toBeVisible({ timeout: 30_000 });
+    // Empty SR recommendations remove the optional audit tabs, but Profile still shows analysis and safety.
+    await openHome(page, t);
+    await page.getByText(t('home:viewAnalysis.title')).click();
+    await expect(page.getByText(t('profile:analysisTitle'))).toBeVisible();
+    await expect(page.getByText(SAFETY_TEXT.he, { exact: false })).toBeVisible();
     await openHome(page, t);
     await page.getByText(t('home:tabs.am'), { exact: true }).click();
     await expect(page.getByText('\u05d4\u05d2\u05e0\u05d4', { exact: true })).toBeVisible();
