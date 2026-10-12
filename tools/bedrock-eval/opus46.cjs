@@ -14,6 +14,7 @@ const ROOT = path.resolve(__dirname, '../..');
 const MODEL = 'us.anthropic.claude-opus-4-6-v1';
 const COUNT_MODEL = 'anthropic.claude-opus-4-6-v1';
 const BASE_URL = 'https://bedrock-runtime.us-east-1.amazonaws.com';
+const MANTLE_COUNT_URL = 'https://bedrock-mantle.us-east-1.api.aws/anthropic/v1/messages/count_tokens';
 const TIMEOUT_MS = 90_000;
 const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
 const MAX_OUTPUT_TOKENS = 8_000;
@@ -113,15 +114,15 @@ async function readJsonBoundedTimed(response, onFirstByte) {
 // Interpret only fixed error categories; raw provider messages can contain private identifiers.
 function safeProviderFailure(response, data) {
   const allowedTypes = ['AccessDeniedException', 'ValidationException', 'ResourceNotFoundException', 'ThrottlingException', 'ServiceUnavailableException', 'InternalServerException', 'UnrecognizedClientException', 'ExpiredTokenException', 'InvalidSignatureException'];
-  const type = String(response.headers?.get?.('x-amzn-errortype') || data?.__type || data?.code || '').split(/[:#]/).at(-1);
-  const message = typeof data?.message === 'string' ? data.message : '';
-  let reason = response.status === 400 ? 'request_validation' : 'unknown';
+  const type = String(response.headers?.get?.('x-amzn-errortype') || data?.__type || data?.code || data?.type || '').split(/[:#]/).at(-1);
+  const message = [data?.message, data?.Message, data?.error?.message].find(value => typeof value === 'string') || '';
+  let reason = response.status === 400 ? 'request_validation' : [401, 403].includes(response.status) ? 'access_denied' : 'unknown';
   if (/token.{0,40}expired|expired.{0,40}token/i.test(message)) reason = 'expired_token';
   else if (/invalid.{0,30}(token|api.key)|security token.{0,30}invalid/i.test(message)) reason = 'invalid_token';
   else if (/not available for (this|your) account/i.test(message)) reason = 'model_unavailable_for_account';
   else if (/aws-marketplace|marketplace.{0,30}subscri/i.test(message)) reason = 'marketplace_access';
   else if (/use.case.{0,40}(submit|form)|use.case.{0,40}details/i.test(message)) reason = 'anthropic_use_case';
-  else if (/not authorized to perform|explicit deny|insufficient permissions/i.test(message)) reason = 'permission_denied';
+  else if (/not authorized|explicit deny|insufficient permissions/i.test(message)) reason = 'permission_denied';
   else if (/schema.{0,40}(unsupported|invalid)|unsupported.{0,40}schema/i.test(message)) reason = 'schema_validation';
   return { category: errorCategory(response.status), status: response.status, reason,
     ...(allowedTypes.includes(type) ? { exceptionType: type } : {}) };
@@ -160,9 +161,51 @@ async function requestJson({ operation, modelId = MODEL, body, token, fetchImpl 
   }
 }
 
-async function countTokens({ converse, token, fetchImpl, onPhase }) {
-  const result = await requestJson({ operation: 'count-tokens', modelId: COUNT_MODEL, body: { input: { converse: { system: converse.system, messages: converse.messages } } }, token, fetchImpl, onPhase });
-  const inputTokens = result.data?.inputTokens;
+async function countTokens({ converse, token, fetchImpl = fetch, onPhase = () => {}, api = 'bedrock-runtime' }) {
+  if (api === 'bedrock-runtime') {
+    const result = await requestJson({ operation: 'count-tokens', modelId: COUNT_MODEL,
+      body: { input: { converse: { system: converse.system, messages: converse.messages } } }, token, fetchImpl, onPhase });
+    const inputTokens = result.data?.inputTokens;
+    if (!Number.isSafeInteger(inputTokens) || inputTokens <= 0) throw Object.assign(new Error('count_unavailable'), { category: 'count' });
+    return { inputTokens, elapsedMs: result.elapsedMs, providerRequestId: result.requestId };
+  }
+  if (api !== 'anthropic-mantle') throw new Error('count_api_invalid');
+  // Mantle CountTokens is an explicit option because it uses a separate permission; runtime denial never triggers fallback.
+  const started = Date.now();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const elapsedMs = () => Date.now() - started;
+  const body = {
+    model: COUNT_MODEL,
+    system: converse.system.map(block => block.text).join('\n'),
+    messages: converse.messages.map(message => ({ role: message.role, content: message.content.map(block => block.text).join('\n') })),
+  };
+  onPhase({ phase: 'request_start', elapsedMs: 0 });
+  let result;
+  try {
+    const response = await fetchImpl(MANTLE_COUNT_URL, { method: 'POST', headers: {
+      'x-api-key': token, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json',
+    }, body: JSON.stringify(body), signal: controller.signal });
+    const requestId = safeRequestId(response);
+    onPhase({ phase: 'headers', elapsedMs: elapsedMs(), status: response.status, ...(requestId ? { providerRequestId: requestId } : {}) });
+    if (!response.ok) {
+      let data;
+      try { data = await readJsonBoundedTimed(response, () => onPhase({ phase: 'first_body', elapsedMs: elapsedMs() })); } catch { /* Keep only safe error metadata if the body is malformed. */ }
+      throw Object.assign(new Error('provider_error'), safeProviderFailure(response, data));
+    }
+    const data = await readJsonBoundedTimed(response, () => onPhase({ phase: 'first_body', elapsedMs: elapsedMs() }));
+    onPhase({ phase: 'body_end', elapsedMs: elapsedMs() });
+    result = { data, requestId, elapsedMs: elapsedMs() };
+  } catch (error) {
+    if (controller.signal.aborted) {
+      onPhase({ phase: 'timeout', elapsedMs: elapsedMs() });
+      throw Object.assign(new Error('request_timeout'), { category: 'timeout' });
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+  const inputTokens = result.data?.input_tokens;
   if (!Number.isSafeInteger(inputTokens) || inputTokens <= 0) throw Object.assign(new Error('count_unavailable'), { category: 'count' });
   return { inputTokens, elapsedMs: result.elapsedMs, providerRequestId: result.requestId };
 }
@@ -196,8 +239,10 @@ function validateAjvOutput(output) {
 
 // Recompute the budget from a matching count instead of trusting a stored output-token cap.
 function verifyCountReport(report, promptSha256) {
+  const runtimeCount = report.countApi === 'bedrock-runtime';
+  const mantleCount = report.countApi === 'anthropic-mantle';
   return report.mode === 'count' && report.status === 'counted' && report.promptSha256 === promptSha256
-    && report.model === MODEL && report.countModel === COUNT_MODEL && report.region === 'us-east-1'
+    && report.model === MODEL && report.countModel === COUNT_MODEL && report.region === 'us-east-1' && (runtimeCount || mantleCount)
     && Number.isSafeInteger(report.inputTokens) && report.inputTokens > 0
     && report.outputTokenLimit === maxOutputTokens(report.inputTokens) && report.outputTokenLimit > 0;
 }
@@ -217,7 +262,10 @@ async function main(argv = process.argv.slice(2), deps = {}) {
   const converse = toConverse(built, wireSchema);
   const conservativeCountInput = toConverse(built, wireSchema, { countSchema: true });
   const promptSha256 = promptFingerprint(conservativeCountInput);
+  const countApi = mode === 'count' ? (options['count-api'] || 'bedrock-runtime') : undefined;
+  if (mode === 'count' && !['bedrock-runtime', 'anthropic-mantle'].includes(countApi)) throw new Error('count API must be bedrock-runtime or anthropic-mantle');
   const metadata = { generatedAt: new Date().toISOString(), mode, model: MODEL, countModel: COUNT_MODEL, region: 'us-east-1', routing: 'US cross-region', timeoutMs: TIMEOUT_MS, automaticRetries: 0,
+    ...(mode === 'count' ? { countApi } : {}),
     caseId: CASE_ID, language: 'en', imageCount: 0, stream: false, tier: 'default', promptSha256,
     productionPromptSha256: promptFingerprint(built), schemaSha256: promptFingerprint(outputSchema), wireSchemaSha256: promptFingerprint(wireSchema),
     sourceCommit: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: ROOT, encoding: 'utf8' }).trim(),
@@ -238,7 +286,7 @@ async function main(argv = process.argv.slice(2), deps = {}) {
   try {
     if (mode === 'count') {
       // CountTokens includes the schema as conservative extra system text to reserve its input cost.
-      const counted = await countTokens({ converse: conservativeCountInput, token, fetchImpl, onPhase });
+      const counted = await countTokens({ converse: conservativeCountInput, token, fetchImpl, onPhase, api: countApi });
       const outputTokenLimit = maxOutputTokens(counted.inputTokens);
       if (!outputTokenLimit) throw Object.assign(new Error('budget_too_small'), { category: 'budget' });
       Object.assign(report, { inputTokens: counted.inputTokens, outputTokenLimit, estimatedInputCostUsd: counted.inputTokens * INPUT_USD_PER_MILLION / 1_000_000, reservedCostUsd: RESERVED_COST_USD, status: 'counted', providerRequestId: counted.providerRequestId, elapsedMs: counted.elapsedMs });
@@ -282,4 +330,4 @@ async function main(argv = process.argv.slice(2), deps = {}) {
 }
 
 if (require.main === module) main().catch(() => { process.stderr.write('Opus probe setup failed; private inputs and credentials are omitted.\n'); process.exitCode = 1; });
-module.exports = { MODEL, COUNT_MODEL, BASE_URL, TIMEOUT_MS, MAX_RESPONSE_BYTES, makeWireSchema, toConverse, maxOutputTokens, reportedCostUsd, requestJson, countTokens, infer, validateAjvOutput, verifyCountReport, main };
+module.exports = { MODEL, COUNT_MODEL, BASE_URL, MANTLE_COUNT_URL, TIMEOUT_MS, MAX_RESPONSE_BYTES, makeWireSchema, toConverse, maxOutputTokens, reportedCostUsd, requestJson, countTokens, infer, validateAjvOutput, verifyCountReport, main };

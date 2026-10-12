@@ -4,7 +4,7 @@ const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
 const { outputSchema } = require('../../server/services/bedrock/analysisContract');
-const { MODEL, COUNT_MODEL, BASE_URL, makeWireSchema, toConverse, maxOutputTokens, reportedCostUsd, requestJson, countTokens, infer, validateAjvOutput, verifyCountReport, main } = require('./opus46.cjs');
+const { MODEL, COUNT_MODEL, BASE_URL, MANTLE_COUNT_URL, makeWireSchema, toConverse, maxOutputTokens, reportedCostUsd, requestJson, countTokens, infer, validateAjvOutput, verifyCountReport, main } = require('./opus46.cjs');
 
 function response(data, status = 200, headers = {}) {
   return new Response(JSON.stringify(data), { status, headers });
@@ -59,6 +59,36 @@ test('CountTokens uses native regional Converse shape and bearer auth without ex
   await assert.rejects(countTokens({ converse: { system: [], messages: [] }, token: 'test-token', fetchImpl: async () => response({ inputTokens: 0 }) }), /count_unavailable/);
 });
 
+test('Mantle fallback CountTokens uses the Anthropic count endpoint and API key headers', async () => {
+  let request;
+  const counted = await countTokens({ api: 'anthropic-mantle', converse: {
+    system: [{ text: 'private system' }], messages: [{ role: 'user', content: [{ text: 'private input' }] }],
+  }, token: 'test-token', fetchImpl: async (url, init) => {
+    request = { url, init };
+    return response({ input_tokens: 87 });
+  } });
+  assert.equal(request.url, MANTLE_COUNT_URL);
+  assert.equal(request.init.headers['x-api-key'], 'test-token');
+  assert.equal(request.init.headers['anthropic-version'], '2023-06-01');
+  assert.deepEqual(JSON.parse(request.init.body), { model: COUNT_MODEL, system: 'private system', messages: [{ role: 'user', content: 'private input' }] });
+  assert.equal(counted.inputTokens, 87);
+});
+
+test('provider failure categorization accepts capitalized and nested messages without retaining their text', async () => {
+  for (const body of [
+    { Message: 'You are not authorized. PRIVATE_PROVIDER_DETAIL PRIVATE_TOKEN' },
+    { error: { message: 'You are not authorized. PRIVATE_PROVIDER_DETAIL PRIVATE_TOKEN' } },
+  ]) {
+    await assert.rejects(countTokens({ api: 'anthropic-mantle', converse: { system: [], messages: [] }, token: 'PRIVATE_TOKEN',
+      fetchImpl: async () => response(body, 403) }), error => {
+      assert.equal(error.reason, 'permission_denied');
+      assert.equal(JSON.stringify(error).includes('PRIVATE_PROVIDER_DETAIL'), false);
+      assert.equal(String(error).includes('PRIVATE_TOKEN'), false);
+      return true;
+    });
+  }
+});
+
 test('non-200 response records only fixed category and status, never provider body text', async () => {
   await assert.rejects(requestJson({ operation: 'converse', body: {}, token: 'test-token', fetchImpl: async () => response({ message: 'PRIVATE_PROVIDER_DETAIL' }, 403) }), error => {
     assert.equal(error.category, 'access');
@@ -89,9 +119,11 @@ test('original local schema still rejects constraints omitted from the wire sche
 });
 
 test('count report cannot supply a different model or enlarge the recomputed output budget', () => {
-  const count = { mode: 'count', status: 'counted', promptSha256: 'fingerprint', model: MODEL, countModel: COUNT_MODEL,
+  const count = { mode: 'count', status: 'counted', countApi: 'bedrock-runtime', promptSha256: 'fingerprint', model: MODEL, countModel: COUNT_MODEL,
     region: 'us-east-1', inputTokens: 10_000, outputTokenLimit: maxOutputTokens(10_000) };
   assert.equal(verifyCountReport(count, 'fingerprint'), true);
+  assert.equal(verifyCountReport({ ...count, countApi: 'anthropic-mantle' }, 'fingerprint'), true);
+  assert.equal(verifyCountReport({ ...count, countApi: 'unknown' }, 'fingerprint'), false);
   assert.equal(verifyCountReport({ ...count, outputTokenLimit: 8_000 }, 'fingerprint'), false);
   assert.equal(verifyCountReport({ ...count, model: 'different' }, 'fingerprint'), false);
   assert.equal(verifyCountReport(count, 'different'), false);
@@ -126,12 +158,14 @@ test('CountTokens failure checkpoints before the request and retains safe error 
   const output = path.join(directory, 'count.json');
   const previousExitCode = process.exitCode;
   try {
-    const report = await main(['--mode', 'count', '--input-dir', directory, '--output', output], {
+    const report = await main(['--mode', 'count', '--count-api', 'anthropic-mantle', '--input-dir', directory, '--output', output], {
       getToken: () => 'PRIVATE_TOKEN',
-      fetchImpl: async () => {
+      fetchImpl: async (url, init) => {
         const checkpoint = JSON.parse(await fs.readFile(output, 'utf8'));
         assert.equal(checkpoint.status, 'in_flight');
-        return response({ message: 'You are not authorized to perform this action. PRIVATE_TOKEN PRIVATE_PROVIDER_DETAIL' }, 403,
+        assert.equal(url, MANTLE_COUNT_URL);
+        assert.equal(init.headers['x-api-key'], 'PRIVATE_TOKEN');
+        return response({ error: { message: 'You are not authorized to perform this action. PRIVATE_TOKEN PRIVATE_PROVIDER_DETAIL' } }, 403,
           { 'x-amzn-requestid': 'req-safe', 'x-amzn-errortype': 'AccessDeniedException' });
       },
     });
