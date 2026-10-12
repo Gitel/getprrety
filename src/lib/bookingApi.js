@@ -53,14 +53,6 @@ export const formatBookingWhen = (booking, lang) =>
 // Time zone of the clinic. A payment hold deadline is shown in THIS zone, never the phone's.
 export const CLINIC_TIME_ZONE = 'Asia/Jerusalem';
 
-// True for a booking still waiting for payment whose hold has not run out yet.
-// `now` is injectable (ms) so tests do not depend on the clock.
-export function isLiveHold(booking, now = Date.now()) {
-  if (!booking || booking.status !== 'pending_payment' || !booking.holdExpiresAt) return false;
-  const until = Date.parse(booking.holdExpiresAt);
-  return Number.isFinite(until) && until > now;
-}
-
 // ISO instant -> 'HH:MM' (24 h) in clinic time, or '' when the value is missing/invalid.
 // formatToParts is used (instead of toLocaleTimeString) so the output shape is stable on every engine.
 export function clinicHHMM(iso) {

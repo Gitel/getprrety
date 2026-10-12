@@ -36,7 +36,8 @@ export function readSigninToken() {
 
 // Exchanges the token for a session. `consent` is the optional { consentAcceptedAt,
 // consentVersion } stamp from consentParams(); a brand-new invited customer must send it.
+// `options` is passed to api.js (e.g. { timeoutMs } so boot can use a short timeout).
 // Resolves to { token, user, isNew }; rejects with api.js errors (err.code = 'link_invalid', ...).
-export function redeemSigninLink(token, consent) {
-  return api.post('/api/auth/link/redeem', { token, ...(consent || {}) });
+export function redeemSigninLink(token, consent, options) {
+  return api.post('/api/auth/link/redeem', { token, ...(consent || {}) }, options);
 }

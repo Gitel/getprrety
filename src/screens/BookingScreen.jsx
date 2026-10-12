@@ -12,7 +12,7 @@ import { openCheckout } from '../lib/openCheckout';
 import { isRTL } from '../lib/language';
 import {
   fetchSlots, fetchMine, createBooking, groupSlotsByDate, formatSlotDay, formatBookingWhen,
-  isLiveHold, clinicHHMM, MAX_NOTE_LENGTH,
+  clinicHHMM, MAX_NOTE_LENGTH,
 } from '../lib/bookingApi';
 
 // How often the waiting-for-payment panel re-checks the server (ms).
@@ -46,12 +46,18 @@ export default function BookingScreen({ navigation }) {
   const [pending, setPending] = useState(null);       // { booking, warning } while waiting for payment
   const [holdExpired, setHoldExpired] = useState(false); // show the 'time ran out' notice above the picker
 
-  // Put the server's "upcoming" booking in the right place: a live unpaid hold opens the
-  // waiting panel, anything else is the normal "your upcoming consultation" card.
+  // Put the server's "upcoming" booking in the right place. The server only returns a hold that
+  // is still live, so we trust its status and never compare holdExpiresAt with the phone clock
+  // (a wrong phone clock would show an unpaid hold as "your upcoming consultation").
+  //  - pending_payment -> the waiting panel (it can pay via checkoutUrl);
+  //  - a pending row is NEVER shown as the confirmed "upcoming" card;
+  //  - anything else (confirmed) -> the normal upcoming card.
   function applyMine(mine) {
     const up = mine.upcoming || null;
-    if (isLiveHold(up)) {
-      setPending(prev => (prev && prev.booking.id === up.id ? prev : { booking: up, warning: null }));
+    if (up && up.status === 'pending_payment') {
+      if (up.checkoutUrl) {
+        setPending(prev => (prev && prev.booking.id === up.id ? prev : { booking: up, warning: null }));
+      }
       setUpcoming(null);
     } else {
       setUpcoming(up);
@@ -128,7 +134,7 @@ export default function BookingScreen({ navigation }) {
         // Paid: the Shopify webhook confirmed it.
         setConfirmed({ booking: up, warning: pending.warning });
         setPending(null);
-      } else if (!(up && up.id === pendingId && isLiveHold(up))) {
+      } else if (!(up && up.id === pendingId && up.status === 'pending_payment')) {
         // Hold ran out (or was replaced/cancelled): back to the picker with a notice.
         setPending(null);
         setHoldExpired(true);

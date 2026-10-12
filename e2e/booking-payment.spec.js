@@ -14,7 +14,7 @@
 // with a tiny HTML page, so the pop-up really loads.
 import { test, expect } from './support/test.js';
 import { makeT } from './support/i18n.js';
-import { openBooking } from './support/nav.js';
+import { openBooking, openMenu, tapMenuItem } from './support/nav.js';
 import { BOOKING_SLOTS } from './support/fixtures-data.js';
 
 const tHe = makeT('he');
@@ -139,6 +139,31 @@ test.describe('the payment hold (English)', () => {
     expect(posts[1].body.startsAt).toBe(BOOKING_SLOTS[1].startsAt);
     expect(mock.state.booking.upcoming.startsAt).toBe(BOOKING_SLOTS[1].startsAt);
     expect(mock.state.booking.slots.map(s => s.startsAt)).toContain(BOOKING_SLOTS[0].startsAt);
+  });
+
+  // Polling must stop when the waiting panel is gone (no wasted calls, no timers left running).
+  test('no more /bookings/mine polling after "choose another time"', async ({ page, mock, t }) => {
+    await openBooking(page, t);
+    await holdFirstSlot(page);
+    await page.getByTestId('booking-choose-other').click();
+    await expect(waiting(page)).toHaveCount(0);
+
+    const before = mock.callsTo('GET', '/api/bookings/mine').length;
+    await page.waitForTimeout(6000); // longer than one 5 s polling interval
+    expect(mock.callsTo('GET', '/api/bookings/mine').length).toBe(before);
+  });
+
+  test('no more /bookings/mine polling after leaving the booking screen', async ({ page, mock, t }) => {
+    await openBooking(page, t);
+    await holdFirstSlot(page);
+    // Leave through the side menu (Settings).
+    await openMenu(page, t);
+    await tapMenuItem(page, t, 'menu:settings');
+    await expect(page.getByTestId('booking-screen')).toHaveCount(0);
+
+    const before = mock.callsTo('GET', '/api/bookings/mine').length;
+    await page.waitForTimeout(6000);
+    expect(mock.callsTo('GET', '/api/bookings/mine').length).toBe(before);
   });
 
   test('reloading while a hold is live shows the waiting panel again (pending upcoming from /mine)', async ({ page, mock, t }) => {

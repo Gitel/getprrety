@@ -80,6 +80,14 @@ test.describe('signed out', () => {
   });
 });
 
+test.describe('slow network', () => {
+  test('a slow redeem still ends on the invite welcome screen', async ({ page, mock, t }) => {
+    mock.delay('POST', '/api/auth/link/redeem', 4000); // the answer arrives 4 s late
+    await page.goto('/#signin=invite-token');
+    await expect(page.getByTestId('link-welcome-screen')).toBeVisible({ timeout: 15_000 });
+  });
+});
+
 test.describe('already signed in', () => {
   test.use({ signedIn: true });
 

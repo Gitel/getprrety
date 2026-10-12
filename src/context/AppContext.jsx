@@ -13,6 +13,8 @@ import { bootLanguage, retryPendingLanguage, clearPendingOnLogout } from '../lib
 
 const AppContext = createContext(null);
 const BOOTSTRAP_TIMEOUT_MS = 8000;
+// The boot-time sign-in link redeem gets a SHORT timeout so it cannot eat the splash budget.
+const LINK_REDEEM_TIMEOUT_MS = 6000;
 
 export function AppProvider({ children }) {
   // srProducts / shelfAnalysis live on `analysis` (see analyzeWithRailway.js), not here.
@@ -39,6 +41,9 @@ export function AppProvider({ children }) {
   //                or { mode: 'invalid' } (dead link); cleared by LinkWelcomeScreen.
   const [afterSignin, setAfterSignin] = useState(null);
   const [linkWelcome, setLinkWelcome] = useState(null);
+  // True while the boot-time redeem is in flight. SplashScreen must not give up and navigate
+  // away during this time, or a slow network would hide the invite welcome screen.
+  const [linkPending, setLinkPending] = useState(false);
   // Guards the boot effect: React StrictMode runs effects twice in dev, but the URL token is
   // stripped on the first read, so a second read would find nothing.
   const bootStarted = useRef(false);
@@ -65,8 +70,9 @@ export function AppProvider({ children }) {
       //    readSigninToken also removes the token from the address bar immediately.
       const linkToken = readSigninToken();
       if (linkToken) {
+        setLinkPending(true);
         try {
-          const res = await redeemSigninLink(linkToken); // no consent: existing accounts need none
+          const res = await redeemSigninLink(linkToken, undefined, { timeoutMs: LINK_REDEEM_TIMEOUT_MS }); // no consent: existing accounts need none
           await storeToken(res.token);
           setAfterSignin('QuizIntro'); // Splash sends the user to the quiz landing once
         } catch (err) {
@@ -75,11 +81,14 @@ export function AppProvider({ children }) {
           setLinkWelcome(err?.code === 'consent_required'
             ? { mode: 'invite', token: linkToken }
             : { mode: 'invalid' });
+        } finally {
+          setLinkPending(false); // result (afterSignin / linkWelcome) is set; Splash may decide now
         }
       }
       // 2. Normal session load. User AND saved analysis are both loaded before authReady flips,
       //    so SplashScreen can send a returning user straight to Home (see loadSession.js).
-      //    Worst case is one BOOTSTRAP_TIMEOUT_MS, under SplashScreen's 10 s ceiling.
+      //    Worst case: redeem (6 s) + this load (8 s). Splash's 10 s ceiling waits for the redeem
+      //    (linkPending) but may still give up during this load, which only affects the plain boot.
       await reloadSession();
       setAuthReady(true);
     })();
@@ -136,6 +145,7 @@ export function AppProvider({ children }) {
       productRecsCache, setProductRecsCache,
       afterSignin, clearAfterSignin: () => setAfterSignin(null),
       linkWelcome, clearLinkWelcome: () => setLinkWelcome(null),
+      linkPending,
       reloadSession,
       logout,
     }}>
