@@ -500,13 +500,22 @@ describe('paid booking statuses and attention tab', () => {
     ];
     const html = await render('bookings', { tab: 'attention', rows });
     expect(html).toContain('>Needs attention</a>');
-    expect(html).toContain('<td class="attention">Paid, slot lost</td>');
-    expect(html).toContain('<td class="attention">Paid after cancel</td>');
-    expect(html).toContain('<td class="attention">Extra payment</td>');
+    expect(html).toContain('<td class="attention">Paid, slot lost');
+    expect(html).toContain('<td class="attention">Paid after cancel');
+    expect(html).toContain('<td class="attention">Extra payment');
+    // Each flagged row has a CSRF-protected Mark handled form posting to its own id.
+    expect(html).toContain('action="/admin/bookings/a1/handled"');
+    expect(html).toContain('name="_csrf" value="TEST_CSRF_TOKEN"');
+    expect((html.match(/Mark handled/g) || []).length).toBe(3);
     expect(html).toContain('<td class="status">Expired</td>');
     expect(html).toContain('<td class="status">Cancelled</td>');
     // Only the Upcoming tab has the cancel column.
     expect(html).not.toContain('Cancel booking');
+  });
+
+  test('Mark handled appears only on the attention tab', async () => {
+    const row = { ...base, id: 'a1', status: 'confirmed', needsAttention: 'paid_extra' };
+    expect(await render('bookings', { tab: 'past', rows: [row] })).not.toContain('Mark handled');
   });
 
   test('user page bookings card uses the same status words', async () => {
@@ -545,7 +554,7 @@ describe('sign-in link card and invites', () => {
     });
     expect(html).toContain('id="signin-link-url" readonly value="https://x.test/#signin=TOKEN"');
     expect(html).toContain('data-copy="#signin-link-url"');
-    expect(html).toContain('Active until 2026-10-15 09:30');
+    expect(html).toContain('Active until 2026-10-15 12:30');
     expect(html).toContain('action="/admin/users/u1/signin-link/resend"');
     expect(html).toContain('<li data-link-id="l1">');
     expect(html).toContain('sent 2 times');

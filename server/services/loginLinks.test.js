@@ -252,12 +252,14 @@ describe('sendLinkEmail', () => {
     expect(rows[0].sendCount).toBe(2);
   });
 
-  test('invite: emails the invited address, rate limit keyed by the email', async () => {
+  test('invite: emails the invited address, rate limit keyed by an HMAC of the email (never the raw address)', async () => {
     const { deps } = setup();
     const { linkDoc } = await svc.createInvite({ email: 'new@example.com', firstName: 'Neo', language: 'he' }, 'a', deps);
     expect(await svc.sendLinkEmail(linkDoc._id, deps)).toEqual({ ok: true });
     expect(deps.mail.sendSignInLink.mock.calls[0][0]).toMatchObject({ to: 'new@example.com', firstName: 'Neo', language: 'he', purpose: 'invite' });
-    expect(deps.rateLimit.mock.calls[0][1]).toBe('new@example.com');
+    const key = deps.rateLimit.mock.calls[0][1];
+    expect(key).toBe(require('crypto').createHmac('sha256', 'test-secret').update('new@example.com').digest('hex'));
+    expect(key).not.toContain('new@example.com');
   });
 
   test('link_not_active for unknown, used, revoked, expired links or a deleted user; mail not called', async () => {

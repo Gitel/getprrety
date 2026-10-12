@@ -183,6 +183,8 @@ router.post('/link/redeem', async (req, res) => {
       // consent_required / consent_outdated come straight from services/consent.js.
       return res.status(result.status || 400).json({ error: result.error, code: result.code });
     }
+    // Success: give the IP attempt back (the budget caps failures, not real sign-ins).
+    releaseQuietly(req, 'link');
     res.status(result.isNew ? 201 : 200).json({ token: signToken(result.user), user: toPublicUser(result.user), isNew: result.isNew });
   } catch (err) {
     console.error('Sign-in link redeem failed:', err.code || err.name);

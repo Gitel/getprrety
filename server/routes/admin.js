@@ -71,6 +71,8 @@ const NOTICES = {
   booking_not_found:         { text: 'That booking no longer exists.', error: true },
   booking_already_cancelled: { text: 'That booking was already cancelled.', error: true },
   booking_calendar_failed:   { text: 'The calendar could not be reached, so nothing was cancelled. Please try again.', error: true },
+  booking_attention_handled: { text: 'Marked as handled.' },
+  booking_attention_not_flagged: { text: 'That booking does not need attention.', error: true },
   booking_settings_saved:    { text: 'Booking settings saved.' },
   booking_settings_unchanged: { text: 'Nothing changed.' },
   booking_settings_invalid:  { text: 'Please check the settings: times must be HH:MM, closing after opening, and the numbers within range.', error: true },
@@ -80,6 +82,7 @@ const NOTICES = {
   signin_link_resend_failed: { text: 'The email was not sent. Copy the link instead.', error: true },
   signin_link_inactive:      { text: 'That link is no longer valid. Create a new one.', error: true },
   signin_link_rate_limited:  { text: 'Too many emails to this customer in the last hour. Try again later.', error: true },
+  signin_link_created_rate_limited: { text: 'New link created, but too many emails were sent to this customer in the last hour. Copy the new link instead.', error: true },
   invite_created:            { text: 'Invite created and emailed.' },
   invite_not_sent:           { text: 'Invite created, but the email was not sent. Copy the link instead.', error: true },
   invite_existing_user:      { text: 'That email already has an account. A sign-in link was created for it instead.' },
@@ -420,7 +423,8 @@ router.post('/users/:id/signin-link', requireAdmin, requireCsrf, async (req, res
       await logAdminAction(req, 'signin_link_sent', { userId: req.params.id });
       return res.redirect(`${back}?notice=signin_link_created#signin-link`);
     }
-    const notice = sent.code === 'rate_limited' ? 'signin_link_rate_limited' : 'signin_link_not_sent';
+    // Rate limited on a CREATE: the old link was already replaced, so say "copy the NEW link".
+    const notice = sent.code === 'rate_limited' ? 'signin_link_created_rate_limited' : 'signin_link_not_sent';
     res.redirect(`${back}?notice=${notice}#signin-link`);
   } catch (err) {
     next(err);
@@ -471,7 +475,7 @@ router.post('/invites', requireAdmin, requireCsrf, async (req, res, next) => {
       await logAdminAction(req, 'signin_link_sent', {});
       return res.redirect('/admin/users?notice=invite_created#invites');
     }
-    const notice = sent.code === 'rate_limited' ? 'signin_link_rate_limited' : 'invite_not_sent';
+    const notice = sent.code === 'rate_limited' ? 'signin_link_created_rate_limited' : 'invite_not_sent';
     res.redirect(`/admin/users?notice=${notice}#invites`);
   } catch (err) {
     next(err);
@@ -746,6 +750,24 @@ router.post('/bookings/:id/cancel', requireAdmin, requireCsrf, async (req, res, 
       userId: result.booking.userId, bookingId: result.booking._id || req.params.id,
     });
     res.redirect('/admin/bookings?notice=booking_cancelled');
+  } catch (err) {
+    next(err);
+  }
+});
+
+// "Mark handled" on a Needs attention row: the row then leaves that tab. The audit entry is
+// written only when the row really changed (a double click gets the "not flagged" notice).
+router.post('/bookings/:id/handled', requireAdmin, requireCsrf, async (req, res, next) => {
+  try {
+    const back = '/admin/bookings?tab=attention';
+    if (!isHexId(req.params.id)) return res.redirect(`${back}&notice=booking_not_found`);
+    const result = await bookings.markAttentionHandled(req.params.id, req.admin.email);
+    if (!result.ok) {
+      const notice = result.code === 'not_flagged' ? 'booking_attention_not_flagged' : 'booking_not_found';
+      return res.redirect(`${back}&notice=${notice}`);
+    }
+    await logAdminAction(req, 'booking_attention_handled', { userId: result.userId, bookingId: req.params.id });
+    res.redirect(`${back}&notice=booking_attention_handled`);
   } catch (err) {
     next(err);
   }

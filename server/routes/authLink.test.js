@@ -8,7 +8,7 @@ jest.mock('../services/authRateLimit', () => ({
 jest.mock('../services/loginLinks', () => ({ redeem: jest.fn() }));
 
 const jwt = require('jsonwebtoken');
-const { allowAuthAttempt } = require('../services/authRateLimit');
+const { allowAuthAttempt, releaseAuthAttempt } = require('../services/authRateLimit');
 const loginLinks = require('../services/loginLinks');
 const authRouter = require('./auth');
 
@@ -27,6 +27,7 @@ const user = { _id: 'u1', email: 'a@b.co', firstName: 'Ada', language: 'he' };
 beforeEach(() => {
   jest.resetAllMocks();
   allowAuthAttempt.mockResolvedValue(true);
+  releaseAuthAttempt.mockResolvedValue(); // resetAllMocks wiped the factory default
   jest.spyOn(console, 'error').mockImplementation(() => {});
 });
 
@@ -48,6 +49,17 @@ test('missing or non-string token -> 400 link_invalid without touching the servi
     expect(res.body.code).toBe('link_invalid');
   }
   expect(loginLinks.redeem).not.toHaveBeenCalled();
+});
+
+test('a successful redeem refunds the IP attempt; a failed one does not', async () => {
+  loginLinks.redeem.mockResolvedValue({ ok: true, user, isNew: false });
+  await redeemRoute({ body: { token: 'tok' } }, fakeRes());
+  expect(releaseAuthAttempt).toHaveBeenCalledTimes(1);
+  expect(releaseAuthAttempt.mock.calls[0][1]).toBe('link');
+  releaseAuthAttempt.mockClear();
+  loginLinks.redeem.mockResolvedValue({ ok: false, code: 'link_invalid' });
+  await redeemRoute({ body: { token: 'tok' } }, fakeRes());
+  expect(releaseAuthAttempt).not.toHaveBeenCalled();
 });
 
 test('existing account -> 200 with a signed JWT, public user and isNew false', async () => {

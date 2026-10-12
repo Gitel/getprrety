@@ -66,6 +66,12 @@ function decryptToken(enc) {
   }
 }
 
+// HMAC-SHA256 of an email with JWT_SECRET (same idea as authRateLimit's ipKey): stable per
+// address, but the address itself is never written to the rate-limit collection.
+function rateKeyForEmail(email) {
+  return crypto.createHmac('sha256', String(process.env.JWT_SECRET)).update(String(email).toLowerCase()).digest('hex');
+}
+
 function buildLink(token) {
   const base = (process.env.PUBLIC_BASE_URL || 'https://getpretty.app').replace(/\/+$/, '');
   return `${base}/#signin=${token}`;
@@ -193,7 +199,8 @@ async function sendLinkEmail(linkId, deps) {
   let to; let firstName; let language; let limitKey;
   if (doc.purpose === 'invite') {
     ({ email: to, firstName, language } = doc.invite || {});
-    limitKey = to;
+    // Never store a raw email as a rate-limit key (buckets are plain DB rows): use a keyed hash.
+    limitKey = rateKeyForEmail(to);
   } else {
     const user = doc.userId ? await d.User.findById(doc.userId) : null;
     if (!user) return { ok: false, code: 'link_not_active' };

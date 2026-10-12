@@ -22,7 +22,7 @@ import {
 test.describe.configure({ mode: 'serial' });
 
 // Data shared between the serial specs (one hold is reused by tests 1-5).
-const s = { u1: null, hold: null, slot: null, order: null };
+const s = { u1: null, hold: null, slot: null, order: null, flagged: null };
 
 const row = (page, id) => page.locator(`tr[data-booking-id="${id}"]`);
 
@@ -202,5 +202,20 @@ test.describe('payments', () => {
     expect((await res.json()).result).toBe('needs_attention');
     await page.goto('/admin/bookings?tab=attention');
     await expect(row(page, b.id).locator('td.attention')).toContainText('Paid after cancel');
+    s.flagged = b; // test 9 marks this flagged row as handled
+  });
+
+  test('9. Mark handled removes the row from Needs attention and the audit log records it', async ({ page, context }) => {
+    await signIn(context);
+    await page.goto('/admin/bookings?tab=attention');
+    await expect(row(page, s.flagged.id).locator('td.attention')).toContainText('Paid after cancel');
+    await row(page, s.flagged.id).getByRole('button', { name: 'Mark handled' }).click();
+    await expect(page).toHaveURL(/tab=attention/);
+    await expect(page.locator('.notice')).toContainText('Marked as handled.');
+    // Handled rows leave the tab (the booking itself is untouched).
+    await expect(row(page, s.flagged.id)).toHaveCount(0);
+
+    await page.goto('/admin/audit');
+    await expect(page.locator('body')).toContainText('booking attention handled');
   });
 });

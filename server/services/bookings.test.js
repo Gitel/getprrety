@@ -5,7 +5,7 @@ const mongoose = require('mongoose'); // only for ObjectId values, we never conn
 const realSlots = require('./slots');
 const {
   isBookingEnabled, getConfig, getPublicConfig, listSlots, createBooking, listMine,
-  listForAdmin, listForUser, cancelBooking, updateConfig, bookingBootLine, releaseUserBookings,
+  listForAdmin, listForUser, cancelBooking, markAttentionHandled, updateConfig, bookingBootLine, releaseUserBookings,
   HOLD_MINUTES, shopifyConfigured, expireHolds, eventText, publicBooking,
 } = require('./bookings');
 
@@ -120,7 +120,7 @@ function makeWorld({ users = [], bookings = [], analyses = [], config = DEFAULTS
   const world = {
     store: bookings.map(b => makeDoc({
       _id: oid(), status: 'confirmed', note: '', calendarEventId: null, calendarId: '',
-      cancelledAt: null, cancelledByAdminEmail: null, holdExpiresAt: null, needsAttention: null, ...b,
+      cancelledAt: null, cancelledByAdminEmail: null, holdExpiresAt: null, needsAttention: null, attentionHandledAt: null, ...b,
     })),
     users: users.map(u => makeDoc({ _id: oid(), ...u })),
     analyses,
@@ -924,6 +924,33 @@ describe('cancelBooking', () => {
     expect((await createBooking(other, { startsAt: SLOT }, deps)).ok).toBe(true);
   });
 
+  test('race: the calendar sync writes an event after our read -> that event is deleted too, then cancelled', async () => {
+    const { world, deps, booking } = cancelWorld({ calendarEventId: null, calendarId: '' });
+        // The first read sees the row without an event; right after it the "sync" stores one.
+    world.Booking.findById.mockImplementationOnce(() => {
+      const stale = { ...booking };
+      booking.calendarEventId = 'evt-late';
+      booking.calendarId = 'cal-late';
+      return { lean: () => Promise.resolve(stale) };
+    });
+    const result = await cancelBooking(String(booking._id), 'admin@example.com', deps);
+    expect(result.ok).toBe(true);
+    expect(world.calendar.deleteEvent).toHaveBeenCalledWith('evt-late', 'cal-late');
+    expect(booking.status).toBe('cancelled');
+  });
+
+  test('race: the late event cannot be deleted -> calendar_unavailable and the booking stays', async () => {
+    const { world, deps, booking } = cancelWorld({ calendarEventId: null });
+    world.Booking.findById.mockImplementationOnce(() => {
+      const stale = { ...booking };
+      booking.calendarEventId = 'evt-late';
+      return { lean: () => Promise.resolve(stale) };
+    });
+    world.calendar.deleteEvent.mockRejectedValueOnce(new FakeCalendarError());
+    expect(await cancelBooking(String(booking._id), 'admin@example.com', deps)).toEqual({ ok: false, code: 'calendar_unavailable' });
+    expect(booking.status).toBe('confirmed');
+  });
+
   test.each([['an unknown id', () => String(oid())], ['a malformed id', () => 'not-an-object-id']])('%s -> not_found', async (_label, makeId) => {
     const { world, deps } = cancelWorld();
     expect(await cancelBooking(makeId(), 'admin@example.com', deps)).toEqual({ ok: false, code: 'not_found' });
@@ -937,6 +964,33 @@ describe('cancelBooking', () => {
     world.users.push(makeDoc({ _id: other, email: 'o@x.com', firstName: 'O' }));
     world.analyses.push(other);
     expect((await createBooking(other, { startsAt: SLOT }, deps)).ok).toBe(true);
+  });
+});
+
+describe('markAttentionHandled', () => {
+  const flagged = over => ({ userId: oid(), startsAt: new Date(SLOT), status: 'expired', needsAttention: 'paid_slot_lost', ...over });
+
+  test('records who and when, and the row leaves the attention tab', async () => {
+    const world = makeWorld({ users: [], bookings: [flagged()] });
+    const b = world.store[0];
+    expect(await markAttentionHandled(String(b._id), 'admin@example.com', world.deps)).toEqual({ ok: true, userId: b.userId });
+    expect(b.attentionHandledByAdminEmail).toBe('admin@example.com');
+    expect(new Date(b.attentionHandledAt).getTime()).toBe(NOW.getTime());
+    expect(await listForAdmin({ tab: 'attention' }, world.deps)).toHaveLength(0);
+  });
+
+  test('a second click, or a row that was never flagged -> not_flagged', async () => {
+    const world = makeWorld({ bookings: [flagged(), flagged({ needsAttention: null, startsAt: new Date('2026-10-09T07:00:00Z') })] });
+    const [a, plain] = world.store;
+    await markAttentionHandled(String(a._id), 'admin@example.com', world.deps);
+    expect(await markAttentionHandled(String(a._id), 'other@example.com', world.deps)).toEqual({ ok: false, code: 'not_flagged' });
+    expect(a.attentionHandledByAdminEmail).toBe('admin@example.com');
+    expect(await markAttentionHandled(String(plain._id), 'admin@example.com', world.deps)).toEqual({ ok: false, code: 'not_flagged' });
+  });
+
+  test.each([['unknown', () => String(oid())], ['malformed', () => 'nope']])('%s id -> not_found', async (_l, makeId) => {
+    const world = makeWorld({ bookings: [flagged()] });
+    expect(await markAttentionHandled(makeId(), 'admin@example.com', world.deps)).toEqual({ ok: false, code: 'not_found' });
   });
 });
 

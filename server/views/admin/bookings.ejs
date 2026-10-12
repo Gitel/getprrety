@@ -39,7 +39,15 @@
             <%# Payment recorded by the Shopify webhook; "-" while nothing was paid. %>
             <td class="payment"><% if (b.payment && b.payment.status === 'paid') { %>Paid <%= b.payment.amount %> <%= b.payment.currency %> - order <%= b.payment.providerRef %><% } else { %>-<% } %></td>
             <%# A payment that could not be matched to a normal booking: a human must act. %>
-            <td class="attention"><%= { paid_slot_lost: 'Paid, slot lost', paid_after_cancel: 'Paid after cancel', paid_extra: 'Extra payment' }[b.needsAttention] || '' %></td>
+            <td class="attention"><%= { paid_slot_lost: 'Paid, slot lost', paid_after_cancel: 'Paid after cancel', paid_extra: 'Extra payment' }[b.needsAttention] || '' %>
+              <%# Only on the Needs attention tab: records that a human dealt with it (row then disappears). %>
+              <% if (tab === 'attention' && b.needsAttention) { %>
+                <form class="inline-form" method="post" action="/admin/bookings/<%= b.id %>/handled">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                  <button type="submit" class="small secondary">Mark handled</button>
+                </form>
+              <% } %>
+            </td>
             <% if (tab === 'upcoming') { %>
               <td>
                 <%# data-confirm: the shared script in _foot asks before submitting. %>

@@ -4,8 +4,10 @@ const rateLimitBucketSchema = new mongoose.Schema({
   // auth_admin = /admin sign-in throttle, msg_user = in-app message replies per user,
   // auth_link = sign-in link redeem throttle, link_send = admin "send link" emails.
   // auth_login / auth_signup / auth_google were already used by services/authRateLimit.js but
-  // were missing here (bug fix: the enum rejected them).
-  scope: { type: String, enum: ['scan_ip', 'scan_global', 'ai_user', 'auth_admin', 'msg_user', 'auth_login', 'auth_signup', 'auth_google', 'auth_link', 'link_send'], required: true },
+  // were missing here. booking_slots / booking_create are used by routes/bookings.js.
+  // NOTE: this enum only DOCUMENTS the scopes in use. consumeRateLimit upserts without running
+  // validators, so it is not enforced - keep it in sync by hand when adding a scope.
+  scope: { type: String, enum: ['scan_ip', 'scan_global', 'ai_user', 'auth_admin', 'msg_user', 'auth_login', 'auth_signup', 'auth_google', 'auth_link', 'link_send', 'booking_slots', 'booking_create'], required: true },
   key: { type: String, required: true },
   windowStart: { type: Date, required: true },
   count: { type: Number, default: 0 },

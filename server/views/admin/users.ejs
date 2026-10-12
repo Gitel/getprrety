@@ -4,6 +4,15 @@
 %>
 <%
   function stamp(d) { return d ? new Date(d).toISOString().slice(0, 16).replace('T', ' ') : '—'; }
+  // Clinic time (Asia/Jerusalem) as YYYY-MM-DD HH:MM, like the booking status cell. hourCycle h23
+  // keeps midnight as 00:xx. Used for link expiry so admins read the same clock as bookings.
+  function clinicStamp(d) {
+    if (!d) return '—';
+    var p = {};
+    new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Jerusalem', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+      .formatToParts(new Date(d)).forEach(function (x) { p[x.type] = x.value; });
+    return p.year + '-' + p.month + '-' + p.day + ' ' + p.hour + ':' + p.minute;
+  }
   // Builds a page link that keeps the current search term.
   function pageHref(p) { return '/admin/users?page=' + p + (list.q ? '&q=' + encodeURIComponent(list.q) : ''); }
 %>
@@ -46,7 +55,7 @@
             <tr data-invite-id="<%= inv.id %>">
               <td><%= inv.invite && inv.invite.email %></td>
               <td><%= (inv.invite && inv.invite.firstName) || '—' %></td>
-              <td>Active until <%= stamp(inv.expiresAt) %></td>
+              <td>Active until <%= clinicStamp(inv.expiresAt) %></td>
               <td>
                 <input type="text" id="invite-url-<%= inv.id %>" readonly value="<%= inv.link || '' %>">
                 <button type="button" class="small secondary" data-copy="#invite-url-<%= inv.id %>" aria-label="Copy link">Copy link</button>

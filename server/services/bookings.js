@@ -405,7 +405,8 @@ async function listForAdmin({ tab } = {}, deps) {
     past: [{ status: 'confirmed', startsAt: { $lte: now } }, -1],
     cancelled: [{ status: { $in: ['cancelled', 'expired'] } }, -1],
     // paid bookings that need a human (slot lost, paid after cancel, extra payment)
-    attention: [{ needsAttention: { $ne: null } }, -1],
+    // (rows an admin already marked handled are left out)
+    attention: [{ needsAttention: { $ne: null }, attentionHandledAt: null }, -1],
   };
   const [filter, direction] = queries[tab] || queries.upcoming;
   // Capped so a list cannot grow forever: upcoming = the soonest 500, the others = the newest 500.
@@ -442,9 +443,47 @@ async function cancelBooking(id, adminEmail, deps) {
   }
   const changes = { status: 'cancelled', cancelledAt: d.now(), cancelledByAdminEmail: adminEmail };
   // The status filter makes a double click / two admins safe: only one of them matches.
-  const result = await d.Booking.updateOne({ _id: id, status: { $in: ['confirmed', 'pending_payment'] } }, { $set: changes });
-  if (result && result.matchedCount === 0) return { ok: false, code: 'already_cancelled' };
+  const filter = { _id: id, status: { $in: ['confirmed', 'pending_payment'] } };
+  // Race guard: we read the row WITHOUT a calendar event. If the calendar sync writes one
+  // between our read and this update, the filter below misses (the row now has an event id) and
+  // we must not cancel the row while leaving a live event behind.
+  if (!booking.calendarEventId) filter.calendarEventId = null;
+  const result = await d.Booking.updateOne(filter, { $set: changes });
+  if (result && result.matchedCount === 0) {
+    if (!booking.calendarEventId) {
+      // Re-read: did the sync add an event (delete it, then cancel), or was the row cancelled meanwhile?
+      const fresh = await d.Booking.findById(id).lean();
+      if (fresh && fresh.calendarEventId && ['confirmed', 'pending_payment'].includes(fresh.status)) {
+        try {
+          await d.calendar.deleteEvent(fresh.calendarEventId, fresh.calendarId || undefined);
+        } catch (err) {
+          console.error(`booking: calendar_unavailable cancelling booking ${fresh._id}, event ${fresh.calendarEventId} ${calendarDetail(err)}`);
+          return { ok: false, code: 'calendar_unavailable' };
+        }
+        const retry = await d.Booking.updateOne({ _id: id, status: { $in: ['confirmed', 'pending_payment'] } }, { $set: changes });
+        if (!retry || retry.matchedCount !== 0) return { ok: true, booking: { ...booking, ...changes } };
+      }
+    }
+    return { ok: false, code: 'already_cancelled' };
+  }
   return { ok: true, booking: { ...booking, ...changes } };
+}
+
+// Admin "Mark handled" on a Needs attention row: records who dealt with it and when, so the row
+// leaves the Needs attention tab. Only a flagged, not-yet-handled row can be marked.
+// Result: { ok:true, userId } | { ok:false, code:'not_found' | 'not_flagged' }.
+async function markAttentionHandled(id, adminEmail, deps) {
+  const d = withDefaults(deps);
+  if (!/^[a-f\d]{24}$/i.test(String(id))) return { ok: false, code: 'not_found' };
+  const booking = await d.Booking.findById(id).lean();
+  if (!booking) return { ok: false, code: 'not_found' };
+  // One conditional update: a double click or a second admin simply misses and gets not_flagged.
+  const result = await d.Booking.updateOne(
+    { _id: id, needsAttention: { $ne: null }, attentionHandledAt: null },
+    { $set: { attentionHandledAt: d.now(), attentionHandledByAdminEmail: adminEmail } },
+  );
+  if (!result || result.matchedCount === 0) return { ok: false, code: 'not_flagged' };
+  return { ok: true, userId: booking.userId }; // userId is for the route's audit entry
 }
 
 // ---- settings form ----
@@ -519,5 +558,5 @@ async function releaseUserBookings(userId, deps) {
 module.exports = {
   HOLD_MINUTES, shopifyConfigured, expireHolds, eventText, publicBooking,
   isBookingEnabled, bookingBootLine, getConfig, getPublicConfig, listSlots, createBooking, listMine,
-  listForAdmin, listForUser, cancelBooking, updateConfig, releaseUserBookings,
+  listForAdmin, listForUser, cancelBooking, markAttentionHandled, updateConfig, releaseUserBookings,
 };

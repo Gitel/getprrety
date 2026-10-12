@@ -5,6 +5,15 @@
 %>
 <%
   function stamp(d) { return d ? new Date(d).toISOString().slice(0, 16).replace('T', ' ') : '—'; }
+  // Clinic time (Asia/Jerusalem) as YYYY-MM-DD HH:MM, like the booking status cell. hourCycle h23
+  // keeps midnight as 00:xx. Used for link expiry so admins read the same clock as bookings.
+  function clinicStamp(d) {
+    if (!d) return '—';
+    var p = {};
+    new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Jerusalem', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+      .formatToParts(new Date(d)).forEach(function (x) { p[x.type] = x.value; });
+    return p.year + '-' + p.month + '-' + p.day + ' ' + p.hour + ':' + p.minute;
+  }
   var displayName = user.firstName || user.email;
 %>
 <%- include('_head', { title: displayName }) %>
@@ -64,7 +73,7 @@
       <input type="text" id="signin-link-url" readonly value="<%= activeLink.link %>">
       <p>
         <button type="button" class="secondary" data-copy="#signin-link-url" aria-label="Copy link">Copy link</button>
-        <span class="muted">Active until <%= stamp(activeLink.expiresAt) %></span>
+        <span class="muted">Active until <%= clinicStamp(activeLink.expiresAt) %></span>
       </p>
       <form class="inline-form" method="post" action="/admin/users/<%= user._id %>/signin-link/resend">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
