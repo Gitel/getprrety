@@ -1,5 +1,6 @@
 // Bedrock client contract checks. API traffic is intercepted per test so these exercises never
 // call a provider or real backend; the only saved-analysis POSTs go through the existing mock.
+import { createServer } from 'node:http';
 import { test, expect } from './support/test.js';
 import { ANALYSIS, FIRST_TIME_USER } from './support/fixtures-data.js';
 import { walkQuizToLoading } from './support/quiz.js';
@@ -85,6 +86,105 @@ async function interceptAnalysis(page, results) {
   });
   return calls;
 }
+
+// A tiny local HTTP endpoint lets these tests hold an actual event stream between progress
+// updates. Playwright's route.fulfill buffers a whole response, which cannot prove incremental UI.
+async function createControlledAnalysisStream() {
+  const waitingRequests = [];
+  const requestWaiters = [];
+  const requests = [];
+  const server = createServer((request, response) => {
+    const requestMeta = {
+      method: request.method,
+      url: request.url,
+      origin: request.headers.origin || null,
+      requestedMethod: request.headers['access-control-request-method'] || null,
+      requestedHeaders: request.headers['access-control-request-headers'] || null,
+    };
+    requests.push(requestMeta);
+    request.resume();
+    // WebKit can preflight the rewritten loopback URL separately from the original API route.
+    if (request.method === 'OPTIONS') {
+      response.writeHead(204, {
+        ...CORS,
+        'Access-Control-Allow-Origin': request.headers.origin || '*',
+        'Access-Control-Allow-Headers': request.headers['access-control-request-headers'] || CORS['Access-Control-Allow-Headers'],
+      }).end();
+      return;
+    }
+    if (request.method !== 'POST' || request.url !== '/api/ai/analyze-skin') {
+      response.writeHead(404).end();
+      return;
+    }
+
+    response.writeHead(200, {
+      ...CORS,
+      'Access-Control-Allow-Origin': request.headers.origin || '*',
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'X-Accel-Buffering': 'no',
+    });
+    response.flushHeaders();
+    const stream = {
+      requestHeaders: request.headers,
+      send(event, data) { response.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); },
+      end() { response.end(); },
+    };
+    const waiter = requestWaiters.shift();
+    if (waiter) waiter(stream);
+    else waitingRequests.push(stream);
+  });
+
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  const address = server.address();
+  return {
+    url: `http://127.0.0.1:${address.port}/api/ai/analyze-skin`,
+    get requests() { return requests.map(item => ({ ...item })); },
+    nextRequest() {
+      const queued = waitingRequests.shift();
+      if (queued) return Promise.resolve(queued);
+      return new Promise((resolve, reject) => {
+        let waiter;
+        const timeout = setTimeout(() => {
+          const index = requestWaiters.indexOf(waiter);
+          if (index !== -1) requestWaiters.splice(index, 1);
+          reject(new Error('The browser did not open the streaming analysis request within 10 seconds'));
+        }, 10_000);
+        waiter = stream => {
+          clearTimeout(timeout);
+          resolve(stream);
+        };
+        requestWaiters.push(waiter);
+      });
+    },
+    async close() {
+      server.closeAllConnections();
+      await new Promise(resolve => server.close(resolve));
+    },
+  };
+}
+
+async function routeAnalysisToLocalStream(page, streamServer) {
+  await page.route(ANALYZE_URL, route => {
+    if (route.request().method() === 'OPTIONS') {
+      return route.fulfill({ status: 204, headers: CORS });
+    }
+    return route.continue({ url: streamServer.url });
+  });
+}
+
+function progressEvent(phase, requestId = 'e2e-stream-request') {
+  return { requestId, phase };
+}
+
+const STREAM_REQUEST_IDS = {
+  initial: '11111111-1111-4111-8111-111111111111',
+  retry: '22222222-2222-4222-8222-222222222222',
+  hebrew: '33333333-3333-4333-8333-333333333333',
+};
 
 // Signup lands directly on SkinTiming, unlike the older helper which starts at Profile's CTA.
 async function finishSignupOnboarding(page, t) {
@@ -266,5 +366,110 @@ test.describe('unmatched Bedrock sunscreen step', () => {
     await openHome(page, t);
     await expect(page.getByText('Sunscreen', { exact: true })).toBeVisible();
     await expect(page.getByText(bedrockResponse('en').srProducts.am[2].no_match_note, { exact: true })).toBeVisible();
+  });
+});
+
+test.describe('incremental Bedrock analysis stream', () => {
+  test('shows progress as it arrives and reveals the validated result only after complete', async ({ page, mock, t }) => {
+    const streamServer = await createControlledAnalysisStream();
+    try {
+      await routeAnalysisToLocalStream(page, streamServer);
+      await page.goto('/');
+      await walkQuizToLoading(page, t);
+      const stream = await streamServer.nextRequest();
+
+      expect(stream.requestHeaders.accept).toContain('text/event-stream');
+      stream.send('progress', progressEvent('waiting', STREAM_REQUEST_IDS.initial));
+      await expect(page.getByText(t('quiz:loading.analysisProgress.waiting'), { exact: true })).toBeVisible();
+      stream.send('progress', progressEvent('generating', STREAM_REQUEST_IDS.initial));
+      await expect(page.getByText(t('quiz:loading.analysisProgress.generating'), { exact: true })).toBeVisible();
+      await expect(page.getByText('Barrier Healing Era', { exact: true })).toHaveCount(0);
+      expect(mock.callsTo('POST', '/api/analysis')).toHaveLength(0);
+
+      stream.send('progress', progressEvent('validating', STREAM_REQUEST_IDS.initial));
+      await expect(page.getByText(t('quiz:loading.analysisProgress.validating'), { exact: true })).toBeVisible();
+      stream.send('complete', { requestId: STREAM_REQUEST_IDS.initial, analysis: bedrockResponse('en') });
+      await expect(page.getByText('Barrier Healing Era', { exact: true })).toHaveCount(0);
+      expect(mock.callsTo('POST', '/api/analysis')).toHaveLength(0);
+      stream.end();
+      await expect(page.getByText('Barrier Healing Era', { exact: true })).toBeVisible({ timeout: 30_000 });
+      expect(mock.callsTo('POST', '/api/analysis')).toHaveLength(0); // A visitor result is not persisted before signup.
+    } finally {
+      await streamServer.close();
+    }
+  });
+});
+
+// A failed stream must return control to the existing retry affordance; only a completed retry
+// replaces the persisted fallback analysis with a Bedrock result.
+test.describe('stream failure and manual retry', () => {
+  test.use({ signedIn: true });
+
+  test('shows the fallback after a stream error and accepts a successful retry', async ({ page, mock, t }) => {
+    mock.set({ analysis: null, user: FIRST_TIME_USER });
+    const streamServer = await createControlledAnalysisStream();
+    try {
+      await routeAnalysisToLocalStream(page, streamServer);
+      await page.goto('/');
+      await walkQuizToLoading(page, t);
+      const failedStream = await streamServer.nextRequest();
+      failedStream.send('error', {
+        requestId: STREAM_REQUEST_IDS.initial,
+        error: 'The analysis service is temporarily unavailable.',
+        status: 503,
+        code: 'analysis_unavailable',
+      });
+      failedStream.end();
+      await expect(page.getByText(t('home:fallbackBanner.title'), { exact: true })).toBeVisible({ timeout: 30_000 });
+      await expect.poll(() => mock.callsTo('POST', '/api/analysis').length).toBe(1);
+
+      await page.getByText(t('common:tryAgain'), { exact: true }).click();
+      await expect(page.getByText(t('quiz:loading.subtitle'))).toBeVisible();
+      const retryRequest = streamServer.nextRequest();
+      const retryStream = await retryRequest;
+      retryStream.send('progress', progressEvent('generating', STREAM_REQUEST_IDS.retry));
+      await expect(page.getByText(t('quiz:loading.analysisProgress.generating'), { exact: true })).toBeVisible();
+      await expect.poll(() => mock.callsTo('POST', '/api/analysis').length).toBe(1);
+
+      retryStream.send('complete', { requestId: STREAM_REQUEST_IDS.retry, analysis: bedrockResponse('en') });
+      await expect(page.getByText('Barrier Healing Era', { exact: true })).toHaveCount(0);
+      await expect.poll(() => mock.callsTo('POST', '/api/analysis').length).toBe(1);
+      retryStream.end();
+      await expect(page.getByText('Barrier Healing Era', { exact: true })).toBeVisible({ timeout: 30_000 });
+      await expect(page.getByText(t('home:fallbackBanner.title'), { exact: true })).toHaveCount(0);
+      await expect.poll(() => mock.callsTo('POST', '/api/analysis').length).toBe(2);
+      expect(mock.callsTo('POST', '/api/analysis').map(call => call.body.source)).toEqual(['fallback', 'bedrock']);
+    } finally {
+      await streamServer.close();
+    }
+  });
+});
+
+test.describe('Hebrew analysis stream progress', () => {
+  test.use({ lang: 'he' });
+
+  test('localizes progress labels while the Hebrew result is still held', async ({ page, t }) => {
+    const streamServer = await createControlledAnalysisStream();
+    const translatedEraName = t('eras:barrier_healing.name');
+    try {
+      await routeAnalysisToLocalStream(page, streamServer);
+      await page.goto('/');
+      await walkQuizToLoading(page, t);
+      const stream = await streamServer.nextRequest();
+
+      stream.send('progress', progressEvent('waiting', STREAM_REQUEST_IDS.hebrew));
+      await expect(page.getByText(t('quiz:loading.analysisProgress.waiting'), { exact: true })).toBeVisible();
+      stream.send('progress', progressEvent('generating', STREAM_REQUEST_IDS.hebrew));
+      await expect(page.getByText(t('quiz:loading.analysisProgress.generating'), { exact: true })).toBeVisible();
+      await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+      await expect(page.getByText(translatedEraName, { exact: true })).toHaveCount(0);
+
+      stream.send('complete', { requestId: STREAM_REQUEST_IDS.hebrew, analysis: bedrockResponse('he') });
+      await expect(page.getByText(translatedEraName, { exact: true })).toHaveCount(0);
+      stream.end();
+      await expect(page.getByText(translatedEraName, { exact: true })).toBeVisible({ timeout: 30_000 });
+    } finally {
+      await streamServer.close();
+    }
   });
 });
