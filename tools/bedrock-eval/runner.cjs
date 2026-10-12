@@ -4,7 +4,8 @@ const Ajv = require('ajv');
 
 const BASE_URL = 'https://bedrock-mantle.us-west-2.api.aws/openai/v1';
 const MODEL = 'xai.grok-4.6';
-const TIMEOUT_MS = 60_000;
+// The user selected 90 seconds; earlier reports retain their original deadlines.
+const TIMEOUT_MS = 90_000;
 const MAX_OUTPUT_TOKENS = 8_000;
 const MAX_ATTEMPTS = 1;
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;

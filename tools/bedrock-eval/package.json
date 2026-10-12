@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "description": "Standalone, mock-tested Bedrock evaluation runner for GetPretty skin analyses",
   "scripts": {
-    "test": "node --test contract.test.cjs extract.test.cjs runner.test.cjs",
+    "test": "node --test contract.test.cjs extract.test.cjs runner.test.cjs investigate.test.cjs",
     "eval": "node run.cjs"
   },
   "dependencies": {

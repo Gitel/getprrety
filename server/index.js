@@ -29,6 +29,7 @@ const routineProgressRoutes = require('./routes/routineProgress');
 const adminRoutes    = require('./routes/admin');
 const skinScanPoller = require('./jobs/skinScanPoller');
 const { mailConfigError } = require('./services/clinicNotify');
+const { startAnalysisDeadline } = require('./services/bedrock/analysisDeadline');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -53,7 +54,8 @@ app.use(cors({
 // Keep the general API limit small so photos can never leak into analysis/profile documents again.
 app.use('/api/skin-scan', express.json({ limit: '35mb' }), skinScanRoutes);
 // Skin photos are sent as labelled base64 data for Bedrock; parse this one route before the 1 MB API limit.
-app.use('/api/ai/analyze-skin', express.json({ limit: '35mb' }));
+// Start its 85s server deadline at ingress; browser upload time has already begun, so the client keeps a 90s ceiling.
+app.use('/api/ai/analyze-skin', startAnalysisDeadline, express.json({ limit: '35mb' }));
 app.use(express.json({ limit: '1mb' }));
 
 // Health check
@@ -78,6 +80,7 @@ app.use('/admin',         adminRoutes);
 
 // Global error handler
 app.use((err, req, res, next) => {
+  if (res.writableEnded || res.destroyed) return;
   console.error(err.stack);
   const status = err.status
     || (err.type === 'entity.too.large' || err.code === 'LIMIT_FILE_SIZE' ? 413 : null)

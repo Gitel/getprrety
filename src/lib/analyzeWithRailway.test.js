@@ -170,8 +170,15 @@ describe('Bedrock request', () => {
       { angle: 'front', mediaType: 'image/jpeg', base64: 'Zm9udA==' },
       { angle: 'shelf', mediaType: 'image/jpeg', base64: 'c2hlbGY=' },
     ]);
-    expect(options).toEqual({ timeoutMs: 60000 });
+    expect(options).toMatchObject({ timeoutMs: 90000, stream: true });
     expect(result.source).toBe('bedrock');
+  });
+
+  test('forwards only the caller progress callback to streaming mode', async () => {
+    api.post.mockResolvedValueOnce({ ...railway(), source: 'bedrock' });
+    const onProgress = jest.fn();
+    await analyzeSkin({}, 'en', onProgress);
+    expect(api.post.mock.calls[0][2]).toMatchObject({ timeoutMs: 90000, stream: true, onProgress });
   });
 
   test('rejects an image over the provider request limit before posting', async () => {
@@ -181,8 +188,8 @@ describe('Bedrock request', () => {
   });
 
   test('preserves a provider timeout/error for LoadingScreen fallback handling', async () => {
-    api.post.mockRejectedValueOnce(new Error('Request timed out after 60000ms'));
-    await expect(analyzeSkin({}, 'en')).rejects.toThrow('60000ms');
+    api.post.mockRejectedValueOnce(new Error('Request timed out after 90000ms'));
+    await expect(analyzeSkin({}, 'en')).rejects.toThrow('90000ms');
   });
 });
 

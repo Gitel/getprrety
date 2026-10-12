@@ -50,7 +50,7 @@ test('standard-tier accounting uses cached input rate and charges reasoning as c
 });
 
 test('a valid response uses the fixed Oregon Grok endpoint and strict response schema', async () => {
-  assert.equal(TIMEOUT_MS, 60_000);
+  assert.equal(TIMEOUT_MS, 90_000);
   const calls = [];
   const report = await runEvaluations({
     cases: [testCase], languages: ['en'], catalogue: [], contract: fakeContract, token: 'test-token',

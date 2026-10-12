@@ -13,7 +13,7 @@ const { loadCatalogue } = require('../bedrock/catalogue');
 // 'failed'. Only scans somebody is looking at cost a provider call, and a claim left 'pending'
 // by a server restart is taken over by the next GET once it is STALE_PENDING_MS old.
 
-const READING_TIMEOUT_MS = 60_000; // Keep score-reading within the same one-minute provider deadline as Era analysis.
+const READING_TIMEOUT_MS = 90_000; // Match the shared provider timeout; interactive analysis reserves the final response second.
 const STALE_PENDING_MS = 2 * 60 * 1000;
 
 // Max lengths for generated strings; longer text is cut, not rejected.

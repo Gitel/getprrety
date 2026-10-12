@@ -781,6 +781,11 @@
     "subtitle": "Our cosmetology engine is reading every signal you shared",
     "inProgress": "in progress",
     "done": "✓ Analysis complete — revealing your Skin Era",
+    "analysisProgress": {
+      "waiting": "Preparing your personalized analysis…",
+      "generating": "Building your skin plan…",
+      "validating": "Checking your completed analysis…"
+    },
     "scanWait": {
       "reading": "Reading your skin…",
       "texture": "Looking at texture and hydration…",

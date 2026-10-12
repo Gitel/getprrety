@@ -1,6 +1,7 @@
 jest.mock('../middleware/auth', () => jest.fn((req, _res, next) => { req.user = req.user || { id: 'user-1' }; next(); }));
 jest.mock('../services/rateLimit', () => ({ consumeRateLimit: jest.fn() }));
 jest.mock('../services/bedrock/client', () => ({
+  TIMEOUT_MS: 90_000,
   completeJson: jest.fn(),
   BedrockError: class BedrockError extends Error { constructor(code, status = 502) { super('Analysis provider failed'); this.code = code; this.status = status; } },
 }));
@@ -49,6 +50,24 @@ async function invoke(handler, body, user = null) {
   };
   await handler(req, res);
   return res;
+}
+
+async function invokeSse(handler, body) {
+  const req = { body, ip: '203.0.113.9', socket: {}, headers: { accept: 'text/event-stream' } };
+  const res = {
+    statusCode: 200, headers: {}, chunks: [], writableEnded: false, destroyed: false,
+    status(code) { this.statusCode = code; return this; },
+    set(name, value) { this.headers[name.toLowerCase()] = value; return this; },
+    flushHeaders() {},
+    write(value) { this.chunks.push(value); return true; },
+    end() { this.writableEnded = true; return this; },
+    json(value) { this.body = value; return this; },
+  };
+  await handler(req, res);
+  return { ...res, events: res.chunks.filter(chunk => chunk.startsWith('event:')).map(chunk => {
+    const [, event] = chunk.match(/^event: ([^\n]+)/);
+    return { event, data: JSON.parse(chunk.match(/\ndata: ([^\n]+)/)[1]) };
+  }) };
 }
 
 beforeEach(() => {
@@ -117,6 +136,49 @@ test('fails closed when generated analysis violates semantic contract checks', a
   const res = await invoke(routeHandler('/analyze-skin'), { quizAnswers: {}, language: 'en', images: [] });
   expect(res.statusCode).toBe(502);
   expect(res.body).toEqual({ error: 'Analysis provider failed' });
+});
+
+test('SSE analysis sends only progress before full semantic validation and returns a typed completion', async () => {
+  const log = jest.spyOn(console, 'info').mockImplementation(() => {});
+  completeJson.mockImplementation(async options => {
+    expect(options.stream).toBe(true);
+    expect(options.signal).toBeInstanceOf(AbortSignal);
+    expect(options.timeoutMs).toBeLessThanOrEqual(84_000);
+    options.onEvent({ phase: 'first_content', elapsedMs: 3, contentBytes: 12, rawContent: 'private provider text' });
+    return validAnalysis();
+  });
+  const res = await invokeSse(routeHandler('/analyze-skin'), {
+    quizAnswers: { name: 'Private Person', email: 'private@example.test' }, language: 'en', images: [],
+  });
+  const records = log.mock.calls.map(([channel, json]) => ({ channel, ...JSON.parse(json) }));
+  const setup = records.filter(record => record.channel === 'analysis-setup');
+  expect(setup.map(record => record.phase)).toEqual([
+    'ingress', 'parsed', 'budget_start', 'budget_complete', 'catalogue_loaded', 'prompt_ready', 'provider_start', 'semantic_validated',
+  ]);
+  expect(new Set(setup.map(record => record.requestId)).size).toBe(1);
+  expect(setup.every(record => Object.keys(record).every(key => [
+    'channel', 'requestId', 'phase', 'elapsedMs', 'status', 'imageCount', 'quizBytes', 'catalogueCount', 'messageCount', 'code',
+  ].includes(key)))).toBe(true);
+  expect(records.find(record => record.channel === 'analysis-provider')).toHaveProperty('providerElapsedMs');
+  expect(JSON.stringify(records)).not.toMatch(/private provider text|Private Person|private@example\.test/);
+  log.mockRestore();
+  expect(res.statusCode).toBe(200);
+  expect(res.headers).toMatchObject({ 'content-type': 'text/event-stream; charset=utf-8', 'x-accel-buffering': 'no' });
+  expect(res.events.map(event => event.event)).toEqual(['progress', 'progress', 'progress', 'complete']);
+  expect(res.events.slice(0, 3).map(event => event.data.phase)).toEqual(['waiting', 'generating', 'validating']);
+  expect(res.events[3].data.analysis).toMatchObject({ source: 'bedrock', era: { era: { id: 'barrier_healing' } } });
+});
+
+test('SSE analysis rejects semantically invalid output without emitting a completion payload', async () => {
+  const invalid = validAnalysis();
+  invalid.era.routine.am.pop();
+  completeJson.mockResolvedValue(invalid);
+  const res = await invokeSse(routeHandler('/analyze-skin'), { quizAnswers: {}, language: 'en', images: [] });
+  expect(res.events.at(-1)).toMatchObject({
+    event: 'error', data: { error: 'Analysis provider failed', status: 502, code: 'BEDROCK_CONTRACT_INVALID' },
+  });
+  expect(res.events.some(event => event.event === 'complete')).toBe(false);
+  expect(JSON.stringify(res.events)).not.toContain('barrier_healing');
 });
 
 test('returns a safe service-unavailable response when Bedrock is not configured', async () => {

@@ -3,7 +3,8 @@ import { downscaleDataUrl } from './downscaleImage';
 import { api } from './api';
 import i18n from './i18n';
 
-const ANALYZE_TIMEOUT_MS = 60000;
+// The provider streams status while generating; use one bounded deadline for upload and full response.
+const ANALYZE_TIMEOUT_MS = 90000;
 const MAX_ANALYSIS_IMAGES = 10;
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 const MAX_TOTAL_IMAGE_BYTES = 24 * 1024 * 1024;
@@ -303,7 +304,7 @@ export function buildProductSafetyContext(answers = {}) {
   return context;
 }
 
-export async function analyzeSkin(answers = {}, language = i18n.language) {
+export async function analyzeSkin(answers = {}, language = i18n.language, onProgress) {
   const photoRefs = [
     ...SKIN_PHOTO_ANGLES.map(angle => [answers[angle], angle]),
     ...(answers.shelf_photos || []).map(ref => [ref, 'shelf']),
@@ -314,7 +315,7 @@ export async function analyzeSkin(answers = {}, language = i18n.language) {
     quizAnswers: minimizeQuizAnswers(answers),
     language: String(language || 'en').toLowerCase().startsWith('he') ? 'he' : 'en',
     images,
-  }, { timeoutMs: ANALYZE_TIMEOUT_MS });
+  }, { timeoutMs: ANALYZE_TIMEOUT_MS, stream: true, onProgress });
   if (data?.source !== 'bedrock') throw new Error('Invalid analysis response: missing Bedrock source');
   return mapToAppFormat(data, answers);
 }
