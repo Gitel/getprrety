@@ -6,7 +6,7 @@ const path = require('node:path');
 const Ajv = require('ajv');
 const { outputSchema, validateOutput } = require('../../server/services/bedrock/analysisContract');
 const { loadCatalogue } = require('../../server/services/bedrock/catalogue');
-const { MODEL, COUNT_MODEL, BASE_URL, MANTLE_COUNT_URL, makeWireSchema, toConverse, maxOutputTokens, reportedCostUsd, requestJson, countTokens, infer, validateAjvOutput, verifyCountReport, main } = require('./opus46.cjs');
+const { MODEL, COUNT_MODEL, BASE_URL, MANTLE_COUNT_URL, INPUT_COUNT_ALLOWANCE_TOKENS, makeWireSchema, toConverse, promptFingerprint, maxOutputTokens, reportedCostUsd, requestJson, countTokens, infer, validateAjvOutput, verifyCountReport, main } = require('./opus46.cjs');
 
 function response(data, status = 200, headers = {}) {
   return new Response(JSON.stringify(data), { status, headers });
@@ -101,8 +101,7 @@ test('no-photo probe sends shelf-null schema to count and inference without chan
       getToken: () => 'test-token',
       fetchImpl: async (_url, init) => {
         const body = JSON.parse(init.body);
-        const system = body.input.converse.system[0].text;
-        countedSchema = JSON.parse(system.split('Count-only schema reservation:\n').at(-1));
+        countedSchema = body.input.converse.additionalModelRequestFields.output_config.format.schema;
         return response({ inputTokens: 10_000 });
       },
     });
@@ -139,20 +138,88 @@ test('no-photo probe sends shelf-null schema to count and inference without chan
   }
 });
 
-test('Converse builder converts only typed text and counts schema as extra conservative input', () => {
+test('Converse builder preserves typed text and every validated inline photo', () => {
   const built = { system: 'system text', messages: [{ role: 'user', content: [{ type: 'text', text: 'input text' }] }] };
   const normal = toConverse(built);
-  const counted = toConverse(built, makeWireSchema(outputSchema), { countSchema: true });
   assert.deepEqual(normal.system, [{ text: 'system text' }]);
   assert.deepEqual(normal.messages[0].content, [{ text: 'input text' }]);
   assert.equal(normal.outputConfig.textFormat.type, 'json_schema');
-  assert.ok(counted.system[0].text.includes('Count-only schema reservation'));
-  assert.throws(() => toConverse({ ...built, messages: [{ role: 'user', content: [{ type: 'image_url' }] }] }), /text-only/);
+  assert.equal(normal.outputConfig.textFormat.structure.jsonSchema.schema, JSON.stringify(makeWireSchema(outputSchema)));
+  const withPhoto = toConverse({ ...built, messages: [{ role: 'user', content: [
+    { type: 'text', text: 'photo follows' },
+    { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,/9j/AA==' } },
+  ] }] });
+  assert.deepEqual(withPhoto.messages[0].content[1], { image: { format: 'jpeg', source: { bytes: '/9j/AA==' } } });
+  assert.throws(() => toConverse({ ...built, messages: [{ role: 'user', content: [{ type: 'image_url' }] }] }), /unsupported content block/);
+});
+
+test('selected safe case ID and Hebrew language carry linked photo evidence into CountTokens', async t => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'opus-case-selection-'));
+  t.after(() => fs.rm(directory, { recursive: true, force: true }));
+  const caseId = 'case-aaaaaaaaaa';
+  const caseDirectory = path.join(directory, caseId);
+  await fs.mkdir(caseDirectory);
+  await fs.writeFile(path.join(caseDirectory, 'case.json'), JSON.stringify({
+    caseId,
+    quiz: { skinType: 'dry' },
+    images: [{ angle: 'front', mediaType: 'image/jpeg', base64: '/9j/AA==' }],
+  }));
+  let requestBody;
+  const output = path.join(directory, 'selected-case.json');
+  const previousExitCode = process.exitCode;
+  try {
+    const report = await main(['--mode', 'count', '--case-id', caseId, '--language', 'he', '--input-dir', directory, '--output', output], {
+      getToken: () => 'TEST_TOKEN',
+      fetchImpl: async (_url, init) => {
+        requestBody = JSON.parse(init.body);
+        return response({ inputTokens: 1_000 });
+      },
+    });
+    assert.equal(report.status, 'counted');
+    assert.equal(report.caseId, caseId);
+    assert.equal(report.language, 'he');
+    assert.equal(report.imageCount, 1);
+    const content = requestBody.input.converse.messages.flatMap(message => message.content);
+    assert.deepEqual(content.find(part => part.image)?.image, { format: 'jpeg', source: { bytes: '/9j/AA==' } });
+    assert.equal(content.filter(part => part.image).length, 1);
+    assert.deepEqual(requestBody.input.converse.additionalModelRequestFields.output_config.format.schema.properties.shelfAnalysis, { type: 'null' });
+    assert.equal(report.schemaAwareCount, true);
+    assert.equal(report.countMethod, 'bedrock-runtime-converse-native-schema-v1');
+  } finally {
+    process.exitCode = previousExitCode;
+  }
+});
+
+test('Mantle CountTokens fails closed for selected cases before any provider call', async t => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'opus-mantle-photo-'));
+  t.after(() => fs.rm(directory, { recursive: true, force: true }));
+  const caseId = 'case-bbbbbbbbbb';
+  const caseDirectory = path.join(directory, caseId);
+  await fs.mkdir(caseDirectory);
+  await fs.writeFile(path.join(caseDirectory, 'case.json'), JSON.stringify({ caseId, quiz: {},
+    images: [{ angle: 'front', mediaType: 'image/jpeg', base64: '/9j/AA==' }] }));
+  let fetchCalled = false;
+  const previousExitCode = process.exitCode;
+  try {
+    await assert.rejects(main(['--mode', 'count', '--count-api', 'anthropic-mantle', '--case-id', caseId,
+      '--input-dir', directory, '--output', path.join(directory, 'count.json')], {
+      getToken: () => 'TEST_TOKEN', fetchImpl: async () => { fetchCalled = true; return response({ input_tokens: 1_000 }); },
+    }), /schema-aware count mode requires/);
+    assert.equal(fetchCalled, false);
+  } finally {
+    process.exitCode = previousExitCode;
+  }
 });
 
 test('input token estimate reserves one cent and caps output at 8000 tokens', () => {
+  assert.equal(INPUT_COUNT_ALLOWANCE_TOKENS, 128);
   assert.equal(maxOutputTokens(1), 8_000);
-  assert.ok(maxOutputTokens(40_000) > 0);
+  const count = 40_000;
+  const outputLimit = maxOutputTokens(count);
+  assert.ok(outputLimit > 0);
+  const estimatedUpperCost = ((count + INPUT_COUNT_ALLOWANCE_TOKENS) * 5.5 + outputLimit * 27.5) / 1_000_000;
+  assert.ok(estimatedUpperCost <= 0.25 - 0.01);
+  assert.ok(estimatedUpperCost + 27.5 / 1_000_000 > 0.25 - 0.01);
   assert.equal(maxOutputTokens(50_000), 0);
   assert.equal(maxOutputTokens(0), 0);
   assert.equal(maxOutputTokens(0.5), 0);
@@ -166,13 +233,15 @@ test('cost is computed at Standard rates and unknown cache pricing stays unknown
 
 test('CountTokens uses native regional Converse shape and bearer auth without exposing response data', async () => {
   let request;
-  const counted = await countTokens({ converse: { system: [{ text: 'private prompt' }], messages: [{ role: 'user', content: [{ text: 'private input' }] }] }, token: 'test-token', fetchImpl: async (url, init) => {
+  const converse = { system: [{ text: 'private prompt' }], messages: [{ role: 'user', content: [{ text: 'private input' }] }] };
+  const additionalModelRequestFields = { output_config: { format: { type: 'json_schema', schema: { type: 'object' } } } };
+  const counted = await countTokens({ converse, additionalModelRequestFields, token: 'test-token', fetchImpl: async (url, init) => {
     request = { url, init };
     return response({ inputTokens: 42 });
   } });
   assert.equal(request.url, `${BASE_URL}/model/${COUNT_MODEL}/count-tokens`);
   assert.equal(request.init.headers.Authorization, 'Bearer test-token');
-  assert.deepEqual(JSON.parse(request.init.body), { input: { converse: { system: [{ text: 'private prompt' }], messages: [{ role: 'user', content: [{ text: 'private input' }] }] } } });
+  assert.deepEqual(JSON.parse(request.init.body), { input: { converse: { ...converse, additionalModelRequestFields } } });
   assert.equal(counted.inputTokens, 42);
   await assert.rejects(countTokens({ converse: { system: [], messages: [] }, token: 'test-token', fetchImpl: async () => response({ inputTokens: 0 }) }), /count_unavailable/);
 });
@@ -238,13 +307,21 @@ test('original local schema still rejects constraints omitted from the wire sche
 
 test('count report cannot supply a different model or enlarge the recomputed output budget', () => {
   const count = { mode: 'count', status: 'counted', countApi: 'bedrock-runtime', promptSha256: 'fingerprint', model: MODEL, countModel: COUNT_MODEL,
+    countMethod: 'bedrock-runtime-converse-native-schema-v1', schemaAwareCount: true,
     region: 'us-east-1', inputTokens: 10_000, outputTokenLimit: maxOutputTokens(10_000) };
   assert.equal(verifyCountReport(count, 'fingerprint'), true);
-  assert.equal(verifyCountReport({ ...count, countApi: 'anthropic-mantle' }, 'fingerprint'), true);
+  assert.equal(verifyCountReport({ ...count, countApi: 'anthropic-mantle' }, 'fingerprint'), false);
   assert.equal(verifyCountReport({ ...count, countApi: 'unknown' }, 'fingerprint'), false);
+  assert.equal(verifyCountReport({ ...count, countMethod: 'legacy-text-only' }, 'fingerprint'), false);
+  assert.equal(verifyCountReport({ ...count, schemaAwareCount: false }, 'fingerprint'), false);
   assert.equal(verifyCountReport({ ...count, outputTokenLimit: 8_000 }, 'fingerprint'), false);
   assert.equal(verifyCountReport({ ...count, model: 'different' }, 'fingerprint'), false);
   assert.equal(verifyCountReport(count, 'different'), false);
+  const request = { system: [{ text: 'English prompt' }], messages: [{ role: 'user', content: [{ text: 'case quiz' }] }] };
+  const fingerprint = promptFingerprint(request);
+  const safeCount = { ...count, promptSha256: fingerprint };
+  assert.equal(verifyCountReport(safeCount, promptFingerprint({ ...request, system: [{ text: 'Hebrew prompt' }] })), false);
+  assert.equal(verifyCountReport(safeCount, promptFingerprint({ ...request, messages: [{ role: 'user', content: [{ image: { format: 'jpeg', source: { bytes: '/9j/AA==' } } }] }] })), false);
 });
 
 test('first-body measurement waits for actual bytes and releases its reader', async () => {
@@ -267,7 +344,7 @@ test('response cost survives invalid generated JSON without retaining provider p
   assert.equal(JSON.stringify(result).includes('PRIVATE_INVALID_JSON'), false);
 });
 
-test('CountTokens failure checkpoints before the request and retains safe error phases without leaking inputs', async t => {
+test('schema-aware CountTokens failure checkpoints before the request and retains safe error phases without leaking inputs', async t => {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'opus-probe-'));
   t.after(() => fs.rm(directory, { recursive: true, force: true }));
   const caseDirectory = path.join(directory, 'case-568f7d2ab3');
@@ -276,13 +353,14 @@ test('CountTokens failure checkpoints before the request and retains safe error 
   const output = path.join(directory, 'count.json');
   const previousExitCode = process.exitCode;
   try {
-    const report = await main(['--mode', 'count', '--count-api', 'anthropic-mantle', '--input-dir', directory, '--output', output], {
+    const report = await main(['--mode', 'count', '--input-dir', directory, '--output', output], {
       getToken: () => 'PRIVATE_TOKEN',
       fetchImpl: async (url, init) => {
         const checkpoint = JSON.parse(await fs.readFile(output, 'utf8'));
         assert.equal(checkpoint.status, 'in_flight');
-        assert.equal(url, MANTLE_COUNT_URL);
-        assert.equal(init.headers['x-api-key'], 'PRIVATE_TOKEN');
+        assert.equal(url, `${BASE_URL}/model/${COUNT_MODEL}/count-tokens`);
+        assert.equal(init.headers.Authorization, 'Bearer PRIVATE_TOKEN');
+        assert.equal(JSON.parse(init.body).input.converse.additionalModelRequestFields.output_config.format.type, 'json_schema');
         return response({ error: { message: 'You are not authorized to perform this action. PRIVATE_TOKEN PRIVATE_PROVIDER_DETAIL' } }, 403,
           { 'x-amzn-requestid': 'req-safe', 'x-amzn-errortype': 'AccessDeniedException' });
       },

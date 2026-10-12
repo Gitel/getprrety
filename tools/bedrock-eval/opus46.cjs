@@ -4,7 +4,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const Ajv = require('ajv');
 const { execFileSync } = require('node:child_process');
-const { outputSchema, buildMessages, validateOutput } = require('../../server/services/bedrock/analysisContract');
+const { outputSchema, buildMessages, validateOutput, eligibleProducts } = require('../../server/services/bedrock/analysisContract');
 const { loadCatalogue } = require('../../server/services/bedrock/catalogue');
 const { readCase } = require('./runner.cjs');
 const { parseArgs, isInside, getToken } = require('./run.cjs');
@@ -20,9 +20,13 @@ const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
 const MAX_OUTPUT_TOKENS = 8_000;
 const COST_CEILING_USD = 0.25;
 const RESERVED_COST_USD = 0.01;
+// The prior free comparison found a 17-token count/use delta; keep a larger allowance and label the cap as estimated.
+const INPUT_COUNT_ALLOWANCE_TOKENS = 128;
 const INPUT_USD_PER_MILLION = 5.5;
 const OUTPUT_USD_PER_MILLION = 27.5;
-const CASE_ID = 'case-568f7d2ab3';
+const DEFAULT_CASE_ID = 'case-568f7d2ab3';
+const DEFAULT_LANGUAGE = 'en';
+const MAX_COUNTABLE_IMAGE_BYTES = Math.floor(3.75 * 1024 * 1024);
 
 // Bedrock structured output accepts only a subset; local validation keeps using the untouched contract.
 function makeWireSchema(schema) {
@@ -46,18 +50,25 @@ function makeWireSchema(schema) {
   return wire;
 }
 
-// The authorized case has no photos, so reject non-text contract blocks rather than silently dropping them.
-function toConverse(built, schema = makeWireSchema(outputSchema), { countSchema = false } = {}) {
-  const systemText = countSchema ? `${built.system}\n\nCount-only schema reservation:\n${JSON.stringify(schema)}` : built.system;
+// Preserve the canonical prompt's image blocks so provider calls never silently lose photo evidence.
+function toConverse(built, schema = makeWireSchema(outputSchema)) {
   const messages = built.messages.map(message => ({
     role: message.role,
     content: typeof message.content === 'string' ? [{ text: message.content }] : message.content.map(part => {
-      if (part?.type !== 'text' || typeof part.text !== 'string') throw new Error('probe only accepts text-only input');
-      return { text: part.text };
+      if (part?.type === 'text' && typeof part.text === 'string') return { text: part.text };
+      if (part?.type === 'image_url' && typeof part.image_url?.url === 'string') {
+        const match = /^data:(image\/(?:jpeg|png));base64,([A-Za-z0-9+/]+={0,2})$/.exec(part.image_url.url);
+        if (!match || match[2].length % 4 !== 0) throw new Error('probe image block is invalid');
+        const bytes = Buffer.from(match[2], 'base64');
+        if (bytes.length > MAX_COUNTABLE_IMAGE_BYTES || bytes.toString('base64') !== match[2]) throw new Error('probe image block exceeds Bedrock limits');
+        // The fetch-based REST client needs the service's JSON base64 representation, not Buffer's JSON object.
+        return { image: { format: match[1] === 'image/jpeg' ? 'jpeg' : 'png', source: { bytes: match[2] } } };
+      }
+      throw new Error('probe input contains an unsupported content block');
     }),
   }));
   const outputConfig = { textFormat: { type: 'json_schema', structure: { jsonSchema: { schema: JSON.stringify(schema), name: 'skin_analysis' } } } };
-  return { system: [{ text: systemText }], messages, outputConfig };
+  return { system: [{ text: built.system }], messages, outputConfig };
 }
 
 function promptFingerprint(input) {
@@ -66,7 +77,8 @@ function promptFingerprint(input) {
 
 function maxOutputTokens(inputTokens) {
   if (!Number.isSafeInteger(inputTokens) || inputTokens <= 0) return 0;
-  const inputCost = inputTokens * INPUT_USD_PER_MILLION / 1_000_000;
+  // Include the count allowance and reserved output dollars when deriving each call's completion cap.
+  const inputCost = (inputTokens + INPUT_COUNT_ALLOWANCE_TOKENS) * INPUT_USD_PER_MILLION / 1_000_000;
   return Math.max(0, Math.min(MAX_OUTPUT_TOKENS, Math.floor((COST_CEILING_USD - RESERVED_COST_USD - inputCost) * 1_000_000 / OUTPUT_USD_PER_MILLION)));
 }
 
@@ -132,6 +144,7 @@ function safeProviderFailure(response, data) {
   else if (/aws-marketplace|marketplace.{0,30}subscri/i.test(message)) reason = 'marketplace_access';
   else if (/use.case.{0,40}(submit|form)|use.case.{0,40}details/i.test(message)) reason = 'anthropic_use_case';
   else if (/not authorized|explicit deny|insufficient permissions/i.test(message)) reason = 'permission_denied';
+  else if (/grammar.{0,80}(too large|exceed|maximum|limit)|(?:too large|exceed).{0,80}grammar/i.test(message)) reason = 'compiled_grammar_too_large';
   else if (/schema.{0,40}(unsupported|invalid)|unsupported.{0,40}schema/i.test(message)) reason = 'schema_validation';
   return { category: errorCategory(response.status), status: response.status, reason,
     ...(allowedTypes.includes(type) ? { exceptionType: type } : {}) };
@@ -170,10 +183,11 @@ async function requestJson({ operation, modelId = MODEL, body, token, fetchImpl 
   }
 }
 
-async function countTokens({ converse, token, fetchImpl = fetch, onPhase = () => {}, api = 'bedrock-runtime' }) {
+async function countTokens({ converse, additionalModelRequestFields, token, fetchImpl = fetch, onPhase = () => {}, api = 'bedrock-runtime' }) {
   if (api === 'bedrock-runtime') {
     const result = await requestJson({ operation: 'count-tokens', modelId: COUNT_MODEL,
-      body: { input: { converse: { system: converse.system, messages: converse.messages } } }, token, fetchImpl, onPhase });
+      body: { input: { converse: { system: converse.system, messages: converse.messages,
+        ...(additionalModelRequestFields ? { additionalModelRequestFields } : {}) } } }, token, fetchImpl, onPhase });
     const inputTokens = result.data?.inputTokens;
     if (!Number.isSafeInteger(inputTokens) || inputTokens <= 0) throw Object.assign(new Error('count_unavailable'), { category: 'count' });
     return { inputTokens, elapsedMs: result.elapsedMs, providerRequestId: result.requestId };
@@ -247,11 +261,13 @@ function validateAjvOutput(output) {
 }
 
 // Recompute the budget from a matching count instead of trusting a stored output-token cap.
-function verifyCountReport(report, promptSha256) {
-  const runtimeCount = report.countApi === 'bedrock-runtime';
-  const mantleCount = report.countApi === 'anthropic-mantle';
+function verifyCountReport(report, promptSha256, expected = {}) {
   return report.mode === 'count' && report.status === 'counted' && report.promptSha256 === promptSha256
-    && report.model === MODEL && report.countModel === COUNT_MODEL && report.region === 'us-east-1' && (runtimeCount || mantleCount)
+    && report.model === MODEL && report.countModel === COUNT_MODEL && report.region === 'us-east-1'
+    && report.countApi === 'bedrock-runtime' && report.countMethod === 'bedrock-runtime-converse-native-schema-v1' && report.schemaAwareCount === true
+    && (!expected.caseId || report.caseId === expected.caseId)
+    && (!expected.language || report.language === expected.language)
+    && (!Number.isSafeInteger(expected.imageCount) || report.imageCount === expected.imageCount)
     && Number.isSafeInteger(report.inputTokens) && report.inputTokens > 0
     && report.outputTokenLimit === maxOutputTokens(report.inputTokens) && report.outputTokenLimit > 0;
 }
@@ -264,20 +280,26 @@ async function main(argv = process.argv.slice(2), deps = {}) {
   const inputDirectory = path.resolve(options['input-dir']);
   const outputFile = path.resolve(options.output);
   if (isInside(ROOT, inputDirectory) || isInside(ROOT, outputFile)) throw new Error('input and output must be outside the application worktree');
-  const testCase = await readCase(path.join(inputDirectory, CASE_ID));
-  if (testCase.caseId !== CASE_ID || testCase.images.length !== 0) throw new Error('probe requires the authorized no-image English case');
-  const built = buildMessages({ quiz: testCase.quiz, language: 'en', images: [], catalogue: loadCatalogue() });
+  const caseId = options['case-id'] || DEFAULT_CASE_ID;
+  const language = options.language || DEFAULT_LANGUAGE;
+  if (!/^case-[a-z0-9-]{1,64}$/.test(caseId) || !['en', 'he'].includes(language)) throw new Error('case ID or language is invalid');
+  const testCase = await readCase(path.join(inputDirectory, caseId));
+  if (testCase.caseId !== caseId) throw new Error('case folder and case ID do not match');
+  const built = buildMessages({ quiz: testCase.quiz, language, images: testCase.images, catalogue: loadCatalogue() });
   const wireSchema = makeWireSchema(outputSchema);
-  // This probe has no shelf photos, and the canonical semantic validator requires null shelfAnalysis in that case.
-  wireSchema.properties.shelfAnalysis = { type: 'null' };
+  // The semantic contract requires null shelf analysis when no shelf photo was supplied.
+  if (!testCase.images.some(image => image.angle === 'shelf')) wireSchema.properties.shelfAnalysis = { type: 'null' };
   const converse = toConverse(built, wireSchema);
-  const conservativeCountInput = toConverse(built, wireSchema, { countSchema: true });
-  const promptSha256 = promptFingerprint(conservativeCountInput);
+  const countSchemaFields = { output_config: { format: { type: 'json_schema', schema: wireSchema } } };
+  const countInput = { system: converse.system, messages: converse.messages, additionalModelRequestFields: countSchemaFields };
+  const promptSha256 = promptFingerprint(countInput);
   const countApi = mode === 'count' ? (options['count-api'] || 'bedrock-runtime') : undefined;
-  if (mode === 'count' && !['bedrock-runtime', 'anthropic-mantle'].includes(countApi)) throw new Error('count API must be bedrock-runtime or anthropic-mantle');
+  if (mode === 'count' && countApi !== 'bedrock-runtime') throw new Error('schema-aware count mode requires --count-api bedrock-runtime');
   const metadata = { generatedAt: new Date().toISOString(), mode, model: MODEL, countModel: COUNT_MODEL, region: 'us-east-1', routing: 'US cross-region', timeoutMs: TIMEOUT_MS, automaticRetries: 0,
-    ...(mode === 'count' ? { countApi } : {}),
-    caseId: CASE_ID, language: 'en', imageCount: 0, stream: false, tier: 'default', promptSha256,
+    ...(mode === 'count' ? { countApi, countMethod: 'bedrock-runtime-converse-native-schema-v1', schemaAwareCount: true,
+      inputCountAllowanceTokens: INPUT_COUNT_ALLOWANCE_TOKENS,
+      costGate: 'estimate_not_guarantee_with_128_input_token_allowance_and_0.01_usd_output_reserve' } : {}),
+    caseId, language, imageCount: testCase.images.length, stream: false, tier: 'default', promptSha256,
     productionPromptSha256: promptFingerprint(built), schemaSha256: promptFingerprint(outputSchema), wireSchemaSha256: promptFingerprint(wireSchema),
     sourceCommit: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: ROOT, encoding: 'utf8' }).trim(),
     pricing: { inputUsdPerMillion: INPUT_USD_PER_MILLION, outputUsdPerMillion: OUTPUT_USD_PER_MILLION, source: 'https://www-cdn.anthropic.com/files/4zrzovbb/website/3684c2faafb97418665782cea0001f439f74b1d2.pdf' } };
@@ -296,14 +318,18 @@ async function main(argv = process.argv.slice(2), deps = {}) {
   };
   try {
     if (mode === 'count') {
-      // CountTokens includes the schema as conservative extra system text to reserve its input cost.
-      const counted = await countTokens({ converse: conservativeCountInput, token, fetchImpl, onPhase, api: countApi });
+      // CountTokens gets actual prompt blocks and the provider-native schema constraint used for inference.
+      const counted = await countTokens({ converse: { system: converse.system, messages: converse.messages },
+        additionalModelRequestFields: countSchemaFields, token, fetchImpl, onPhase, api: countApi });
       const outputTokenLimit = maxOutputTokens(counted.inputTokens);
       if (!outputTokenLimit) throw Object.assign(new Error('budget_too_small'), { category: 'budget' });
-      Object.assign(report, { inputTokens: counted.inputTokens, outputTokenLimit, estimatedInputCostUsd: counted.inputTokens * INPUT_USD_PER_MILLION / 1_000_000, reservedCostUsd: RESERVED_COST_USD, status: 'counted', providerRequestId: counted.providerRequestId, elapsedMs: counted.elapsedMs });
+      Object.assign(report, { inputTokens: counted.inputTokens, outputTokenLimit,
+        estimatedInputCostUsd: counted.inputTokens * INPUT_USD_PER_MILLION / 1_000_000,
+        bufferedInputCostUsd: (counted.inputTokens + INPUT_COUNT_ALLOWANCE_TOKENS) * INPUT_USD_PER_MILLION / 1_000_000,
+        reservedCostUsd: RESERVED_COST_USD, status: 'counted', providerRequestId: counted.providerRequestId, elapsedMs: counted.elapsedMs });
     } else {
       const countReport = JSON.parse(await fs.readFile(path.resolve(options['count-report']), 'utf8'));
-      if (!verifyCountReport(countReport, promptSha256)) throw Object.assign(new Error('count_report_invalid'), { category: 'budget' });
+      if (!verifyCountReport(countReport, promptSha256, { caseId, language, imageCount: testCase.images.length })) throw Object.assign(new Error('count_report_invalid'), { category: 'budget' });
       const analysisStarted = performance.now();
       report.outputTokenLimit = countReport.outputTokenLimit;
       const inferred = await infer({ converse, token, fetchImpl, maxTokens: report.outputTokenLimit, onPhase });
@@ -317,7 +343,14 @@ async function main(argv = process.argv.slice(2), deps = {}) {
       if (inferred.parseError) throw Object.assign(new Error('invalid_response'), { category: 'response' });
       const schemaErrors = validateAjvOutput(inferred.output);
       report.schemaErrorCount = schemaErrors.length;
-      report.semanticErrorCount = schemaErrors.length ? null : validateOutput(inferred.output, { quiz: testCase.quiz, language: 'en', images: [] }, loadCatalogue()).errors.length;
+      const catalogue = loadCatalogue();
+      const validationErrors = schemaErrors.length ? [] : validateOutput(inferred.output, { quiz: testCase.quiz, language, images: testCase.images }, catalogue).errors;
+      report.semanticErrorCount = schemaErrors.length ? null : validationErrors.length;
+      if (!schemaErrors.length) {
+        // Summarize quality checks by fixed category names; generated text and product labels stay out of reports.
+        report.semanticErrorCategories = summarizeSemanticErrors(validationErrors);
+        report.qualityMetrics = summarizeQualityMetrics(inferred.output, testCase, catalogue);
+      }
       report.outputBytes = Buffer.byteLength(JSON.stringify(inferred.output));
       const total = performance.now() - analysisStarted;
       onPhase({ phase: 'validation', elapsedMs: Math.round(total) });
@@ -340,5 +373,51 @@ async function main(argv = process.argv.slice(2), deps = {}) {
   return report;
 }
 
+function summarizeSemanticErrors(errors) {
+  const counts = {};
+  for (const error of errors) {
+    const category = /catalogue|product.*id|product category|name does not match/i.test(error) ? 'catalogue_reference'
+      : /routine|step number|step instruction/i.test(error) ? 'routine'
+        : /safety|allerg|pregnan|irritant|contraindication/i.test(error) ? 'safety'
+          : /language/i.test(error) ? 'language'
+            : /shelf/i.test(error) ? 'shelf_evidence'
+              : /event/i.test(error) ? 'event_context' : 'other';
+    counts[category] = (counts[category] || 0) + 1;
+  }
+  return counts;
+}
+
+function summarizeQualityMetrics(output, testCase, catalogue) {
+  const am = output?.era?.routine?.am || [];
+  const pm = output?.era?.routine?.pm || [];
+  const requiredAm = ['cleanse', 'moisturize', 'protect'];
+  const requiredPm = ['cleanse', 'moisturize'];
+  const referencedIds = [];
+  for (const item of output?.era?.product_audit?.current_products_assessment || []) {
+    if (item?.verdict === 'replace' && item.suggested_replacement_product_id) referencedIds.push(item.suggested_replacement_product_id);
+  }
+  if (output?.srProducts?.era_hero_product?.sr_product_id) referencedIds.push(output.srProducts.era_hero_product.sr_product_id);
+  for (const period of ['am', 'pm']) for (const step of output?.srProducts?.[period] || []) if (step?.sr_product_id) referencedIds.push(step.sr_product_id);
+  const shelfProducts = output?.shelfAnalysis?.identified_products || [];
+  for (const product of shelfProducts) if (product?.sr_substitute_product_id) referencedIds.push(product.sr_substitute_product_id);
+  const firstPurchase = output?.shelfAnalysis?.transition_plan?.first_sr_purchase_product_id;
+  if (firstPurchase) referencedIds.push(firstPurchase);
+  const eligible = new Set(eligibleProducts(catalogue, testCase.quiz).map(product => String(product._id)));
+  return {
+    amCoreStepsPresent: requiredAm.every(category => am.some(step => step?.category_id === category)),
+    pmCoreStepsPresent: requiredPm.every(category => pm.some(step => step?.category_id === category)),
+    amStartsCleanse: am[0]?.category_id === 'cleanse',
+    amEndsProtect: am.length > 0 && am.at(-1)?.category_id === 'protect',
+    pmStartsCleanse: pm[0]?.category_id === 'cleanse',
+    catalogueReferencedIdCount: referencedIds.length,
+    catalogueValidIdCount: referencedIds.filter(id => eligible.has(String(id))).length,
+    safetyFlagCount: Array.isArray(output?.era?.safety_flags) ? output.era.safety_flags.length : 0,
+    shelfProductCount: shelfProducts.length,
+  };
+}
+
 if (require.main === module) main().catch(() => { process.stderr.write('Opus probe setup failed; private inputs and credentials are omitted.\n'); process.exitCode = 1; });
-module.exports = { MODEL, COUNT_MODEL, BASE_URL, MANTLE_COUNT_URL, TIMEOUT_MS, MAX_RESPONSE_BYTES, makeWireSchema, toConverse, maxOutputTokens, reportedCostUsd, requestJson, countTokens, infer, validateAjvOutput, verifyCountReport, main };
+module.exports = { MODEL, COUNT_MODEL, BASE_URL, MANTLE_COUNT_URL, TIMEOUT_MS, MAX_RESPONSE_BYTES, DEFAULT_CASE_ID, DEFAULT_LANGUAGE,
+  COST_CEILING_USD, RESERVED_COST_USD,
+  INPUT_COUNT_ALLOWANCE_TOKENS, makeWireSchema, toConverse, promptFingerprint, maxOutputTokens, reportedCostUsd, requestJson,
+  countTokens, infer, validateAjvOutput, summarizeSemanticErrors, summarizeQualityMetrics, verifyCountReport, safeProviderFailure, main };
