@@ -399,12 +399,12 @@ test.describe('Hebrew Bedrock safety copy', () => {
     await page.getByText(t('auth:signup.ctaAfterQuiz'), { exact: true }).click();
     await finishSignupOnboarding(page, t);
     await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+    await openProfileFromHome(page, t);
+    await expect(page.getByText(SAFETY_TEXT.he, { exact: false })).toBeVisible({ timeout: 30_000 });
     await openHome(page, t);
     await page.getByText(t('home:tabs.am'), { exact: true }).click();
     await expect(page.getByText('\u05d4\u05d2\u05e0\u05d4', { exact: true })).toBeVisible();
     await expect(page.getByText('Hydrated Calm Cream', { exact: true })).toHaveCount(0);
-    await openProfileFromHome(page, t);
-    await expect(page.getByText(SAFETY_TEXT.he, { exact: false })).toBeVisible({ timeout: 30_000 });
   });
 });
 
