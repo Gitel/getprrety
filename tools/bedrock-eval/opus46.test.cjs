@@ -6,6 +6,7 @@ const path = require('node:path');
 const Ajv = require('ajv');
 const { outputSchema, validateOutput } = require('../../server/services/bedrock/analysisContract');
 const { loadCatalogue } = require('../../server/services/bedrock/catalogue');
+const { makeCompactWireSchema } = require('./opus46-compact.cjs');
 const { MODEL, COUNT_MODEL, BASE_URL, MANTLE_COUNT_URL, INPUT_COUNT_ALLOWANCE_TOKENS, makeWireSchema, toConverse, promptFingerprint, maxOutputTokens, reportedCostUsd, requestJson, countTokens, infer, validateAjvOutput, verifyCountReport, main } = require('./opus46.cjs');
 
 function response(data, status = 200, headers = {}) {
@@ -189,7 +190,8 @@ test('shelf photo narrows no-event wire schema consistently while preserving eve
     assert.deepEqual(countSchemas.get('case-aaaaaaaaaa').properties.era.properties.event_prep, { type: 'null' });
 
     const genericWireSchema = makeWireSchema(outputSchema);
-    assert.deepEqual(countSchemas.get('case-aaaaaaaaaa').properties.shelfAnalysis, genericWireSchema.properties.shelfAnalysis);
+    assert.deepEqual(countSchemas.get('case-aaaaaaaaaa').properties.shelfAnalysis,
+      makeCompactWireSchema(genericWireSchema).properties.shelfAnalysis);
     assert.deepEqual(countSchemas.get('case-bbbbbbbbbb').properties.era.properties.event_prep,
       genericWireSchema.properties.era.properties.event_prep);
     assert.deepEqual(countSchemas.get('case-bbbbbbbbbb').properties.shelfAnalysis, { type: 'null' });

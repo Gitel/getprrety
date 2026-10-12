@@ -4,8 +4,9 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const Ajv = require('ajv');
 const { execFileSync } = require('node:child_process');
-const { outputSchema, buildMessages, validateOutput, eligibleProducts } = require('../../server/services/bedrock/analysisContract');
+const { outputSchema, buildMessages, validateOutput, eligibleProducts: selectEligibleProducts } = require('../../server/services/bedrock/analysisContract');
 const { loadCatalogue } = require('../../server/services/bedrock/catalogue');
+const { COMPACT_CONTRACT_VERSION, COMPACT_SYSTEM_INSTRUCTIONS, makeCompactWireSchema, hydrateCompactOutput } = require('./opus46-compact.cjs');
 const { readCase } = require('./runner.cjs');
 const { parseArgs, isInside, getToken } = require('./run.cjs');
 const { writeAtomicCheckpoint } = require('./investigate.cjs');
@@ -256,7 +257,11 @@ function safeUsage(usage) {
 }
 
 function validateAjvOutput(output) {
-  const validator = new Ajv({ allErrors: true, strict: true, allowUnionTypes: true }).compile(outputSchema);
+  return validateAjvSchema(output, outputSchema);
+}
+
+function validateAjvSchema(output, schema) {
+  const validator = new Ajv({ allErrors: true, strict: true, allowUnionTypes: true }).compile(schema);
   return validator(output) ? [] : validator.errors.map(error => ({ keyword: error.keyword, instancePath: error.instancePath }));
 }
 
@@ -285,14 +290,19 @@ async function main(argv = process.argv.slice(2), deps = {}) {
   if (!/^case-[a-z0-9-]{1,64}$/.test(caseId) || !['en', 'he'].includes(language)) throw new Error('case ID or language is invalid');
   const testCase = await readCase(path.join(inputDirectory, caseId));
   if (testCase.caseId !== caseId) throw new Error('case folder and case ID do not match');
-  const built = buildMessages({ quiz: testCase.quiz, language, images: testCase.images, catalogue: loadCatalogue() });
-  const wireSchema = makeWireSchema(outputSchema);
+  const catalogue = loadCatalogue();
+  const eligibleCatalogue = selectEligibleProducts(catalogue, testCase.quiz);
+  const built = buildMessages({ quiz: testCase.quiz, language, images: testCase.images, catalogue });
+  const baseWireSchema = makeWireSchema(outputSchema);
   // The semantic contract requires null shelf analysis when no shelf photo was supplied.
   const hasShelfPhoto = testCase.images.some(image => image.angle === 'shelf');
-  if (!hasShelfPhoto) wireSchema.properties.shelfAnalysis = { type: 'null' };
+  if (!hasShelfPhoto) baseWireSchema.properties.shelfAnalysis = { type: 'null' };
   // Mirror analysisContract.hasNoEvent: accepted outputs must set event_prep to null when no event was supplied.
-  if (hasShelfPhoto && hasNoEvent(testCase.quiz)) wireSchema.properties.era.properties.event_prep = { type: 'null' };
-  const converse = toConverse(built, wireSchema);
+  if (hasShelfPhoto && hasNoEvent(testCase.quiz)) baseWireSchema.properties.era.properties.event_prep = { type: 'null' };
+  const wireSchema = makeCompactWireSchema(baseWireSchema);
+  // Keep the canonical prompt fingerprint separate from the compact-only count/inference prompt.
+  const compactBuilt = { ...built, system: `${built.system}\n\n${COMPACT_SYSTEM_INSTRUCTIONS}` };
+  const converse = toConverse(compactBuilt, wireSchema);
   const countSchemaFields = { output_config: { format: { type: 'json_schema', schema: wireSchema } } };
   const countInput = { system: converse.system, messages: converse.messages, additionalModelRequestFields: countSchemaFields };
   const promptSha256 = promptFingerprint(countInput);
@@ -303,6 +313,7 @@ async function main(argv = process.argv.slice(2), deps = {}) {
       inputCountAllowanceTokens: INPUT_COUNT_ALLOWANCE_TOKENS,
       costGate: 'estimate_not_guarantee_with_128_input_token_allowance_and_0.01_usd_output_reserve' } : {}),
     caseId, language, imageCount: testCase.images.length, stream: false, tier: 'default', promptSha256,
+    compactContractVersion: COMPACT_CONTRACT_VERSION,
     productionPromptSha256: promptFingerprint(built), schemaSha256: promptFingerprint(outputSchema), wireSchemaSha256: promptFingerprint(wireSchema),
     sourceCommit: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: ROOT, encoding: 'utf8' }).trim(),
     pricing: { inputUsdPerMillion: INPUT_USD_PER_MILLION, outputUsdPerMillion: OUTPUT_USD_PER_MILLION, source: 'https://www-cdn.anthropic.com/files/4zrzovbb/website/3684c2faafb97418665782cea0001f439f74b1d2.pdf' } };
@@ -344,21 +355,32 @@ async function main(argv = process.argv.slice(2), deps = {}) {
       });
       if (report.costUnknown || report.costUsd > COST_CEILING_USD) throw Object.assign(new Error('cost_invalid'), { category: 'cost' });
       if (inferred.parseError) throw Object.assign(new Error('invalid_response'), { category: 'response' });
-      const schemaErrors = validateAjvOutput(inferred.output);
-      report.schemaErrorCount = schemaErrors.length;
-      const catalogue = loadCatalogue();
-      const validationErrors = schemaErrors.length ? [] : validateOutput(inferred.output, { quiz: testCase.quiz, language, images: testCase.images }, catalogue).errors;
-      report.semanticErrorCount = schemaErrors.length ? null : validationErrors.length;
-      if (!schemaErrors.length) {
+      report.outputBytes = inferred.output === null ? 0 : Buffer.byteLength(JSON.stringify(inferred.output));
+      const wireSchemaErrors = validateAjvSchema(inferred.output, wireSchema);
+      report.wireSchemaErrorCount = wireSchemaErrors.length;
+      let canonicalOutput = null;
+      if (!wireSchemaErrors.length) {
+        try {
+          canonicalOutput = hydrateCompactOutput(inferred.output, { eligibleProducts: eligibleCatalogue });
+        } catch {
+          // Keep model-supplied product IDs and labels out of error details and saved reports.
+          report.hydrationErrorCount = 1;
+        }
+      }
+      const canonicalSchemaErrors = canonicalOutput ? validateAjvOutput(canonicalOutput) : [];
+      report.canonicalSchemaErrorCount = canonicalSchemaErrors.length;
+      report.schemaErrorCount = wireSchemaErrors.length + (report.hydrationErrorCount || 0) + canonicalSchemaErrors.length;
+      const validationErrors = report.schemaErrorCount ? [] : validateOutput(canonicalOutput, { quiz: testCase.quiz, language, images: testCase.images }, catalogue).errors;
+      report.semanticErrorCount = report.schemaErrorCount ? null : validationErrors.length;
+      if (!report.schemaErrorCount) {
         // Summarize quality checks by fixed category names; generated text and product labels stay out of reports.
         report.semanticErrorCategories = summarizeSemanticErrors(validationErrors);
-        report.qualityMetrics = summarizeQualityMetrics(inferred.output, testCase, catalogue);
+        report.qualityMetrics = summarizeQualityMetrics(canonicalOutput, testCase, catalogue);
       }
-      report.outputBytes = Buffer.byteLength(JSON.stringify(inferred.output));
       const total = performance.now() - analysisStarted;
       onPhase({ phase: 'validation', elapsedMs: Math.round(total) });
       if (total > TIMEOUT_MS) throw Object.assign(new Error('request_timeout'), { category: 'timeout' });
-      if (schemaErrors.length || report.semanticErrorCount || inferred.stopReason !== 'end_turn') throw Object.assign(new Error('analysis_invalid'), { category: 'validation' });
+      if (report.schemaErrorCount || report.semanticErrorCount || inferred.stopReason !== 'end_turn') throw Object.assign(new Error('analysis_invalid'), { category: 'validation' });
       report.status = 'valid';
     }
   } catch (error) {
@@ -411,7 +433,7 @@ function summarizeQualityMetrics(output, testCase, catalogue) {
   for (const product of shelfProducts) if (product?.sr_substitute_product_id) referencedIds.push(product.sr_substitute_product_id);
   const firstPurchase = output?.shelfAnalysis?.transition_plan?.first_sr_purchase_product_id;
   if (firstPurchase) referencedIds.push(firstPurchase);
-  const eligible = new Set(eligibleProducts(catalogue, testCase.quiz).map(product => String(product._id)));
+  const eligible = new Set(selectEligibleProducts(catalogue, testCase.quiz).map(product => String(product._id)));
   return {
     amCoreStepsPresent: requiredAm.every(category => am.some(step => step?.category_id === category)),
     pmCoreStepsPresent: requiredPm.every(category => pm.some(step => step?.category_id === category)),
@@ -429,4 +451,4 @@ if (require.main === module) main().catch(() => { process.stderr.write('Opus pro
 module.exports = { MODEL, COUNT_MODEL, BASE_URL, MANTLE_COUNT_URL, TIMEOUT_MS, MAX_RESPONSE_BYTES, DEFAULT_CASE_ID, DEFAULT_LANGUAGE,
   COST_CEILING_USD, RESERVED_COST_USD,
   INPUT_COUNT_ALLOWANCE_TOKENS, makeWireSchema, toConverse, promptFingerprint, maxOutputTokens, reportedCostUsd, requestJson,
-  countTokens, infer, validateAjvOutput, summarizeSemanticErrors, summarizeQualityMetrics, verifyCountReport, safeProviderFailure, main };
+  countTokens, infer, validateAjvOutput, validateAjvSchema, summarizeSemanticErrors, summarizeQualityMetrics, verifyCountReport, safeProviderFailure, main };
