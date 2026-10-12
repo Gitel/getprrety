@@ -288,7 +288,10 @@ async function main(argv = process.argv.slice(2), deps = {}) {
   const built = buildMessages({ quiz: testCase.quiz, language, images: testCase.images, catalogue: loadCatalogue() });
   const wireSchema = makeWireSchema(outputSchema);
   // The semantic contract requires null shelf analysis when no shelf photo was supplied.
-  if (!testCase.images.some(image => image.angle === 'shelf')) wireSchema.properties.shelfAnalysis = { type: 'null' };
+  const hasShelfPhoto = testCase.images.some(image => image.angle === 'shelf');
+  if (!hasShelfPhoto) wireSchema.properties.shelfAnalysis = { type: 'null' };
+  // Mirror analysisContract.hasNoEvent: accepted outputs must set event_prep to null when no event was supplied.
+  if (hasShelfPhoto && hasNoEvent(testCase.quiz)) wireSchema.properties.era.properties.event_prep = { type: 'null' };
   const converse = toConverse(built, wireSchema);
   const countSchemaFields = { output_config: { format: { type: 'json_schema', schema: wireSchema } } };
   const countInput = { system: converse.system, messages: converse.messages, additionalModelRequestFields: countSchemaFields };
@@ -371,6 +374,12 @@ async function main(argv = process.argv.slice(2), deps = {}) {
   process.stdout.write(`${JSON.stringify(report)}\n`);
   if (report.status !== 'counted' && report.status !== 'valid') process.exitCode = 1;
   return report;
+}
+
+// Keep this evaluator predicate aligned with analysisContract.js until that canonical helper is exported.
+function hasNoEvent(quiz) {
+  const event = String(quiz.event_type || quiz.event || '').trim().toLowerCase();
+  return !event || ['none', 'no_event', 'no event'].includes(event);
 }
 
 function summarizeSemanticErrors(errors) {

@@ -138,6 +138,82 @@ test('no-photo probe sends shelf-null schema to count and inference without chan
   }
 });
 
+// Lock the shelf-specific event wire rule to the canonical event predicate and preserve other request shapes.
+test('shelf photo narrows no-event wire schema consistently while preserving event and no-shelf schemas', async t => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'opus-event-schema-'));
+  t.after(() => fs.rm(directory, { recursive: true, force: true }));
+  const cases = [
+    { caseId: 'case-aaaaaaaaaa', quiz: {}, images: [{ angle: 'shelf', mediaType: 'image/jpeg', base64: '/9j/AA==' }] },
+    { caseId: 'case-bbbbbbbbbb', quiz: {}, images: [] },
+    { caseId: 'case-cccccccccc', quiz: { event_type: 'wedding' }, images: [{ angle: 'shelf', mediaType: 'image/jpeg', base64: '/9j/AA==' }] },
+  ];
+  for (const testCase of cases) {
+    const caseDirectory = path.join(directory, testCase.caseId);
+    await fs.mkdir(caseDirectory);
+    await fs.writeFile(path.join(caseDirectory, 'case.json'), JSON.stringify(testCase));
+  }
+
+  const previousExitCode = process.exitCode;
+  try {
+    const countSchemas = new Map();
+    let noEventCount;
+    for (const testCase of cases) {
+      const report = await main(['--mode', 'count', '--case-id', testCase.caseId, '--input-dir', directory,
+        '--output', path.join(directory, `${testCase.caseId}-count.json`)], {
+        getToken: () => 'test-token',
+        fetchImpl: async (_url, init) => {
+          const schema = JSON.parse(init.body).input.converse.additionalModelRequestFields.output_config.format.schema;
+          countSchemas.set(testCase.caseId, schema);
+          return response({ inputTokens: 10_000 });
+        },
+      });
+      assert.equal(report.status, 'counted');
+      await fs.writeFile(path.join(directory, `${testCase.caseId}-count.json`), JSON.stringify(report));
+      if (testCase.caseId === 'case-aaaaaaaaaa') noEventCount = report;
+    }
+
+    const inferredOutput = validNoImageOutput();
+    let inferredSchema;
+    const analysis = await main(['--mode', 'analysis', '--case-id', 'case-aaaaaaaaaa', '--input-dir', directory,
+      '--count-report', path.join(directory, 'case-aaaaaaaaaa-count.json'), '--output', path.join(directory, 'analysis.json')], {
+      getToken: () => 'test-token',
+      fetchImpl: async (_url, init) => {
+        inferredSchema = JSON.parse(JSON.parse(init.body).outputConfig.textFormat.structure.jsonSchema.schema);
+        return response({ output: { message: { content: [{ text: JSON.stringify(inferredOutput) }] } },
+          usage: { inputTokens: 100, outputTokens: 20 }, stopReason: 'end_turn' });
+      },
+    });
+    assert.equal(noEventCount.status, 'counted');
+    assert.equal(analysis.status, 'valid');
+    assert.deepEqual(inferredSchema, countSchemas.get('case-aaaaaaaaaa'));
+    assert.deepEqual(countSchemas.get('case-aaaaaaaaaa').properties.era.properties.event_prep, { type: 'null' });
+
+    const genericWireSchema = makeWireSchema(outputSchema);
+    assert.deepEqual(countSchemas.get('case-aaaaaaaaaa').properties.shelfAnalysis, genericWireSchema.properties.shelfAnalysis);
+    assert.deepEqual(countSchemas.get('case-bbbbbbbbbb').properties.era.properties.event_prep,
+      genericWireSchema.properties.era.properties.event_prep);
+    assert.deepEqual(countSchemas.get('case-bbbbbbbbbb').properties.shelfAnalysis, { type: 'null' });
+    assert.deepEqual(countSchemas.get('case-cccccccccc').properties.era.properties.event_prep,
+      genericWireSchema.properties.era.properties.event_prep);
+
+    const noEventOutput = validNoImageOutput();
+    noEventOutput.shelfAnalysis = { identified_products: [], shelf_summary: { overall_note: 'Products reviewed.' },
+      transition_plan: { first_sr_purchase: '', first_sr_purchase_product_id: null } };
+    const noEventContext = { quiz: {}, language: 'en', images: cases[0].images };
+    noEventOutput.era.event_prep = { summary: 'Prepare ahead gently.', steps: [] };
+    assert.ok(validateOutput(noEventOutput, noEventContext, loadCatalogue()).errors
+      .includes('event_prep must be null when no event was supplied'));
+
+    const eventOutput = structuredClone(noEventOutput);
+    const eventContext = { quiz: { event_type: 'wedding' }, language: 'en', images: cases[2].images };
+    assert.deepEqual(validateAjvOutput(eventOutput), []);
+    assert.ok(!validateOutput(eventOutput, eventContext, loadCatalogue()).errors
+      .includes('event_prep must be null when no event was supplied'));
+  } finally {
+    process.exitCode = previousExitCode;
+  }
+});
+
 test('Converse builder preserves typed text and every validated inline photo', () => {
   const built = { system: 'system text', messages: [{ role: 'user', content: [{ type: 'text', text: 'input text' }] }] };
   const normal = toConverse(built);
