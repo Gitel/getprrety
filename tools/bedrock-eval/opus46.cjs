@@ -28,6 +28,15 @@ const CASE_ID = 'case-568f7d2ab3';
 function makeWireSchema(schema) {
   if (Array.isArray(schema)) return schema.map(makeWireSchema);
   if (!schema || typeof schema !== 'object') return schema;
+  // Encode nullable objects as one union node; Bedrock rejected the original grammar as too large.
+  if (Object.keys(schema).length === 1 && Array.isArray(schema.anyOf) && schema.anyOf.length === 2) {
+    const nullBranch = schema.anyOf.find(branch => branch?.type === 'null');
+    const objectBranch = schema.anyOf.find(branch => branch?.type === 'object');
+    if (nullBranch && Object.keys(nullBranch).length === 1 && objectBranch) {
+      const wire = makeWireSchema(objectBranch);
+      return { ...wire, type: ['object', 'null'] };
+    }
+  }
   const wire = {};
   for (const [key, value] of Object.entries(schema)) {
     if (['maxItems', 'minimum', 'maximum', 'multipleOf', 'minLength', 'maxLength'].includes(key)) continue;
@@ -259,6 +268,8 @@ async function main(argv = process.argv.slice(2), deps = {}) {
   if (testCase.caseId !== CASE_ID || testCase.images.length !== 0) throw new Error('probe requires the authorized no-image English case');
   const built = buildMessages({ quiz: testCase.quiz, language: 'en', images: [], catalogue: loadCatalogue() });
   const wireSchema = makeWireSchema(outputSchema);
+  // This probe has no shelf photos, and the canonical semantic validator requires null shelfAnalysis in that case.
+  wireSchema.properties.shelfAnalysis = { type: 'null' };
   const converse = toConverse(built, wireSchema);
   const conservativeCountInput = toConverse(built, wireSchema, { countSchema: true });
   const promptSha256 = promptFingerprint(conservativeCountInput);

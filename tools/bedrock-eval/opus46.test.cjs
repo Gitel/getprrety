@@ -3,11 +3,34 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
-const { outputSchema } = require('../../server/services/bedrock/analysisContract');
+const Ajv = require('ajv');
+const { outputSchema, validateOutput } = require('../../server/services/bedrock/analysisContract');
+const { loadCatalogue } = require('../../server/services/bedrock/catalogue');
 const { MODEL, COUNT_MODEL, BASE_URL, MANTLE_COUNT_URL, makeWireSchema, toConverse, maxOutputTokens, reportedCostUsd, requestJson, countTokens, infer, validateAjvOutput, verifyCountReport, main } = require('./opus46.cjs');
 
 function response(data, status = 200, headers = {}) {
   return new Response(JSON.stringify(data), { status, headers });
+}
+
+function validNoImageOutput() {
+  return {
+    era: {
+      era: { id: 'barrier_healing', affirmation: 'A gentle routine can support steady skin care.' },
+      skin_analysis: { summary: 'Your skin may benefit from a simple routine.', key_insights: [] },
+      routine: { am: [
+        { category_id: 'cleanse', category: 'Cleanse', instruction: 'Use a gentle cleanser.' },
+        { category_id: 'moisturize', category: 'Moisturize', instruction: 'Apply a moisturizer.' },
+        { category_id: 'protect', category: 'Protect', instruction: 'Use sunscreen.' },
+      ], pm: [
+        { category_id: 'cleanse', category: 'Cleanse', instruction: 'Cleanse gently.' },
+        { category_id: 'moisturize', category: 'Moisturize', instruction: 'Apply moisturizer.' },
+      ] },
+      product_audit: { current_products_assessment: [], most_urgent_gap: null },
+      check_in_prompts: [], safety_flags: [], event_prep: null,
+    },
+    srProducts: null,
+    shelfAnalysis: null,
+  };
 }
 
 test('wire schema drops Bedrock-unsupported bounds but preserves structure for local contract validation', () => {
@@ -19,6 +42,101 @@ test('wire schema drops Bedrock-unsupported bounds but preserves structure for l
   assert.equal(wire.properties.era.properties.routine.properties.am.minItems, undefined);
   assert.equal(wire.properties.era.properties.routine.properties.pm.items.$ref, '#/$defs/routineStep');
   assert.equal(outputSchema.properties.era.properties.routine.properties.am.minItems, 3);
+});
+
+test('wire schema collapses nullable object combinators while canonical validation remains authoritative', () => {
+  const canonicalBefore = structuredClone(outputSchema);
+  const wire = makeWireSchema(outputSchema);
+  const countKeyword = (value, keyword) => {
+    if (!value || typeof value !== 'object') return 0;
+    let count = Array.isArray(value) ? 0 : Object.hasOwn(value, keyword) ? 1 : 0;
+    for (const child of Array.isArray(value) ? value : Object.values(value)) count += countKeyword(child, keyword);
+    return count;
+  };
+  const wireValidator = new Ajv({ allErrors: true, strict: true, allowUnionTypes: true }).compile(wire);
+  const validOutput = validNoImageOutput();
+  assert.equal(countKeyword(outputSchema, 'anyOf'), 3);
+  assert.equal(countKeyword(wire, 'anyOf'), 0);
+  assert.equal(wireValidator(validOutput), true);
+  assert.deepEqual(validateAjvOutput(validOutput), []);
+  assert.deepEqual(validateOutput(validOutput, { quiz: {}, language: 'en', images: [] }, loadCatalogue()).errors, []);
+
+  const nullableBranches = [
+    ['era', 'event_prep'], ['srProducts'], ['shelfAnalysis'],
+  ];
+  for (const pathParts of nullableBranches) {
+    const schemaAt = pathParts.reduce((value, key) => key === 'era' ? value.properties.era : key === 'event_prep' ? value.properties.event_prep : key === 'srProducts' ? value.properties.srProducts : value.properties.shelfAnalysis, wire);
+    assert.deepEqual(schemaAt.type, ['object', 'null']);
+    const present = structuredClone(validOutput);
+    if (pathParts[0] === 'era') present.era.event_prep = { summary: 'Plan ahead gently.', steps: [] };
+    else if (pathParts[0] === 'srProducts') present.srProducts = { bundle_note: 'A simple set.', era_hero_product: { sr_product_id: null, sr_product_name: '', hero_reason: 'No verified match.' }, am: [], pm: [] };
+    else present.shelfAnalysis = { identified_products: [], shelf_summary: { overall_note: 'No products identified.' }, transition_plan: { first_sr_purchase: '', first_sr_purchase_product_id: null } };
+    assert.equal(wireValidator(present), true);
+    assert.deepEqual(validateAjvOutput(present), []);
+
+    const malformed = structuredClone(present);
+    if (pathParts[0] === 'era') malformed.era.event_prep = { summary: 'Missing steps.' };
+    else if (pathParts[0] === 'srProducts') malformed.srProducts = { bundle_note: 'Missing fields.' };
+    else malformed.shelfAnalysis = { identified_products: [] };
+    assert.equal(wireValidator(malformed), false);
+    assert.ok(validateAjvOutput(malformed).length > 0);
+  }
+  assert.deepEqual(outputSchema, canonicalBefore);
+});
+
+test('no-photo probe sends shelf-null schema to count and inference without changing canonical validation', async t => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'opus-shelf-schema-'));
+  t.after(() => fs.rm(directory, { recursive: true, force: true }));
+  const caseDirectory = path.join(directory, 'case-568f7d2ab3');
+  await fs.mkdir(caseDirectory);
+  await fs.writeFile(path.join(caseDirectory, 'case.json'), JSON.stringify({ caseId: 'case-568f7d2ab3', quiz: {}, images: [] }));
+  const countFile = path.join(directory, 'count.json');
+  const countOutput = path.join(directory, 'count-output.json');
+  const analysisOutput = path.join(directory, 'analysis-output.json');
+  const previousExitCode = process.exitCode;
+  let countedSchema;
+  let inferredSchema;
+  try {
+    const counted = await main(['--mode', 'count', '--input-dir', directory, '--output', countOutput], {
+      getToken: () => 'test-token',
+      fetchImpl: async (_url, init) => {
+        const body = JSON.parse(init.body);
+        const system = body.input.converse.system[0].text;
+        countedSchema = JSON.parse(system.split('Count-only schema reservation:\n').at(-1));
+        return response({ inputTokens: 10_000 });
+      },
+    });
+    await fs.writeFile(countFile, JSON.stringify(counted));
+    const analysis = await main(['--mode', 'analysis', '--input-dir', directory, '--output', analysisOutput, '--count-report', countFile], {
+      getToken: () => 'test-token',
+      fetchImpl: async (_url, init) => {
+        const body = JSON.parse(init.body);
+        inferredSchema = JSON.parse(body.outputConfig.textFormat.structure.jsonSchema.schema);
+        return response({ output: { message: { content: [{ text: '{}' }] } }, usage: { inputTokens: 100, outputTokens: 20 }, stopReason: 'end_turn' });
+      },
+    });
+    assert.equal(counted.status, 'counted');
+    assert.equal(analysis.failureCategory, 'validation');
+    assert.deepEqual(countedSchema, inferredSchema);
+    assert.deepEqual(countedSchema.properties.shelfAnalysis, { type: 'null' });
+    const genericSchema = makeWireSchema(outputSchema);
+    const countUnionNodes = schema => !schema || typeof schema !== 'object' ? 0
+      : (Array.isArray(schema.type) && schema.type.length > 1 ? 1 : 0)
+        + (Array.isArray(schema.anyOf) && schema.anyOf.length > 1 ? 1 : 0)
+        + Object.values(schema).reduce((total, child) => total + countUnionNodes(child), 0);
+    assert.ok(countUnionNodes(countedSchema) < countUnionNodes(genericSchema));
+    assert.ok(Buffer.byteLength(JSON.stringify(countedSchema)) < Buffer.byteLength(JSON.stringify(genericSchema)));
+
+    const validOutput = validNoImageOutput();
+    assert.deepEqual(validateAjvOutput(validOutput), []);
+    assert.deepEqual(validateOutput(validOutput, { quiz: {}, language: 'en', images: [] }, loadCatalogue()).errors, []);
+    const shapedShelfOutput = structuredClone(validOutput);
+    shapedShelfOutput.shelfAnalysis = { identified_products: [], shelf_summary: { overall_note: 'Products reviewed.' }, transition_plan: { first_sr_purchase: '', first_sr_purchase_product_id: null } };
+    assert.deepEqual(validateAjvOutput(shapedShelfOutput), []);
+    assert.ok(validateOutput(shapedShelfOutput, { quiz: {}, language: 'en', images: [] }, loadCatalogue()).errors.includes('shelfAnalysis must be null when no shelf photos were provided'));
+  } finally {
+    process.exitCode = previousExitCode;
+  }
 });
 
 test('Converse builder converts only typed text and counts schema as extra conservative input', () => {
