@@ -23,7 +23,7 @@ function matches(doc, filter) {
     const value = norm(getPath(doc, key));
     if (cond && typeof cond === 'object' && !(cond instanceof Date)) {
       return Object.entries(cond).every(([op, arg]) => {
-        if (op === '$ne') return !same(value, arg);
+        if (op === '$ne') return Array.isArray(value) ? !value.some(v => same(v, arg)) : !same(value, arg);
         if (op === '$gt') return value !== null && value > arg;
         if (op === '$lt') return value !== null && value < arg;
         throw new Error(`fake: operator ${op}`);
@@ -53,6 +53,14 @@ function makeBooking(rows, { duplicateOnConfirm = false } = {}) {
         const err = new Error('E11000 duplicate key'); err.code = 11000; err.keyPattern = { startsAt: 1 }; throw err;
       }
       Object.assign(row, update.$set);
+      // $addToSet: push the value into the (nested) array unless it is already there.
+      for (const [path, value] of Object.entries(update.$addToSet || {})) {
+        const keys = path.split('.');
+        const last = keys.pop();
+        const parent = keys.reduce((o, k) => { o[k] = o[k] || {}; return o[k]; }, row);
+        parent[last] = parent[last] || [];
+        if (!parent[last].includes(value)) parent[last].push(value);
+      }
       return row;
     })),
     updateMany: jest.fn((f, update) => query(() => {
@@ -148,6 +156,35 @@ describe('recordPayment', () => {
     expect(Booking.store[0].needsAttention).toBe('paid_extra');
   });
 
+  test('second order on a paid row: stored in extraRefs, flagged once, re-delivery is already_recorded (never throws)', async () => {
+    const Booking = makeBooking([pending({ status: 'confirmed', payment: { status: 'paid', providerRef: '1111' } })]);
+    const out = await recordPayment(ORDER, deps(Booking));
+    expect(out).toEqual({ ok: true, result: 'needs_attention', needsAttention: 'paid_extra' });
+    expect(Booking.store[0].payment.extraRefs).toEqual(['9001']);
+    // Shopify re-delivers the extra order: recognised, no new write, no throw.
+    Booking.findOneAndUpdate.mockClear();
+    await expect(recordPayment(ORDER, deps(Booking))).resolves.toEqual({ ok: true, result: 'already_recorded' });
+    expect(Booking.findOneAndUpdate).not.toHaveBeenCalled();
+    // The main order is still recognised too.
+    expect(await recordPayment({ ...ORDER, orderId: '1111' }, deps(Booking))).toEqual({ ok: true, result: 'already_recorded' });
+  });
+
+  test('second order on an already flagged row: keeps its flag, adds the order to extraRefs', async () => {
+    const Booking = makeBooking([pending({ status: 'cancelled', needsAttention: 'paid_after_cancel', payment: { status: 'paid', providerRef: '1111', extraRefs: ['2222'] } })]);
+    const out = await recordPayment(ORDER, deps(Booking));
+    expect(out).toEqual({ ok: true, result: 'needs_attention', needsAttention: 'paid_after_cancel' });
+    expect(Booking.store[0].needsAttention).toBe('paid_after_cancel');
+    expect(Booking.store[0].payment.extraRefs).toEqual(['2222', '9001']);
+    expect(await recordPayment({ ...ORDER, orderId: '2222' }, deps(Booking))).toEqual({ ok: true, result: 'already_recorded' });
+  });
+
+  test.each(['pending_payment', 'expired'])('payment after the start time (%s row) -> paid_slot_lost, stays expired, not confirmed', async status => {
+    const Booking = makeBooking([pending({ status, startsAt: new Date(NOW.getTime() - 60000) })]);
+    const out = await recordPayment(ORDER, deps(Booking));
+    expect(out).toEqual({ ok: true, result: 'needs_attention', needsAttention: 'paid_slot_lost' });
+    expect(Booking.store[0]).toMatchObject({ status: 'expired', holdExpiresAt: null, needsAttention: 'paid_slot_lost', payment: { status: 'paid', providerRef: '9001' } });
+  });
+
   test('user already has another confirmed upcoming booking -> paid_extra, no second confirmation', async () => {
     const Booking = makeBooking([
       pending(),
@@ -191,6 +228,7 @@ describe('syncCalendarEvents', () => {
     const arg = cal.createEvent.mock.calls[0][0];
     expect(arg.description).toContain('Paid: 150 ILS (Shopify order 9001)');
     expect(arg.summary).toBe('Consultation - Dana');
+    expect(arg.eventId).toBe(ID); // the booking id is sent as the Google event id (idempotent retries)
     expect(Booking.store[0]).toMatchObject({ calendarEventId: 'ev1', calendarId: 'cal@x', calendarClaimedAt: NOW });
     delete process.env.GOOGLE_CALENDAR_ID;
   });

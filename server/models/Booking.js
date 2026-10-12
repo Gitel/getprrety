@@ -15,6 +15,9 @@ const bookingSchema = new mongoose.Schema({
   holdExpiresAt: { type: Date, default: null },
   // Set when money and slot disagree and a human has to look (shown in the admin bookings page).
   needsAttention: { type: String, enum: [null, 'paid_slot_lost', 'paid_after_cancel', 'paid_extra'], default: null },
+  // Set when an admin pressed "Mark handled" on a flagged row (it then leaves the Needs attention tab).
+  attentionHandledAt: { type: Date, default: null },
+  attentionHandledByAdminEmail: { type: String, lowercase: true, trim: true, default: null },
   // Claim for the single writer that creates the calendar event (stops two writers doing it twice).
   calendarClaimedAt: { type: Date, default: null },
   // null only for the short moment between saving the row and creating the calendar event.
@@ -32,6 +35,9 @@ const bookingSchema = new mongoose.Schema({
       currency:    { type: String, default: null },
       providerRef: { type: String, default: null }, // Shopify order id as a string
       paidAt:      { type: Date, default: null },
+      // Further Shopify order ids paid for a row that was already paid or flagged (customer paid twice).
+      // Kept so a re-delivery of such an order is recognised and never flagged or counted again.
+      extraRefs:   { type: [String], default: [] },
     },
     default: () => ({}),
     _id: false,

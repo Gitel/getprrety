@@ -115,16 +115,19 @@ mongoose
     setInterval(() => {
       skinScanPoller.recoverPendingScans().catch(err => console.error('Skin scan recovery error:', err));
     }, 30000).unref();
-    // Every 60 s (only when booking is on): release unpaid holds that ran out, then write any
-    // missing calendar events of paid bookings. Errors are logged, never thrown.
+    // Every 60 s: release unpaid holds that ran out, then write any missing calendar events of
+    // paid bookings. Both run even when the clinic switched booking off (paid rows still need their
+    // event). The two steps are separate so one failing never blocks the other; errors are logged only.
     setInterval(async () => {
       try {
-        const bookings = require('./services/bookings');
-        if (!(await bookings.isBookingEnabled())) return;
-        await bookings.expireHolds();
-        await syncCalendarEvents();
+        await require('./services/bookings').expireHolds();
       } catch (err) {
-        console.error(`Booking sweep error (${err && err.name})`);
+        console.error(`Booking sweep error: expireHolds (${err && err.name})`);
+      }
+      try {
+        if (require('./services/calendar').isConfigured()) await syncCalendarEvents();
+      } catch (err) {
+        console.error(`Booking sweep error: calendar sync (${err && err.name})`);
       }
     }, 60000).unref();
     app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));

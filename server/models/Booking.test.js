@@ -21,7 +21,15 @@ test('a minimal booking is valid and gets the documented defaults', () => {
 
 test('payment defaults: status none, everything else null, no sub-document _id', () => {
   const payment = new Booking(valid()).toObject().payment;
-  expect(payment).toEqual({ status: 'none', amount: null, currency: null, providerRef: null, paidAt: null });
+  expect(payment).toEqual({ status: 'none', amount: null, currency: null, providerRef: null, paidAt: null, extraRefs: [] });
+});
+
+test('attention-handled fields default to null; the admin email is lowercased and trimmed', () => {
+  const doc = new Booking(valid());
+  expect(doc.attentionHandledAt).toBeNull();
+  expect(doc.attentionHandledByAdminEmail).toBeNull();
+  expect(new Booking({ ...valid(), attentionHandledByAdminEmail: '  Admin@Example.COM ' }).attentionHandledByAdminEmail).toBe('admin@example.com');
+  expect(new Booking({ ...valid(), payment: { extraRefs: ['1', '2'] } }).payment.extraRefs).toEqual(['1', '2']);
 });
 
 test('static lists: STATUSES, NEEDS_ATTENTION and NOTE_MAX', () => {

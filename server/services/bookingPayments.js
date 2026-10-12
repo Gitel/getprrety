@@ -42,19 +42,26 @@ async function recordPayment({ bookingId, orderId, amount, currency } = {}, deps
     if (!b) return { ok: true, result: 'booking_not_found' };
 
     const paidWith = b.payment && b.payment.providerRef;
-    if (paidWith === order.orderId) return { ok: true, result: 'already_recorded' };
+    const extras = (b.payment && b.payment.extraRefs) || [];
+    // This exact order was already recorded (as the main payment or as an extra): nothing to do.
+    if (paidWith === order.orderId || extras.includes(order.orderId)) return { ok: true, result: 'already_recorded' };
 
-    // Already paid with ANOTHER order: keep the first payment, flag the second for a human (refund).
-    if (paidWith) {
-      const flagged = await d.Booking.findOneAndUpdate(
-        { _id: b._id, 'payment.providerRef': paidWith, needsAttention: null },
-        { $set: { needsAttention: 'paid_extra' } }, { new: true },
+    // The row is already paid or flagged and a NEW order arrived (the customer paid twice): keep the
+    // first payment, remember the extra order id (so its re-delivery is "already_recorded") and flag
+    // the row for a human (refund). This path never throws, so Shopify does not retry for hours.
+    if (paidWith || b.needsAttention) {
+      const update = { $addToSet: { 'payment.extraRefs': order.orderId } };
+      if (!b.needsAttention) update.$set = { needsAttention: 'paid_extra' };
+      const row = await d.Booking.findOneAndUpdate(
+        // Conditional on the flag we read and on the order not being stored yet (race guard).
+        { _id: b._id, needsAttention: b.needsAttention || null, 'payment.extraRefs': { $ne: order.orderId } },
+        update, { new: true },
       ).lean();
-      if (flagged) {
-        console.error(`payments: booking ${b._id} got a second payment, order ${order.orderId} (paid_extra)`);
-        return { ok: true, result: 'needs_attention', needsAttention: 'paid_extra' };
+      if (row) {
+        console.error(`payments: booking ${b._id} got an extra payment, order ${order.orderId} (paid_extra)`);
+        return { ok: true, result: 'needs_attention', needsAttention: row.needsAttention || 'paid_extra' };
       }
-      continue; // lost a race: re-read
+      continue; // lost a race: re-read (the next pass sees the winner's write)
     }
 
     // The customer paid after the booking was cancelled: record the money, keep the row cancelled.
@@ -82,6 +89,21 @@ async function recordPayment({ bookingId, orderId, amount, currency } = {}, deps
 
     // From here the row is pending_payment or expired (a late payment may still win the slot).
     const expected = b.status;
+
+    // The payment arrived when the appointment time has already started or passed: do not confirm a
+    // booking in the past. Record the money, keep the row expired and flag it for a human.
+    if (new Date(b.startsAt).getTime() <= d.now().getTime()) {
+      const row = await d.Booking.findOneAndUpdate(
+        { _id: b._id, status: expected },
+        { $set: { status: 'expired', holdExpiresAt: null, payment: paidBlock(d, order), needsAttention: 'paid_slot_lost' } },
+        { new: true },
+      ).lean();
+      if (row) {
+        console.error(`payments: booking ${b._id} paid after its start time, order ${order.orderId} (paid_slot_lost)`);
+        return { ok: true, result: 'needs_attention', needsAttention: 'paid_slot_lost' };
+      }
+      continue;
+    }
 
     // The user already holds another confirmed upcoming booking: do not give them a second one.
     const hasOther = await d.Booking.exists({
@@ -194,7 +216,9 @@ async function syncOne(d, row) {
   const description = `${text.description}\nPaid: ${pay.amount} ${pay.currency} (Shopify order ${pay.providerRef})`;
 
   const { eventId } = await d.calendar.createEvent({
-    bookingId: claimed._id, startsAt: claimed.startsAt, endsAt: claimed.endsAt, summary: text.summary, description,
+    bookingId: claimed._id,
+    // Our booking id doubles as the Google event id: a retry after a timeout cannot create a second event.
+    eventId: String(claimed._id), startsAt: claimed.startsAt, endsAt: claimed.endsAt, summary: text.summary, description,
   });
 
   const saved = await d.Booking.findOneAndUpdate(
