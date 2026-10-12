@@ -24,6 +24,7 @@ import SettingsScreen from './src/screens/SettingsScreen';
 import ProductCameraScreen from './src/screens/ProductCameraScreen';
 import MessagesScreen from './src/screens/MessagesScreen';
 import BookingScreen from './src/screens/BookingScreen';
+import LinkWelcomeScreen from './src/screens/LinkWelcomeScreen';
 import SideMenu from './src/components/SideMenu';
 import SwipeBack from './src/components/SwipeBack';
 import { canSwipeBack } from './src/lib/swipeBack';
@@ -46,6 +47,7 @@ const screens = {
   ProductCamera: ProductCameraScreen,
   Messages: MessagesScreen, // two-way chat with the clinic (opened from Home)
   Booking: BookingScreen, // book a consultation (opened from the side menu)
+  LinkWelcome: LinkWelcomeScreen, // sign-in link: invite consent / invalid link (opened by Splash)
 };
 
 class ErrorBoundary extends React.Component {

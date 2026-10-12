@@ -14,7 +14,7 @@ const SPLASH_MAX_MS = 10000;
 // first real screen twice. This is what routes a returning, signed-in user straight to
 // Home instead of dropping everyone back into onboarding on every cold start.
 export default function SplashScreen({ navigation }) {
-  const { authReady, user, analysis } = useApp();
+  const { authReady, user, analysis, afterSignin, clearAfterSignin, linkWelcome } = useApp();
   const [gaveUp, setGaveUp] = useState(false);
   // The redirect effect can fire twice — once when authReady flips, once if the
   // gaveUp timer wins the race against unmount — and navigation.replace is not
@@ -29,6 +29,21 @@ export default function SplashScreen({ navigation }) {
   useEffect(() => {
     if (!authReady && !gaveUp) return;
     if (navigated.current) return;
+    // Sign-in link results (set by AppContext boot). reset, not replace, so Splash is gone
+    // from the stack and the chosen screen is the only one.
+    if (linkWelcome) {
+      // Invite needing consent, or a dead link: LinkWelcomeScreen shows which one.
+      navigated.current = true;
+      navigation.reset({ index: 0, routes: [{ name: 'LinkWelcome', params: linkWelcome }] });
+      return;
+    }
+    if (afterSignin) {
+      // A link just signed the user in: go to the quiz landing once (one-shot flag).
+      navigated.current = true;
+      clearAfterSignin();
+      navigation.reset({ index: 0, routes: [{ name: afterSignin }] });
+      return;
+    }
     if (user) {
       navigated.current = true;
       // A returning client can still arrive on a clinic link, and WelcomeScreen is the
