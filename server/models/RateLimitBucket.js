@@ -1,8 +1,11 @@
 const mongoose = require('mongoose');
 
 const rateLimitBucketSchema = new mongoose.Schema({
-  // auth_admin = /admin sign-in throttle, msg_user = in-app message replies per user.
-  scope: { type: String, enum: ['scan_ip', 'scan_global', 'ai_user', 'auth_admin', 'msg_user'], required: true },
+  // auth_admin = /admin sign-in throttle, msg_user = in-app message replies per user,
+  // auth_link = sign-in link redeem throttle, link_send = admin "send link" emails.
+  // auth_login / auth_signup / auth_google were already used by services/authRateLimit.js but
+  // were missing here (bug fix: the enum rejected them).
+  scope: { type: String, enum: ['scan_ip', 'scan_global', 'ai_user', 'auth_admin', 'msg_user', 'auth_login', 'auth_signup', 'auth_google', 'auth_link', 'link_send'], required: true },
   key: { type: String, required: true },
   windowStart: { type: Date, required: true },
   count: { type: Number, default: 0 },

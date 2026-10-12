@@ -23,6 +23,9 @@ const ACTIONS_THE_ROUTES_LOG = [
   'catalogue_product_restored',
   'booking_cancelled',
   'booking_settings_updated',
+  'signin_link_created',
+  'signin_link_sent',
+  'invite_created',
 ];
 
 test('the action enum accepts every action the routes log', () => {

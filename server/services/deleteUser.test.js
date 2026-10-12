@@ -87,8 +87,9 @@ test('the account is still deleted when releasing bookings fails', async () => {
   expect(logged).toBe('Releasing bookings before account deletion failed (Error)');
 });
 
-test('USER_DATA includes Booking', () => {
+test('USER_DATA includes Booking and LoginLink', () => {
   expect(Object.keys(USER_DATA)).toContain('Booking');
+  expect(Object.keys(USER_DATA)).toContain('LoginLink');
 });
 
 // L13: the production default (no releaseBookings injected) must really call bookings.releaseUserBookings.

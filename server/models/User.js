@@ -3,7 +3,11 @@ const mongoose = require('mongoose');
 const userSchema = new mongoose.Schema({
   firstName:      { type: String, trim: true },
   email:          { type: String, required: true, unique: true, lowercase: true, trim: true },
-  passwordHash:   { type: String, required: function () { return !this.googleId; } },
+  // Required unless the account signs in with Google or is an admin invite not yet redeemed
+  // (invitedAt set): an invited user has no password until they follow the link.
+  passwordHash:   { type: String, required: function () { return !this.googleId && !this.invitedAt; } },
+  // Set when an admin created the account through an invite; null for self-signup.
+  invitedAt:      { type: Date, default: null },
   // No default: an email signup must leave this field absent entirely. It previously
   // defaulted to null, and see the index below for why that broke every signup.
   googleId:       { type: String },

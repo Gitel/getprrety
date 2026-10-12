@@ -19,13 +19,14 @@ test('a minimal booking is valid and gets the documented defaults', () => {
   expect(doc.cancelledByAdminEmail).toBeNull();
 });
 
-test('payment is the reserved seam: status none, everything else null, no sub-document _id', () => {
+test('payment defaults: status none, everything else null, no sub-document _id', () => {
   const payment = new Booking(valid()).toObject().payment;
-  expect(payment).toEqual({ status: 'none', amount: null, currency: null, providerRef: null });
+  expect(payment).toEqual({ status: 'none', amount: null, currency: null, providerRef: null, paidAt: null });
 });
 
-test('static lists: STATUSES and NOTE_MAX', () => {
-  expect(Booking.STATUSES).toEqual(['confirmed', 'cancelled']);
+test('static lists: STATUSES, NEEDS_ATTENTION and NOTE_MAX', () => {
+  expect(Booking.STATUSES).toEqual(['pending_payment', 'confirmed', 'expired', 'cancelled']);
+  expect(Booking.NEEDS_ATTENTION).toEqual(['paid_slot_lost', 'paid_after_cancel', 'paid_extra']);
   expect(Booking.NOTE_MAX).toBe(300);
 });
 
@@ -36,15 +37,25 @@ test('userId, startsAt and endsAt are required', () => {
   expect(errors.endsAt).toBeDefined();
 });
 
+test('payment-flow fields default to null and validate their enums', () => {
+  const doc = new Booking(valid());
+  expect(doc.holdExpiresAt).toBeNull();
+  expect(doc.needsAttention).toBeNull();
+  expect(doc.calendarClaimedAt).toBeNull();
+  expect(new Booking({ ...valid(), needsAttention: 'paid_extra', payment: { status: 'paid' } }).validateSync()).toBeUndefined();
+  expect(new Booking({ ...valid(), needsAttention: 'bogus' }).validateSync().errors.needsAttention).toBeDefined();
+  expect(new Booking({ ...valid(), payment: { status: 'refunded' } }).validateSync()).toBeDefined();
+});
+
 test('userId references the User model', () => {
   expect(Booking.schema.path('userId').options.ref).toBe('User');
 });
 
-test.each(['confirmed', 'cancelled'])('status %p is accepted', status => {
+test.each(['pending_payment', 'confirmed', 'expired', 'cancelled'])('status %p is accepted', status => {
   expect(new Booking({ ...valid(), status }).validateSync()).toBeUndefined();
 });
 
-test.each(['pending_payment', 'paid', 'CONFIRMED', ''])('status %p is rejected', status => {
+test.each(['paid', 'CONFIRMED', ''])('status %p is rejected', status => {
   expect(new Booking({ ...valid(), status }).validateSync().errors.status).toBeDefined();
 });
 
@@ -80,5 +91,17 @@ describe('indexes', () => {
     expect(entry).toBeDefined();
     expect(entry[1].unique).toBe(true);
     expect(entry[1].partialFilterExpression).toEqual({ status: 'confirmed' });
+  });
+
+  test('{startsAt:1, status:1} is UNIQUE for pending_payment holds only, named startsAt_pending_unique', () => {
+    const entry = find({ startsAt: 1, status: 1 });
+    expect(entry).toBeDefined();
+    expect(entry[1].unique).toBe(true);
+    expect(entry[1].partialFilterExpression).toEqual({ status: 'pending_payment' });
+    expect(entry[1].name).toBe('startsAt_pending_unique');
+  });
+
+  test('exactly three indexes exist (no accidental extras)', () => {
+    expect(indexes).toHaveLength(3);
   });
 });

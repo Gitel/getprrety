@@ -13,6 +13,8 @@ const Message = require('../models/Message');
 const RoutineProgress = require('../models/RoutineProgress');
 // Consultation bookings: upcoming ones also own a Google Calendar event that must be released.
 const Booking = require('../models/Booking');
+// Sign-in / invite links issued for the user.
+const LoginLink = require('../models/LoginLink');
 const { releaseUserBookings } = require('./bookings');
 
 // Every collection that stores a document per user, keyed by `userId`. When a new
@@ -20,7 +22,7 @@ const { releaseUserBookings } = require('./bookings');
 // Deliberately NOT here:
 //  - AdminAuditLog: the record that an admin deleted this user (it keeps only the id)
 //  - RateLimitBucket: anonymous counters that expire on their own (TTL index)
-const USER_DATA = { SkinAnalysis, SkinScan, Upload, CheckIn, ProductLog, ActivityLog, Message, RoutineProgress, Booking };
+const USER_DATA = { SkinAnalysis, SkinScan, Upload, CheckIn, ProductLog, ActivityLog, Message, RoutineProgress, Booking, LoginLink };
 
 /**
  * @param {string} id               The user's id.
