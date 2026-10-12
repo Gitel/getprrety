@@ -8,6 +8,9 @@ import { getWelcomeRef } from '../lib/welcomeVariants';
 // a stalled request, a storage read that never returns — this screen is the one the
 // user is staring at, so it must never be the last thing that happens.
 const SPLASH_MAX_MS = 10000;
+// Hard ceiling while a sign-in link is being redeemed (api.js 15 s timeout + margin). Past it we
+// stop waiting for the link result, so a wedged storage call can never keep the spinner forever.
+const LINK_WAIT_MAX_MS = 30000;
 
 // Transient startup gate: the navigator always opens here. While auth is resolving we
 // show a spinner; once it's ready we redirect exactly once and never render the app's
@@ -16,6 +19,7 @@ const SPLASH_MAX_MS = 10000;
 export default function SplashScreen({ navigation }) {
   const { authReady, user, analysis, afterSignin, clearAfterSignin, linkWelcome, linkPending } = useApp();
   const [gaveUp, setGaveUp] = useState(false);
+  const [linkGaveUp, setLinkGaveUp] = useState(false);
   // The redirect effect can fire twice — once when authReady flips, once if the
   // gaveUp timer wins the race against unmount — and navigation.replace is not
   // itself idempotent against being called twice in a row.
@@ -23,14 +27,15 @@ export default function SplashScreen({ navigation }) {
 
   useEffect(() => {
     const timer = setTimeout(() => setGaveUp(true), SPLASH_MAX_MS);
-    return () => clearTimeout(timer);
+    const linkTimer = setTimeout(() => setLinkGaveUp(true), LINK_WAIT_MAX_MS);
+    return () => { clearTimeout(timer); clearTimeout(linkTimer); };
   }, []);
 
   useEffect(() => {
     if (!authReady && !gaveUp) return;
     // A sign-in link is still being redeemed: wait for its result even if the ceiling passed,
-    // otherwise an invitee on a slow network would skip the welcome screen.
-    if (linkPending) return;
+    // otherwise an invitee on a slow network would skip the welcome screen (up to LINK_WAIT_MAX_MS).
+    if (linkPending && !linkGaveUp) return;
     if (navigated.current) return;
     // Sign-in link results (set by AppContext boot). reset, not replace, so Splash is gone
     // from the stack and the chosen screen is the only one.
@@ -60,7 +65,7 @@ export default function SplashScreen({ navigation }) {
     // Welcome screen when a recognized ?ref= is present). Existing users reach Login
     // from the "Already have an account? Log in" control on those screens.
     navigation.replace(getWelcomeRef() ? 'Welcome' : 'QuizIntro');
-  }, [authReady, gaveUp, user, analysis, linkPending, linkWelcome, afterSignin]);
+  }, [authReady, gaveUp, linkGaveUp, user, analysis, linkPending, linkWelcome, afterSignin]);
 
   return (
     <View style={{ flex: 1, backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center' }}>

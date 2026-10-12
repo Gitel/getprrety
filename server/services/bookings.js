@@ -442,27 +442,32 @@ async function cancelBooking(id, adminEmail, deps) {
     }
   }
   const changes = { status: 'cancelled', cancelledAt: d.now(), cancelledByAdminEmail: adminEmail };
-  // The status filter makes a double click / two admins safe: only one of them matches.
-  const filter = { _id: id, status: { $in: ['confirmed', 'pending_payment'] } };
+  // The update only matches the row in the SAME status we read. That makes a double click / two
+  // admins safe (only one matches), and stops an admin from cancelling a hold that was PAID in the
+  // same moment (round-2 review N4): the row is then 'confirmed', the filter misses, and the admin
+  // is told the booking changed instead of silently cancelling a paid booking.
+  const filter = { _id: id, status: booking.status };
   // Race guard: we read the row WITHOUT a calendar event. If the calendar sync writes one
   // between our read and this update, the filter below misses (the row now has an event id) and
   // we must not cancel the row while leaving a live event behind.
   if (!booking.calendarEventId) filter.calendarEventId = null;
   const result = await d.Booking.updateOne(filter, { $set: changes });
   if (result && result.matchedCount === 0) {
-    if (!booking.calendarEventId) {
-      // Re-read: did the sync add an event (delete it, then cancel), or was the row cancelled meanwhile?
-      const fresh = await d.Booking.findById(id).lean();
-      if (fresh && fresh.calendarEventId && ['confirmed', 'pending_payment'].includes(fresh.status)) {
-        try {
-          await d.calendar.deleteEvent(fresh.calendarEventId, fresh.calendarId || undefined);
-        } catch (err) {
-          console.error(`booking: calendar_unavailable cancelling booking ${fresh._id}, event ${fresh.calendarEventId} ${calendarDetail(err)}`);
-          return { ok: false, code: 'calendar_unavailable' };
-        }
-        const retry = await d.Booking.updateOne({ _id: id, status: { $in: ['confirmed', 'pending_payment'] } }, { $set: changes });
-        if (!retry || retry.matchedCount !== 0) return { ok: true, booking: { ...booking, ...changes } };
+    const fresh = await d.Booking.findById(id).lean();
+    // The unpaid hold got paid while the admin was cancelling it: do not cancel, ask to re-check.
+    if (fresh && booking.status === 'pending_payment' && fresh.status === 'confirmed') {
+      return { ok: false, code: 'booking_changed' };
+    }
+    // Same status, but the calendar sync added an event meanwhile: delete it, then cancel.
+    if (!booking.calendarEventId && fresh && fresh.calendarEventId && fresh.status === booking.status) {
+      try {
+        await d.calendar.deleteEvent(fresh.calendarEventId, fresh.calendarId || undefined);
+      } catch (err) {
+        console.error(`booking: calendar_unavailable cancelling booking ${fresh._id}, event ${fresh.calendarEventId} ${calendarDetail(err)}`);
+        return { ok: false, code: 'calendar_unavailable' };
       }
+      const retry = await d.Booking.updateOne({ _id: id, status: booking.status }, { $set: changes });
+      if (!retry || retry.matchedCount !== 0) return { ok: true, booking: { ...booking, ...changes } };
     }
     return { ok: false, code: 'already_cancelled' };
   }

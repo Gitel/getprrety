@@ -178,6 +178,19 @@ describe('recordPayment', () => {
     expect(await recordPayment({ ...ORDER, orderId: '2222' }, deps(Booking))).toEqual({ ok: true, result: 'already_recorded' });
   });
 
+  // Round-2 review N1: an admin marked the row handled, then the customer paid AGAIN - the row must
+  // come back to Needs attention (the extra money needs a refund), not stay hidden.
+  test('a new order on a row already marked handled reopens it in Needs attention', async () => {
+    const Booking = makeBooking([pending({
+      status: 'cancelled', needsAttention: 'paid_after_cancel', payment: { status: 'paid', providerRef: '1111', extraRefs: [] },
+      attentionHandledAt: new Date(NOW.getTime() - 3600000), attentionHandledByAdminEmail: 'admin@example.test',
+    })]);
+    const out = await recordPayment(ORDER, deps(Booking));
+    expect(out).toEqual({ ok: true, result: 'needs_attention', needsAttention: 'paid_after_cancel' });
+    expect(Booking.store[0]).toMatchObject({ attentionHandledAt: null, attentionHandledByAdminEmail: null });
+    expect(Booking.store[0].payment.extraRefs).toEqual(['9001']);
+  });
+
   test.each(['pending_payment', 'expired'])('payment after the start time (%s row) -> paid_slot_lost, stays expired, not confirmed', async status => {
     const Booking = makeBooking([pending({ status, startsAt: new Date(NOW.getTime() - 60000) })]);
     const out = await recordPayment(ORDER, deps(Booking));

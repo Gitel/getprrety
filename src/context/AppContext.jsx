@@ -13,8 +13,6 @@ import { bootLanguage, retryPendingLanguage, clearPendingOnLogout } from '../lib
 
 const AppContext = createContext(null);
 const BOOTSTRAP_TIMEOUT_MS = 8000;
-// The boot-time sign-in link redeem gets a SHORT timeout so it cannot eat the splash budget.
-const LINK_REDEEM_TIMEOUT_MS = 6000;
 
 export function AppProvider({ children }) {
   // srProducts / shelfAnalysis live on `analysis` (see analyzeWithRailway.js), not here.
@@ -72,7 +70,10 @@ export function AppProvider({ children }) {
       if (linkToken) {
         setLinkPending(true);
         try {
-          const res = await redeemSigninLink(linkToken, undefined, { timeoutMs: LINK_REDEEM_TIMEOUT_MS }); // no consent: existing accounts need none
+          // No consent: existing accounts need none. Normal api.js timeout (15 s) on purpose: the
+          // server uses the link up as soon as it answers, so aborting early on a slow network would
+          // turn a good link into "link no longer valid" (round-2 review N2). Splash waits for it.
+          const res = await redeemSigninLink(linkToken);
           await storeToken(res.token);
           setAfterSignin('QuizIntro'); // Splash sends the user to the quiz landing once
         } catch (err) {
@@ -87,8 +88,8 @@ export function AppProvider({ children }) {
       }
       // 2. Normal session load. User AND saved analysis are both loaded before authReady flips,
       //    so SplashScreen can send a returning user straight to Home (see loadSession.js).
-      //    Worst case: redeem (6 s) + this load (8 s). Splash's 10 s ceiling waits for the redeem
-      //    (linkPending) but may still give up during this load, which only affects the plain boot.
+      //    Worst case: redeem (15 s) + this load (8 s). SplashScreen waits for the redeem
+      //    (linkPending, with its own hard ceiling) and may give up during this load like a plain boot.
       await reloadSession();
       setAuthReady(true);
     })();

@@ -951,6 +951,24 @@ describe('cancelBooking', () => {
     expect(booking.status).toBe('confirmed');
   });
 
+  // Round-2 review N4: the admin cancels what they saw as an unpaid hold, but the Shopify payment
+  // confirms it at the same moment. The paid booking must NOT be cancelled silently.
+  test('race: a hold is paid while the admin cancels it -> booking_changed, the paid booking stays', async () => {
+    const { world, deps, booking } = cancelWorld({
+      status: 'pending_payment', calendarEventId: null, holdExpiresAt: new Date(NOW.getTime() + 600000), payment: { status: 'awaiting' },
+    });
+    world.Booking.findById.mockImplementationOnce(() => {
+      const stale = { ...booking };
+      booking.status = 'confirmed'; // the webhook confirmed it right after our read
+      booking.payment = { status: 'paid', providerRef: '9001' };
+      return { lean: () => Promise.resolve(stale) };
+    });
+    expect(await cancelBooking(String(booking._id), 'admin@example.com', deps)).toEqual({ ok: false, code: 'booking_changed' });
+    expect(booking.status).toBe('confirmed');
+    expect(booking.cancelledAt).toBeNull();
+    expect(world.calendar.deleteEvent).not.toHaveBeenCalled();
+  });
+
   test.each([['an unknown id', () => String(oid())], ['a malformed id', () => 'not-an-object-id']])('%s -> not_found', async (_label, makeId) => {
     const { world, deps } = cancelWorld();
     expect(await cancelBooking(makeId(), 'admin@example.com', deps)).toEqual({ ok: false, code: 'not_found' });

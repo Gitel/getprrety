@@ -50,8 +50,13 @@ async function recordPayment({ bookingId, orderId, amount, currency } = {}, deps
     // first payment, remember the extra order id (so its re-delivery is "already_recorded") and flag
     // the row for a human (refund). This path never throws, so Shopify does not retry for hours.
     if (paidWith || b.needsAttention) {
-      const update = { $addToSet: { 'payment.extraRefs': order.orderId } };
-      if (!b.needsAttention) update.$set = { needsAttention: 'paid_extra' };
+      // A new payment always (re)opens the row in Needs attention: clearing "handled" makes a row the
+      // admin already dealt with come back, because this extra money needs a refund too.
+      const update = {
+        $addToSet: { 'payment.extraRefs': order.orderId },
+        $set: { attentionHandledAt: null, attentionHandledByAdminEmail: null },
+      };
+      if (!b.needsAttention) update.$set.needsAttention = 'paid_extra';
       const row = await d.Booking.findOneAndUpdate(
         // Conditional on the flag we read and on the order not being stored yet (race guard).
         { _id: b._id, needsAttention: b.needsAttention || null, 'payment.extraRefs': { $ne: order.orderId } },

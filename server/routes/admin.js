@@ -71,6 +71,7 @@ const NOTICES = {
   booking_not_found:         { text: 'That booking no longer exists.', error: true },
   booking_already_cancelled: { text: 'That booking was already cancelled.', error: true },
   booking_calendar_failed:   { text: 'The calendar could not be reached, so nothing was cancelled. Please try again.', error: true },
+  booking_changed:           { text: 'This booking was just paid, so it was not cancelled. Check it and try again if needed.', error: true },
   booking_attention_handled: { text: 'Marked as handled.' },
   booking_attention_not_flagged: { text: 'That booking does not need attention.', error: true },
   booking_settings_saved:    { text: 'Booking settings saved.' },
@@ -724,6 +725,7 @@ const CANCEL_NOTICES = {
   not_found: 'booking_not_found',
   already_cancelled: 'booking_already_cancelled',
   calendar_unavailable: 'booking_calendar_failed',
+  booking_changed: 'booking_changed', // the hold was paid while cancelling (nothing was cancelled)
 };
 
 // List of bookings, one tab at a time (an unknown ?tab= falls back to upcoming).

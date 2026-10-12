@@ -47,19 +47,13 @@ describe('readSigninToken', () => {
 describe('redeemSigninLink', () => {
   test('posts the token with the consent fields', async () => {
     await redeemSigninLink('t1', { consentAcceptedAt: '2026-01-01T00:00:00.000Z', consentVersion: 'v1' });
-    // Third argument = api.js options; none given here, so it is undefined (api.js default timeout).
     expect(api.post).toHaveBeenCalledWith('/api/auth/link/redeem', {
       token: 't1', consentAcceptedAt: '2026-01-01T00:00:00.000Z', consentVersion: 'v1',
-    }, undefined);
+    });
   });
 
   test('without consent only the token is sent', async () => {
     await redeemSigninLink('t2', null);
-    expect(api.post).toHaveBeenLastCalledWith('/api/auth/link/redeem', { token: 't2' }, undefined);
-  });
-
-  test('passes api options through (boot uses a short timeout)', async () => {
-    await redeemSigninLink('t3', null, { timeoutMs: 6000 });
-    expect(api.post).toHaveBeenLastCalledWith('/api/auth/link/redeem', { token: 't3' }, { timeoutMs: 6000 });
+    expect(api.post).toHaveBeenLastCalledWith('/api/auth/link/redeem', { token: 't2' });
   });
 });
