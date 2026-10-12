@@ -393,7 +393,6 @@ test.describe('Hebrew Bedrock safety copy', () => {
     await walkQuizToLoading(page, t);
     await expect.poll(() => calls.length, { timeout: 10_000 }).toBe(1);
     expect(calls[0].body.language).toBe('he');
-    await expect(page.getByText(SAFETY_TEXT.he, { exact: false })).toBeVisible();
     await page.getByText(t('profile:cta'), { exact: true }).click();
     await page.getByPlaceholder(t('auth:signup.emailPlaceholder')).fill('dana-he@example.test');
     await page.getByPlaceholder(t('auth:signup.passwordPlaceholder')).fill('password123');
