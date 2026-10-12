@@ -25,6 +25,8 @@ const aiRoutes       = require('./routes/ai');
 const cityRoutes     = require('./routes/cities');
 const messageRoutes  = require('./routes/messages');
 const bookingRoutes  = require('./routes/bookings');
+const paymentRoutes  = require('./routes/payments');
+const { syncCalendarEvents } = require('./services/bookingPayments');
 const routineProgressRoutes = require('./routes/routineProgress');
 const adminRoutes    = require('./routes/admin');
 const skinScanPoller = require('./jobs/skinScanPoller');
@@ -52,6 +54,9 @@ app.use(cors({
 // Skin scan uploads contain up to three base64 images and have their own strict per-image checks.
 // Keep the general API limit small so photos can never leak into analysis/profile documents again.
 app.use('/api/skin-scan', express.json({ limit: '35mb' }), skinScanRoutes);
+// Shopify webhooks need the RAW body to verify their HMAC signature, so this mount must stay
+// BEFORE the global express.json() below (which would consume and re-parse the body).
+app.use('/api/payments', express.raw({ type: 'application/json', limit: '1mb' }), paymentRoutes);
 app.use(express.json({ limit: '1mb' }));
 
 // Health check
@@ -110,6 +115,18 @@ mongoose
     setInterval(() => {
       skinScanPoller.recoverPendingScans().catch(err => console.error('Skin scan recovery error:', err));
     }, 30000).unref();
+    // Every 60 s (only when booking is on): release unpaid holds that ran out, then write any
+    // missing calendar events of paid bookings. Errors are logged, never thrown.
+    setInterval(async () => {
+      try {
+        const bookings = require('./services/bookings');
+        if (!(await bookings.isBookingEnabled())) return;
+        await bookings.expireHolds();
+        await syncCalendarEvents();
+      } catch (err) {
+        console.error(`Booking sweep error (${err && err.name})`);
+      }
+    }, 60000).unref();
     app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
   })
   .catch(err => {
