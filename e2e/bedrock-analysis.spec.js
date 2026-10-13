@@ -298,11 +298,13 @@ test.describe('successful pre-signup Bedrock analysis', () => {
     expect(recRequest.safetyContext).not.toHaveProperty('birthday');
     await openHome(page, t);
     await page.getByText(t('home:tabs.am'), { exact: true }).click();
-    await expect(page.getByText('Sunscreen', { exact: true })).toBeVisible();
+    // Compact hydration supplies the generic Protect label while retaining actionable SPF guidance.
+    await expect(page.getByText('Protect', { exact: true })).toBeVisible();
     await expect(page.getByText(bedrockResponse('en').srProducts.am[2].no_match_note, { exact: true })).toBeVisible();
     await page.reload();
-    await openHome(page, t);
-    await page.getByText(t('home:tabs.am'), { exact: true }).click();
+    // Reload already boots the saved Home. A second navigation would abort its lazy imports in WebKit.
+    await expect(page.getByText(t('home:viewAnalysis.title'), { exact: true })).toBeVisible();
+    // The matched cream belongs to both periods, so verify persistence in Home's default period.
     await expect(page.getByText('Hydrated Calm Cream', { exact: true })).toBeVisible();
   });
 
@@ -419,8 +421,9 @@ test.describe('Hebrew Bedrock safety copy', () => {
     await page.getByText(t('home:tabs.am'), { exact: true }).click();
     await expect(page.getByText('Hydrated Calm Cream', { exact: true })).toBeVisible();
     await page.reload();
-    await openHome(page, t);
-    await page.getByText(t('home:tabs.am'), { exact: true }).click();
+    // Wait for the reload to restore Home instead of interrupting boot with another navigation.
+    await expect(page.getByText(t('home:viewAnalysis.title'), { exact: true })).toBeVisible();
+    // Verify the saved matched cream without changing the default morning/evening selection.
     await expect(page.getByText('Hydrated Calm Cream', { exact: true })).toBeVisible();
   });
 });

@@ -1,4 +1,29 @@
-# Standalone Grok 4.6 evaluation runner
+# Bedrock evaluation tools
+
+Claude Opus 4.6 is the active application provider on this feature branch. Skin analysis,
+score reading and market recommendations share `server/services/bedrock/client.js`, using
+native Bedrock Runtime in `us-east-1`, the US profile `us.anthropic.claude-opus-4-6-v1`,
+Standard pricing, schema-aware token counting and no automatic retries.
+
+The Opus evaluator is `opus46.cjs`. Its `--mode count` and `--mode analysis` use the shared
+production skin request builder. Pass `--catalogue-file` with a reviewed `{ "products": [...] }`
+snapshot to test seeded Mongo `_id` values; it does not connect to MongoDB. Without that
+option it explicitly uses the checked-in seed. Application requests read active home-use
+products from the existing database, rather than from the seed file. A count report must
+match the exact prompt/schema before paid evaluation; unknown cost or a failed request
+stops the wave. Retests require their own authorized scope.
+
+The compact wire omits redundant catalogue names, numeric step order and localized
+category labels. The server restores those values and validates the full canonical
+contract before returning it. The UI API shape is unchanged. The verified matched pilot
+on 2026-10-13 passed no-photo and shelf-photo EN/HE with the seeded catalogue; it is not a
+production deployment or a clinical/image-accuracy evaluation.
+
+## Historical Grok runner
+
+The `run.cjs` instructions and pricing below describe the retained Grok comparison tool.
+They do not select the application's provider. Grok is historical evaluation evidence;
+Opus remains the required target when an Opus test fails.
 
 The runner sends selected, minimized quiz cases and their linked photos to Grok 4.6 on Amazon Bedrock. It is separate from the application and never connects to MongoDB. The separate `extract.cjs` utility reads raw analysis documents in read-only mode and exports minimized case files; it does not write to MongoDB. Each runner case is read from a `case-*` folder containing `case.json`; linked image paths must stay inside that folder. The selected product catalogue is read from a separate JSON snapshot.
 
