@@ -7,6 +7,7 @@ const requireAuth = require('../middleware/auth');
 const { allowAuthAttempt, releaseAuthAttempt } = require('../services/authRateLimit');
 const { isDuplicateEmail } = require('../services/duplicateKey');
 const { consentError } = require('../services/consent');
+const loginLinks = require('../services/loginLinks');
 
 // Every error body carries the English `error` (old app versions read it) plus a
 // machine-readable `code` that the client translates into the user's language.
@@ -157,6 +158,37 @@ router.post('/login', async (req, res) => {
     res.json({ token: signToken(user), user: toPublicUser(user) });
   } catch (err) {
     res.status(500).json({ error: 'Unable to log in', code: 'login_failed' });
+  }
+});
+
+// POST /api/auth/link/redeem
+// Body { token, consentAcceptedAt?, consentVersion? }. Turns a one-time sign-in / invite link
+// token into a normal session. 200 = existing account, 201 = a new invited account was created.
+// Never log the token, the user's email or name here - ids and codes only.
+router.post('/link/redeem', async (req, res) => {
+  try {
+    if (!await allowAuthAttempt(req, 'link')) return res.status(429).json(TOO_MANY);
+    const { token, consentAcceptedAt, consentVersion } = req.body || {};
+    if (typeof token !== 'string' || !token)
+      return res.status(400).json({ error: 'This link is not valid', code: 'link_invalid' });
+    const result = await loginLinks.redeem({
+      token,
+      // Non-string consent values are treated as missing (consentError then says consent_required).
+      consentAcceptedAt: typeof consentAcceptedAt === 'string' ? consentAcceptedAt : undefined,
+      consentVersion: typeof consentVersion === 'string' ? consentVersion : undefined,
+    });
+    if (!result.ok) {
+      if (result.code === 'link_invalid')
+        return res.status(400).json({ error: 'This link is not valid', code: 'link_invalid' });
+      // consent_required / consent_outdated come straight from services/consent.js.
+      return res.status(result.status || 400).json({ error: result.error, code: result.code });
+    }
+    // Success: give the IP attempt back (the budget caps failures, not real sign-ins).
+    releaseQuietly(req, 'link');
+    res.status(result.isNew ? 201 : 200).json({ token: signToken(result.user), user: toPublicUser(result.user), isNew: result.isNew });
+  } catch (err) {
+    console.error('Sign-in link redeem failed:', err.code || err.name);
+    res.status(500).json({ error: 'Unable to sign in with this link', code: 'signin_link_failed' });
   }
 });
 

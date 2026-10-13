@@ -25,10 +25,13 @@ const aiRoutes       = require('./routes/ai');
 const cityRoutes     = require('./routes/cities');
 const messageRoutes  = require('./routes/messages');
 const bookingRoutes  = require('./routes/bookings');
+const paymentRoutes  = require('./routes/payments');
+const { syncCalendarEvents } = require('./services/bookingPayments');
 const routineProgressRoutes = require('./routes/routineProgress');
 const adminRoutes    = require('./routes/admin');
 const skinScanPoller = require('./jobs/skinScanPoller');
 const { mailConfigError } = require('./services/clinicNotify');
+const { startAnalysisDeadline } = require('./services/bedrock/analysisDeadline');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -52,6 +55,12 @@ app.use(cors({
 // Skin scan uploads contain up to three base64 images and have their own strict per-image checks.
 // Keep the general API limit small so photos can never leak into analysis/profile documents again.
 app.use('/api/skin-scan', express.json({ limit: '35mb' }), skinScanRoutes);
+// Shopify webhooks need the RAW body to verify their HMAC signature, so this mount must stay
+// BEFORE the global express.json() below (which would consume and re-parse the body).
+app.use('/api/payments', express.raw({ type: 'application/json', limit: '1mb' }), paymentRoutes);
+// Skin photos are sent as labelled base64 data for Bedrock; parse this one route before the 1 MB API limit.
+// Start its 85s server deadline at ingress; browser upload time has already begun, so the client keeps a 90s ceiling.
+app.use('/api/ai/analyze-skin', startAnalysisDeadline, express.json({ limit: '35mb' }));
 app.use(express.json({ limit: '1mb' }));
 
 // Health check
@@ -76,6 +85,7 @@ app.use('/admin',         adminRoutes);
 
 // Global error handler
 app.use((err, req, res, next) => {
+  if (res.writableEnded || res.destroyed) return;
   console.error(err.stack);
   const status = err.status
     || (err.type === 'entity.too.large' || err.code === 'LIMIT_FILE_SIZE' ? 413 : null)
@@ -110,6 +120,21 @@ mongoose
     setInterval(() => {
       skinScanPoller.recoverPendingScans().catch(err => console.error('Skin scan recovery error:', err));
     }, 30000).unref();
+    // Every 60 s: release unpaid holds that ran out, then write any missing calendar events of
+    // paid bookings. Both run even when the clinic switched booking off (paid rows still need their
+    // event). The two steps are separate so one failing never blocks the other; errors are logged only.
+    setInterval(async () => {
+      try {
+        await require('./services/bookings').expireHolds();
+      } catch (err) {
+        console.error(`Booking sweep error: expireHolds (${err && err.name})`);
+      }
+      try {
+        if (require('./services/calendar').isConfigured()) await syncCalendarEvents();
+      } catch (err) {
+        console.error(`Booking sweep error: calendar sync (${err && err.name})`);
+      }
+    }, 60000).unref();
     app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
   })
   .catch(err => {

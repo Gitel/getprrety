@@ -37,3 +37,13 @@ test('language defaults to null and only accepts en / he / null', () => {
   expect(new User({ email: 'l@example.com', passwordHash: 'x', language: 'he' }).validateSync()).toBeUndefined();
   expect(new User({ email: 'l@example.com', passwordHash: 'x', language: 'fr' }).validateSync().errors.language).toBeDefined();
 });
+
+// Invites: an admin-created account has no password until the invite link is redeemed.
+test('invitedAt defaults to null and lets an account exist without passwordHash', () => {
+  expect(new User({ email: 'i@example.com', passwordHash: 'x' }).invitedAt).toBeNull();
+  expect(new User({ email: 'i@example.com', invitedAt: new Date() }).validateSync()).toBeUndefined();
+});
+
+test('passwordHash is still required with neither googleId nor invitedAt', () => {
+  expect(new User({ email: 'i@example.com' }).validateSync().errors.passwordHash).toBeDefined();
+});

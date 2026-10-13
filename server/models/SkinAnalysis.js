@@ -46,14 +46,15 @@ const skinAnalysisSchema = new mongoose.Schema({
   clientRequestId:  { type: String, default: null },
 
   // Where this result came from:
-  //  - 'gemini'   the Railway/Gemini analysis succeeded;
+  //  - 'gemini'   the legacy Gemini analysis succeeded;
+  //  - 'bedrock'  the Bedrock analysis succeeded;
   //  - 'fallback' it failed, and the client showed the canned buildFallback() template
   //               from src/constants.js instead (same text and routine for everyone);
   //  - null       saved by an older client, before this was recorded.
   // Without this a fallback looked exactly like a real analysis on /admin, in the clinic
   // email and in the app, which is how a months-long Gemini outage went unnoticed.
-  source:         { type: String, enum: ['gemini', 'fallback', null], default: null },
-  // Why the Gemini analysis failed (e.g. "Railway API 404"). Diagnostic only.
+  source:         { type: String, enum: ['gemini', 'bedrock', 'fallback', null], default: null },
+  // Why an analysis failed. Diagnostic only; set only for the generic fallback.
   fallbackReason: { type: String, default: null },
 
   // Extra Gemini/Railway output. Before these were stored they lived only in React state,

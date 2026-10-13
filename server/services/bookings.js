@@ -19,6 +19,9 @@ const MINUTE = 60 * 1000;
 const LIST_CAP = 500; // most rows an admin list (or the user card) returns
 const DAY = 24 * 60 * MINUTE;
 const NOTE_MAX = 300;
+// How long a slot is held for a client who has not paid yet (minutes). After this the hold
+// expires and the slot is free for everybody again.
+const HOLD_MINUTES = 15;
 
 // Fills in the real dependencies; a test passes only the ones it wants to fake.
 function withDefaults(deps = {}) {
@@ -44,12 +47,21 @@ async function getConfig(deps) {
   ).lean();
 }
 
-// Booking is ON only when the env flag is set, the calendar is configured AND the clinic
-// has not switched it off in the admin settings.
+// Payment goes through the clinic's Shopify store, so booking needs all three settings: the
+// store URL, the variant id of the consultation product and the secret that signs webhooks.
+function shopifyConfigured() {
+  return Boolean(process.env.SHOPIFY_STORE_URL
+    && process.env.SHOPIFY_CONSULTATION_VARIANT_ID
+    && process.env.SHOPIFY_WEBHOOK_SECRET);
+}
+
+// Booking is ON only when the env flag is set, the calendar AND Shopify are configured and the
+// clinic has not switched it off in the admin settings.
 async function isBookingEnabled(deps) {
   const d = withDefaults(deps);
   if (!['1', 'true'].includes(process.env.BOOKING_ENABLED)) return false;
   if (!d.calendar.isConfigured()) return false;
+  if (!shopifyConfigured()) return false;
   const config = await getConfig(d);
   return Boolean(config.enabled);
 }
@@ -63,6 +75,9 @@ function bookingBootLine(deps) {
   if (!d.calendar.isConfigured()) {
     if (!process.env.GOOGLE_CALENDAR_ID) missing.push('GOOGLE_CALENDAR_ID');
     if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON_B64) missing.push('GOOGLE_SERVICE_ACCOUNT_JSON_B64');
+  }
+  for (const name of ['SHOPIFY_STORE_URL', 'SHOPIFY_CONSULTATION_VARIANT_ID', 'SHOPIFY_WEBHOOK_SECRET']) {
+    if (!process.env[name]) missing.push(name);
   }
   if (missing.length) return `booking disabled: missing ${missing.join(', ')}`;
   return `booking enabled (${realCalendar.isMockMode() ? 'mock calendar' : 'Google calendar'})`;
@@ -85,9 +100,34 @@ async function getPublicConfig(deps) {
 // A 'YYYY-MM-DD' string plus n days (pure date maths in UTC).
 const addDays = (dateStr, n) => new Date(Date.parse(dateStr) + n * DAY).toISOString().slice(0, 10);
 
+// A "live hold" is a booking waiting for payment whose 15 minutes have not run out yet.
+const isLiveHold = (b, now) => b.status === 'pending_payment'
+  && Boolean(b.holdExpiresAt) && new Date(b.holdExpiresAt).getTime() > now.getTime();
+
+// Mongo filter for the rows that BLOCK a slot ("taken"): confirmed bookings, plus holds that are
+// still live. An expired hold (even one the sweep has not flipped to 'expired' yet) never blocks.
+// Spread it into a bigger filter, e.g. { ...takenFilter(now), startsAt: { $gt: now } }.
+const takenFilter = now => ({
+  $or: [{ status: 'confirmed' }, { status: 'pending_payment', holdExpiresAt: { $gt: now } }],
+});
+
+// Link that opens the Shopify cart with the consultation product and our booking id attached as
+// a note attribute (the paid-order webhook reads it back). Built when the booking is READ, so
+// nothing about it is stored. Null when Shopify is not configured.
+function buildCheckoutUrl(bookingId, email) {
+  const store = (process.env.SHOPIFY_STORE_URL || '').replace(/\/+$/, '');
+  const variant = process.env.SHOPIFY_CONSULTATION_VARIANT_ID;
+  if (!store || !variant) return null;
+  const params = { 'attributes[getpretty_booking]': bookingId };
+  if (email) params['checkout[email]'] = email; // pre-fills the email on the Shopify checkout page
+  return `${store}/cart/${variant}:1?${new URLSearchParams(params)}`;
+}
+
 // What the app sees of a booking. date/time are the CLINIC wall clock, never the device's.
-function publicBooking(b, timeZone, slots) {
+// `user` (optional, needs .email) is only used for the checkout link. `now` is the clock.
+function publicBooking(b, timeZone, slots, user, now = new Date()) {
   const local = slots.localParts(new Date(b.startsAt), timeZone);
+  const live = isLiveHold(b, now);
   return {
     id: String(b._id),
     startsAt: new Date(b.startsAt).toISOString(),
@@ -96,6 +136,8 @@ function publicBooking(b, timeZone, slots) {
     time: local.time,
     status: b.status,
     note: b.note || '',
+    holdExpiresAt: live ? new Date(b.holdExpiresAt).toISOString() : null,
+    checkoutUrl: live ? buildCheckoutUrl(String(b._id), user && user.email) : null,
   };
 }
 
@@ -121,6 +163,16 @@ async function removeRow(d, id, why) {
   }
 }
 
+// Flips every hold whose 15 minutes ran out to 'expired' (frees the slot in the database too).
+// Cheap and idempotent, so it runs at the start of every read/create and from the 60 s sweep.
+async function expireHolds(deps) {
+  const d = withDefaults(deps);
+  await d.Booking.updateMany(
+    { status: 'pending_payment', holdExpiresAt: { $lte: d.now() } },
+    { $set: { status: 'expired' } },
+  );
+}
+
 // ---------------------------------------------------------------------------------------------
 // Slots
 // ---------------------------------------------------------------------------------------------
@@ -130,6 +182,7 @@ async function removeRow(d, id, why) {
 async function listSlots({ from, to } = {}, deps) {
   const d = withDefaults(deps);
   if (!(await isBookingEnabled(d))) return { ok: false, code: 'booking_disabled' };
+  await expireHolds(d); // stale holds must not hide slots
   const config = await getConfig(d);
   const now = d.now();
 
@@ -157,8 +210,9 @@ async function listSlots({ from, to } = {}, deps) {
     return { ok: false, code: 'calendar_unavailable' }; // any calendar failure
   }
   // A day of margin before the range, so a booking that started just before still blocks.
+  // "Taken" = confirmed OR a live hold (somebody is paying for it right now).
   const booked = await d.Booking.find({
-    status: 'confirmed', startsAt: { $gte: new Date(rangeStart.getTime() - DAY), $lt: rangeEnd },
+    ...takenFilter(now), startsAt: { $gte: new Date(rangeStart.getTime() - DAY), $lt: rangeEnd },
   }).lean();
 
   const slots = d.slots.computeSlots({ now, fromDate, toDate, config, busy, booked });
@@ -169,7 +223,9 @@ async function listSlots({ from, to } = {}, deps) {
 // Create
 // ---------------------------------------------------------------------------------------------
 
-// The ordered steps are documented in the contract (section 5); numbers below match it.
+// The ordered steps are documented in the contract (section 2); numbers below match it.
+// A new booking is only a HOLD ('pending_payment') for HOLD_MINUTES. It becomes 'confirmed' (and
+// gets its calendar event) when Shopify tells us the order was paid (see bookingPayments.js).
 async function createBooking(userId, { startsAt, note } = {}, deps) {
   const d = withDefaults(deps);
 
@@ -183,8 +239,19 @@ async function createBooking(userId, { startsAt, note } = {}, deps) {
   const user = await d.User.findById(userId).select('email firstName').lean();
   if (!user) return { ok: false, code: 'account_not_found' };
 
+  // 1b. Free the slots of holds that ran out, so they do not count as taken below.
+  await expireHolds(d);
   const now = d.now();
-  const upcomingFilter = { userId, status: 'confirmed', startsAt: { $gt: now } };
+
+  // 1c. The client picked a NEW time while still holding an old one: give the old hold back first,
+  //     otherwise step 2 would reject them for "already having" a booking.
+  await d.Booking.updateMany(
+    { userId, status: 'pending_payment', holdExpiresAt: { $gt: now } },
+    { $set: { status: 'expired' } },
+  );
+
+  // Rows that count against the one-booking limit: a confirmed upcoming booking or a live hold.
+  const upcomingFilter = { userId, startsAt: { $gt: now }, ...takenFilter(now) };
 
   // 2. One upcoming consultation per client.
   if (await d.Booking.exists(upcomingFilter)) return { ok: false, code: 'limit_reached' };
@@ -198,7 +265,7 @@ async function createBooking(userId, { startsAt, note } = {}, deps) {
   if (!slot) return { ok: false, code: 'slot_invalid' };
   const end = new Date(slot.endsAt);
 
-  // 4. Fresh availability: ask the calendar again (no cache) and re-read confirmed bookings.
+  // 4. Fresh availability: ask the calendar again (no cache) and re-read confirmed bookings and live holds.
   const bufferMs = config.bufferMinutes * MINUTE;
   const rangeStart = new Date(start.getTime() - bufferMs);
   const rangeEnd = new Date(end.getTime() + bufferMs);
@@ -210,7 +277,7 @@ async function createBooking(userId, { startsAt, note } = {}, deps) {
     return { ok: false, code: 'calendar_unavailable' }; // nothing was written yet
   }
   const booked = await d.Booking.find({
-    status: 'confirmed', startsAt: { $gte: new Date(rangeStart.getTime() - DAY), $lt: rangeEnd },
+    ...takenFilter(now), startsAt: { $gte: new Date(rangeStart.getTime() - DAY), $lt: rangeEnd },
   }).lean();
   const stillFree = d.slots.computeSlots({ now, fromDate: localDate, toDate: localDate, config, busy, booked });
   if (!stillFree.some(s => s.startsAt === wanted)) return { ok: false, code: 'slot_taken' };
@@ -218,12 +285,20 @@ async function createBooking(userId, { startsAt, note } = {}, deps) {
   // Known limit (accepted for phase 1): the unique index only stops an IDENTICAL startsAt. With a buffer
   // or right after a slot-length change, two simultaneous requests for different but overlapping
   // starts can both get through. No lock is used.
-  // 5. Claim the slot. The unique index on startsAt (confirmed rows) makes this atomic:
-  //    if two people get here together, the database rejects the second one.
+  // 5. Claim the slot with a HOLD. The unique partial indexes on startsAt (one for confirmed rows,
+  //    one for pending_payment rows) make this atomic: if two people get here together, the
+  //    database rejects the second one. No calendar event yet: it is written after payment.
   let booking;
   try {
     booking = await d.Booking.create({
-      userId, startsAt: start, endsAt: end, status: 'confirmed', calendarEventId: null, note: cleanNote,
+      userId,
+      startsAt: start,
+      endsAt: end,
+      status: 'pending_payment',
+      holdExpiresAt: new Date(now.getTime() + HOLD_MINUTES * MINUTE),
+      payment: { status: 'awaiting' },
+      calendarEventId: null,
+      note: cleanNote,
     });
   } catch (err) {
     if (isDuplicateStartsAt(err)) return { ok: false, code: 'slot_taken' };
@@ -240,41 +315,13 @@ async function createBooking(userId, { startsAt, note } = {}, deps) {
     return { ok: false, code: 'limit_reached' };
   }
 
-  // 7. Put the event in the clinic calendar. If that fails, give the slot back.
-  const text = eventText(user, cleanNote, userId);
-  let eventId;
-  try {
-    ({ eventId } = await d.calendar.createEvent({
-      bookingId: booking._id, startsAt: start, endsAt: end, ...text,
-    }));
-  } catch (err) {
-    // Google may still have created the event (e.g. after a timeout). It carries our booking id in
-    // extendedProperties.private.getprettyBookingId, so a human can find an orphan with this log line.
-    console.error(`booking: calendar_unavailable creating the event for booking ${booking._id} ${calendarDetail(err)}; an orphan event would have getprettyBookingId=${booking._id}`);
-    await removeRow(d, booking._id, 'calendar failure');
-    return { ok: false, code: 'calendar_unavailable' };
-  }
-
-  // 8. Remember the event id. If we cannot, undo both the event and the row (best effort).
-  try {
-    await d.Booking.updateOne({ _id: booking._id }, {
-      $set: { calendarEventId: eventId, calendarId: process.env.GOOGLE_CALENDAR_ID || '' },
-    });
-  } catch {
-    try {
-      await d.calendar.deleteEvent(eventId);
-    } catch (err) {
-      console.error(`Booking ${booking._id}: calendar event ${eventId} cleanup failed ${calendarDetail(err)}`);
-    }
-    await removeRow(d, booking._id, 'event id save failure');
-    return { ok: false, code: 'booking_failed' };
-  }
+  // (Steps 7-8, the calendar event, moved to bookingPayments.js: it is created once the booking is paid.)
 
   // 9. Soft warning (never a block) when the client has not done the skin analysis yet.
   const hasAnalysis = await d.SkinAnalysis.exists({ userId });
   return {
     ok: true,
-    booking: publicBooking(booking, config.timeZone, d.slots),
+    booking: publicBooking(booking, config.timeZone, d.slots, user, now),
     warning: hasAnalysis ? null : 'no_analysis',
   };
 }
@@ -284,15 +331,20 @@ async function createBooking(userId, { startsAt, note } = {}, deps) {
 // ---------------------------------------------------------------------------------------------
 async function listMine(userId, deps) {
   const d = withDefaults(deps);
+  await expireHolds(d);
   const now = d.now();
   const config = await getConfig(d);
-  const [next] = await d.Booking.find({ userId, status: 'confirmed', startsAt: { $gt: now } })
+  const user = await d.User.findById(userId).select('email').lean(); // the checkout link pre-fills the email
+  // upcoming = the live hold if there is one (the client must pay it), otherwise the next confirmed booking.
+  const [hold] = await d.Booking.find({ userId, status: 'pending_payment', holdExpiresAt: { $gt: now } })
+    .sort({ startsAt: 1 }).limit(1).lean();
+  const [next] = hold ? [hold] : await d.Booking.find({ userId, status: 'confirmed', startsAt: { $gt: now } })
     .sort({ startsAt: 1 }).limit(1).lean();
   const past = await d.Booking.find({ userId, status: 'confirmed', startsAt: { $lte: now } })
     .sort({ startsAt: -1 }).limit(20).lean();
   return {
-    upcoming: next ? publicBooking(next, config.timeZone, d.slots) : null,
-    past: past.map(b => publicBooking(b, config.timeZone, d.slots)),
+    upcoming: next ? publicBooking(next, config.timeZone, d.slots, user, now) : null,
+    past: past.map(b => publicBooking(b, config.timeZone, d.slots, user, now)),
   };
 }
 
@@ -308,7 +360,8 @@ async function toAdminRows(bookings, d) {
   const byId = new Map(users.map(u => [String(u._id), u]));
   return bookings.map(b => {
     const u = byId.get(String(b.userId)) || {};
-    const pub = publicBooking(b, config.timeZone, d.slots);
+    const pub = publicBooking(b, config.timeZone, d.slots, undefined, d.now());
+    const pay = b.payment || {};
     return {
       id: pub.id,
       userId: String(b.userId),
@@ -322,21 +375,41 @@ async function toAdminRows(bookings, d) {
       status: pub.status,
       cancelledAt: b.cancelledAt || null,
       cancelledByAdminEmail: b.cancelledByAdminEmail || null,
+      holdExpiresAt: pub.holdExpiresAt,
+      needsAttention: b.needsAttention || null,
+      calendarSynced: Boolean(b.calendarEventId), // false on a paid booking = calendar write still pending
+      payment: {
+        status: pay.status || 'none',
+        amount: pay.amount ?? null,
+        currency: pay.currency || null,
+        providerRef: pay.providerRef || null,
+        paidAt: pay.paidAt || null,
+      },
     };
   });
 }
 
-// tab = upcoming | past | cancelled (anything else is treated as upcoming).
+// tab = upcoming | past | cancelled | attention (anything else is treated as upcoming).
 async function listForAdmin({ tab } = {}, deps) {
   const d = withDefaults(deps);
+  await expireHolds(d); // an ended hold belongs under "cancelled", not "upcoming"
   const now = d.now();
   const queries = {
-    upcoming: [{ status: 'confirmed', startsAt: { $gt: now } }, 1],
+    // confirmed future bookings plus holds that are still live
+    upcoming: [{
+      $or: [
+        { status: 'confirmed', startsAt: { $gt: now } },
+        { status: 'pending_payment', holdExpiresAt: { $gt: now } },
+      ],
+    }, 1],
     past: [{ status: 'confirmed', startsAt: { $lte: now } }, -1],
-    cancelled: [{ status: 'cancelled' }, -1],
+    cancelled: [{ status: { $in: ['cancelled', 'expired'] } }, -1],
+    // paid bookings that need a human (slot lost, paid after cancel, extra payment)
+    // (rows an admin already marked handled are left out)
+    attention: [{ needsAttention: { $ne: null }, attentionHandledAt: null }, -1],
   };
   const [filter, direction] = queries[tab] || queries.upcoming;
-  // Capped so a list cannot grow forever: upcoming = the soonest 500, past/cancelled = the newest 500.
+  // Capped so a list cannot grow forever: upcoming = the soonest 500, the others = the newest 500.
   const bookings = await d.Booking.find(filter).sort({ startsAt: direction }).limit(LIST_CAP).lean();
   return toAdminRows(bookings, d);
 }
@@ -349,14 +422,15 @@ async function listForUser(userId, deps) {
 }
 
 // Cancel: the calendar event is deleted FIRST. If that fails the booking stays confirmed and
-// the admin can simply retry (deleting an event twice is harmless).
+// the admin can simply retry (deleting an event twice is harmless). A booking still waiting for
+// payment has no event, so it is only marked cancelled.
 async function cancelBooking(id, adminEmail, deps) {
   const d = withDefaults(deps);
   // Plain 24-hex check: mongoose's isValid would also accept any 12-character string.
   if (!/^[a-f\d]{24}$/i.test(String(id))) return { ok: false, code: 'not_found' };
   const booking = await d.Booking.findById(id).lean();
   if (!booking) return { ok: false, code: 'not_found' };
-  if (booking.status === 'cancelled') return { ok: false, code: 'already_cancelled' };
+  if (booking.status === 'cancelled' || booking.status === 'expired') return { ok: false, code: 'already_cancelled' };
 
   if (booking.calendarEventId) {
     try {
@@ -368,10 +442,53 @@ async function cancelBooking(id, adminEmail, deps) {
     }
   }
   const changes = { status: 'cancelled', cancelledAt: d.now(), cancelledByAdminEmail: adminEmail };
-  // The status filter makes a double click / two admins safe: only one of them matches.
-  const result = await d.Booking.updateOne({ _id: id, status: 'confirmed' }, { $set: changes });
-  if (result && result.matchedCount === 0) return { ok: false, code: 'already_cancelled' };
+  // The update only matches the row in the SAME status we read. That makes a double click / two
+  // admins safe (only one matches), and stops an admin from cancelling a hold that was PAID in the
+  // same moment (round-2 review N4): the row is then 'confirmed', the filter misses, and the admin
+  // is told the booking changed instead of silently cancelling a paid booking.
+  const filter = { _id: id, status: booking.status };
+  // Race guard: we read the row WITHOUT a calendar event. If the calendar sync writes one
+  // between our read and this update, the filter below misses (the row now has an event id) and
+  // we must not cancel the row while leaving a live event behind.
+  if (!booking.calendarEventId) filter.calendarEventId = null;
+  const result = await d.Booking.updateOne(filter, { $set: changes });
+  if (result && result.matchedCount === 0) {
+    const fresh = await d.Booking.findById(id).lean();
+    // The unpaid hold got paid while the admin was cancelling it: do not cancel, ask to re-check.
+    if (fresh && booking.status === 'pending_payment' && fresh.status === 'confirmed') {
+      return { ok: false, code: 'booking_changed' };
+    }
+    // Same status, but the calendar sync added an event meanwhile: delete it, then cancel.
+    if (!booking.calendarEventId && fresh && fresh.calendarEventId && fresh.status === booking.status) {
+      try {
+        await d.calendar.deleteEvent(fresh.calendarEventId, fresh.calendarId || undefined);
+      } catch (err) {
+        console.error(`booking: calendar_unavailable cancelling booking ${fresh._id}, event ${fresh.calendarEventId} ${calendarDetail(err)}`);
+        return { ok: false, code: 'calendar_unavailable' };
+      }
+      const retry = await d.Booking.updateOne({ _id: id, status: booking.status }, { $set: changes });
+      if (!retry || retry.matchedCount !== 0) return { ok: true, booking: { ...booking, ...changes } };
+    }
+    return { ok: false, code: 'already_cancelled' };
+  }
   return { ok: true, booking: { ...booking, ...changes } };
+}
+
+// Admin "Mark handled" on a Needs attention row: records who dealt with it and when, so the row
+// leaves the Needs attention tab. Only a flagged, not-yet-handled row can be marked.
+// Result: { ok:true, userId } | { ok:false, code:'not_found' | 'not_flagged' }.
+async function markAttentionHandled(id, adminEmail, deps) {
+  const d = withDefaults(deps);
+  if (!/^[a-f\d]{24}$/i.test(String(id))) return { ok: false, code: 'not_found' };
+  const booking = await d.Booking.findById(id).lean();
+  if (!booking) return { ok: false, code: 'not_found' };
+  // One conditional update: a double click or a second admin simply misses and gets not_flagged.
+  const result = await d.Booking.updateOne(
+    { _id: id, needsAttention: { $ne: null }, attentionHandledAt: null },
+    { $set: { attentionHandledAt: d.now(), attentionHandledByAdminEmail: adminEmail } },
+  );
+  if (!result || result.matchedCount === 0) return { ok: false, code: 'not_flagged' };
+  return { ok: true, userId: booking.userId }; // userId is for the route's audit entry
 }
 
 // ---- settings form ----
@@ -444,6 +561,7 @@ async function releaseUserBookings(userId, deps) {
 }
 
 module.exports = {
+  HOLD_MINUTES, shopifyConfigured, expireHolds, eventText, publicBooking,
   isBookingEnabled, bookingBootLine, getConfig, getPublicConfig, listSlots, createBooking, listMine,
-  listForAdmin, listForUser, cancelBooking, updateConfig, releaseUserBookings,
+  listForAdmin, listForUser, cancelBooking, markAttentionHandled, updateConfig, releaseUserBookings,
 };

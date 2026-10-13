@@ -97,6 +97,12 @@ function isGone(err) {
   return status === 404 || status === 410;
 }
 
+// True when a Google error means "an event with this id already exists" (HTTP 409).
+function isConflict(err) {
+  const status = Number(err && (err.code || (err.response && err.response.status)));
+  return status === 409;
+}
+
 // ---------- mock calendar (BOOKING_CALENDAR_MOCK=1, never in production) ----------
 
 // Offset in ms of `tz` from UTC at the given instant (positive = ahead of UTC).
@@ -179,10 +185,17 @@ function createCalendarService({ client } = {}) {
     }
   }
 
-  async function createEvent({ bookingId, startsAt, endsAt, summary, description }) {
+  // `eventId` is optional. When given it is sent to Google as the event id, which makes the call
+  // idempotent: if a first attempt timed out but Google did create the event, the retry gets a
+  // 409 "already exists" and we treat that as success (so no second event is ever created).
+  // Google event ids are base32hex, 5-1024 chars; a 24-hex Mongo id is valid.
+  async function createEvent({ bookingId, startsAt, endsAt, summary, description, eventId: wantedId }) {
     if (useMock()) {
-      const eventId = `mock-event-${++mockCounter}`;
-      mockEvents.push({ eventId, bookingId, startsAt, endsAt, summary, description });
+      // Mock mode honours the given id and the duplicate behaviour (same id twice = one event).
+      const eventId = wantedId || `mock-event-${++mockCounter}`;
+      if (!mockEvents.some(ev => ev.eventId === eventId)) {
+        mockEvents.push({ eventId, bookingId, startsAt, endsAt, summary, description });
+      }
       return { eventId };
     }
     const g = requireReady();
@@ -191,6 +204,7 @@ function createCalendarService({ client } = {}) {
         calendarId: process.env.GOOGLE_CALENDAR_ID,
         sendUpdates: 'none', // never email anyone; no attendees are set either
         requestBody: {
+          ...(wantedId ? { id: wantedId } : {}),
           summary,
           description,
           start: { dateTime: startsAt.toISOString(), timeZone: TZ },
@@ -200,6 +214,8 @@ function createCalendarService({ client } = {}) {
       }));
       return { eventId: res.data.id };
     } catch (e) {
+      // 409 = an event with this id already exists (an earlier attempt got through): success.
+      if (wantedId && isConflict(e)) return { eventId: wantedId };
       throw wrap(e);
     }
   }

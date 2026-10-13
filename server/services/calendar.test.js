@@ -120,6 +120,14 @@ describe('mock calendar (BOOKING_CALENDAR_MOCK=1)', () => {
     expect(cal.__mock.events()).toHaveLength(0);
   });
 
+  test('createEvent honours a given eventId and a second call with the same id adds no duplicate', async () => {
+    const cal = load();
+    const input = { bookingId: 'b1', eventId: 'a'.repeat(24), startsAt: new Date(), endsAt: new Date(), summary: 's', description: 'd' };
+    expect(await cal.createEvent(input)).toEqual({ eventId: 'a'.repeat(24) });
+    expect(await cal.createEvent(input)).toEqual({ eventId: 'a'.repeat(24) });
+    expect(cal.__mock.events()).toHaveLength(1);
+  });
+
   test('deleteEvent is idempotent: an unknown or already deleted id resolves', async () => {
     const cal = load();
     await expect(cal.deleteEvent('mock-event-999')).resolves.toBeUndefined();
@@ -329,6 +337,26 @@ describe('real client behaviour with an injected fake Google client', () => {
     expect(new Date(arg.requestBody.start.dateTime).getTime()).toBe(Date.parse('2026-10-08T07:00:00Z'));
     expect(new Date(arg.requestBody.end.dateTime).getTime()).toBe(Date.parse('2026-10-08T07:30:00Z'));
     expect(arg.requestBody.extendedProperties.private.getprettyBookingId).toBe('b1');
+  });
+
+  test('createEvent with eventId sends it as requestBody.id; a 409 (already exists) counts as success with that id', async () => {
+    const id = 'a'.repeat(24);
+    const input = { bookingId: id, eventId: id, startsAt: new Date(), endsAt: new Date(), summary: 's', description: 'd' };
+    const client = fakeClient();
+    const { svc } = build(client);
+    await svc.createEvent(input);
+    expect(client.events.insert.mock.calls[0][0].requestBody.id).toBe(id);
+
+    // Google answers 409 because an earlier (timed-out) attempt already created the event.
+    const res = { status: 409, statusText: 'Conflict', ok: false, headers: {}, config: {}, data: { error: { code: 409, message: 'The requested identifier already exists.', errors: [{ reason: 'duplicate' }] } } };
+    client.events.insert.mockRejectedValueOnce(new GaxiosError('dup', { url: 'https://x' }, res, GaxiosError.extractAPIErrorFromResponse(res)));
+    expect(await svc.createEvent(input)).toEqual({ eventId: id });
+
+    // Without an eventId a 409 is still an error, and other statuses are never swallowed.
+    client.events.insert.mockRejectedValueOnce(Object.assign(new Error('x'), { code: 409 }));
+    await expect(svc.createEvent({ ...input, eventId: undefined })).rejects.toMatchObject({ code: 'calendar_unavailable' });
+    client.events.insert.mockRejectedValueOnce(Object.assign(new Error('x'), { code: 403 }));
+    await expect(svc.createEvent(input)).rejects.toMatchObject({ code: 'calendar_unavailable' });
   });
 
   test('deleteEvent calls Google; a 404 or 410 means already gone, so it succeeds', async () => {

@@ -79,12 +79,17 @@ export function buildFallback(answers) {
   };
 }
 
-export async function fetchProductRecs(productAudit, country, eraName) {
+export async function fetchProductRecs(productAudit, country, eraName, safety = {}) {
   const replaceItems = productAudit.replace || [];
   const addItems     = productAudit.add     || [];
   if (!replaceItems.length && !addItems.length) return { replace:[], add:[] };
 
-  return api.post('/api/ai/product-recommendations', { productAudit, country, eraName });
+  // The endpoint verifies explicit pregnancy, allergy, and irritant answers before using market picks.
+  return api.post('/api/ai/product-recommendations', {
+    productAudit, country, eraName,
+    language: safety.language,
+    safetyContext: safety.safetyContext,
+  }, { timeoutMs: 60000 });
 }
 
 // --- Quiz structure -------------------------------------------------------

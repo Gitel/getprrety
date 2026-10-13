@@ -22,7 +22,10 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { baseEnv } from './baseEnv.js';
-import { PORT, ADMIN_EMAIL, ADMIN_SESSION_SECRET, JWT_SECRET } from './env.js';
+import {
+  PORT, ADMIN_EMAIL, ADMIN_SESSION_SECRET, JWT_SECRET,
+  SHOPIFY_STORE_URL, SHOPIFY_CONSULTATION_VARIANT_ID, SHOPIFY_WEBHOOK_SECRET, CONSENT_VERSION,
+} from './env.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const adminDir = path.resolve(here, '..');
@@ -90,6 +93,13 @@ async function main() {
     GOOGLE_SERVICE_ACCOUNT_JSON_B64: '',
     // Used for the "Client page" link in the calendar event text.
     PUBLIC_BASE_URL: `http://127.0.0.1:${PORT}`,
+    // Paid booking: FAKE Shopify values. The store URL is only ever put into a checkout link
+    // string; the server never calls it. The webhook secret lets specs sign fake webhooks.
+    SHOPIFY_STORE_URL,
+    SHOPIFY_CONSULTATION_VARIANT_ID,
+    SHOPIFY_WEBHOOK_SECRET,
+    // Current Terms/Privacy version, needed when an invite is redeemed with consent.
+    CONSENT_VERSION,
   };
 
   // Seed the catalogue with the REAL seed script (fails loudly on a non-zero exit).

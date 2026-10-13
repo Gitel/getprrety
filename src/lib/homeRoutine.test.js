@@ -24,6 +24,16 @@ describe('routineSteps', () => {
     expect(routineSteps({ routine: GENERIC, srProducts }, 'pm')).toEqual(GENERIC.pm);
   });
 
+  test('an unmatched protect step keeps the generic SPF instruction even when its catalogue note is nonempty', () => {
+    const analysis = {
+      routine: { am: [{ category_id: 'protect', name: 'Sunscreen', description: 'Use broad-spectrum SPF 30+.' }], pm: [] },
+      srProducts: { am: [{ category_id: 'protect', routine_category: 'Sunscreen', sr_product_id: null, no_match_note: 'No catalogue match.' }], pm: [] },
+    };
+    expect(routineSteps(analysis, 'am')).toEqual([
+      { name: 'Sunscreen', description: 'Use broad-spectrum SPF 30+.' },
+    ]);
+  });
+
   test('no analysis: no steps', () => {
     expect(routineSteps(null, 'am')).toEqual([]);
   });

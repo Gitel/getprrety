@@ -22,6 +22,10 @@ const ACTIONS = [
   'catalogue_product_restored', // Products page: archived product brought back
   'booking_cancelled',          // Bookings page: admin cancelled a booking
   'booking_settings_updated',   // Booking settings page: hours / slot rules changed
+  'signin_link_created',        // User page: sign-in link generated
+  'signin_link_sent',           // User page: sign-in link emailed
+  'invite_created',             // Users page: invite link created for a new user
+  'booking_attention_handled',  // Bookings page: admin marked a flagged booking as handled
 ];
 
 // Who changed what, and when. Records the NAMES of changed fields, never their values:

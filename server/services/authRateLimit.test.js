@@ -102,3 +102,11 @@ test('the /admin sign-in has its own scope and 15-minute window', async () => {
   expect(consumeRateLimit.mock.calls[0][2]).toBe(20);
   expect(consumeRateLimit.mock.calls[0][3]).toBe(15 * 60 * 1000);
 });
+
+test('the sign-in link redeem has its own scope, 20 per 15 minutes', async () => {
+  consumeRateLimit.mockResolvedValue(true);
+  await allowAuthAttempt(req(), 'link');
+  expect(consumeRateLimit.mock.calls[0][0]).toBe('auth_link');
+  expect(consumeRateLimit.mock.calls[0][2]).toBe(20);
+  expect(consumeRateLimit.mock.calls[0][3]).toBe(15 * 60 * 1000);
+});

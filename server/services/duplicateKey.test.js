@@ -54,6 +54,8 @@ describe('isDuplicateStartsAt', () => {
   test('falls back to the index name in the message when keyPattern is missing', () => {
     const withoutKeyPattern = message => Object.assign(new Error(message), { code: 11000 });
     expect(isDuplicateStartsAt(withoutKeyPattern('E11000 duplicate key error collection: getprrety.bookings index: startsAt_1 dup key: { startsAt: new Date(1) }'))).toBe(true);
+    // The unpaid-hold index (paid booking, 2026-10-12) is a slot conflict too.
+    expect(isDuplicateStartsAt(withoutKeyPattern('E11000 duplicate key error collection: getprrety.bookings index: startsAt_pending_unique dup key: { startsAt: new Date(1), status: "pending_payment" }'))).toBe(true);
     expect(isDuplicateStartsAt(withoutKeyPattern('E11000 duplicate key error collection: getprrety.users index: email_1 dup key'))).toBe(false);
     expect(isDuplicateStartsAt(withoutKeyPattern('E11000 duplicate key'))).toBe(false);
   });

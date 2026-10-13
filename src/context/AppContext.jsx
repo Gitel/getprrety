@@ -1,11 +1,13 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { removeToken } from '../lib/auth';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import { removeToken, storeToken } from '../lib/auth';
 // Still needed by the resume refresh below (boot itself now goes through loadSession).
 import { api } from '../lib/api';
 import { loadSession } from '../lib/loadSession';
 import { logActivity } from '../lib/logActivity';
 import { onAppResume, nextAnalysis, keepIfEqual } from '../lib/resumeRefresh';
 import { fetchUnreadCount } from '../lib/messages';
+// Sign-in link (#signin=<token> in the URL): read + strip the token, and redeem it.
+import { readSigninToken, redeemSigninLink } from '../lib/signinLink';
 // Language rule (device / account / pending) lives in languageSync.js; this file only calls it.
 import { bootLanguage, retryPendingLanguage, clearPendingOnLogout } from '../lib/languageSync';
 
@@ -31,21 +33,64 @@ export function AppProvider({ children }) {
     return fetchUnreadCount().then(setUnreadMessages).catch(() => {});
   }
 
+  // Sign-in link hand-off to SplashScreen / LinkWelcomeScreen (see the boot effect below).
+  //   afterSignin: 'QuizIntro' once a link signed the user in (one-shot, cleared by Splash).
+  //   linkWelcome: { mode: 'invite', token } (new customer must accept the terms first)
+  //                or { mode: 'invalid' } (dead link); cleared by LinkWelcomeScreen.
+  const [afterSignin, setAfterSignin] = useState(null);
+  const [linkWelcome, setLinkWelcome] = useState(null);
+  // True while the boot-time redeem is in flight. SplashScreen must not give up and navigate
+  // away during this time, or a slow network would hide the invite welcome screen.
+  const [linkPending, setLinkPending] = useState(false);
+  // Guards the boot effect: React StrictMode runs effects twice in dev, but the URL token is
+  // stripped on the first read, so a second read would find nothing.
+  const bootStarted = useRef(false);
+
+  // Loads the saved session (token -> user + analysis) into context. Used at boot and again by
+  // LinkWelcomeScreen after it stores a token. bootLanguage reads the stored language, runs
+  // loadSession, then sets the UI language, so the first screen is already in the right language.
+  async function reloadSession() {
+    const { user: signedInUser, analysis: saved } = await bootLanguage(
+      () => loadSession({ timeoutMs: BOOTSTRAP_TIMEOUT_MS }),
+    );
+    if (saved) setAnalysis(saved);
+    if (signedInUser) {
+      setUser(signedInUser);
+      logActivity('app_open');
+    }
+  }
+
   useEffect(() => {
+    if (bootStarted.current) return;
+    bootStarted.current = true;
     (async () => {
-      // User AND saved analysis are both loaded before authReady flips, so SplashScreen
-      // can send a returning user straight to Home (see loadSession.js for the race this
-      // fixes). Worst case is one BOOTSTRAP_TIMEOUT_MS, under SplashScreen's 10 s ceiling.
-      // bootLanguage reads the stored language, runs loadSession, then sets the UI language,
-      // so the first screen is already in the right language when authReady flips.
-      const { user: signedInUser, analysis: saved } = await bootLanguage(
-        () => loadSession({ timeoutMs: BOOTSTRAP_TIMEOUT_MS }),
-      );
-      if (saved) setAnalysis(saved);
-      if (signedInUser) {
-        setUser(signedInUser);
-        logActivity('app_open');
+      // 1. Sign-in link: BEFORE loadSession, so the session load below already sees the new token.
+      //    readSigninToken also removes the token from the address bar immediately.
+      const linkToken = readSigninToken();
+      if (linkToken) {
+        setLinkPending(true);
+        try {
+          // No consent: existing accounts need none. Normal api.js timeout (15 s) on purpose: the
+          // server uses the link up as soon as it answers, so aborting early on a slow network would
+          // turn a good link into "link no longer valid" (round-2 review N2). Splash waits for it.
+          const res = await redeemSigninLink(linkToken);
+          await storeToken(res.token);
+          setAfterSignin('QuizIntro'); // Splash sends the user to the quiz landing once
+        } catch (err) {
+          // New invited customer: they must accept the terms on LinkWelcomeScreen first.
+          // Anything else (expired, used, revoked, offline...) shows the "link invalid" screen.
+          setLinkWelcome(err?.code === 'consent_required'
+            ? { mode: 'invite', token: linkToken }
+            : { mode: 'invalid' });
+        } finally {
+          setLinkPending(false); // result (afterSignin / linkWelcome) is set; Splash may decide now
+        }
       }
+      // 2. Normal session load. User AND saved analysis are both loaded before authReady flips,
+      //    so SplashScreen can send a returning user straight to Home (see loadSession.js).
+      //    Worst case: redeem (15 s) + this load (8 s). SplashScreen waits for the redeem
+      //    (linkPending, with its own hard ceiling) and may give up during this load like a plain boot.
+      await reloadSession();
       setAuthReady(true);
     })();
   }, []);
@@ -99,6 +144,10 @@ export function AppProvider({ children }) {
       analysisSaveFailed, setAnalysisSaveFailed,
       unreadMessages, setUnreadMessages, refreshUnreadMessages,
       productRecsCache, setProductRecsCache,
+      afterSignin, clearAfterSignin: () => setAfterSignin(null),
+      linkWelcome, clearLinkWelcome: () => setLinkWelcome(null),
+      linkPending,
+      reloadSession,
       logout,
     }}>
       {children}

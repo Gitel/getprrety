@@ -12,6 +12,7 @@ import FallbackBanner from '../components/FallbackBanner';
 import ScoreSection from '../components/ScoreSection';
 import { MenuButton } from '../components/SideMenu';
 import { eraText, analysisAffirmation } from '../lib/eraText';
+import { buildProductSafetyContext } from '../lib/analyzeWithRailway';
 
 // U+2068 / U+2069 (first-strong isolate) around a value interpolated into a sentence, so a Latin
 // value cannot reorder the surrounding Hebrew. Invisible in English.
@@ -65,7 +66,7 @@ export default function ProfileScreen({ navigation, route }) {
   useEffect(() => {
     if (!user) return;
     // Picks edited by the clinic in the admin dashboard win: show exactly those and do
-    // not ask Claude. Without them, reuse this session's picks for the same audit (cache
+    // not request market picks. Without them, reuse this session's picks for the same audit (cache
     // below), else ask Claude. Nothing is saved server-side, so a reload asks again.
     if (analysis?.productRecs) {
       setProductRecs(analysis.productRecs);
@@ -75,8 +76,12 @@ export default function ProfileScreen({ navigation, route }) {
     if (!addItems.length && !replaceItems.length) return;
     // Quiz answers are only in memory in the quiz session; a saved analysis (reopened
     // after a reload) carries its own copy, so use that before the US default.
-    const c   = answers?.country || analysis?.quizAnswers?.country || 'United States';
-    const key = JSON.stringify([audit, c, era?.name || '']);
+    // A saved snapshot belongs to this assessment; prefer it over potentially stale quiz state.
+    const recAnswers = analysis?.quizAnswers || answers || {};
+    const c   = recAnswers.country || 'United States';
+    const safetyContext = buildProductSafetyContext(recAnswers);
+    const language = i18n.language.startsWith('he') ? 'he' : 'en';
+    const key = JSON.stringify([audit, c, era?.name || '', language, safetyContext]);
     // Session cache: reopening Profile for the same audit reuses the earlier result
     // instead of calling the paid, rate-limited recommendations endpoint again.
     if (productRecsCache?.key === key) {
@@ -89,12 +94,15 @@ export default function ProfileScreen({ navigation, route }) {
     }
     setLoadingRecs(true);
     // Set by the cleanup below when this effect re-runs (e.g. admin picks arrived) or the
-    // screen closes, so a slow Claude answer can never overwrite newer picks.
+    // screen closes, so a slow recommendations answer can never overwrite newer picks.
     let cancelled = false;
     (async () => {
       try {
         setCountry(c);
-        const recs = await fetchProductRecs(audit, c, era?.name || '');
+        const recs = await fetchProductRecs(audit, c, era?.name || '', {
+          language,
+          safetyContext,
+        });
         // Cached even if this run was cancelled: the picks are still correct for `key`, so
         // reopening Profile for the same audit reuses them instead of paying again.
         setProductRecsCache({ key, recs, country: c });
@@ -105,10 +113,10 @@ export default function ProfileScreen({ navigation, route }) {
     return () => { cancelled = true; };
     // Re-run when a resume refresh brings in admin-edited picks (productRecs) or a changed
     // add/replace list (new items need picks). The list is compared as a string, so an
-    // equal list in a new object does not trigger another Claude call.
-  }, [user, analysis?.productRecs, auditPickKey]);
+    // equal list in a new object does not trigger another recommendations call.
+  }, [user, analysis?.productRecs, auditPickKey, answers, analysis?.quizAnswers, i18n.language]);
 
-  // The scan is "settled" once its result is in AND Railway's score-section copy is no longer
+  // The scan is "settled" once its result is in AND the score-reading copy is no longer
   // on its way (readingStatus 'ready' / 'failed' / 'unavailable'). Until then we poll.
   const scanSettled = Boolean(analysis?.skinScan) && analysis.skinScan.readingStatus !== 'pending';
   // True while the loop below is running: the score section then shows its
@@ -127,7 +135,7 @@ export default function ProfileScreen({ navigation, route }) {
       const result = await pollScan(scanId, scanToken);
       if (cancelled) return;
       if (result?.status === 'complete' && result.skinScan) {
-        // Always take the fresh copy: signals now, and the reading once Railway answers.
+        // Always take the fresh copy: signals now, and the reading once score reading answers.
         setAnalysis(current => current ? { ...current, skinScanId: scanId, skinScan: result.skinScan } : current);
         // Keep polling (same loop and attempt cap) while the copy is still on its way.
         if (result.skinScan.readingStatus !== 'pending') { setScanPolling(false); return; }
@@ -176,7 +184,7 @@ export default function ProfileScreen({ navigation, route }) {
         <FallbackBanner analysis={analysis} navigation={navigation} />
 
         {/* Score section: overall score, skin age, "Start here" and the four signals
-            (PerfectCorp scan + Railway copy). Replaces the old "AI Skin Scan" card. */}
+            (PerfectCorp scan + generated copy). Replaces the old "AI Skin Scan" card. */}
         <ScoreSection analysis={analysis} polling={scanPolling} />
 
         {/* Era hero */}
@@ -193,6 +201,15 @@ export default function ProfileScreen({ navigation, route }) {
           <Text style={s.cardLabel}>{t('profile:analysisTitle')}</Text>
           <Text style={s.cardBody}>{analysis.skinAnalysis}</Text>
         </View>
+
+        {!!analysis.safetyFlags?.length && (
+          <View style={s.safetyCard} accessibilityRole="summary">
+            <Text style={s.safetyTitle}>{t('profile:safety.title')}</Text>
+            {analysis.safetyFlags.map((flag, index) => (
+              <Text key={`${index}-${flag}`} style={s.safetyText}>• {flag}</Text>
+            ))}
+          </View>
+        )}
 
         {/* Key Insights */}
         <Text style={s.sectionLabel}>{t('profile:insightsTitle')}</Text>
@@ -476,6 +493,9 @@ const s = StyleSheet.create({
   card:      { backgroundColor: C.card, borderRadius: 14, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: C.border },
   cardLabel: { fontFamily: 'DMSans_400Regular', fontSize: 10, color: C.muted, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 10 },
   cardBody:  { fontFamily: 'DMSans_400Regular', fontSize: 14, color: '#4A4039', lineHeight: 25 },
+  safetyCard: { backgroundColor: '#FFF8E8', borderColor: '#E9D7A8', borderWidth: 1, borderRadius: 12, padding: 14, marginBottom: 18, gap: 6 },
+  safetyTitle: { fontFamily: 'DMSans_500Medium', fontSize: 12, color: '#6F5721', marginBottom: 2 },
+  safetyText: { fontFamily: 'DMSans_400Regular', fontSize: 12, color: '#594A2C', lineHeight: 18 },
 
   sectionLabel:{ fontFamily: 'DMSans_400Regular', fontSize: 10, color: C.muted, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 12 },
   insightList: { gap: 8, marginBottom: 18 },

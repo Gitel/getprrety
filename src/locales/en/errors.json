@@ -42,5 +42,7 @@
   "timeout": "The request took too long. Please try again.",
   "network": "Could not connect. Check your internet connection and try again.",
   "server_error": "Something went wrong on our side. Please try again in a moment.",
-  "generic": "Something went wrong. Please try again."
+  "generic": "Something went wrong. Please try again.",
+  "link_invalid": "This sign-in link is no longer valid. Ask the clinic for a new one.",
+  "signin_link_failed": "We could not sign you in with this link. Please try again."
 }

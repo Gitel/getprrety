@@ -5,7 +5,8 @@ const mongoose = require('mongoose'); // only for ObjectId values, we never conn
 const realSlots = require('./slots');
 const {
   isBookingEnabled, getConfig, getPublicConfig, listSlots, createBooking, listMine,
-  listForAdmin, listForUser, cancelBooking, updateConfig, bookingBootLine, releaseUserBookings,
+  listForAdmin, listForUser, cancelBooking, markAttentionHandled, updateConfig, bookingBootLine, releaseUserBookings,
+  HOLD_MINUTES, shopifyConfigured, expireHolds, eventText, publicBooking,
 } = require('./bookings');
 
 const oid = () => new mongoose.Types.ObjectId();
@@ -52,13 +53,14 @@ const sameValue = (a, b) => (a instanceof Date || b instanceof Date
 // Supports plain equality plus $gt/$gte/$lt/$lte/$in/$ne, which is all the service uses.
 function matches(doc, filter = {}) {
   return Object.entries(filter).every(([key, cond]) => {
+    if (key === '$or') return cond.some(sub => matches(doc, sub)); // any one branch may match
     const value = doc[key];
     const isOps = cond && typeof cond === 'object' && !(cond instanceof Date) && !(cond instanceof mongoose.Types.ObjectId)
       && Object.keys(cond).some(k => k.startsWith('$'));
     if (!isOps) return sameValue(value, cond);
     return Object.entries(cond).every(([op, arg]) => {
       if (op === '$in') return arg.some(a => sameValue(value, a));
-      if (op === '$ne') return !sameValue(value, arg);
+      if (op === '$ne') return arg === null ? value !== null && value !== undefined : !sameValue(value, arg);
       const [v, a] = [new Date(value).getTime(), new Date(arg).getTime()];
       if (op === '$gt') return v > a;
       if (op === '$gte') return v >= a;
@@ -118,7 +120,7 @@ function makeWorld({ users = [], bookings = [], analyses = [], config = DEFAULTS
   const world = {
     store: bookings.map(b => makeDoc({
       _id: oid(), status: 'confirmed', note: '', calendarEventId: null, calendarId: '',
-      cancelledAt: null, cancelledByAdminEmail: null, ...b,
+      cancelledAt: null, cancelledByAdminEmail: null, holdExpiresAt: null, needsAttention: null, attentionHandledAt: null, ...b,
     })),
     users: users.map(u => makeDoc({ _id: oid(), ...u })),
     analyses,
@@ -134,7 +136,9 @@ function makeWorld({ users = [], bookings = [], analyses = [], config = DEFAULTS
     countDocuments: jest.fn(f => query(() => world.store.filter(d => matches(d, f)).length)),
     create: jest.fn(async input => {
       const status = input.status || 'confirmed';
-      if (status === 'confirmed' && world.store.some(d => d.status === 'confirmed' && sameValue(d.startsAt, input.startsAt))) throw dupStartsAt();
+      // Mirrors the two partial unique indexes: one per status (confirmed / pending_payment), same start time.
+      if ((status === 'confirmed' || status === 'pending_payment')
+        && world.store.some(d => d.status === status && sameValue(d.startsAt, input.startsAt))) throw dupStartsAt();
       const doc = makeDoc({
         _id: oid(), status, note: '', calendarEventId: null, calendarId: '',
         cancelledAt: null, cancelledByAdminEmail: null,
@@ -148,6 +152,11 @@ function makeWorld({ users = [], bookings = [], analyses = [], config = DEFAULTS
       const i = world.store.findIndex(d => matches(d, f));
       if (i >= 0) world.store.splice(i, 1);
       return { deletedCount: i >= 0 ? 1 : 0 };
+    }),
+    updateMany: jest.fn(async (f, update) => {
+      const hit = world.store.filter(x => matches(x, f));
+      hit.forEach(x => applyUpdate(x, update));
+      return { matchedCount: hit.length, modifiedCount: hit.length };
     }),
     updateOne: jest.fn(async (f, update) => {
       const d = world.store.find(x => matches(x, f));
@@ -198,11 +207,15 @@ function makeWorld({ users = [], bookings = [], analyses = [], config = DEFAULTS
 }
 
 // ---------------------------------------------------------------------------------------------
+const SHOPIFY_ENV = ['SHOPIFY_STORE_URL', 'SHOPIFY_CONSULTATION_VARIANT_ID', 'SHOPIFY_WEBHOOK_SECRET'];
 let savedEnv;
 beforeEach(() => {
   savedEnv = {};
-  for (const k of ['BOOKING_ENABLED', 'GOOGLE_CALENDAR_ID', 'PUBLIC_BASE_URL']) savedEnv[k] = process.env[k];
+  for (const k of ['BOOKING_ENABLED', 'GOOGLE_CALENDAR_ID', 'PUBLIC_BASE_URL', ...SHOPIFY_ENV]) savedEnv[k] = process.env[k];
   process.env.BOOKING_ENABLED = '1';
+  process.env.SHOPIFY_STORE_URL = 'https://shop.test/'; // trailing slash on purpose: the link must not double it
+  process.env.SHOPIFY_CONSULTATION_VARIANT_ID = '12345';
+  process.env.SHOPIFY_WEBHOOK_SECRET = 'whsec-test';
   process.env.GOOGLE_CALENDAR_ID = CAL_ID;
   process.env.PUBLIC_BASE_URL = 'https://app.test';
 });
@@ -249,6 +262,22 @@ describe('isBookingEnabled / getConfig / getPublicConfig', () => {
     expect(await isBookingEnabled(deps)).toBe(false);
   });
 
+  test('Shopify env gating: each of the three settings is required, shopifyConfigured says so', async () => {
+    const { world, deps } = userWorld();
+    expect(shopifyConfigured()).toBe(true);
+    for (const name of SHOPIFY_ENV) {
+      const saved = process.env[name];
+      process.env[name] = '';
+      expect(shopifyConfigured()).toBe(false);
+      expect(await isBookingEnabled(deps)).toBe(false);
+      delete process.env[name];
+      expect(await isBookingEnabled(deps)).toBe(false);
+      process.env[name] = saved;
+    }
+    expect(await isBookingEnabled(deps)).toBe(true);
+    expect(world.calendar.getBusy).not.toHaveBeenCalled();
+  });
+
   test('getConfig creates the singleton from DEFAULTS on first use (upsert)', async () => {
     const world = makeWorld({ config: null });
     expect(world.config()).toBeNull();
@@ -267,62 +296,48 @@ describe('isBookingEnabled / getConfig / getPublicConfig', () => {
 });
 
 // ---------------------------------------------------------------------------------------------
-describe('createBooking: happy path and event text', () => {
-  test('returns the public booking, stores the event id and snapshot, creates the calendar event', async () => {
+describe('createBooking: happy path (a paid-booking HOLD, no calendar event yet)', () => {
+  // INTENDED behaviour change (paid booking): create used to confirm at once and write the calendar
+  // event. It now only inserts a pending_payment hold; the event is written after payment.
+  test('returns the public hold booking and inserts a pending_payment row with a 15 minute hold', async () => {
     const { world, userId, deps } = userWorld();
     const result = await createBooking(userId, { startsAt: SLOT, note: 'First visit' }, deps);
 
     expect(result.ok).toBe(true);
     expect(result.warning).toBeNull();
-    expect(Object.keys(result.booking).sort()).toEqual(['date', 'endsAt', 'id', 'note', 'startsAt', 'status', 'time']);
-    expect(result.booking).toMatchObject({ date: '2026-10-08', time: '10:00', status: 'confirmed', note: 'First visit' });
+    expect(Object.keys(result.booking).sort()).toEqual(
+      ['checkoutUrl', 'date', 'endsAt', 'holdExpiresAt', 'id', 'note', 'startsAt', 'status', 'time'],
+    );
+    expect(result.booking).toMatchObject({ date: '2026-10-08', time: '10:00', status: 'pending_payment', note: 'First visit' });
     expect(isoOf(result.booking.startsAt)).toBe(SLOT);
     expect(isoOf(result.booking.endsAt)).toBe('2026-10-08T07:30:00.000Z');
+    expect(HOLD_MINUTES).toBe(15);
+    expect(result.booking.holdExpiresAt).toBe(new Date(NOW.getTime() + 15 * 60000).toISOString());
 
-    // Step 5: the row is created confirmed with no event id yet (that is how the unique index guards the slot).
     const created = world.Booking.create.mock.calls[0][0];
-    expect(created).toMatchObject({ status: 'confirmed', calendarEventId: null, note: 'First visit' });
+    expect(created).toMatchObject({
+      status: 'pending_payment', calendarEventId: null, note: 'First visit', payment: { status: 'awaiting' },
+    });
+    expect(created.holdExpiresAt.getTime()).toBe(NOW.getTime() + 15 * 60000);
     expect(String(created.userId)).toBe(String(userId));
-
-    // Step 8: the event id and calendar snapshot are written afterwards.
     expect(world.store).toHaveLength(1);
-    expect(world.store[0]).toMatchObject({ calendarEventId: 'evt-1', calendarId: CAL_ID });
     expect(String(result.booking.id)).toBe(String(world.store[0]._id));
   });
 
-  test('the event has the first name and email, plus the admin link and note, in the contract text', async () => {
-    const { world, userId, deps } = userWorld();
-    await createBooking(userId, { startsAt: SLOT, note: 'First visit' }, deps);
-    const ev = world.calendar.createEvent.mock.calls[0][0];
-
-    expect(ev.summary).toBe('Consultation - Dana');
-    expect(ev.description.trim().split(/\r?\n/)).toEqual([
-      'Booked in the GetPretty app.',
-      'Email: dana@example.com',
-      'Note: First visit',
-      `Client page: https://app.test/admin/users/${userId}`,
-    ]);
-    expect(String(ev.bookingId)).toBe(String(world.store[0]._id));
-    expect(ev.startsAt.toISOString()).toBe(SLOT);
-    expect(ev.endsAt.toISOString()).toBe('2026-10-08T07:30:00.000Z');
-  });
-
-  test('no health data: nothing from the quiz or skin analysis reaches the event', async () => {
+  test('NO calendar event is created or deleted when booking (it is written after payment)', async () => {
     const { world, userId, deps } = userWorld();
     await createBooking(userId, { startsAt: SLOT }, deps);
-    const ev = world.calendar.createEvent.mock.calls[0][0];
-    const text = `${ev.summary}\n${ev.description}`;
-    for (const secret of ['penicillin', 'pregnant', 'oily', 'allergies', 'skinType']) expect(text).not.toContain(secret);
+    expect(world.calendar.createEvent).not.toHaveBeenCalled();
+    expect(world.calendar.deleteEvent).not.toHaveBeenCalled();
+    expect(world.store[0].calendarEventId).toBeNull();
   });
 
-  test('no note and no PUBLIC_BASE_URL: those two lines are omitted; no first name -> "client"', async () => {
-    delete process.env.PUBLIC_BASE_URL;
-    const userId = oid();
-    const world = makeWorld({ users: [{ _id: userId, email: 'x@example.com' }], analyses: [userId] });
-    await createBooking(userId, { startsAt: SLOT }, world.deps);
-    const ev = world.calendar.createEvent.mock.calls[0][0];
-    expect(ev.summary).toBe('Consultation - client');
-    expect(ev.description.trim().split(/\r?\n/)).toEqual(['Booked in the GetPretty app.', 'Email: x@example.com']);
+  test('the returned checkoutUrl points at the Shopify cart with the booking id and the email', async () => {
+    const { userId, deps } = userWorld();
+    const { booking } = await createBooking(userId, { startsAt: SLOT }, deps);
+    expect(booking.checkoutUrl).toBe(
+      `https://shop.test/cart/12345:1?attributes%5Bgetpretty_booking%5D=${booking.id}&checkout%5Bemail%5D=dana%40example.com`,
+    );
   });
 
   test('warning is no_analysis when the user has no SkinAnalysis, still ok:true', async () => {
@@ -339,6 +354,57 @@ describe('createBooking: happy path and event text', () => {
     expect(opts).toEqual({ fresh: true });
     expect(range.start.getTime()).toBeLessThanOrEqual(Date.parse(SLOT));
     expect(range.end.getTime()).toBeGreaterThanOrEqual(Date.parse('2026-10-08T07:30:00Z'));
+  });
+});
+
+describe('eventText (used by bookingPayments.js when the event is written after payment)', () => {
+  test('first name, email, note and admin link in the contract text', () => {
+    const userId = oid();
+    const ev = eventText({ email: 'dana@example.com', firstName: 'Dana', skinType: 'oily', quizAnswers: { allergies: 'penicillin' } }, 'First visit', userId);
+    expect(ev.summary).toBe('Consultation - Dana');
+    expect(ev.description.trim().split(/\r?\n/)).toEqual([
+      'Booked in the GetPretty app.',
+      'Email: dana@example.com',
+      'Note: First visit',
+      `Client page: https://app.test/admin/users/${userId}`,
+    ]);
+    // no health data
+    const text = `${ev.summary}\n${ev.description}`;
+    for (const secret of ['penicillin', 'oily', 'allergies', 'skinType']) expect(text).not.toContain(secret);
+  });
+
+  test('no note and no PUBLIC_BASE_URL: those two lines are omitted; no first name -> "client"', () => {
+    delete process.env.PUBLIC_BASE_URL;
+    const ev = eventText({ email: 'x@example.com' }, '', oid());
+    expect(ev.summary).toBe('Consultation - client');
+    expect(ev.description.trim().split(/\r?\n/)).toEqual(['Booked in the GetPretty app.', 'Email: x@example.com']);
+  });
+});
+
+describe('publicBooking: holdExpiresAt and checkoutUrl', () => {
+  const row = over => ({
+    _id: oid(), status: 'pending_payment', startsAt: new Date(SLOT), endsAt: new Date('2026-10-08T07:30:00Z'), note: '',
+    holdExpiresAt: new Date(NOW.getTime() + 5 * 60000), ...over,
+  });
+
+  test('live pending row: ISO holdExpiresAt and a URLSearchParams-encoded checkoutUrl (store slash removed)', () => {
+    const b = row();
+    const pub = publicBooking(b, 'Asia/Jerusalem', realSlots, { email: 'a+b@example.com' }, NOW);
+    expect(pub.holdExpiresAt).toBe(new Date(b.holdExpiresAt).toISOString());
+    expect(pub.checkoutUrl).toBe(
+      `https://shop.test/cart/12345:1?attributes%5Bgetpretty_booking%5D=${b._id}&checkout%5Bemail%5D=a%2Bb%40example.com`,
+    );
+  });
+
+  test.each([
+    ['confirmed', { status: 'confirmed', holdExpiresAt: null }],
+    ['an expired status', { status: 'expired' }],
+    ['a pending row whose hold ran out', { holdExpiresAt: new Date(NOW.getTime() - 1000) }],
+    ['a cancelled row', { status: 'cancelled' }],
+  ])('%s -> holdExpiresAt and checkoutUrl are null', (_label, over) => {
+    const pub = publicBooking(row(over), 'Asia/Jerusalem', realSlots, { email: 'a@example.com' }, NOW);
+    expect(pub.holdExpiresAt).toBeNull();
+    expect(pub.checkoutUrl).toBeNull();
   });
 });
 
@@ -423,6 +489,56 @@ describe('createBooking: step 2 limit of one upcoming booking', () => {
   });
 });
 
+describe('createBooking: step 1c replaces the user\'s own hold, limit counts live holds', () => {
+  const hold = (userId, iso, minutesLeft = 5, status = 'pending_payment') => makeDoc({
+    _id: oid(), userId, status, note: '', startsAt: new Date(iso), endsAt: new Date(new Date(iso).getTime() + 30 * 60000),
+    holdExpiresAt: new Date(NOW.getTime() + minutesLeft * 60000),
+  });
+
+  test('picking a new time while holding another: the old hold is expired BEFORE the limit check, new hold created', async () => {
+    const { world, userId, deps } = userWorld();
+    const old = hold(userId, '2026-10-12T07:00:00Z');
+    world.store.push(old);
+    const result = await createBooking(userId, { startsAt: SLOT }, deps);
+    expect(result.ok).toBe(true);
+    expect(old.status).toBe('expired');
+    const live = world.store.filter(b => b.status === 'pending_payment');
+    expect(live).toHaveLength(1);
+    expect(isoOf(live[0].startsAt)).toBe(SLOT);
+    // The release happened before the limit check ran (order of the two Booking calls).
+    const releaseOrder = world.Booking.updateMany.mock.invocationCallOrder;
+    expect(Math.min(...releaseOrder)).toBeLessThan(world.Booking.exists.mock.invocationCallOrder[0]);
+  });
+
+  test('re-picking the SAME slot works too (the old hold is released first)', async () => {
+    const { world, userId, deps } = userWorld();
+    world.store.push(hold(userId, SLOT));
+    expect((await createBooking(userId, { startsAt: SLOT }, deps)).ok).toBe(true);
+  });
+
+  test('a confirmed upcoming booking still blocks even when the user also holds a slot', async () => {
+    const { world, userId, deps } = userWorld();
+    world.store.push(makeDoc({ _id: oid(), userId, status: 'confirmed', startsAt: new Date('2026-10-20T07:00:00Z'), endsAt: new Date('2026-10-20T07:30:00Z') }));
+    expect(await createBooking(userId, { startsAt: SLOT }, deps)).toEqual({ ok: false, code: 'limit_reached' });
+    expect(world.Booking.create).not.toHaveBeenCalled();
+  });
+
+  test('a live hold of ANOTHER user blocks the slot (slot_taken)', async () => {
+    const { world, userId, deps } = userWorld();
+    world.store.push(hold(oid(), SLOT));
+    expect(await createBooking(userId, { startsAt: SLOT }, deps)).toEqual({ ok: false, code: 'slot_taken' });
+    expect(world.Booking.create).not.toHaveBeenCalled();
+  });
+
+  test('a STALE hold of another user does not block: it is expired first and the slot can be booked', async () => {
+    const { world, userId, deps } = userWorld();
+    const stale = hold(oid(), SLOT, -1);
+    world.store.push(stale);
+    expect((await createBooking(userId, { startsAt: SLOT }, deps)).ok).toBe(true);
+    expect(stale.status).toBe('expired');
+  });
+});
+
 describe('createBooking: step 3 grid check -> slot_invalid (calendar not asked)', () => {
   test.each([
     ['off the 30 minute grid', '2026-10-08T07:10:00.000Z'],
@@ -445,7 +561,6 @@ describe('createBooking: step 4 fresh availability', () => {
     world.calendar.getBusy.mockResolvedValue([{ start: new Date('2026-10-08T06:45:00Z'), end: new Date('2026-10-08T07:15:00Z') }]);
     expect(await createBooking(userId, { startsAt: SLOT }, deps)).toEqual({ ok: false, code: 'slot_taken' });
     expect(world.Booking.create).not.toHaveBeenCalled();
-    expect(world.calendar.createEvent).not.toHaveBeenCalled();
   });
 
   test('a confirmed booking by someone else at that time -> slot_taken', async () => {
@@ -466,20 +581,29 @@ describe('createBooking: step 4 fresh availability', () => {
     world.calendar.getBusy.mockRejectedValue(new FakeCalendarError());
     expect(await createBooking(userId, { startsAt: SLOT }, deps)).toEqual({ ok: false, code: 'calendar_unavailable' });
     expect(world.Booking.create).not.toHaveBeenCalled();
-    expect(world.calendar.createEvent).not.toHaveBeenCalled();
     expect(world.store).toHaveLength(0);
   });
 });
 
 describe('createBooking: step 5 double booking (two users, one slot)', () => {
-  test('the unique index rejecting the second insert -> slot_taken, no event created', async () => {
+  test('the pending-hold unique index rejecting the second insert -> slot_taken', async () => {
     const { world, userId, deps } = userWorld();
-    // The other user's confirmed row exists, but the pre-check read missed it (the race window).
-    world.store.push(makeDoc({ _id: oid(), userId: oid(), status: 'confirmed', startsAt: new Date(SLOT), endsAt: new Date('2026-10-08T07:30:00Z') }));
+    // The other user's hold exists, but the pre-check read missed it (the race window).
+    world.store.push(makeDoc({
+      _id: oid(), userId: oid(), status: 'pending_payment', holdExpiresAt: new Date(NOW.getTime() + 600000),
+      startsAt: new Date(SLOT), endsAt: new Date('2026-10-08T07:30:00Z'),
+    }));
     world.Booking.find.mockImplementation(() => query(() => []));
     expect(await createBooking(userId, { startsAt: SLOT }, deps)).toEqual({ ok: false, code: 'slot_taken' });
-    expect(world.calendar.createEvent).not.toHaveBeenCalled();
     expect(world.store).toHaveLength(1); // only the other user's row
+  });
+
+  test('a duplicate-key error naming the NEW compound index (keyPattern startsAt+status) is slot_taken too', async () => {
+    const { world, userId, deps } = userWorld();
+    world.Booking.create.mockRejectedValueOnce(Object.assign(new Error('E11000 ... index: startsAt_pending_unique dup key'), {
+      code: 11000, keyPattern: { startsAt: 1, status: 1 },
+    }));
+    expect(await createBooking(userId, { startsAt: SLOT }, deps)).toEqual({ ok: false, code: 'slot_taken' });
   });
 
   test('two users book the same slot one after the other: first wins, second gets slot_taken', async () => {
@@ -490,13 +614,12 @@ describe('createBooking: step 5 double booking (two users, one slot)', () => {
       analyses: [first, second],
     });
     expect((await createBooking(first, { startsAt: SLOT }, world.deps)).ok).toBe(true);
-    expect(await createBooking(second, { startsAt: SLOT }, world.deps)).toEqual({ ok: false, code: 'slot_taken' });
-    expect(world.calendar.createEvent).toHaveBeenCalledTimes(1);
+    expect(await createBooking(second, { startsAt: SLOT }, world.deps)).toEqual({ ok: false, code: 'slot_taken' }); // first's live hold blocks it
   });
 });
 
 describe('createBooking: step 6 race rollback on the one-upcoming-booking limit', () => {
-  test('if a second upcoming booking appeared meanwhile, our row is deleted -> limit_reached, no event', async () => {
+  test('if a second upcoming booking appeared meanwhile, our row is deleted -> limit_reached', async () => {
     const { world, userId, deps } = userWorld();
     // Another request of the SAME user lands while we wait for the calendar (between step 2 and step 5).
     world.calendar.getBusy.mockImplementation(async () => {
@@ -505,43 +628,9 @@ describe('createBooking: step 6 race rollback on the one-upcoming-booking limit'
     });
     expect(await createBooking(userId, { startsAt: SLOT }, deps)).toEqual({ ok: false, code: 'limit_reached' });
     expect(world.Booking.deleteOne).toHaveBeenCalledTimes(1);
-    expect(world.calendar.createEvent).not.toHaveBeenCalled();
     // Only the competing booking is left; our row (SLOT) was rolled back, so the slot is free again.
     expect(world.store).toHaveLength(1);
     expect(isoOf(world.store[0].startsAt)).toBe('2026-10-09T07:00:00.000Z');
-  });
-});
-
-describe('createBooking: step 7 calendar event failure', () => {
-  test('createEvent fails -> the row is deleted (slot free again) and calendar_unavailable', async () => {
-    const { world, userId, deps } = userWorld();
-    world.calendar.createEvent.mockRejectedValueOnce(new FakeCalendarError());
-    expect(await createBooking(userId, { startsAt: SLOT }, deps)).toEqual({ ok: false, code: 'calendar_unavailable' });
-    expect(world.Booking.deleteOne).toHaveBeenCalledTimes(1);
-    expect(world.store).toHaveLength(0);
-    // "Slot is free again": a retry for the same slot now succeeds.
-    expect((await createBooking(userId, { startsAt: SLOT }, deps)).ok).toBe(true);
-    expect(world.store).toHaveLength(1);
-  });
-
-  test('if removing the row also fails, the booking id is logged and the answer is still calendar_unavailable', async () => {
-    const { world, userId, deps } = userWorld();
-    const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
-    world.calendar.createEvent.mockRejectedValueOnce(new FakeCalendarError());
-    world.Booking.deleteOne.mockRejectedValueOnce(new Error('mongo down'));
-    expect(await createBooking(userId, { startsAt: SLOT }, deps)).toEqual({ ok: false, code: 'calendar_unavailable' });
-    expect(spy).toHaveBeenCalled();
-    expect(spy.mock.calls.map(c => c.join(' ')).join('\n')).toContain(String(world.store[0]._id));
-  });
-});
-
-describe('createBooking: step 8 saving the event id fails', () => {
-  test('best-effort cleanup of the event and the row, then booking_failed', async () => {
-    const { world, userId, deps } = userWorld();
-    world.Booking.updateOne.mockRejectedValueOnce(new Error('mongo down'));
-    expect(await createBooking(userId, { startsAt: SLOT }, deps)).toEqual({ ok: false, code: 'booking_failed' });
-    expect(world.calendar.deleteEvent).toHaveBeenCalledWith('evt-1');
-    expect(world.store).toHaveLength(0);
   });
 });
 
@@ -591,6 +680,18 @@ describe('listSlots', () => {
     for (const slot of result.slots) expect(Object.keys(slot).sort()).toEqual(['date', 'endsAt', 'startsAt', 'time']);
   });
 
+  test('a live hold removes its slot; a stale hold does not and is expired', async () => {
+    const { world, deps } = userWorld();
+    const live = makeDoc({ _id: oid(), userId: oid(), status: 'pending_payment', holdExpiresAt: new Date(NOW.getTime() + 600000), startsAt: new Date('2026-10-11T09:00:00Z'), endsAt: new Date('2026-10-11T09:30:00Z') }); // 12:00
+    const stale = makeDoc({ _id: oid(), userId: oid(), status: 'pending_payment', holdExpiresAt: new Date(NOW.getTime() - 1000), startsAt: new Date('2026-10-11T09:30:00Z'), endsAt: new Date('2026-10-11T10:00:00Z') }); // 12:30
+    world.store.push(live, stale);
+    const times = (await listSlots({ from: '2026-10-11', to: '2026-10-11' }, deps)).slots.map(s => s.time);
+    expect(times).not.toContain('12:00');
+    expect(times).toContain('12:30');
+    expect(stale.status).toBe('expired');
+    expect(live.status).toBe('pending_payment');
+  });
+
   test('calendar failure -> calendar_unavailable', async () => {
     const { world, deps } = userWorld();
     world.calendar.getBusy.mockRejectedValue(new FakeCalendarError());
@@ -612,9 +713,38 @@ describe('listMine', () => {
       booking(oid(), '2026-10-09T07:00:00Z'),
     );
     const { upcoming, past } = await listMine(userId, deps);
-    expect(Object.keys(upcoming).sort()).toEqual(['date', 'endsAt', 'id', 'note', 'startsAt', 'status', 'time']);
-    expect(upcoming).toMatchObject({ date: '2026-10-20', time: '10:00', status: 'confirmed' });
+    expect(Object.keys(upcoming).sort()).toEqual(['checkoutUrl', 'date', 'endsAt', 'holdExpiresAt', 'id', 'note', 'startsAt', 'status', 'time']);
+    expect(upcoming).toMatchObject({ date: '2026-10-20', time: '10:00', status: 'confirmed', holdExpiresAt: null, checkoutUrl: null });
     expect(past).toEqual([]);
+  });
+
+  test('upcoming is the live hold (with a checkout link) when there is one, even if a confirmed booking is sooner', async () => {
+    const { world, userId, deps } = userWorld();
+    const holdRow = booking(userId, '2026-10-22T07:00:00Z', 'pending_payment');
+    holdRow.holdExpiresAt = new Date(NOW.getTime() + 600000);
+    world.store.push(holdRow, booking(userId, '2026-10-20T07:00:00Z'));
+    const { upcoming } = await listMine(userId, deps);
+    expect(upcoming).toMatchObject({ id: String(holdRow._id), status: 'pending_payment', holdExpiresAt: isoOf(holdRow.holdExpiresAt) });
+    expect(upcoming.checkoutUrl).toContain('https://shop.test/cart/12345:1?');
+    expect(upcoming.checkoutUrl).toContain(`${encodeURIComponent('attributes[getpretty_booking]')}=${holdRow._id}`);
+  });
+
+  test('a stale hold is expired and not shown; the next confirmed booking is', async () => {
+    const { world, userId, deps } = userWorld();
+    const stale = booking(userId, '2026-10-22T07:00:00Z', 'pending_payment');
+    stale.holdExpiresAt = new Date(NOW.getTime() - 1000);
+    world.store.push(stale, booking(userId, '2026-10-20T07:00:00Z'));
+    const { upcoming } = await listMine(userId, deps);
+    expect(upcoming).toMatchObject({ status: 'confirmed', checkoutUrl: null });
+    expect(stale.status).toBe('expired');
+  });
+
+  test('a stale hold alone -> upcoming is null', async () => {
+    const { world, userId, deps } = userWorld();
+    const stale = booking(userId, '2026-10-22T07:00:00Z', 'pending_payment');
+    stale.holdExpiresAt = new Date(NOW.getTime() - 1000);
+    world.store.push(stale);
+    expect((await listMine(userId, deps)).upcoming).toBeNull();
   });
 
   test('nothing upcoming -> upcoming is null', async () => {
@@ -654,20 +784,30 @@ describe('admin lists', () => {
         mk(bob, '2026-09-30T07:00:00Z'),
         mk(ann, '2026-10-15T07:00:00Z', 'cancelled', { cancelledAt: new Date('2026-10-06T10:00:00Z'), cancelledByAdminEmail: 'admin@x.com' }),
         mk(bob, '2026-10-16T07:00:00Z', 'cancelled', { cancelledAt: new Date('2026-10-06T11:00:00Z'), cancelledByAdminEmail: 'admin@x.com' }),
+        // Paid-booking rows: a live hold, a stale hold (expired by the sweep) and a paid row that needs attention.
+        mk(bob, '2026-10-12T07:00:00Z', 'pending_payment', { holdExpiresAt: new Date('2026-10-07T06:10:00Z'), payment: { status: 'awaiting' } }),
+        mk(ann, '2026-10-17T07:00:00Z', 'pending_payment', { holdExpiresAt: new Date('2026-10-07T05:50:00Z'), payment: { status: 'awaiting' } }),
+        mk(bob, '2026-10-18T07:00:00Z', 'expired', {
+          needsAttention: 'paid_slot_lost',
+          payment: { status: 'paid', amount: 150, currency: 'ILS', providerRef: '9001', paidAt: new Date('2026-10-07T05:59:00Z') },
+        }),
       ],
     });
     return { world, ann, bob, deps: world.deps };
   }
   const dates = rows => rows.map(r => isoOf(r.startsAt));
 
-  test('upcoming: confirmed in the future, soonest first, with the user columns', async () => {
+  test('upcoming: confirmed in the future plus live holds, soonest first, with the user columns', async () => {
     const { deps, ann } = adminWorld();
     const rows = await listForAdmin({ tab: 'upcoming' }, deps);
-    expect(dates(rows)).toEqual(['2026-10-08T07:00:00.000Z', '2026-10-09T07:00:00.000Z']);
+    expect(dates(rows)).toEqual(['2026-10-08T07:00:00.000Z', '2026-10-09T07:00:00.000Z', '2026-10-12T07:00:00.000Z']);
+    expect(rows[2]).toMatchObject({ status: 'pending_payment', holdExpiresAt: '2026-10-07T06:10:00.000Z', payment: { status: 'awaiting' } });
     expect(Object.keys(rows[1]).sort()).toEqual([
-      'cancelledAt', 'cancelledByAdminEmail', 'date', 'endsAt', 'id', 'note', 'startsAt', 'status', 'time', 'userEmail', 'userFirstName', 'userId',
+      'calendarSynced', 'cancelledAt', 'cancelledByAdminEmail', 'date', 'endsAt', 'holdExpiresAt', 'id', 'needsAttention', 'note',
+      'payment', 'startsAt', 'status', 'time', 'userEmail', 'userFirstName', 'userId',
     ]);
-    expect(rows[1]).toMatchObject({ userEmail: 'ann@x.com', userFirstName: 'Ann', date: '2026-10-09', time: '10:00', note: 'later', status: 'confirmed', cancelledAt: null, cancelledByAdminEmail: null });
+    expect(Object.keys(rows[1].payment).sort()).toEqual(['amount', 'currency', 'paidAt', 'providerRef', 'status']);
+    expect(rows[1]).toMatchObject({ userEmail: 'ann@x.com', userFirstName: 'Ann', date: '2026-10-09', time: '10:00', note: 'later', status: 'confirmed', cancelledAt: null, cancelledByAdminEmail: null, holdExpiresAt: null, needsAttention: null, calendarSynced: false });
     expect(String(rows[1].userId)).toBe(String(ann));
   });
 
@@ -676,19 +816,47 @@ describe('admin lists', () => {
     expect(dates(await listForAdmin({ tab: 'past' }, deps))).toEqual(['2026-10-01T07:00:00.000Z', '2026-09-30T07:00:00.000Z']);
   });
 
-  test('cancelled: newest first, with who cancelled it', async () => {
+  test('cancelled: cancelled + expired (a stale hold is expired on the way), newest first, with who cancelled it', async () => {
     const { deps } = adminWorld();
     const rows = await listForAdmin({ tab: 'cancelled' }, deps);
-    expect(dates(rows)).toEqual(['2026-10-16T07:00:00.000Z', '2026-10-15T07:00:00.000Z']);
-    expect(rows[0]).toMatchObject({ status: 'cancelled', cancelledByAdminEmail: 'admin@x.com' });
-    expect(rows[0].cancelledAt).toBeTruthy();
+    expect(dates(rows)).toEqual(['2026-10-18T07:00:00.000Z', '2026-10-17T07:00:00.000Z', '2026-10-16T07:00:00.000Z', '2026-10-15T07:00:00.000Z']);
+    expect(rows.slice(0, 2).map(r => r.status)).toEqual(['expired', 'expired']);
+    expect(rows[2]).toMatchObject({ status: 'cancelled', cancelledByAdminEmail: 'admin@x.com' });
+    expect(rows[2].cancelledAt).toBeTruthy();
+  });
+
+  test('attention: only rows with needsAttention, with the payment fields', async () => {
+    const { deps } = adminWorld();
+    const rows = await listForAdmin({ tab: 'attention' }, deps);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      needsAttention: 'paid_slot_lost', status: 'expired', calendarSynced: false, holdExpiresAt: null,
+      payment: { status: 'paid', amount: 150, currency: 'ILS', providerRef: '9001' },
+    });
+    expect(rows[0].payment.paidAt).toBeTruthy();
+  });
+
+  test('calendarSynced is true once the row has a calendar event id', async () => {
+    const { world, deps } = adminWorld();
+    world.store.find(b => isoOf(b.startsAt) === '2026-10-08T07:00:00.000Z').calendarEventId = 'evt-1';
+    const rows = await listForAdmin({ tab: 'upcoming' }, deps);
+    expect(rows[0].calendarSynced).toBe(true);
   });
 
   test('listForUser: one user, every status, newest first', async () => {
     const { deps, ann } = adminWorld();
     const rows = await listForUser(ann, deps);
-    expect(dates(rows)).toEqual(['2026-10-15T07:00:00.000Z', '2026-10-09T07:00:00.000Z', '2026-10-01T07:00:00.000Z']);
-    expect(rows.map(r => r.status)).toEqual(['cancelled', 'confirmed', 'confirmed']);
+    expect(dates(rows)).toEqual(['2026-10-17T07:00:00.000Z', '2026-10-15T07:00:00.000Z', '2026-10-09T07:00:00.000Z', '2026-10-01T07:00:00.000Z']);
+    expect(rows.map(r => r.status)).toEqual(['pending_payment', 'cancelled', 'confirmed', 'confirmed']);
+  });
+
+  test('expireHolds flips only pending rows whose hold ran out', async () => {
+    const { world, deps } = adminWorld();
+    await expireHolds(deps);
+    const byStart = iso => world.store.find(b => isoOf(b.startsAt) === iso).status;
+    expect(byStart('2026-10-12T07:00:00.000Z')).toBe('pending_payment'); // live
+    expect(byStart('2026-10-17T07:00:00.000Z')).toBe('expired'); // stale
+    expect(byStart('2026-10-09T07:00:00.000Z')).toBe('confirmed');
   });
 });
 
@@ -736,9 +904,68 @@ describe('cancelBooking', () => {
     expect(booking.status).toBe('cancelled');
   });
 
-  test('already cancelled -> already_cancelled, calendar not touched', async () => {
-    const { world, deps, booking } = cancelWorld({ status: 'cancelled' });
+  test.each(['cancelled', 'expired'])('a %s booking -> already_cancelled, calendar not touched', async status => {
+    const { world, deps, booking } = cancelWorld({ status });
     expect(await cancelBooking(String(booking._id), 'admin@example.com', deps)).toEqual({ ok: false, code: 'already_cancelled' });
+    expect(world.calendar.deleteEvent).not.toHaveBeenCalled();
+  });
+
+  test('a booking waiting for payment can be cancelled: no calendar call, slot freed', async () => {
+    const { world, deps, booking } = cancelWorld({
+      status: 'pending_payment', calendarEventId: null, holdExpiresAt: new Date(NOW.getTime() + 600000), payment: { status: 'awaiting' },
+    });
+    const result = await cancelBooking(String(booking._id), 'admin@example.com', deps);
+    expect(result.ok).toBe(true);
+    expect(world.calendar.deleteEvent).not.toHaveBeenCalled();
+    expect(booking.status).toBe('cancelled');
+    expect(booking.cancelledByAdminEmail).toBe('admin@example.com');
+    const other = oid();
+    world.users.push(makeDoc({ _id: other, email: 'o@x.com', firstName: 'O' }));
+    expect((await createBooking(other, { startsAt: SLOT }, deps)).ok).toBe(true);
+  });
+
+  test('race: the calendar sync writes an event after our read -> that event is deleted too, then cancelled', async () => {
+    const { world, deps, booking } = cancelWorld({ calendarEventId: null, calendarId: '' });
+        // The first read sees the row without an event; right after it the "sync" stores one.
+    world.Booking.findById.mockImplementationOnce(() => {
+      const stale = { ...booking };
+      booking.calendarEventId = 'evt-late';
+      booking.calendarId = 'cal-late';
+      return { lean: () => Promise.resolve(stale) };
+    });
+    const result = await cancelBooking(String(booking._id), 'admin@example.com', deps);
+    expect(result.ok).toBe(true);
+    expect(world.calendar.deleteEvent).toHaveBeenCalledWith('evt-late', 'cal-late');
+    expect(booking.status).toBe('cancelled');
+  });
+
+  test('race: the late event cannot be deleted -> calendar_unavailable and the booking stays', async () => {
+    const { world, deps, booking } = cancelWorld({ calendarEventId: null });
+    world.Booking.findById.mockImplementationOnce(() => {
+      const stale = { ...booking };
+      booking.calendarEventId = 'evt-late';
+      return { lean: () => Promise.resolve(stale) };
+    });
+    world.calendar.deleteEvent.mockRejectedValueOnce(new FakeCalendarError());
+    expect(await cancelBooking(String(booking._id), 'admin@example.com', deps)).toEqual({ ok: false, code: 'calendar_unavailable' });
+    expect(booking.status).toBe('confirmed');
+  });
+
+  // Round-2 review N4: the admin cancels what they saw as an unpaid hold, but the Shopify payment
+  // confirms it at the same moment. The paid booking must NOT be cancelled silently.
+  test('race: a hold is paid while the admin cancels it -> booking_changed, the paid booking stays', async () => {
+    const { world, deps, booking } = cancelWorld({
+      status: 'pending_payment', calendarEventId: null, holdExpiresAt: new Date(NOW.getTime() + 600000), payment: { status: 'awaiting' },
+    });
+    world.Booking.findById.mockImplementationOnce(() => {
+      const stale = { ...booking };
+      booking.status = 'confirmed'; // the webhook confirmed it right after our read
+      booking.payment = { status: 'paid', providerRef: '9001' };
+      return { lean: () => Promise.resolve(stale) };
+    });
+    expect(await cancelBooking(String(booking._id), 'admin@example.com', deps)).toEqual({ ok: false, code: 'booking_changed' });
+    expect(booking.status).toBe('confirmed');
+    expect(booking.cancelledAt).toBeNull();
     expect(world.calendar.deleteEvent).not.toHaveBeenCalled();
   });
 
@@ -755,6 +982,33 @@ describe('cancelBooking', () => {
     world.users.push(makeDoc({ _id: other, email: 'o@x.com', firstName: 'O' }));
     world.analyses.push(other);
     expect((await createBooking(other, { startsAt: SLOT }, deps)).ok).toBe(true);
+  });
+});
+
+describe('markAttentionHandled', () => {
+  const flagged = over => ({ userId: oid(), startsAt: new Date(SLOT), status: 'expired', needsAttention: 'paid_slot_lost', ...over });
+
+  test('records who and when, and the row leaves the attention tab', async () => {
+    const world = makeWorld({ users: [], bookings: [flagged()] });
+    const b = world.store[0];
+    expect(await markAttentionHandled(String(b._id), 'admin@example.com', world.deps)).toEqual({ ok: true, userId: b.userId });
+    expect(b.attentionHandledByAdminEmail).toBe('admin@example.com');
+    expect(new Date(b.attentionHandledAt).getTime()).toBe(NOW.getTime());
+    expect(await listForAdmin({ tab: 'attention' }, world.deps)).toHaveLength(0);
+  });
+
+  test('a second click, or a row that was never flagged -> not_flagged', async () => {
+    const world = makeWorld({ bookings: [flagged(), flagged({ needsAttention: null, startsAt: new Date('2026-10-09T07:00:00Z') })] });
+    const [a, plain] = world.store;
+    await markAttentionHandled(String(a._id), 'admin@example.com', world.deps);
+    expect(await markAttentionHandled(String(a._id), 'other@example.com', world.deps)).toEqual({ ok: false, code: 'not_flagged' });
+    expect(a.attentionHandledByAdminEmail).toBe('admin@example.com');
+    expect(await markAttentionHandled(String(plain._id), 'admin@example.com', world.deps)).toEqual({ ok: false, code: 'not_flagged' });
+  });
+
+  test.each([['unknown', () => String(oid())], ['malformed', () => 'nope']])('%s id -> not_found', async (_l, makeId) => {
+    const world = makeWorld({ bookings: [flagged()] });
+    expect(await markAttentionHandled(makeId(), 'admin@example.com', world.deps)).toEqual({ ok: false, code: 'not_found' });
   });
 });
 
@@ -870,36 +1124,22 @@ describe('M-2: failures are logged with codes only', () => {
     expect(logged(spy)).not.toContain(USER_EMAIL);
   });
 
-  test('create: step 4 failure, step 7 failure (with the booking id) and step 8 cleanup failure are logged safely', async () => {
+  test('create: a step 4 failure and a failed rollback delete are logged without secrets or user data', async () => {
     const { world, userId, deps } = userWorld();
     const spy = spyLog();
     world.calendar.getBusy.mockRejectedValueOnce(leakyCalendarError());
     await createBooking(userId, { startsAt: SLOT, note: 'private note' }, deps);
     expect(logged(spy)).toContain('(Google: notFound, status 404)');
 
+    // Race rollback whose row removal fails: only the error NAME is logged, never its message.
     spy.mockClear();
-    world.calendar.createEvent.mockRejectedValueOnce(leakyCalendarError());
+    world.calendar.getBusy.mockImplementationOnce(async () => {
+      world.store.push(makeDoc({ _id: oid(), userId, status: 'confirmed', startsAt: new Date('2026-10-09T07:00:00Z'), endsAt: new Date('2026-10-09T07:30:00Z') }));
+      return [];
+    });
+    world.Booking.deleteOne.mockRejectedValueOnce(new Error(`mongo ${USER_EMAIL}`));
     await createBooking(userId, { startsAt: SLOT, note: 'private note' }, deps);
-    // L8: the failure line carries the booking id so an orphan event can be found by extendedProperties.
-    const created = await world.Booking.create.mock.results[0].value;
-    expect(logged(spy)).toContain(`booking ${created._id}`);
-    expect(logged(spy)).toContain('getprettyBookingId');
-
-    spy.mockClear();
-    world.Booking.updateOne.mockRejectedValueOnce(new Error(`mongo ${USER_EMAIL}`));
-    world.calendar.deleteEvent.mockRejectedValueOnce(leakyCalendarError());
-    await createBooking(userId, { startsAt: SLOT, note: 'private note' }, deps);
-    expect(logged(spy)).toContain('evt-1'); // the id of the event that could not be cleaned up
     for (const text of [SECRET, USER_EMAIL, 'private note']) expect(logged(spy)).not.toContain(text);
-  });
-
-  test('a database failure while removing a row logs the error NAME only, not its message', async () => {
-    const { world, userId, deps } = userWorld();
-    const spy = spyLog();
-    world.calendar.createEvent.mockRejectedValueOnce(new FakeCalendarError());
-    world.Booking.deleteOne.mockRejectedValueOnce(new Error(`E11000 dup key ${USER_EMAIL}`));
-    await createBooking(userId, { startsAt: SLOT }, deps);
-    expect(logged(spy)).not.toContain(USER_EMAIL);
   });
 
   test('cancel failure logs the booking id and event id with the Google reason, nothing else', async () => {
@@ -940,6 +1180,13 @@ describe('M-2: failures are logged with codes only', () => {
     process.env.BOOKING_ENABLED = '1';
     world.calendar.isConfigured.mockReturnValue(true);
     expect(bookingBootLine(deps)).toBe('booking enabled (Google calendar)');
+
+    // Missing Shopify settings are named too (names only, never values).
+    delete process.env.SHOPIFY_WEBHOOK_SECRET;
+    process.env.SHOPIFY_STORE_URL = '';
+    const shopLine = bookingBootLine(deps);
+    expect(shopLine).toBe('booking disabled: missing SHOPIFY_STORE_URL, SHOPIFY_WEBHOOK_SECRET');
+    expect(shopLine).not.toContain('12345');
   });
 });
 
@@ -981,7 +1228,7 @@ describe('L4: admin lists are capped at 500 rows per tab', () => {
 });
 
 describe('L6: same-user race keeps exactly one booking (the earlier one)', () => {
-  test('two simultaneous requests of one user: one books, the other gets limit_reached, one row and one event remain', async () => {
+  test('two simultaneous requests of one user: one books, the other gets limit_reached, one row remains', async () => {
     const { world, userId, deps } = userWorld();
     // Hold both requests at the calendar check so they BOTH pass step 2 (no booking exists yet).
     let arrived = 0;
@@ -1000,7 +1247,6 @@ describe('L6: same-user race keeps exactly one booking (the earlier one)', () =>
     expect([a.ok, b.ok].sort()).toEqual([false, true]);
     expect([a, b].find(r => !r.ok)).toEqual({ ok: false, code: 'limit_reached' });
     expect(world.store).toHaveLength(1); // the user keeps exactly one booking
-    expect(world.calendar.createEvent).toHaveBeenCalledTimes(1);
     // The survivor is the one created FIRST (smallest _id).
     const created = await Promise.all(world.Booking.create.mock.results.map(r => r.value));
     const first = created.map(c => String(c._id)).sort()[0];

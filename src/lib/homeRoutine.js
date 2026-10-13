@@ -2,19 +2,23 @@
 // component so the rules can be unit-tested.
 
 // The steps Home shows for one tab ('am' | 'pm'), as { name, description, category? }.
-// The product-matched routine (srProducts, from Railway) replaces the generic Gemini
-// steps whenever it has steps for that tab (owner decision); otherwise the generic
-// routine is used, which is also all a fallback result has.
-// The srProducts step shape is the one ProfileScreen already reads; it is owned by the
-// Railway service and must be re-confirmed once that service is back.
+// The product-matched routine replaces generic steps when available; unmatched steps
+// reconnect by category_id to preserve guidance from the shared server analysis contract.
 export function routineSteps(analysis, tab) {
   const productSteps = analysis?.srProducts?.[tab];
   if (Array.isArray(productSteps) && productSteps.length > 0) {
+    const genericByCategory = new Map((analysis?.routine?.[tab] || []).map(step => [step.category_id, step]));
     return productSteps.map(step => (step.sr_product_id
       // Matched product: show the product, with its routine slot as a caption.
       ? { name: step.sr_product_name, description: step.use_instruction, category: step.routine_category }
-      // No product matched this slot: show the slot and Railway's note.
-      : { name: step.routine_category, description: step.no_match_note || 'Source externally for this step.' }));
+      // Unmatched steps remain visible and keep their generic safety instruction, including SPF.
+      : {
+        name: step.routine_category,
+        // Catalogue notes can be generic (“no match”); retain the specific SPF direction after reload.
+        description: step.category_id === 'protect'
+          ? genericByCategory.get(step.category_id)?.description || step.no_match_note || 'Source externally for this step.'
+          : step.no_match_note || genericByCategory.get(step.category_id)?.description || 'Source externally for this step.',
+      }));
   }
   return analysis?.routine?.[tab] || [];
 }

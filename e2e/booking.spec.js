@@ -1,3 +1,9 @@
+// 2026-10-12 INTENDED BEHAVIOUR CHANGE (paid booking, plan AI/plans/paid-booking-and-signin-link.md):
+// booking is no longer confirmed at once. The confirm button now reads "Continue to payment" and
+// POST /api/bookings answers a 15 minute HOLD (status pending_payment), so the screen shows the
+// "awaiting payment" panel instead of the confirmed card. The confirmed card appears only after
+// payment (covered in booking-payment.spec.js). The other cases below are unchanged.
+//
 // In-app booking screen (test-first: written BEFORE the screen exists, so it is red until the
 // build lands). Contract: AI/plans/in-app-booking-contract.md sections 8-10.
 //
@@ -24,6 +30,7 @@ const EN = {
   title: 'Book a consultation',
   subtitle: "Choose a time that suits you. Times are in the clinic's local time.",
   confirmedTitle: 'Your consultation is booked',
+  continueToPayment: 'Continue to payment',
   upcomingTitle: 'Your upcoming consultation',
 };
 // Hebrew texts for the RTL cases.
@@ -92,21 +99,24 @@ test.describe('opening and the picker (English)', () => {
     await expect(page.getByTestId('booking-slot-10:30')).toHaveAttribute('aria-checked', 'true');
     await expect(page.getByTestId('booking-selected')).toContainText('Your appointment: Thu, 1 October, 10:30 AM');
     await expect(confirmBtn(page)).not.toHaveAttribute('aria-disabled', 'true');
+    // Paid flow: the button leads to payment, it does not book straight away.
+    await expect(confirmBtn(page)).toContainText(EN.continueToPayment);
   });
 });
 
 test.describe('booking', () => {
-  test('confirming books the slot: POST body, confirmed panel with the time, picker gone', async ({ page, mock, t }) => {
+  test('confirming holds the slot: POST body, awaiting-payment panel, picker gone, not confirmed yet', async ({ page, mock, t }) => {
     await openBooking(page, t);
     await page.getByTestId('booking-slot-10:00').click();
     await confirmBtn(page).click();
 
-    const confirmed = page.getByTestId('booking-confirmed');
-    await expect(confirmed).toBeVisible();
-    await expect(confirmed).toContainText(EN.confirmedTitle);
-    await expect(page.getByTestId('booking-confirmed-when')).toContainText('Thu, 1 October');
-    await expect(page.getByTestId('booking-confirmed-when')).toContainText('10:00 AM');
+    const waiting = page.getByTestId('booking-awaiting-payment');
+    await expect(waiting).toBeVisible();
+    await expect(waiting).toContainText(t('booking:awaitingTitle'));
+    await expect(page.getByTestId('booking-pay-now')).toBeVisible();
     await expect(slotButtons(page)).toHaveCount(0);
+    // Paid only after payment: no confirmed card yet.
+    await expect(page.getByTestId('booking-confirmed')).toHaveCount(0);
     // The analysis exists in the fixtures, so there is no warning.
     await expect(page.getByTestId('booking-no-analysis-warning')).toHaveCount(0);
 
@@ -115,8 +125,6 @@ test.describe('booking', () => {
     expect(posts).toHaveLength(1);
     expect(posts[0].authed).toBe(true);
     expect(posts[0].body).toEqual({ startsAt: BOOKING_SLOTS[0].startsAt, note: '' });
-    // The screen refreshes "mine" after success (1 on mount + 1 after booking).
-    await expect.poll(() => mock.callsTo('GET', '/api/bookings/mine').length).toBe(2);
   });
 
   test('the note is sent with the booking', async ({ page, mock, t }) => {
@@ -124,7 +132,7 @@ test.describe('booking', () => {
     await page.getByTestId('booking-slot-10:30').click();
     await page.getByTestId('booking-note').fill('First visit, sensitive skin');
     await confirmBtn(page).click();
-    await expect(page.getByTestId('booking-confirmed')).toBeVisible();
+    await expect(page.getByTestId('booking-awaiting-payment')).toBeVisible();
     expect(mock.lastCall('POST', '/api/bookings').body).toEqual({
       startsAt: BOOKING_SLOTS[1].startsAt, note: 'First visit, sensitive skin',
     });
@@ -142,7 +150,7 @@ test.describe('booking', () => {
     await expect(page.getByTestId('booking-slot-10:00')).toHaveCount(0);
     await expect(page.getByTestId('booking-slot-10:30')).toBeVisible();
     await expect(page.getByTestId('booking-selected')).toHaveCount(0);
-    await expect(page.getByTestId('booking-confirmed')).toHaveCount(0);
+    await expect(page.getByTestId('booking-awaiting-payment')).toHaveCount(0);
   });
 
   test('limit_reached: shows the text and refetches "mine"', async ({ page, mock, t }) => {
@@ -152,16 +160,21 @@ test.describe('booking', () => {
     await confirmBtn(page).click();
     await expect(page.getByTestId('booking-submit-error')).toContainText(EN.limitReached);
     await expect.poll(() => mock.callsTo('GET', '/api/bookings/mine').length).toBe(2);
-    await expect(page.getByTestId('booking-confirmed')).toHaveCount(0);
+    await expect(page.getByTestId('booking-awaiting-payment')).toHaveCount(0);
   });
 
   test('a booking without a saved analysis still succeeds and shows the warning', async ({ page, mock, t }) => {
-    // The server answers 201 with warning "no_analysis" (soft check, never a block).
-    mock.override('POST', '/api/bookings', 201, { booking: BOOKING_UPCOMING, warning: 'no_analysis' });
+    // The server answers 201 with warning "no_analysis" (soft check, never a block). The booking is
+    // a payment hold now. ASSUMPTION: the warning is shown next to the awaiting-payment panel.
+    const hold = {
+      ...BOOKING_UPCOMING, id: 'booking-new', status: 'pending_payment',
+      holdExpiresAt: '2026-09-29T09:15:00.000Z', checkoutUrl: 'https://shop.e2e.test/cart/12345:1?x=1',
+    };
+    mock.override('POST', '/api/bookings', 201, { booking: hold, warning: 'no_analysis' });
     await openBooking(page, t);
     await page.getByTestId('booking-slot-10:00').click();
     await confirmBtn(page).click();
-    await expect(page.getByTestId('booking-confirmed')).toBeVisible();
+    await expect(page.getByTestId('booking-awaiting-payment')).toBeVisible();
     await expect(page.getByTestId('booking-no-analysis-warning')).toContainText(EN.noAnalysis);
   });
 });
@@ -224,7 +237,7 @@ test.describe('other states', () => {
 test.describe('Hebrew (RTL)', () => {
   test.use({ lang: 'he' });
 
-  test('texts are Hebrew, the page is RTL, times are 24 h; booking confirms in Hebrew', async ({ page, mock }) => {
+  test('texts are Hebrew, the page is RTL, times are 24 h; booking shows the Hebrew payment panel', async ({ page, mock }) => {
     await openBooking(page, tHe);
     await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
     const screen = page.getByTestId('booking-screen');
@@ -237,10 +250,11 @@ test.describe('Hebrew (RTL)', () => {
     await page.getByTestId('booking-slot-10:00').click();
     await expect(page.getByTestId('booking-selected')).toContainText('10:00');
     await expect(page.getByTestId('booking-selected')).not.toContainText(/AM|PM/);
+    await expect(page.getByTestId('booking-confirm')).toContainText(tHe('booking:continueToPayment'));
     await page.getByTestId('booking-confirm').click();
-    await expect(page.getByTestId('booking-confirmed')).toContainText(HE.confirmedTitle);
-    await expect(page.getByTestId('booking-confirmed-when')).toContainText('10:00');
-    await expect(page.getByTestId('booking-confirmed-when')).not.toContainText(/AM|PM/);
+    // The waiting panel is Hebrew (title from the Hebrew locale file) and its hold time is 24 h.
+    await expect(page.getByTestId('booking-awaiting-payment')).toContainText(tHe('booking:awaitingTitle'));
+    await expect(page.getByTestId('booking-hold-until')).not.toContainText(/AM|PM/);
     expect(mock.lastCall('POST', '/api/bookings').body.startsAt).toBe(BOOKING_SLOTS[0].startsAt);
   });
 

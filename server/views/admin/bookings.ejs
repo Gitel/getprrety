@@ -1,6 +1,7 @@
 <%#
   Bookings list, one tab at a time. Rows come from bookings.listForAdmin; `date`/`time` are
-  already clinic-local (Asia/Jerusalem). Only the Upcoming tab offers Cancel.
+  already clinic-local (Asia/Jerusalem). Only the Upcoming tab offers Cancel
+  (confirmed rows and awaiting-payment holds).
 %>
 <%- include('_head', { title: 'Bookings' }) %>
 <%- include('_nav', { active: 'bookings' }) %>
@@ -18,6 +19,7 @@
     <a href="/admin/bookings?tab=upcoming" class="<%= tab === 'upcoming' ? 'active' : '' %>">Upcoming</a>
     <a href="/admin/bookings?tab=past" class="<%= tab === 'past' ? 'active' : '' %>">Past</a>
     <a href="/admin/bookings?tab=cancelled" class="<%= tab === 'cancelled' ? 'active' : '' %>">Cancelled</a>
+    <a href="/admin/bookings?tab=attention" class="<%= tab === 'attention' ? 'active' : '' %>">Needs attention</a>
   </nav>
 
   <% if (!rows.length) { %>
@@ -25,7 +27,7 @@
   <% } else { %>
     <table>
       <thead>
-        <tr><th>When</th><th>Client</th><th>Note</th><th>Status</th><% if (tab === 'upcoming') { %><th></th><% } %></tr>
+        <tr><th>When</th><th>Client</th><th>Note</th><th>Status</th><th>Payment</th><th>Attention</th><% if (tab === 'upcoming') { %><th></th><% } %></tr>
       </thead>
       <tbody>
         <% rows.forEach(function (b) { %>
@@ -33,12 +35,24 @@
             <td class="when"><%= b.date %> <%= b.time %></td>
             <td><a href="/admin/users/<%= b.userId %>"><%= b.userEmail %></a></td>
             <td><%= b.note %></td>
-            <td><%= b.status %></td>
+            <td class="status"><%- include('_bookingStatus', { b: b }) %></td>
+            <%# Payment recorded by the Shopify webhook; "-" while nothing was paid. %>
+            <td class="payment"><% if (b.payment && b.payment.status === 'paid') { %>Paid <%= b.payment.amount %> <%= b.payment.currency %> - order <%= b.payment.providerRef %><% } else { %>-<% } %></td>
+            <%# A payment that could not be matched to a normal booking: a human must act. %>
+            <td class="attention"><%= { paid_slot_lost: 'Paid, slot lost', paid_after_cancel: 'Paid after cancel', paid_extra: 'Extra payment' }[b.needsAttention] || '' %>
+              <%# Only on the Needs attention tab: records that a human dealt with it (row then disappears). %>
+              <% if (tab === 'attention' && b.needsAttention) { %>
+                <form class="inline-form" method="post" action="/admin/bookings/<%= b.id %>/handled">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                  <button type="submit" class="small secondary">Mark handled</button>
+                </form>
+              <% } %>
+            </td>
             <% if (tab === 'upcoming') { %>
               <td>
                 <%# data-confirm: the shared script in _foot asks before submitting. %>
                 <form class="inline-form" method="post" action="/admin/bookings/<%= b.id %>/cancel"
-                      data-confirm="Cancel this booking and remove it from the calendar?">
+                      data-confirm="Cancel this booking and remove it from the calendar? If it was paid, refund it in Shopify.">
                   <input type="hidden" name="_csrf" value="<%= csrfToken %>">
                   <button type="submit" class="small danger">Cancel booking</button>
                 </form>

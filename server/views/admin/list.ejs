@@ -31,6 +31,8 @@
             <%= era %>
             <%# "generic" = Gemini failed and the client got the canned template; hover for why. %>
             <% if (r.source === 'fallback') { %><span class="pill no" title="<%= r.fallbackReason || '' %>">generic</span><% } %>
+            <%# Positive provenance badge: this saved analysis came from the Bedrock provider. %>
+            <% if (r.source === 'bedrock') { %><span class="pill yes">Bedrock</span><% } %>
           </td>
           <td>
             <% if (r.clinicNotifiedAt) { %>

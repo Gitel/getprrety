@@ -6,19 +6,19 @@
 // turns booking on with the FAKE calendar: busy 12:00-13:00 clinic time every day). Nothing
 // here touches a real database or the real Google calendar.
 //
+// INTENDED CHANGE (paid booking, 2026-10-12): booking is no longer instant. POST /api/bookings
+// now creates a 15-minute HOLD (status 'pending_payment', with holdExpiresAt and a Shopify
+// checkoutUrl). The booking only becomes 'confirmed' when a correctly signed fake Shopify
+// `orders/paid` webhook arrives (see support/shopify.js). Rules asserted here: a user with a
+// live hold gets the hold REPLACED by a new booking (201); a user with a CONFIRMED upcoming
+// booking gets 409 limit_reached; held or confirmed slots answer slot_taken. Expectations that
+// used to say "201 confirmed" were changed on purpose. Source: AI/plans/paid-booking-and-signin-link-contract.md
+//
 // Specs share one DB and run serially in file order; later specs use data made by earlier ones.
 // Slots depend on the real "now", so we never hard-code a date: we pick a slot from the API.
 import { test, expect } from '@playwright/test';
-import { readFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { signIn } from './support/session.js';
-import { JWT_SECRET } from './support/env.js';
-
-const here = path.dirname(fileURLToPath(import.meta.url));
-// Use the SERVER's own node_modules (mongoose, jsonwebtoken); e2e-admin has none.
-const serverRequire = createRequire(path.resolve(here, '../server/package.json'));
+import { createUser, bearer, payBooking, withDb } from './support/shopify.js';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -31,27 +31,6 @@ const state = {
 };
 
 const notice = page => page.locator('.notice');
-
-// Inserts a User into the IN-MEMORY DB and returns it with a user JWT signed like
-// server/routes/auth.js does (payload { id, email }, the test JWT_SECRET).
-async function createUser(email, firstName) {
-  const { uri } = JSON.parse(readFileSync(path.join(here, '.tmp', 'db.json'), 'utf8'));
-  // Safety guard: only ever the local memory server.
-  expect(uri).toMatch(/^mongodb:\/\/(127\.0\.0\.1|localhost)/);
-  const mongoose = serverRequire('mongoose');
-  const jwt = serverRequire('jsonwebtoken');
-  const User = serverRequire('./models/User.js');
-  await mongoose.connect(uri);
-  try {
-    const user = await User.create({ email, firstName, passwordHash: 'not-a-real-hash' });
-    const token = jwt.sign({ id: user._id, email: user.email }, JWT_SECRET, { expiresIn: '1h' });
-    return { id: String(user._id), email: user.email, token };
-  } finally {
-    await mongoose.disconnect();
-  }
-}
-
-const bearer = user => ({ Authorization: `Bearer ${user.token}` });
 
 // Books `startsAt` through the real API as `user`.
 const book = (request, user, startsAt) =>
@@ -90,7 +69,7 @@ test.describe('bookings', () => {
   });
 
   // 4. Setup users + book through the real API
-  test('4. API: slots, booking 201, same user 409 limit_reached, same slot 409 slot_taken', async ({ request }) => {
+  test('4. API: hold 201 pending_payment, hold replaced, webhook confirms, then 409 limit_reached / slot_taken', async ({ request }) => {
     state.userA = await createUser('e2e-booker-a@example.test', 'Alma');
     state.userB = await createUser('e2e-booker-b@example.test', 'Ben');
 
@@ -109,21 +88,42 @@ test.describe('bookings', () => {
     expect(slots.some(s => s.time === '12:00' || s.time === '12:30')).toBe(false);
     state.slot = slots[0];
 
-    // First booking works.
+    // First booking creates a HOLD, not a confirmed booking.
     const ok = await book(request, state.userA, state.slot.startsAt);
     expect(ok.status()).toBe(201);
     const body = await ok.json();
-    expect(body.booking.status).toBe('confirmed');
+    expect(body.booking.status).toBe('pending_payment');
+    expect(body.booking.holdExpiresAt).toBeTruthy();
+    expect(body.booking.checkoutUrl).toContain('https://shop.e2e.test/cart/12345:1?');
     expect(body.booking.date).toBe(state.slot.date);
     expect(body.booking.time).toBe(state.slot.time);
-    state.bookingId = body.booking.id;
 
-    // Same user again (a different slot): one upcoming booking at a time.
+    // A held slot is taken for everybody else.
+    const heldTaken = await book(request, state.userB, state.slot.startsAt);
+    expect(heldTaken.status()).toBe(409);
+    expect((await heldTaken.json()).code).toBe('slot_taken');
+
+    // The same user booking another slot REPLACES the hold (201, new id), it is not a limit error.
+    const replaced = await book(request, state.userA, slots[1].startsAt);
+    expect(replaced.status()).toBe(201);
+    const replacedBody = await replaced.json();
+    expect(replacedBody.booking.id).not.toBe(body.booking.id);
+    // The first slot is free again, so book it back; this is the booking we keep using.
+    const rebook = await book(request, state.userA, state.slot.startsAt);
+    expect(rebook.status()).toBe(201);
+    state.bookingId = (await rebook.json()).booking.id;
+
+    // Confirm it with a correctly signed fake Shopify webhook.
+    const paid = await payBooking(request, { id: state.bookingId }, state.userA);
+    expect(paid.res.status()).toBe(200);
+    expect((await paid.res.json()).result).toBe('confirmed');
+
+    // Same user again (a different slot): a CONFIRMED upcoming booking blocks a new one.
     const again = await book(request, state.userA, slots[1].startsAt);
     expect(again.status()).toBe(409);
     expect((await again.json()).code).toBe('limit_reached');
 
-    // Another user, the slot that is already taken.
+    // Another user, the slot that is now confirmed.
     const taken = await book(request, state.userB, state.slot.startsAt);
     expect(taken.status()).toBe(409);
     expect((await taken.json()).code).toBe('slot_taken');
@@ -141,6 +141,7 @@ test.describe('bookings', () => {
     const r = row(page, state.bookingId);
     await expect(r).toHaveCount(1);
     await expect(r.locator('td.when')).toHaveText(`${state.slot.date} ${state.slot.time}`);
+    await expect(r.locator('td.status')).toContainText('Confirmed');
     const client = r.getByRole('link', { name: state.userA.email });
     await expect(client).toHaveAttribute('href', `/admin/users/${state.userA.id}`);
     await expect(r.getByRole('button', { name: 'Cancel booking' })).toBeVisible();
@@ -158,7 +159,7 @@ test.describe('bookings', () => {
     await expect(card.getByRole('heading', { name: 'Bookings' })).toBeVisible();
     const item = card.locator(`li[data-booking-id="${state.bookingId}"]`);
     await expect(item).toContainText(`${state.slot.date} ${state.slot.time}`);
-    await expect(item).toContainText('confirmed');
+    await expect(item).toContainText('Confirmed');
     // A user without bookings says so.
     await page.goto(`/admin/users/${state.userB.id}`);
     await expect(page.locator('#bookings')).toContainText('No bookings.');
@@ -178,6 +179,12 @@ test.describe('bookings', () => {
   // 8. Cancel through the form
   test('8. cancel via the form: notice, row moves to Cancelled, slot is bookable again', async ({ page, context, request }) => {
     await signIn(context);
+    // The calendar event is written shortly AFTER payment; wait for it so the cancel really
+    // removes an event (the notice below says "removed from the calendar").
+    await expect.poll(() => withDb(async ({ Booking }) => {
+      const b = await Booking.findById(state.bookingId).lean();
+      return b && b.calendarEventId ? 'synced' : 'pending';
+    }), { timeout: 15_000 }).toBe('synced');
     // The cancel form asks "are you sure" through a confirm dialog; accept it.
     page.on('dialog', dialog => dialog.accept());
     await page.goto('/admin/bookings');
@@ -197,6 +204,7 @@ test.describe('bookings', () => {
     expect((await mine.json()).upcoming).toBeNull();
     const rebook = await book(request, state.userB, state.slot.startsAt);
     expect(rebook.status()).toBe(201);
+    expect((await rebook.json()).booking.status).toBe('pending_payment');
   });
 
   // 9. Settings page defaults

@@ -1,6 +1,13 @@
 jest.mock('../../models/SkinScan', () => ({ findOneAndUpdate: jest.fn(), updateOne: jest.fn() }));
+jest.mock('../bedrock/client', () => ({ completeJson: jest.fn(), isConfigured: jest.fn() }));
+jest.mock('../bedrock/catalogue', () => {
+  const actual = jest.requireActual('../bedrock/catalogue');
+  return { ...actual, loadCatalogue: jest.fn(() => Promise.resolve(actual.loadSeedCatalogue())) };
+});
 
 const SkinScan = require('../../models/SkinScan');
+const { completeJson, isConfigured } = require('../bedrock/client');
+const { loadCatalogue } = require('../bedrock/catalogue');
 const {
   buildReadingRequest, sanitizeReading, readingStatusFor, maybeRequestReading, STALE_PENDING_MS,
 } = require('./scoreReading');
@@ -136,22 +143,19 @@ describe('buildReadingRequest', () => {
 });
 
 describe('readingStatusFor / scanView', () => {
-  const OLD_ENV = process.env.RAILWAY_API_URL;
-  afterEach(() => { process.env.RAILWAY_API_URL = OLD_ENV; });
-
   test('final states pass through; otherwise pending, or unavailable when the feature is off', () => {
-    process.env.RAILWAY_API_URL = 'https://railway.example';
+    isConfigured.mockReturnValue(true);
     expect(readingStatusFor({ readingStatus: 'ready' })).toBe('ready');
     expect(readingStatusFor({ readingStatus: 'failed' })).toBe('failed');
     expect(readingStatusFor({ readingStatus: null })).toBe('pending');
     expect(readingStatusFor({ readingStatus: 'pending' })).toBe('pending');
-    delete process.env.RAILWAY_API_URL;
+    isConfigured.mockReturnValue(false);
     expect(readingStatusFor({ readingStatus: null })).toBe('unavailable');
     expect(readingStatusFor({ readingStatus: 'ready' })).toBe('ready');
   });
 
   test('scanView only exposes the reading once it is ready', () => {
-    process.env.RAILWAY_API_URL = 'https://railway.example';
+    isConfigured.mockReturnValue(true);
     const reading = { startHere: null, signals: [] };
     expect(scanView({ merged, readingStatus: 'ready', reading })).toMatchObject({ reading, readingStatus: 'ready' });
     expect(scanView({ merged, readingStatus: 'pending', reading })).toMatchObject({ reading: null, readingStatus: 'pending' });
@@ -161,32 +165,31 @@ describe('readingStatusFor / scanView', () => {
 
 describe('maybeRequestReading', () => {
   const NOW = Date.parse('2026-09-27T12:00:00Z');
-  const OLD_ENV = process.env.RAILWAY_API_URL;
-  const completeScan = (extra = {}) => ({ _id: 'scan1', status: 'complete', merged, quizSnapshot: { water_intake: 'less_1l' }, ...extra });
-  const okResponse = body => ({ ok: true, status: 200, json: async () => body });
+  const completeScan = (extra = {}) => ({ _id: 'scan1', status: 'complete', merged, quizSnapshot: {
+    water_intake: 'less_1l', safetyContextVersion: 1, pregnancy_caution: false, allergies: ['none'], irritants: ['nothing'],
+  }, ...extra });
 
   beforeEach(() => {
-    process.env.RAILWAY_API_URL = 'https://railway.example/';
+    isConfigured.mockReturnValue(true);
+    completeJson.mockReset();
+    loadCatalogue.mockClear();
     SkinScan.findOneAndUpdate.mockReset();
     SkinScan.updateOne.mockReset().mockResolvedValue({});
-    global.fetch = jest.fn();
     jest.spyOn(console, 'warn').mockImplementation(() => {});
   });
   afterEach(() => {
-    process.env.RAILWAY_API_URL = OLD_ENV;
-    delete global.fetch;
     console.warn.mockRestore();
   });
 
   test('feature off, scan not complete, or already final -> no DB write, no call', async () => {
-    delete process.env.RAILWAY_API_URL;
+    isConfigured.mockReturnValue(false);
     expect(await maybeRequestReading(completeScan(), NOW)).toBe(false);
-    process.env.RAILWAY_API_URL = 'https://railway.example';
+    isConfigured.mockReturnValue(true);
     expect(await maybeRequestReading(completeScan({ status: 'processing' }), NOW)).toBe(false);
     expect(await maybeRequestReading(completeScan({ readingStatus: 'ready' }), NOW)).toBe(false);
     expect(await maybeRequestReading(completeScan({ readingStatus: 'failed' }), NOW)).toBe(false);
     expect(SkinScan.findOneAndUpdate).not.toHaveBeenCalled();
-    expect(global.fetch).not.toHaveBeenCalled();
+    expect(completeJson).not.toHaveBeenCalled();
   });
 
   test('a fresh pending claim is left alone (another request is in flight)', async () => {
@@ -195,16 +198,18 @@ describe('maybeRequestReading', () => {
     expect(SkinScan.findOneAndUpdate).not.toHaveBeenCalled();
   });
 
-  test('losing the atomic claim to a concurrent poll makes no Railway call', async () => {
+  test('losing the atomic claim to a concurrent poll makes no provider call', async () => {
     SkinScan.findOneAndUpdate.mockResolvedValue(null);
     expect(await maybeRequestReading(completeScan(), NOW)).toBe(false);
-    expect(global.fetch).not.toHaveBeenCalled();
+    expect(completeJson).not.toHaveBeenCalled();
   });
 
-  test('claims, calls /score-reading once and stores the sanitized reading as ready', async () => {
+  test('claims once, calls Bedrock once and stores the sanitized reading as ready', async () => {
     const requestedAt = new Date(NOW);
     SkinScan.findOneAndUpdate.mockResolvedValue({ ...completeScan(), readingStatus: 'pending', readingRequestedAt: requestedAt });
-    global.fetch.mockResolvedValue(okResponse(goodBody()));
+    const providerOutput = goodBody();
+    providerOutput.signals[0].product.name = 'Herbal Cleansing Mousse';
+    completeJson.mockResolvedValue(providerOutput);
 
     expect(await maybeRequestReading(completeScan(), NOW)).toBe(true);
 
@@ -215,28 +220,67 @@ describe('maybeRequestReading', () => {
     ]);
     expect(update).toEqual({ $set: { readingStatus: 'pending', readingRequestedAt: requestedAt } });
 
-    const [url, init] = global.fetch.mock.calls[0];
-    expect(url).toBe('https://railway.example/score-reading');
-    expect(JSON.parse(init.body).quizAnswers).toEqual({ water_intake: 'less_1l' });
+    const request = completeJson.mock.calls[0][0];
+    expect(request.schemaName).toBe('skin_score_reading');
+    expect(JSON.parse(request.messages[0].content).quizAnswers).toEqual({
+      water_intake: 'less_1l', pregnancy_caution: false, allergies: ['none'], irritants: ['nothing'],
+    });
+    expect(request.timeoutMs).toBe(90_000);
 
     const [writeFilter, write] = SkinScan.updateOne.mock.calls[0];
     expect(writeFilter).toEqual({ _id: 'scan1', readingStatus: 'pending', readingRequestedAt: requestedAt });
     expect(write.$set.readingStatus).toBe('ready');
     expect(write.$set.reading.startHere.title).toBe('Wear SPF every morning');
+    expect(write.$set.reading.signals[0].product).toEqual({
+      name: 'Herbal Cleansing Mousse', actives: expect.any(String), url: null,
+    });
+    expect(request.messages[0].content).toContain('eligible_catalogue');
+  });
+
+  test('legacy scan without a safety marker still gets prose but no catalogue product suggestions', async () => {
+    const legacy = completeScan({ quizSnapshot: {
+      water_intake: 'less_1l', pregnancy_caution: false, allergies: ['none'], irritants: ['nothing'],
+    } });
+    SkinScan.findOneAndUpdate.mockResolvedValue({ ...legacy, readingStatus: 'pending', readingRequestedAt: new Date(NOW) });
+    completeJson.mockResolvedValue(goodBody());
+
+    expect(await maybeRequestReading(legacy, NOW)).toBe(true);
+    const request = completeJson.mock.calls[0][0];
+    expect(JSON.parse(request.messages[0].content).eligible_catalogue).toEqual([]);
+    expect(SkinScan.updateOne.mock.calls[0][1].$set.readingStatus).toBe('ready');
+    expect(SkinScan.updateOne.mock.calls[0][1].$set.reading.signals[0].product).toBeNull();
+  });
+
+  test('marked snapshot with blank-only allergy or irritant answers cannot authorize product suggestions', async () => {
+    const incomplete = completeScan({ quizSnapshot: {
+      safetyContextVersion: 1, pregnancy_caution: false, allergies: ['  '], irritants: ['nothing'],
+    } });
+    SkinScan.findOneAndUpdate.mockResolvedValue({ ...incomplete, readingStatus: 'pending', readingRequestedAt: new Date(NOW) });
+    completeJson.mockResolvedValue(goodBody());
+    await maybeRequestReading(incomplete, NOW);
+    expect(JSON.parse(completeJson.mock.calls[0][0].messages[0].content).eligible_catalogue).toEqual([]);
+  });
+
+  test('explicit no-restriction safety answers retain eligible catalogue products', async () => {
+    const scan = completeScan();
+    SkinScan.findOneAndUpdate.mockResolvedValue({ ...scan, readingStatus: 'pending', readingRequestedAt: new Date(NOW) });
+    completeJson.mockResolvedValue(goodBody());
+    await maybeRequestReading(scan, NOW);
+    expect(JSON.parse(completeJson.mock.calls[0][0].messages[0].content).eligible_catalogue.length).toBeGreaterThan(0);
+    expect(loadCatalogue).toHaveBeenCalledTimes(1);
   });
 
   test('a stale pending claim (server restart) is taken over', async () => {
     const scan = completeScan({ readingStatus: 'pending', readingRequestedAt: new Date(NOW - STALE_PENDING_MS - 1) });
     SkinScan.findOneAndUpdate.mockResolvedValue({ ...scan, readingRequestedAt: new Date(NOW) });
-    global.fetch.mockResolvedValue(okResponse(goodBody()));
+    completeJson.mockResolvedValue(goodBody());
     expect(await maybeRequestReading(scan, NOW)).toBe(true);
-    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(completeJson).toHaveBeenCalledTimes(1);
   });
 
   test.each([
-    ['a non-2xx answer', () => global.fetch.mockResolvedValue({ ok: false, status: 404 })],
-    ['a body with nothing usable', () => global.fetch.mockResolvedValue(okResponse({ signals: [] }))],
-    ['a network error / timeout', () => global.fetch.mockRejectedValue(Object.assign(new Error('aborted'), { name: 'AbortError' }))],
+    ['an empty response', () => completeJson.mockResolvedValue({ start_here: null, signals: [] })],
+    ['a network error / timeout', () => completeJson.mockRejectedValue(Object.assign(new Error('provider failure'), { code: 'BEDROCK_TIMEOUT' }))],
   ])('%s is stored as failed (final) without throwing', async (_, arrange) => {
     SkinScan.findOneAndUpdate.mockResolvedValue({ ...completeScan(), readingRequestedAt: new Date(NOW) });
     arrange();

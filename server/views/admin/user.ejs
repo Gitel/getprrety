@@ -5,6 +5,15 @@
 %>
 <%
   function stamp(d) { return d ? new Date(d).toISOString().slice(0, 16).replace('T', ' ') : '—'; }
+  // Clinic time (Asia/Jerusalem) as YYYY-MM-DD HH:MM, like the booking status cell. hourCycle h23
+  // keeps midnight as 00:xx. Used for link expiry so admins read the same clock as bookings.
+  function clinicStamp(d) {
+    if (!d) return '—';
+    var p = {};
+    new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Jerusalem', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+      .formatToParts(new Date(d)).forEach(function (x) { p[x.type] = x.value; });
+    return p.year + '-' + p.month + '-' + p.day + ' ' + p.hour + ':' + p.minute;
+  }
   var displayName = user.firstName || user.email;
 %>
 <%- include('_head', { title: displayName }) %>
@@ -55,6 +64,41 @@
     <p class="muted" style="margin-top: 12px;"><a href="/admin/audit?user=<%= user._id %>">Admin changes to this user &rarr;</a></p>
   </div>
 
+  <%# One-time sign-in link (services/loginLinks.js). The active link is shown so the admin can
+      copy it; "Create new link" replaces older unused links and also emails it. %>
+  <section class="card" id="signin-link">
+    <h2>Sign-in link</h2>
+    <% var links = locals.signinLinks || []; var activeLink = links.find(function (l) { return l.status === 'active' && l.link; }); %>
+    <% if (activeLink) { %>
+      <input type="text" id="signin-link-url" readonly value="<%= activeLink.link %>">
+      <p>
+        <button type="button" class="secondary" data-copy="#signin-link-url" aria-label="Copy link">Copy link</button>
+        <span class="muted">Active until <%= clinicStamp(activeLink.expiresAt) %></span>
+      </p>
+      <form class="inline-form" method="post" action="/admin/users/<%= user._id %>/signin-link/resend">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button type="submit" class="secondary">Resend email</button>
+      </form>
+    <% } else { %>
+      <p class="muted">No active link.</p>
+    <% } %>
+    <form class="inline-form" method="post" action="/admin/users/<%= user._id %>/signin-link">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <button type="submit">Create new link</button>
+    </form>
+    <% if (links.length) { %>
+      <ul id="signin-link-history" style="margin-top: 12px;">
+        <% links.forEach(function (l) { %>
+          <li data-link-id="<%= l.id %>">
+            <%= stamp(l.createdAt) %> UTC by <%= l.createdByAdminEmail || '—' %> -
+            <%= { active: 'Active', used: 'Used', expired: 'Expired', revoked: 'Replaced' }[l.status] || l.status %>,
+            sent <%= l.sendCount %> time<%= l.sendCount === 1 ? '' : 's' %><% if (l.lastSendError) { %>, last error: <%= l.lastSendError %><% } %>
+          </li>
+        <% }); %>
+      </ul>
+    <% } %>
+  </section>
+
   <%# Bookings of this user (all statuses, newest first). Times are clinic-local. %>
   <div class="card" id="bookings">
     <h2>Bookings</h2>
@@ -63,7 +107,7 @@
     <% } else { %>
       <ul>
         <% bookings.forEach(function (b) { %>
-          <li data-booking-id="<%= b.id %>"><%= b.date %> <%= b.time %> - <%= b.status %></li>
+          <li data-booking-id="<%= b.id %>"><%= b.date %> <%= b.time %> - <%- include('_bookingStatus', { b: b }) %></li>
         <% }); %>
       </ul>
     <% } %>

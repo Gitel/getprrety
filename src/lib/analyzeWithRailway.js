@@ -1,14 +1,14 @@
 import { ERAS, fallbackEra } from '../constants';
 import { downscaleDataUrl } from './downscaleImage';
+import { api } from './api';
 import i18n from './i18n';
 
-const RAILWAY_URL = 'https://getpretty-api-production.up.railway.app';
-
-// A stalled connection must never trap the user on the loading screen. LoadingScreen
-// deliberately waits on this request before revealing the Era, so without a ceiling a
-// hung socket never reaches the fallback. Abort after this long and let the caller's
-// catch build the offline fallback.
-const ANALYZE_TIMEOUT_MS = 45000;
+// The provider streams status while generating; use one bounded deadline for upload and full response.
+const ANALYZE_TIMEOUT_MS = 90000;
+const MAX_ANALYSIS_IMAGES = 10;
+const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+const MAX_TOTAL_IMAGE_BYTES = 24 * 1024 * 1024;
+const SKIN_PHOTO_ANGLES = ['front', 'left', 'right', 'closeup', 'neck'];
 
 // Map new expanded skin_goals values down to the legacy 6-bucket concern
 // taxonomy the existing Skin Era decision tree reads. Goals with no legacy
@@ -146,21 +146,21 @@ export function buildQuizPayload(answers, today = new Date()) {
   };
 }
 
-// Map Railway response → existing app analysis format.
+// Map backend response → existing app analysis format.
 // Throws when the response is not a usable analysis; LoadingScreen then shows the
 // generic fallback, marked as such, with the error as the reason.
-export function mapToAppFormat(railwayResponse, answers) {
-  const gemini      = railwayResponse?.era || {};
-  const eraData     = gemini.era || {};
-  const skinData    = gemini.skin_analysis || {};
-  const routineData = gemini.routine || {};
-  const auditData   = gemini.product_audit || {};
+export function mapToAppFormat(analysisResponse, answers) {
+  const eraResponse = analysisResponse?.era || {};
+  const eraData     = eraResponse.era || {};
+  const skinData    = eraResponse.skin_analysis || {};
+  const routineData = eraResponse.routine || {};
+  const auditData   = eraResponse.product_audit || {};
 
   // A 200 response is not proof of an analysis. Before this check, an unexpected shape
-  // (Railway schema change, an error body sent with 200) mapped silently to an empty
+  // (provider schema change, an error body sent with 200) mapped silently to an empty
   // routine ("0/0 steps") and a blank analysis - no fallback, no marker, no log.
   // A routine counts if either the generic steps or the product routine has any.
-  const srProducts = railwayResponse?.srProducts;
+  const srProducts = analysisResponse?.srProducts;
   const hasRoutine = [routineData.am, routineData.pm, srProducts?.am, srProducts?.pm]
     .some(steps => Array.isArray(steps) && steps.length > 0);
   if (!eraData.id) throw new Error('Invalid analysis response: no era id');
@@ -200,8 +200,8 @@ export function mapToAppFormat(railwayResponse, answers) {
   });
 
   const routine = {
-    am: (routineData.am || []).map(s => ({ name: s.category, description: s.instruction })),
-    pm: (routineData.pm || []).map(s => ({ name: s.category, description: s.instruction })),
+    am: (routineData.am || []).map(s => ({ category_id: s.category_id, name: s.category, description: s.instruction })),
+    pm: (routineData.pm || []).map(s => ({ category_id: s.category_id, name: s.category, description: s.instruction })),
   };
 
   return {
@@ -212,78 +212,110 @@ export function mapToAppFormat(railwayResponse, answers) {
     productAudit: { keep, remove, replace, add },
     routine,
     affirmation: eraData.affirmation || era.affirmation,
-    checkInPrompts: gemini.check_in_prompts || [],
-    safetyFlags:    gemini.safety_flags || [],
-    eventPrep:      gemini.event_prep || null,
-    // Marks this as a real Gemini result. LoadingScreen stamps 'fallback' instead when
-    // the call fails, so the app, /admin and the clinic email can tell the two apart.
-    source:         'gemini',
+    checkInPrompts: eraResponse.check_in_prompts || [],
+    safetyFlags:    eraResponse.safety_flags || [],
+    eventPrep:      eraResponse.event_prep || null,
+    // Preserve the server provider marker through display and persistence.
+    source:         analysisResponse?.source === 'bedrock' ? 'bedrock' : 'gemini',
     // Product-matched AM/PM routine and shelf-photo audit. Kept ON the analysis (not in
     // separate state) so they are saved and restored with it; before, they lived only in
-    // React state and disappeared on reload. Shapes are owned by the Railway service.
-    srProducts:     railwayResponse.srProducts || null,
-    shelfAnalysis:  railwayResponse.shelfAnalysis || null,
+    // React state and disappeared on reload. The backend validates these contract shapes.
+    srProducts:     analysisResponse.srProducts || null,
+    shelfAnalysis:  analysisResponse.shelfAnalysis || null,
   };
 }
 
-// Resolve a photo reference to raw base64 (no data: prefix). Capacitor Camera
-// returns data URLs, which work on both native shells and the browser.
-// The photo is shrunk first (max 1600 px, JPEG 85%) - only this Gemini copy.
-async function toBase64(ref) {
+// Return one labelled, bounded photo. Rejecting an oversized original handles canvas
+// downscaling failures without sending a request beyond the server's parser limits.
+async function toAnalysisImage(ref, angle) {
   if (!ref || typeof ref !== 'string') return null;
   if (!ref.startsWith('data:')) return null;
   const small = await downscaleDataUrl(ref);
-  return small.split(',')[1] || null;
+  const match = small.match(/^data:(image\/(?:jpeg|png));base64,([A-Za-z0-9+/]*={0,2})$/i);
+  if (!match) throw new Error('Unsupported analysis image format');
+  const [, mediaType, base64] = match;
+  const padding = base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0;
+  const bytes = Math.floor(base64.length * 3 / 4) - padding;
+  if (bytes > MAX_IMAGE_BYTES) throw new Error('Analysis image is too large after resizing');
+  return { angle, mediaType: mediaType.toLowerCase(), base64, bytes };
 }
 
-// One photo at a time, on purpose: each decoded full-size photo is ~50 MB of pixels,
-// and decoding up to 14 at once (Promise.all) can run a phone out of memory.
-async function toBase64List(refs) {
+// Decode photos in order so mobile browsers do not allocate several large canvases at once.
+async function toAnalysisImages(refs) {
   const out = [];
-  for (const ref of refs) {
-    const base64 = await toBase64(ref);
-    if (base64) out.push(base64);
+  let totalBytes = 0;
+  for (const [ref, angle] of refs) {
+    const image = await toAnalysisImage(ref, angle);
+    if (!image) continue;
+    totalBytes += image.bytes;
+    if (totalBytes > MAX_TOTAL_IMAGE_BYTES) throw new Error('Analysis photos exceed the request size limit');
+    out.push({ angle: image.angle, mediaType: image.mediaType, base64: image.base64 });
   }
   return out;
 }
 
-export async function analyzeWithRailway(answers) {
-  const quizPayload = buildQuizPayload(answers);
-
-  // Convert photos to base64 (quiz may store them as data: URLs or native file:// URIs)
-  const skinPhotosBase64  = await toBase64List(['front', 'left', 'right', 'closeup', 'neck'].map(k => answers[k]));
-  const shelfPhotosBase64 = await toBase64List(answers.shelf_photos || []);
-
-  console.log(`analyzeWithRailway: sending ${skinPhotosBase64.length} skin photo(s), ${shelfPhotosBase64.length} shelf photo(s)`);
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), ANALYZE_TIMEOUT_MS);
-
-  let res;
-  let data;
-  try {
-    res = await fetch(`${RAILWAY_URL}/analyze-skin`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        quizAnswers: quizPayload,
-        userId: answers.userId || null,
-        skinPhotosBase64,
-        shelfPhotosBase64,
-      }),
-      signal: controller.signal,
-    });
-
-    if (!res.ok) throw new Error(`Railway API ${res.status}`);
-
-    data = await res.json();
-  } catch (err) {
-    if (err.name === 'AbortError') throw new Error(`Railway API timed out after ${ANALYZE_TIMEOUT_MS}ms`);
-    throw err;
-  } finally {
-    clearTimeout(timeout);
+// Direct identifiers and location stay out of the paid skin-analysis request.
+export function minimizeQuizAnswers(answers = {}) {
+  const { name, city, country, ...payload } = buildQuizPayload(answers);
+  // Keep buildQuizPayload's compatibility defaults for its other callers, but do not
+  // turn skipped safety questions into negative answers on paid Bedrock requests.
+  for (const key of ['allergies', 'allergies_other', 'irritants', 'irritants_other']) {
+    if (Object.hasOwn(answers, key)) payload[key] = answers[key];
+    else delete payload[key];
   }
 
-  // One object carries everything (srProducts / shelfAnalysis included - see mapToAppFormat).
+  // A positive answer is always retained; a negative needs explicit legacy input or
+  // complete applicability answers so a skipped question cannot clear a restriction.
+  const hormones = answers.hormones || {};
+  const allHormonesAnswered = ['pregnant', 'trying_to_conceive', 'breastfeeding']
+    .every(key => hormones[key] === 'yes' || hormones[key] === 'no');
+  if (hasPregnancyCaution(answers) || answers.pregnancy_caution === true
+    || answers.pregnant_or_ttc === 'yes' || answers.pregnant_or_ttc === true) {
+    payload.pregnant_or_ttc = 'yes';
+  } else if (answers.pregnant_or_ttc === 'no' || answers.pregnant_or_ttc === false || answers.pregnancy_caution === false
+    || answers.gender === 'he' || (answers.gender === 'she' && allHormonesAnswered)) {
+    payload.pregnant_or_ttc = 'no';
+  } else {
+    delete payload.pregnant_or_ttc;
+  }
+  return payload;
+}
+
+// Market recommendations need only safety facts, including after a saved analysis is reopened.
+export function buildProductSafetyContext(answers = {}) {
+  const context = {};
+  // Keep absent legacy answers absent so the server can fail closed instead of
+  // mistaking old snapshots for an explicit "no allergies / no pregnancy" response.
+  if (Object.hasOwn(answers, 'pregnant_or_ttc')) context.pregnant_or_ttc = answers.pregnant_or_ttc;
+  else if (Object.hasOwn(answers, 'pregnancy_caution')) context.pregnancy_caution = answers.pregnancy_caution;
+  else if (answers.gender === 'he' && Object.hasOwn(answers, 'allergies') && Object.hasOwn(answers, 'irritants')) context.pregnant_or_ttc = 'no';
+  else if (answers.gender === 'she' && ['pregnant', 'breastfeeding', 'trying_to_conceive'].every(key => answers.hormones?.[key] === 'yes' || answers.hormones?.[key] === 'no')) {
+    context.pregnant_or_ttc = hasPregnancyCaution(answers) ? 'yes' : 'no';
+  }
+  for (const key of [
+    'allergies', 'allergies_other', 'irritants', 'irritants_other',
+    'health_conditions', 'diagnosed_conditions', 'safetyContextVersion',
+  ]) {
+    if (Object.hasOwn(answers, key)) context[key] = answers[key];
+  }
+  for (const key of ['ahas_bhas', 'has_bhas', 'retinoids', 'sulfates']) {
+    if (typeof answers[key] === 'boolean' || typeof answers[key] === 'string') context[key] = answers[key];
+  }
+  return context;
+}
+
+export async function analyzeSkin(answers = {}, language = i18n.language, onProgress) {
+  const photoRefs = [
+    ...SKIN_PHOTO_ANGLES.map(angle => [answers[angle], angle]),
+    ...(answers.shelf_photos || []).map(ref => [ref, 'shelf']),
+  ].filter(([ref]) => typeof ref === 'string' && ref.startsWith('data:'));
+  if (photoRefs.length > MAX_ANALYSIS_IMAGES) throw new Error('Too many analysis photos');
+  const images = await toAnalysisImages(photoRefs);
+  const data = await api.post('/api/ai/analyze-skin', {
+    quizAnswers: minimizeQuizAnswers(answers),
+    language: String(language || 'en').toLowerCase().startsWith('he') ? 'he' : 'en',
+    images,
+  }, { timeoutMs: ANALYZE_TIMEOUT_MS, stream: true, onProgress });
+  if (data?.source !== 'bedrock') throw new Error('Invalid analysis response: missing Bedrock source');
   return mapToAppFormat(data, answers);
 }

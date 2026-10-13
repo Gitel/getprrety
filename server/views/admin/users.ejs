@@ -4,6 +4,15 @@
 %>
 <%
   function stamp(d) { return d ? new Date(d).toISOString().slice(0, 16).replace('T', ' ') : '—'; }
+  // Clinic time (Asia/Jerusalem) as YYYY-MM-DD HH:MM, like the booking status cell. hourCycle h23
+  // keeps midnight as 00:xx. Used for link expiry so admins read the same clock as bookings.
+  function clinicStamp(d) {
+    if (!d) return '—';
+    var p = {};
+    new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Jerusalem', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+      .formatToParts(new Date(d)).forEach(function (x) { p[x.type] = x.value; });
+    return p.year + '-' + p.month + '-' + p.day + ' ' + p.hour + ':' + p.minute;
+  }
   // Builds a page link that keeps the current search term.
   function pageHref(p) { return '/admin/users?page=' + p + (list.q ? '&q=' + encodeURIComponent(list.q) : ''); }
 %>
@@ -13,6 +22,57 @@
   <% if (locals.notice) { %>
     <div class="notice <%= notice.error ? 'error' : '' %>"><%= notice.text %></div>
   <% } %>
+  <%# Invite a person who has no account yet (POST /admin/invites). The link they get creates
+      the account the first time they open it. %>
+  <section class="card" id="invite">
+    <h2>Invite a new customer</h2>
+    <form method="post" action="/admin/invites">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <label for="invite-email">Email</label>
+      <input type="email" id="invite-email" name="email" required maxlength="254">
+      <label for="invite-first-name">First name</label>
+      <input type="text" id="invite-first-name" name="firstName" maxlength="100">
+      <label for="invite-language">Language</label>
+      <select id="invite-language" name="language">
+        <option value="he" selected>Hebrew</option>
+        <option value="en">English</option>
+      </select>
+      <p><button type="submit">Send invite</button></p>
+    </form>
+  </section>
+
+  <%# Invites nobody has opened yet and that are still valid. %>
+  <section class="card" id="invites">
+    <h2>Pending invites</h2>
+    <% var pendingInvites = locals.invites || []; %>
+    <% if (!pendingInvites.length) { %>
+      <p class="muted">No pending invites.</p>
+    <% } else { %>
+      <table>
+        <thead><tr><th>Email</th><th>First name</th><th>Valid</th><th>Link</th><th></th></tr></thead>
+        <tbody>
+          <% pendingInvites.forEach(function (inv) { %>
+            <tr data-invite-id="<%= inv.id %>">
+              <td><%= inv.invite && inv.invite.email %></td>
+              <td><%= (inv.invite && inv.invite.firstName) || '—' %></td>
+              <td>Active until <%= clinicStamp(inv.expiresAt) %></td>
+              <td>
+                <input type="text" id="invite-url-<%= inv.id %>" readonly value="<%= inv.link || '' %>">
+                <button type="button" class="small secondary" data-copy="#invite-url-<%= inv.id %>" aria-label="Copy link">Copy link</button>
+              </td>
+              <td>
+                <form class="inline-form" method="post" action="/admin/invites/<%= inv.id %>/resend">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                  <button type="submit" class="small secondary">Resend email</button>
+                </form>
+              </td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    <% } %>
+  </section>
+
   <form method="get" action="/admin/users" style="display: flex; gap: 8px; margin-bottom: 14px;">
     <input type="search" name="q" value="<%= list.q %>" maxlength="100" placeholder="Search by email or first name">
     <button type="submit">Search</button>

@@ -15,7 +15,13 @@ import { saveLanguage } from '../lib/languageSync';
 import { rescheduleReminders } from '../lib/notifications';
 import { eraText } from '../lib/eraText';
 import { quizEntryScreen } from '../lib/welcomeVariants';
-import { OPEN_MS, CLOSE_MS, EMPTY_POLYGON, easeOpen, easeClose, liquidClipPath } from '../lib/liquidReveal';
+import { isRTL } from '../lib/language';
+import {
+  OPEN_MS, CLOSE_MS, OPEN_SETTLE_MS, BLEND_MS, EDGE_INSET, STRIP_W, STRIP_OUT, VIEW_H,
+  SHADOW_STEPS, SHADOW_STROKE_PX, ROW_SHIFT_PX, ROW_DURATION_MS,
+  easeOpen, easeClose, openBulge, closeBulge, edgeFillPath, edgeShadowPaths,
+  FLAT_FILL, FLAT_SHADOWS, rowDelays,
+} from '../lib/elasticEdge';
 
 // The last booking answer this app session got ('on' or 'off'), or null before any answer.
 // Module-level (not state/ref) on purpose: it must survive the menu closing and be shared by every
@@ -176,6 +182,9 @@ const MenuBody = memo(function MenuBody({ currentScreen, onClose, navigationRef,
   return (
     <SafeAreaView style={s.panel} accessibilityLabel={t('menu:panel')}>
       <ScrollView ref={scrollRef} contentContainerStyle={s.panelContent}>
+        {/* One wrapper around every row: SideMenu finds it (by testID) and fades its direct
+            children in one after another when the menu opens. */}
+        <View testID="side-menu-rows">
         <View style={s.header}>
           <View style={s.headerText}>
             <Text style={s.brand}>Get Pretty</Text>
@@ -253,15 +262,11 @@ const MenuBody = memo(function MenuBody({ currentScreen, onClose, navigationRef,
         <View style={s.divider} />
 
         <LanguageRow current={i18n.language} onPick={handleLanguage} />
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
 });
-
-// Soft edge shadow: thin translucent bands that follow the wave (no blur, which is slow on phones).
-// Each band is the liquid shape pushed forward by its offset (px); tune the colour/offsets here.
-const SHADOW_OFFSETS = [4, 9, 14];
-const SHADOW_COLOR = 'rgba(0,0,0,0.06)';
 
 // Keyboard-focusable elements inside the panel (used by the focus trap).
 const FOCUSABLE = 'a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])';
@@ -274,13 +279,16 @@ const FOCUSABLE = 'a[href], button, input, select, textarea, [tabindex]:not([tab
 //
 // The overlay has four states:
 //   closed   display:none. Unfocusable, hidden from screen readers, untappable.
-//   opening  displayed; a liquid shape (CSS clip-path) grows from the menu-button corner.
-//   open     fully revealed, page dimmed 20%, focus trapped in the panel.
+//   opening  displayed; the panel slides in from the screen edge (CSS transform) with an elastic
+//            bulge on its trailing edge, and the rows fade in one after another.
+//   open     fully slid in, page dimmed 20%, focus trapped in the panel.
 //   closing  displayed but pointerEvents none, so the screen underneath is usable at once; the
-//            shape flows back. When it ends the overlay goes back to `closed`.
+//            panel slides back out. When it ends the overlay goes back to `closed`.
 export default function SideMenu({ visible, onClose, navigation, currentScreen }) {
   const { user } = useApp();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  // Static mirroring of the edge svg (the bulge is drawn left-to-right; Hebrew flips it).
+  const rtl = isRTL(i18n.language);
 
   // `shown` = the overlay is displayed (opening, open or closing). It is NOT simply `visible`:
   // when `visible` turns false the overlay must stay displayed until the close animation ends.
@@ -293,9 +301,15 @@ export default function SideMenu({ visible, onClose, navigation, currentScreen }
 
   const overlayRef = useRef(null);
   const dimRef = useRef(null);
-  const revealRef = useRef(null);
-  // One ref per shadow band; their clip-path is written to the DOM each frame like the reveal's.
-  const shadowRefs = useRef([]);
+  // The moving wrapper: its transform (the slide) is written to the DOM each frame.
+  const slideRef = useRef(null);
+  // The elastic edge paths (one fill, several shadow strokes); their `d` is written each frame.
+  const fillPathRef = useRef(null);
+  const shadowPathRefs = useRef([]);
+  // The last bulge (px) written to the edge, so a reversed animation can fade it out smoothly.
+  const bulgeRef = useRef(0);
+  // The running row fade-in animations (Web Animations API), so they can be cancelled.
+  const rowAnimsRef = useRef([]);
   // The menu's ScrollView (owned here, passed to MenuBody) so the end of a close can reset its scroll.
   const scrollRef = useRef(null);
   // 0 = fully hidden .. 1 = fully open. A ref (not state): it changes every frame.
@@ -310,49 +324,80 @@ export default function SideMenu({ visible, onClose, navigation, currentScreen }
   const navigationRef = useRef(navigation);
   navigationRef.current = navigation;
 
-  // Drives the reveal. useLayoutEffect runs after the commit that displayed the overlay but
+  // Drives the slide. useLayoutEffect runs after the commit that displayed the overlay but
   // BEFORE the browser paints it, so the starting values are in place before the first frame.
   //
-  // Why values are written straight to the DOM (node.style.clipPath / opacity) and not through
-  // React style props: they change every frame; going through React would re-render per frame
-  // and any unrelated re-render could overwrite them.
+  // Why values are written straight to the DOM (node.style.transform / opacity and the SVG `d`
+  // attribute) and not through React props: they change every frame; going through React would
+  // re-render per frame and any unrelated re-render could overwrite them. The SVG paths are
+  // rendered by React with CONSTANT strings (the flat edge); because that prop value never
+  // changes, React never touches the attribute again, so the live value written here survives.
   //
   // Why the clock starts in the FIRST animation frame and not at the tap: on a slow phone,
   // building and showing the overlay can take a while; a clock started at the tap would have run
   // out before anything was visible and the menu would jump. That first callback counts as 16 ms.
   useLayoutEffect(() => {
     const overlay = overlayRef.current;
-    const reveal = revealRef.current;
+    const slide = slideRef.current;
     const dim = dimRef.current;
-    if (!overlay || !reveal || !dim) return undefined;
+    if (!overlay || !slide || !dim) return undefined;
     if (!visible && !activeRef.current) return undefined; // first mount, still closed
     activeRef.current = visible;
 
+    // Any new animation stops the row fade-ins of the previous one (rows then sit at full opacity,
+    // so a close never staggers and a re-open from half-way does not restart them).
+    rowAnimsRef.current.forEach(a => a.cancel());
+    rowAnimsRef.current = [];
+
     const target = visible ? 1 : 0;
     const p0 = progressRef.current;
-    const width = reveal.offsetWidth;
-    const height = reveal.offsetHeight;
+    const width = slide.offsetWidth;
+    const height = slide.offsetHeight;
     // Direction is read at the start of each animation (a language switch can change it).
     const rtl = getComputedStyle(overlay).direction === 'rtl';
+    // Distance the slide travels when fully hidden: the panel width plus the edge strip that
+    // sticks out beyond the panel, so no part of the strip peeks in when closed.
+    const travel = width + STRIP_OUT;
+    // How far the slide is moved off-screen at progress p (0 = in place).
+    const offsetAt = p => (1 - p) * travel;
 
-    // Removes the inline values: no clip, dim at its full CSS value (darkness 0.2).
-    const bands = shadowRefs.current.filter(Boolean);
-    const clearInline = () => {
-      reveal.style.clipPath = '';
-      bands.forEach(b => { b.style.clipPath = ''; });
-      dim.style.opacity = '';
+    // Writes the edge paths for a bulge in px (0 = flat) and remembers it for the reversal blend.
+    const writeEdge = bulge => {
+      bulgeRef.current = bulge;
+      fillPathRef.current?.setAttribute('d', edgeFillPath(bulge));
+      const shadows = edgeShadowPaths(bulge);
+      shadowPathRefs.current.forEach((el, i) => el?.setAttribute('d', shadows[i]));
     };
-    // Writes the CLOSED look: empty clip on the reveal and every band, no dim.
+    // Writes the flat edge strings back (the same values React renders).
+    const writeFlatEdge = () => {
+      bulgeRef.current = 0;
+      fillPathRef.current?.setAttribute('d', FLAT_FILL);
+      shadowPathRefs.current.forEach((el, i) => el?.setAttribute('d', FLAT_SHADOWS[i]));
+    };
+    // Moves the slide to progress p; dim = the visible fraction of the panel (never darker than
+    // the menu is open).
+    const writeSlide = p => {
+      const offset = offsetAt(p);
+      slide.style.transform = `translateX(${rtl ? offset : -offset}px)`;
+      dim.style.opacity = String(Math.min(1, Math.max(0, (width - offset) / width)));
+    };
+
+    // Removes the inline values: slide in place, dim at its full CSS value (darkness 0.2), flat edge.
+    const clearInline = () => {
+      slide.style.transform = '';
+      dim.style.opacity = '';
+      writeFlatEdge();
+    };
+    // Writes the CLOSED look: slide fully off-screen (strip included), no dim, flat edge.
     const writeClosedLook = () => {
-      reveal.style.clipPath = EMPTY_POLYGON;
-      bands.forEach(b => { b.style.clipPath = EMPTY_POLYGON; });
-      dim.style.opacity = '0';
+      writeSlide(0);
+      writeFlatEdge();
     };
     // End of a close: hide the overlay and tell MenuBody it can reset.
     // Called from an animation frame, a state update (setShown) is applied by React in a LATER
     // task, so the browser paints this frame first. If we cleared the inline values here the
-    // overlay would flash fully open (no clip, full dim) for one frame. So the animated close
-    // writes the closed look and the overlay stays invisible until display:none arrives.
+    // overlay would flash fully open (slide in place, full dim) for one frame. So the animated
+    // close writes the closed look and the overlay stays invisible until display:none arrives.
     // Reduced motion runs in the layout effect (before paint, React re-renders synchronously),
     // so clearing is safe there. Every open path starts from or ends at a state it writes itself.
     const finishClose = (animated) => {
@@ -377,31 +422,61 @@ export default function SideMenu({ visible, onClose, navigation, currentScreen }
     // Starting values, in place before the first paint of the newly displayed overlay.
     if (p0 === 0) writeClosedLook();
 
+    // Rows fade in one after another, only when opening from fully closed (not on a re-open from
+    // half-way). Web Animations API: the browser runs them, React does not re-render. `backwards`
+    // fill keeps each row invisible until its own delay is over.
+    if (target && p0 === 0) {
+      const rows = slide.querySelector('[data-testid="side-menu-rows"]');
+      const els = rows ? Array.from(rows.children) : [];
+      const delays = rowDelays(els.length);
+      els.forEach((el, i) => {
+        if (typeof el.animate !== 'function') return;
+        rowAnimsRef.current.push(el.animate(
+          [
+            { opacity: 0, transform: `translateX(${rtl ? ROW_SHIFT_PX : -ROW_SHIFT_PX}px)` },
+            { opacity: 1, transform: 'none' },
+          ],
+          { duration: ROW_DURATION_MS, delay: delays[i], easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)', fill: 'backwards' },
+        ));
+      });
+    }
+
     // Duration is scaled by the distance left, so reversing mid-way continues smoothly.
-    const duration = (target ? OPEN_MS : CLOSE_MS) * Math.abs(target - p0);
+    const dist = Math.abs(target - p0);
+    const duration = (target ? OPEN_MS : CLOSE_MS) * dist;
     const ease = target ? easeOpen : easeClose;
+    // Bulge left over from the animation we are interrupting; it fades out over BLEND_MS so the
+    // edge never jumps when the user reverses mid-way.
+    const b0 = bulgeRef.current;
+    // When opening, the loop keeps running after the slide has landed (tau = 1) until the edge
+    // wobble is finished (OPEN_SETTLE_MS), so the single inward dip plays out.
+    const endTau = target ? OPEN_SETTLE_MS / OPEN_MS : 1;
     let startTs = null;
 
     const frame = ts => {
       if (startTs === null) startTs = ts - 16;
-      const tau = duration > 0 ? (ts - startTs) / duration : 1;
+      const elapsed = ts - startTs;
+      // No distance to travel (duration 0): everything is already finished.
+      const tau = duration > 0 ? elapsed / duration : Infinity;
       const p = tau >= 1 ? target : p0 + (target - p0) * ease(tau);
       progressRef.current = p;
-      if (p === target) {
+      if (tau >= endTau) {
         rafRef.current = 0;
         if (target) clearInline();
         else finishClose(true);
         return;
       }
-      const clip = liquidClipPath({ width, height, progress: p, timeMs: ts, rtl });
-      reveal.style.clipPath = clip === 'none' ? '' : clip;
-      // Each band is the same shape pushed forward, so it peeks out ahead of the panel edge.
-      bands.forEach((b, i) => {
-        b.style.clipPath = liquidClipPath({
-          width, height, progress: p, timeMs: ts, rtl, offset: SHADOW_OFFSETS[i],
-        });
-      });
-      dim.style.opacity = String(p);
+      // Bulge of this frame: the timeline (scaled by distance, so a short re-open bulges a little)
+      // plus the fading remainder of the interrupted animation's bulge.
+      const timeline = (target ? openBulge(tau * OPEN_MS) : closeBulge(tau)) * dist;
+      writeEdge(timeline + b0 * Math.max(0, 1 - elapsed / BLEND_MS));
+      if (target && p === 1) {
+        // Landed, still wobbling: the slide is in place, so clear its inline values.
+        slide.style.transform = '';
+        dim.style.opacity = '';
+      } else {
+        writeSlide(p);
+      }
       rafRef.current = requestAnimationFrame(frame);
     };
     cancelAnimationFrame(rafRef.current);
@@ -410,6 +485,9 @@ export default function SideMenu({ visible, onClose, navigation, currentScreen }
     // New animation or unmount: stop the loop. progressRef keeps the current value.
     return () => cancelAnimationFrame(rafRef.current);
   }, [visible]);
+
+  // On unmount stop any running row animations.
+  useEffect(() => () => { rowAnimsRef.current.forEach(a => a.cancel()); }, []);
 
   // Answer of THIS opening: null until it arrives, then 'on' (row shown) or 'off' (nothing; the
   // server says disabled, or the request failed).
@@ -447,7 +525,7 @@ export default function SideMenu({ visible, onClose, navigation, currentScreen }
   //   - Escape closes. When it closes, focus returns to what had it (if it still exists).
   useEffect(() => {
     const overlay = overlayRef.current;
-    const panelItems = () => Array.from(revealRef.current?.querySelectorAll(FOCUSABLE) || []);
+    const panelItems = () => Array.from(slideRef.current?.querySelectorAll(FOCUSABLE) || []);
 
     if (!visible) {
       const prev = lastFocusRef.current;
@@ -530,27 +608,47 @@ export default function SideMenu({ visible, onClose, navigation, currentScreen }
 
       {/* A row mirrors in RTL by itself: the panel is first, so it sits on the start side. */}
       <View style={s.row}>
-        {/* The shadow bands sit under the reveal, so they show only where they stick out ahead of it. */}
-        <View style={s.panelWrap}>
-          {SHADOW_OFFSETS.map((_, i) => (
-            <View
-              key={i}
-              ref={el => { shadowRefs.current[i] = el; }}
-              aria-hidden={true}
-              style={s.shadowBand}
-            />
-          ))}
-          {/* clip-path is written to the DOM every frame (never a React style key). */}
-          <View ref={revealRef} testID="side-menu-reveal" style={s.reveal}>
-            <MenuBody
-              currentScreen={currentScreen}
-              onClose={onClose}
-              navigationRef={navigationRef}
-              closedCount={closedCount}
-              scrollRef={scrollRef}
-              bookingState={bookingState}
-            />
+        {/* The slide: the whole panel moves with one CSS transform, written to the DOM every
+            frame (never a React style key). Nothing inside may clip, so the bulge can stick out. */}
+        <View ref={slideRef} testID="side-menu-slide" style={s.panelWrap}>
+          {/* Panel colour. It stops 1 px short of the straight edge: the strip paints the last
+              EDGE_INSET px, and the overlap hides any hairline seam between the two. */}
+          <View aria-hidden={true} style={s.panelBg} />
+          {/* Elastic edge strip, sticking out beyond the panel's trailing edge. Its paths are
+              rendered flat here; the animation loop rewrites `d` with setAttribute. */}
+          <View aria-hidden={true} style={s.edgeBox}>
+            <svg
+              data-testid="side-menu-edge"
+              aria-hidden="true"
+              width="100%"
+              height="100%"
+              viewBox={`0 0 ${STRIP_W} ${VIEW_H}`}
+              preserveAspectRatio="none"
+              style={{ display: 'block', transform: rtl ? 'scaleX(-1)' : undefined }}
+            >
+              {SHADOW_STEPS.map((step, i) => (
+                <path
+                  key={i}
+                  ref={el => { shadowPathRefs.current[i] = el; }}
+                  data-edge="shadow"
+                  d={FLAT_SHADOWS[i]}
+                  fill="none"
+                  stroke={`rgba(0,0,0,${step.alpha})`}
+                  strokeWidth={SHADOW_STROKE_PX}
+                  vectorEffect="non-scaling-stroke"
+                />
+              ))}
+              <path ref={fillPathRef} data-edge="fill" d={FLAT_FILL} fill={C.bg} />
+            </svg>
           </View>
+          <MenuBody
+            currentScreen={currentScreen}
+            onClose={onClose}
+            navigationRef={navigationRef}
+            closedCount={closedCount}
+            scrollRef={scrollRef}
+            bookingState={bookingState}
+          />
         </View>
 
         {/* Transparent strip beside the panel: tapping it closes the menu. Not in the Tab order. */}
@@ -568,13 +666,16 @@ const s = StyleSheet.create({
   overlay: { position: 'fixed', top: 0, right: 0, bottom: 0, left: 0, zIndex: 1000 },
   overlayClosed: { display: 'none' },
   overlayClosing: { pointerEvents: 'none' },
-  // 20% black; its opacity (0..1) is animated through the DOM, so darkness = 0.2 x progress.
+  // 20% black; its opacity (0..1) is animated through the DOM (the visible fraction of the panel).
   dim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.2)', pointerEvents: 'none' },
   row: { flex: 1, flexDirection: 'row' },
   panelWrap: { width: '82%', maxWidth: 320 },
-  shadowBand: { ...StyleSheet.absoluteFillObject, backgroundColor: SHADOW_COLOR, pointerEvents: 'none' },
-  reveal: { flex: 1 },
-  panel: { flex: 1, backgroundColor: C.bg },
+  // Panel colour layer (see the slide in the render): stops 1 px short of the edge strip.
+  panelBg: { position: 'absolute', top: 0, bottom: 0, start: 0, end: EDGE_INSET - 1, backgroundColor: C.bg, pointerEvents: 'none' },
+  // Box holding the edge svg: sticks out STRIP_OUT px beyond the panel's trailing edge.
+  edgeBox: { position: 'absolute', top: 0, bottom: 0, end: -STRIP_OUT, width: STRIP_W, pointerEvents: 'none' },
+  // Fills the whole slide width; its colour comes from panelBg and the edge svg.
+  panel: { flex: 1 },
   panelContent: { paddingHorizontal: 20, paddingVertical: 16 },
   // Transparent: the dim layer provides the colour.
   backdrop: { flex: 1 },

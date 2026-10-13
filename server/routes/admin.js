@@ -31,6 +31,8 @@ const messages = require('../services/messages');
 const catalogue = require('../services/catalogueProducts');
 const { deleteUserAndData } = require('../services/deleteUser');
 const bookings = require('../services/bookings');
+const loginLinks = require('../services/loginLinks');
+const LoginLink = require('../models/LoginLink');
 
 // Result banners after a redirect. The URL carries only a short code (?notice=...),
 // never free text, so a crafted link cannot make the dashboard display arbitrary words.
@@ -69,9 +71,23 @@ const NOTICES = {
   booking_not_found:         { text: 'That booking no longer exists.', error: true },
   booking_already_cancelled: { text: 'That booking was already cancelled.', error: true },
   booking_calendar_failed:   { text: 'The calendar could not be reached, so nothing was cancelled. Please try again.', error: true },
+  booking_changed:           { text: 'This booking was just paid, so it was not cancelled. Check it and try again if needed.', error: true },
+  booking_attention_handled: { text: 'Marked as handled.' },
+  booking_attention_not_flagged: { text: 'That booking does not need attention.', error: true },
   booking_settings_saved:    { text: 'Booking settings saved.' },
   booking_settings_unchanged: { text: 'Nothing changed.' },
   booking_settings_invalid:  { text: 'Please check the settings: times must be HH:MM, closing after opening, and the numbers within range.', error: true },
+  signin_link_created:       { text: 'Sign-in link created and emailed.' },
+  signin_link_not_sent:      { text: 'Sign-in link created, but the email was not sent. Copy the link instead.', error: true },
+  signin_link_resent:        { text: 'Sign-in link emailed again.' },
+  signin_link_resend_failed: { text: 'The email was not sent. Copy the link instead.', error: true },
+  signin_link_inactive:      { text: 'That link is no longer valid. Create a new one.', error: true },
+  signin_link_rate_limited:  { text: 'Too many emails to this customer in the last hour. Try again later.', error: true },
+  signin_link_created_rate_limited: { text: 'New link created, but too many emails were sent to this customer in the last hour. Copy the new link instead.', error: true },
+  invite_created:            { text: 'Invite created and emailed.' },
+  invite_not_sent:           { text: 'Invite created, but the email was not sent. Copy the link instead.', error: true },
+  invite_existing_user:      { text: 'That email already has an account. A sign-in link was created for it instead.' },
+  invite_invalid:            { text: 'Enter a valid email address.', error: true },
   delete_confirm_mismatch: { text: 'Nothing was deleted: the email you typed does not match this account.', error: true },
 };
 
@@ -308,7 +324,9 @@ router.post('/customer/:id/edit/:section', requireAdmin, requireCsrf, async (req
 router.get('/users', adminPage, async (req, res, next) => {
   try {
     const list = await listUsers({ q: req.query.q, page: req.query.page });
-    res.render('admin/users', { admin: req.admin, list, notice: noticeFrom(req) });
+    // Pending invites (unused, unexpired) are listed under the invite form.
+    const invites = await loginLinks.listPendingInvites();
+    res.render('admin/users', { admin: req.admin, list, invites, notice: noticeFrom(req) });
   } catch (err) {
     next(err);
   }
@@ -329,8 +347,10 @@ router.get('/users/:id', adminPage, async (req, res, next) => {
     }
     // Bookings card: every booking of this user, newest first.
     const userBookings = await bookings.listForUser(detail.user._id);
+    // Sign-in link card: the user's newest links (the active one is shown with its URL).
+    const signinLinks = await loginLinks.listForUser(detail.user._id);
     res.render('admin/user', {
-      admin: req.admin, ...detail, thread, bookings: userBookings, notice: noticeFrom(req), maxMessage: messages.MAX_BODY,
+      admin: req.admin, ...detail, thread, bookings: userBookings, signinLinks, notice: noticeFrom(req), maxMessage: messages.MAX_BODY,
     });
   } catch (err) {
     next(err);
@@ -370,6 +390,111 @@ router.post('/users/:id/delete', requireAdmin, requireCsrf, async (req, res, nex
       fields: Object.entries(result.counts).map(([name, n]) => `${name}: ${n}`),
     });
     res.redirect('/admin/users?notice=user_deleted');
+  } catch (err) {
+    next(err);
+  }
+});
+
+// -- Sign-in links and invites ----------------------------------------------------
+
+// Strict 24-hex id check (mongoose.isValidObjectId also accepts any 12-char string).
+const isHexId = id => /^[a-f\d]{24}$/i.test(String(id));
+
+// sendLinkEmail failure code -> notice code, for the "Resend email" buttons.
+const RESEND_NOTICES = {
+  mail_not_configured: 'signin_link_resend_failed',
+  send_failed: 'signin_link_resend_failed',
+  rate_limited: 'signin_link_rate_limited',
+  link_not_active: 'signin_link_inactive',
+};
+
+// Create a NEW sign-in link for a user (older unused ones are replaced) and email it.
+// If the email cannot be sent the page still shows the link so the admin can copy it.
+router.post('/users/:id/signin-link', requireAdmin, requireCsrf, async (req, res, next) => {
+  try {
+    if (!isHexId(req.params.id) || !await User.exists({ _id: req.params.id })) {
+      return res.status(404).send('Not found');
+    }
+    const back = `/admin/users/${req.params.id}`;
+    const made = await loginLinks.createForUser(req.params.id, req.admin.email);
+    // Audit entries carry ids only, never the link or the email address.
+    await logAdminAction(req, 'signin_link_created', { userId: req.params.id });
+    const sent = await loginLinks.sendLinkEmail(made.linkDoc._id);
+    if (sent.ok) {
+      await logAdminAction(req, 'signin_link_sent', { userId: req.params.id });
+      return res.redirect(`${back}?notice=signin_link_created#signin-link`);
+    }
+    // Rate limited on a CREATE: the old link was already replaced, so say "copy the NEW link".
+    const notice = sent.code === 'rate_limited' ? 'signin_link_created_rate_limited' : 'signin_link_not_sent';
+    res.redirect(`${back}?notice=${notice}#signin-link`);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Email the user's CURRENT active link again (no new link is made).
+router.post('/users/:id/signin-link/resend', requireAdmin, requireCsrf, async (req, res, next) => {
+  try {
+    if (!isHexId(req.params.id) || !await User.exists({ _id: req.params.id })) {
+      return res.status(404).send('Not found');
+    }
+    const back = `/admin/users/${req.params.id}`;
+    const links = await loginLinks.listForUser(req.params.id);
+    const active = links.find(l => l.status === 'active');
+    if (!active) return res.redirect(`${back}?notice=signin_link_inactive#signin-link`);
+    const sent = await loginLinks.sendLinkEmail(active.id);
+    if (!sent.ok) {
+      return res.redirect(`${back}?notice=${RESEND_NOTICES[sent.code] || 'signin_link_resend_failed'}#signin-link`);
+    }
+    await logAdminAction(req, 'signin_link_sent', { userId: req.params.id });
+    res.redirect(`${back}?notice=signin_link_resent#signin-link`);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Invite a new customer by email. If the email already has an account the service makes a
+// sign-in link for that account instead and tells us (existingUserId).
+router.post('/invites', requireAdmin, requireCsrf, async (req, res, next) => {
+  try {
+    const made = await loginLinks.createInvite({
+      email: req.body.email, firstName: req.body.firstName, language: req.body.language,
+    }, req.admin.email);
+    if (!made.ok) return res.redirect(`/admin/users?notice=${made.code}#invite`);
+
+    const sent = await loginLinks.sendLinkEmail(made.linkDoc._id);
+    if (made.existingUserId) {
+      const userId = String(made.existingUserId);
+      await logAdminAction(req, 'signin_link_created', { userId });
+      if (sent.ok) await logAdminAction(req, 'signin_link_sent', { userId });
+      // Back to the Users page (contract 5.4: invite routes redirect there; the e2e spec relies on it).
+      return res.redirect('/admin/users?notice=invite_existing_user#invites');
+    }
+    // The audit entry names the form fields only, never the email address.
+    await logAdminAction(req, 'invite_created', { fields: ['email', 'firstName', 'language'] });
+    if (sent.ok) {
+      await logAdminAction(req, 'signin_link_sent', {});
+      return res.redirect('/admin/users?notice=invite_created#invites');
+    }
+    const notice = sent.code === 'rate_limited' ? 'signin_link_created_rate_limited' : 'invite_not_sent';
+    res.redirect(`/admin/users?notice=${notice}#invites`);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Email a pending invite's link again.
+router.post('/invites/:id/resend', requireAdmin, requireCsrf, async (req, res, next) => {
+  try {
+    if (!isHexId(req.params.id) || !await LoginLink.exists({ _id: req.params.id, purpose: 'invite' })) {
+      return res.status(404).send('Not found');
+    }
+    const sent = await loginLinks.sendLinkEmail(req.params.id);
+    if (!sent.ok) {
+      return res.redirect(`/admin/users?notice=${RESEND_NOTICES[sent.code] || 'signin_link_resend_failed'}#invites`);
+    }
+    await logAdminAction(req, 'signin_link_sent', {});
+    res.redirect('/admin/users?notice=signin_link_resent#invites');
   } catch (err) {
     next(err);
   }
@@ -593,13 +718,14 @@ router.post('/catalogue/:id/restore', requireAdmin, requireCsrf,
 
 // ── Bookings ────────────────────────────────────────────────────────────────
 
-const BOOKING_TABS = ['upcoming', 'past', 'cancelled'];
+const BOOKING_TABS = ['upcoming', 'past', 'cancelled', 'attention'];
 
 // Service error code -> notice code for a failed cancel.
 const CANCEL_NOTICES = {
   not_found: 'booking_not_found',
   already_cancelled: 'booking_already_cancelled',
   calendar_unavailable: 'booking_calendar_failed',
+  booking_changed: 'booking_changed', // the hold was paid while cancelling (nothing was cancelled)
 };
 
 // List of bookings, one tab at a time (an unknown ?tab= falls back to upcoming).
@@ -626,6 +752,24 @@ router.post('/bookings/:id/cancel', requireAdmin, requireCsrf, async (req, res, 
       userId: result.booking.userId, bookingId: result.booking._id || req.params.id,
     });
     res.redirect('/admin/bookings?notice=booking_cancelled');
+  } catch (err) {
+    next(err);
+  }
+});
+
+// "Mark handled" on a Needs attention row: the row then leaves that tab. The audit entry is
+// written only when the row really changed (a double click gets the "not flagged" notice).
+router.post('/bookings/:id/handled', requireAdmin, requireCsrf, async (req, res, next) => {
+  try {
+    const back = '/admin/bookings?tab=attention';
+    if (!isHexId(req.params.id)) return res.redirect(`${back}&notice=booking_not_found`);
+    const result = await bookings.markAttentionHandled(req.params.id, req.admin.email);
+    if (!result.ok) {
+      const notice = result.code === 'not_flagged' ? 'booking_attention_not_flagged' : 'booking_not_found';
+      return res.redirect(`${back}&notice=${notice}`);
+    }
+    await logAdminAction(req, 'booking_attention_handled', { userId: result.userId, bookingId: req.params.id });
+    res.redirect(`${back}&notice=booking_attention_handled`);
   } catch (err) {
     next(err);
   }

@@ -462,3 +462,146 @@ describe('booking pages', () => {
     expect(html).toContain('<div class="notice error">Please check the settings</div>');
   });
 });
+
+describe('paid booking statuses and attention tab', () => {
+  const base = {
+    userId: '64b0000000000000000000aa', userEmail: 'a@example.com', date: '2026-10-08', time: '10:00',
+    note: '', holdExpiresAt: null, needsAttention: null, calendarSynced: true,
+    payment: { status: 'none', amount: null, currency: null, providerRef: null, paidAt: null },
+  };
+
+  test('awaiting payment shows the hold end in clinic time and still has a cancel button', async () => {
+    // 07:15 UTC on 2026-10-08 is 10:15 in Asia/Jerusalem (UTC+3 in October).
+    const row = { ...base, id: 'b1', status: 'pending_payment', holdExpiresAt: '2026-10-08T07:15:00.000Z' };
+    const html = await render('bookings', { tab: 'upcoming', rows: [row] });
+    expect(html).toContain('<td class="status">Awaiting payment until 10:15</td>');
+    expect(html).toContain('Cancel booking');
+    expect(html).toContain('If it was paid, refund it in Shopify.');
+  });
+
+  test('confirmed row shows the payment and Calendar pending only while the event is missing', async () => {
+    const paid = { status: 'paid', amount: 150, currency: 'ILS', providerRef: '9001', paidAt: new Date() };
+    const pending = await render('bookings', {
+      tab: 'upcoming', rows: [{ ...base, id: 'b2', status: 'confirmed', calendarSynced: false, payment: paid }],
+    });
+    expect(pending).toContain('Confirmed');
+    expect(pending).toContain('Calendar pending');
+    expect(pending).toContain('<td class="payment">Paid 150 ILS - order 9001</td>');
+    const synced = await render('bookings', { tab: 'upcoming', rows: [{ ...base, id: 'b3', status: 'confirmed' }] });
+    expect(synced).not.toContain('Calendar pending');
+    expect(synced).toContain('<td class="payment">-</td>');
+  });
+
+  test('attention tab: link, labels for every attention code, expired and cancelled words', async () => {
+    const rows = [
+      { ...base, id: 'a1', status: 'expired', needsAttention: 'paid_slot_lost' },
+      { ...base, id: 'a2', status: 'cancelled', needsAttention: 'paid_after_cancel' },
+      { ...base, id: 'a3', status: 'confirmed', needsAttention: 'paid_extra' },
+    ];
+    const html = await render('bookings', { tab: 'attention', rows });
+    expect(html).toContain('>Needs attention</a>');
+    expect(html).toContain('<td class="attention">Paid, slot lost');
+    expect(html).toContain('<td class="attention">Paid after cancel');
+    expect(html).toContain('<td class="attention">Extra payment');
+    // Each flagged row has a CSRF-protected Mark handled form posting to its own id.
+    expect(html).toContain('action="/admin/bookings/a1/handled"');
+    expect(html).toContain('name="_csrf" value="TEST_CSRF_TOKEN"');
+    expect((html.match(/Mark handled/g) || []).length).toBe(3);
+    expect(html).toContain('<td class="status">Expired</td>');
+    expect(html).toContain('<td class="status">Cancelled</td>');
+    // Only the Upcoming tab has the cancel column.
+    expect(html).not.toContain('Cancel booking');
+  });
+
+  test('Mark handled appears only on the attention tab', async () => {
+    const row = { ...base, id: 'a1', status: 'confirmed', needsAttention: 'paid_extra' };
+    expect(await render('bookings', { tab: 'past', rows: [row] })).not.toContain('Mark handled');
+  });
+
+  test('user page bookings card uses the same status words', async () => {
+    const html = await render('user', {
+      user: { _id: 'u1', email: 'ada@example.com' },
+      analyses: [], checkIns: [], products: [], activity: [], thread: [], notice: null,
+      bookings: [{ ...base, id: 'b1', status: 'pending_payment', holdExpiresAt: '2026-10-08T07:15:00.000Z' }],
+    });
+    expect(html).toContain('Awaiting payment until 10:15');
+  });
+});
+
+describe('sign-in link card and invites', () => {
+  const userData = {
+    user: { _id: 'u1', email: 'ada@example.com' },
+    analyses: [], checkIns: [], products: [], activity: [], thread: [], notice: null,
+  };
+  const linkRow = over => ({
+    id: 'l1', purpose: 'signin', status: 'active', link: 'https://x.test/#signin=TOKEN',
+    createdAt: new Date(), createdByAdminEmail: 'admin@example.com', expiresAt: new Date('2026-10-15T09:30:00Z'),
+    usedAt: null, lastSentAt: null, sendCount: 0, lastSendError: null, invite: null, ...over,
+  });
+
+  test('no links yet: create button only', async () => {
+    const html = await render('user', { ...userData, signinLinks: [] });
+    expect(html).toContain('<section class="card" id="signin-link">');
+    expect(html).toContain('action="/admin/users/u1/signin-link"');
+    expect(html).toContain('Create new link');
+    expect(html).not.toContain('id="signin-link-url"');
+    expect(html).not.toContain('id="signin-link-history"');
+  });
+
+  test('active link: readonly input, copy button, resend form, history item', async () => {
+    const html = await render('user', {
+      ...userData, signinLinks: [linkRow({ sendCount: 2, lastSendError: 'send_failed' })],
+    });
+    expect(html).toContain('id="signin-link-url" readonly value="https://x.test/#signin=TOKEN"');
+    expect(html).toContain('data-copy="#signin-link-url"');
+    expect(html).toContain('Active until 2026-10-15 12:30');
+    expect(html).toContain('action="/admin/users/u1/signin-link/resend"');
+    expect(html).toContain('<li data-link-id="l1">');
+    expect(html).toContain('sent 2 times');
+    expect(html).toContain('last error: send_failed');
+  });
+
+  test('used and replaced links show no URL and the right status words', async () => {
+    const html = await render('user', {
+      ...userData,
+      signinLinks: [linkRow({ id: 'l2', status: 'used', link: null }), linkRow({ id: 'l3', status: 'revoked', link: null })],
+    });
+    expect(html).not.toContain('id="signin-link-url"');
+    expect(html).toContain('Used,');
+    expect(html).toContain('Replaced,');
+  });
+
+  test('users page: invite form with the contract fields, empty pending list', async () => {
+    const html = await render('users', { list: { q: '', total: 0, page: 1, pages: 1, users: [] }, invites: [] });
+    expect(html).toContain('id="invite"');
+    expect(html).toContain('Invite a new customer');
+    expect(html).toContain('action="/admin/invites"');
+    expect(html).toContain('name="email"');
+    expect(html).toContain('name="firstName"');
+    expect(html).toContain('<option value="he" selected>Hebrew</option>');
+    expect(html).toContain('Send invite');
+    expect(html).toContain('<p class="muted">No pending invites.</p>');
+  });
+
+  test('users page: pending invite row with link, copy and resend; hostile values escaped', async () => {
+    const html = await render('users', {
+      list: { q: '', total: 0, page: 1, pages: 1, users: [] },
+      invites: [linkRow({
+        id: 'i1', purpose: 'invite',
+        invite: { email: 'x"><script>y</script>@example.com', firstName: '<b>Ina</b>', language: 'en' },
+      })],
+    });
+    expect(html).toContain('<tr data-invite-id="i1">');
+    expect(html).toContain('data-copy="#invite-url-i1"');
+    expect(html).toContain('action="/admin/invites/i1/resend"');
+    expect(html).toContain('value="https://x.test/#signin=TOKEN"');
+    expect(html).not.toContain('<script>y');
+    expect(html).not.toContain('<b>Ina</b>');
+  });
+
+  test('footer script has the copy handler', async () => {
+    const html = await render('audit', { entries: [], filterUserId: null });
+    expect(html).toContain('button[data-copy]');
+    expect(html).toContain('navigator.clipboard.writeText');
+  });
+});
