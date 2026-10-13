@@ -29,7 +29,7 @@ function canonicalOutput(language = 'en') {
     summary: 'Your skin may benefit from a simple, gentle routine.', insight: 'Support the skin barrier', body: 'Maintaining moisture may help.', safety: 'Stop use if irritation develops.',
   };
   const step = (number, category, product, explanation) => ({
-    step: number, category_id: category, routine_category: category,
+    step: number, category_id: category, routine_category: ({ cleanse: he ? 'ניקוי' : 'Cleanse', moisturize: he ? 'לחות' : 'Moisturize', protect: he ? 'הגנה' : 'Protect' })[category],
     sr_product_id: product?._id ?? null, sr_product_name: product?.name ?? '',
     key_actives_matched: product?.keyActives?.slice(0, 2) ?? [], use_instruction: 'Use as directed.',
     match_reason: product ? explanation : '', no_match_note: product ? '' : explanation,
@@ -81,6 +81,7 @@ function compactOutput(canonical) {
   delete wire.srProducts.era_hero_product.sr_product_name;
   for (const period of ['am', 'pm']) for (const step of wire.srProducts[period]) {
     delete step.step;
+    delete step.routine_category;
     delete step.sr_product_name;
     step.explanation = step.sr_product_id ? step.match_reason : step.no_match_note;
     delete step.match_reason;
@@ -94,18 +95,19 @@ function compactOutput(canonical) {
 const compactSchema = makeCompactWireSchema(makeWireSchema(outputSchema));
 const validateCompact = new Ajv({ allErrors: true, strict: true, allowUnionTypes: true }).compile(compactSchema);
 
-test('compact all-five schema is immutable, smaller, and excludes server-restored labels/numbering', () => {
+test('compact schema is immutable, smaller, and excludes server-restored labels/numbering', () => {
   const before = structuredClone(outputSchema);
   const generic = makeWireSchema(outputSchema);
   const compact = makeCompactWireSchema(generic);
-  assert.equal(COMPACT_CONTRACT_VERSION, 'opus46-compact-all5-v1');
+  assert.equal(COMPACT_CONTRACT_VERSION, 'opus46-compact-v2');
   assert.deepEqual(outputSchema, before);
   assert.ok(Buffer.byteLength(JSON.stringify(compact)) < Buffer.byteLength(JSON.stringify(generic)));
   assert.ok(compact.$defs.srStep.required.includes('explanation'));
   assert.equal('category' in compact.$defs.routineStep.properties, false);
   assert.ok(compact.$defs.routineStep.required.includes('category_id'));
   assert.equal('category' in compact.$defs.routineStep.required, false);
-  assert.equal('routine_category' in compact.$defs.srStep.properties, true);
+  assert.equal('routine_category' in compact.$defs.srStep.properties, false);
+  assert.equal(compact.$defs.srStep.required.includes('routine_category'), false);
   for (const key of ['step', 'sr_product_name', 'match_reason', 'no_match_note']) assert.equal(key in compact.$defs.srStep.properties, false);
   assert.equal('suggested_replacement' in compact.properties.era.properties.product_audit.properties.current_products_assessment.items.properties, false);
   assert.equal('sr_product_name' in compact.properties.srProducts.properties.era_hero_product.properties, false);
@@ -143,6 +145,7 @@ test('Hebrew compact response keeps localized explanations and canonical fields 
   assert.equal(hydrated.era.safety_flags[0], output.era.safety_flags[0]);
   assert.deepEqual(hydrated.era.routine.am.map(step => step.category), ['ניקוי', 'לחות', 'הגנה']);
   assert.deepEqual(hydrated.era.routine.pm.map(step => step.category), ['ניקוי', 'לחות']);
+  assert.deepEqual(hydrated.srProducts.am.map(step => step.routine_category), ['ניקוי', 'לחות', 'הגנה']);
   assert.equal(hydrated.srProducts.am[0].match_reason, output.srProducts.am[0].match_reason);
   assert.equal(hydrated.srProducts.am[2].no_match_note, output.srProducts.am[2].no_match_note);
 });

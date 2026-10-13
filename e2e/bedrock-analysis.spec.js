@@ -106,6 +106,7 @@ function hydratedCompactBedrockResponse(language = 'en', eligibleCatalogue = [
     delete compact.srProducts.era_hero_product.sr_product_name;
     for (const period of ['am', 'pm']) for (const step of compact.srProducts[period]) {
       delete step.step;
+      delete step.routine_category;
       delete step.sr_product_name;
       step.explanation = step.sr_product_id ? step.match_reason : step.no_match_note;
       delete step.match_reason;

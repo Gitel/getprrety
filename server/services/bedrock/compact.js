@@ -1,6 +1,6 @@
 'use strict';
 
-const COMPACT_CONTRACT_VERSION = 'opus46-compact-all5-v1';
+const COMPACT_CONTRACT_VERSION = 'opus46-compact-v2';
 
 // This prompt extension applies only to the compact wire contract; canonical output
 // requirements remain enforced after server-owned fields are restored.
@@ -10,7 +10,7 @@ const COMPACT_SYSTEM_INSTRUCTIONS = [
   'SR step order is its array position; the server supplies the numeric step. For each SR routine step, put one concise explanation in explanation. A matched ID needs its catalogue match reason. For every unmatched step, including cleanse and protect, give specific no-match guidance in explanation. Do not return match_reason or no_match_note.',
   'For all product IDs, use only exact IDs from the supplied eligible catalogue. Use null for an unmatched product ID; never invent, copy, or return an ID outside that catalogue.',
   'When the supplied eligible catalogue is empty, return srProducts as null.',
-  'Generic routine category labels are restored from category_id in the requested language; do not add category labels to the compact response.',
+  'Generic category and SR routine_category labels are restored from category_id in the requested language; do not add either display label to the compact response.',
 ].join('\n');
 
 // Keep fixed labels aligned with the EN/HE routine labels used by opus46-compact.test.cjs.
@@ -61,6 +61,9 @@ function makeCompactWireSchema(baseWireSchema, { hasEligibleProducts = true } = 
   omitProperty(shelf?.properties?.transition_plan, 'first_sr_purchase');
 
   const srStep = schema.$defs?.srStep;
+  // SR labels duplicate the generic routine category. Restore both from the same localized ID
+  // instead of adding another free-text field to each compiled SR step object.
+  omitProperty(srStep, 'routine_category');
   omitProperty(srStep, 'step');
   omitProperty(srStep, 'sr_product_name');
   omitProperty(srStep, 'match_reason');
@@ -127,6 +130,7 @@ function hydrateCompactOutput(wireOutput, { eligibleProducts = [], language = 'e
       for (const [index, step] of output.srProducts[period].entries()) {
         validateCatalogueId(step.sr_product_id, byId);
         step.step = index + 1;
+        step.routine_category = labels[step.category_id];
         step.sr_product_name = restoreCatalogueName(step.sr_product_id, byId);
         // ID presence distinguishes a match rationale from an unmatched-step note.
         step.match_reason = step.sr_product_id === null ? '' : step.explanation;
