@@ -359,7 +359,3 @@ test('successful compact analysis returns a valid hydrated result, quality metri
     process.exitCode = previousExitCode;
   }
 });
-
-
-
-
