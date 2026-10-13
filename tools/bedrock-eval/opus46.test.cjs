@@ -5,7 +5,7 @@ const os = require('node:os');
 const path = require('node:path');
 const Ajv = require('ajv');
 const { outputSchema, validateOutput } = require('../../server/services/bedrock/analysisContract');
-const { loadCatalogue } = require('../../server/services/bedrock/catalogue');
+const { loadSeedCatalogue: loadCatalogue } = require('../../server/services/bedrock/catalogue');
 const { makeCompactWireSchema } = require('./opus46-compact.cjs');
 const { MODEL, COUNT_MODEL, BASE_URL, MANTLE_COUNT_URL, INPUT_COUNT_ALLOWANCE_TOKENS, makeWireSchema, toConverse, promptFingerprint, maxOutputTokens, reportedCostUsd, requestJson, countTokens, infer, validateAjvOutput, verifyCountReport, main } = require('./opus46.cjs');
 
@@ -43,6 +43,36 @@ test('wire schema drops Bedrock-unsupported bounds but preserves structure for l
   assert.equal(wire.properties.era.properties.routine.properties.am.minItems, undefined);
   assert.equal(wire.properties.era.properties.routine.properties.pm.items.$ref, '#/$defs/routineStep');
   assert.equal(outputSchema.properties.era.properties.routine.properties.am.minItems, 3);
+});
+
+test('count mode accepts an explicit Mongo catalogue snapshot and sends its IDs in the shared production prompt', async t => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'opus-snapshot-catalogue-'));
+  t.after(() => fs.rm(directory, { recursive: true, force: true }));
+  const caseId = 'case-dddddddddd';
+  const caseDirectory = path.join(directory, caseId);
+  await fs.mkdir(caseDirectory);
+  await fs.writeFile(path.join(caseDirectory, 'case.json'), JSON.stringify({ caseId,
+    quiz: { pregnant_or_ttc: false, allergies: ['none'], irritants: ['none'] }, images: [] }));
+  const productId = '507f1f77bcf86cd799439011';
+  const catalogueFile = path.join(directory, 'catalogue.json');
+  await fs.writeFile(catalogueFile, JSON.stringify({ products: [{ _id: productId, name: 'Snapshot Cream', category: 'face_creams',
+    use: 'home', pregnancy: 'safe', archived: false, keyActives: [], strengths: [], suitableFor: [], ingredients: '' }] }));
+  const previousExitCode = process.exitCode;
+  try {
+    const report = await main(['--mode', 'count', '--case-id', caseId, '--input-dir', directory,
+      '--catalogue-file', catalogueFile, '--output', path.join(directory, 'count.json')], {
+      getToken: () => 'test-token',
+      fetchImpl: async (_url, init) => {
+        const payload = JSON.parse(init.body).input.converse;
+        assert.match(payload.messages[0].content[0].text, new RegExp(productId));
+        assert.match(payload.messages[0].content[0].text, /Snapshot Cream/);
+        return response({ inputTokens: 10_000 });
+      },
+    });
+    assert.equal(report.status, 'counted');
+  } finally {
+    process.exitCode = previousExitCode;
+  }
 });
 
 test('wire schema collapses nullable object combinators while canonical validation remains authoritative', () => {
@@ -139,8 +169,8 @@ test('no-photo probe sends shelf-null schema to count and inference without chan
   }
 });
 
-// Lock the shelf-specific event wire rule to the canonical event predicate and preserve other request shapes.
-test('shelf photo narrows no-event wire schema consistently while preserving event and no-shelf schemas', async t => {
+// Lock the shared production request builder's shelf and event evidence requirements.
+test('wire schema requires null event and shelf analysis whenever their evidence is absent', async t => {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'opus-event-schema-'));
   t.after(() => fs.rm(directory, { recursive: true, force: true }));
   const cases = [
@@ -198,8 +228,7 @@ test('shelf photo narrows no-event wire schema consistently while preserving eve
     const genericWireSchema = makeWireSchema(outputSchema);
     assert.deepEqual(countSchemas.get('case-aaaaaaaaaa').properties.shelfAnalysis,
       makeCompactWireSchema(genericWireSchema).properties.shelfAnalysis);
-    assert.deepEqual(countSchemas.get('case-bbbbbbbbbb').properties.era.properties.event_prep,
-      genericWireSchema.properties.era.properties.event_prep);
+    assert.deepEqual(countSchemas.get('case-bbbbbbbbbb').properties.era.properties.event_prep, { type: 'null' });
     assert.deepEqual(countSchemas.get('case-bbbbbbbbbb').properties.shelfAnalysis, { type: 'null' });
     assert.deepEqual(countSchemas.get('case-cccccccccc').properties.era.properties.event_prep,
       genericWireSchema.properties.era.properties.event_prep);

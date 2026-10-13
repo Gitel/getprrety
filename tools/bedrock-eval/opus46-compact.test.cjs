@@ -7,7 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const Ajv = require('ajv');
 const { outputSchema, validateOutput, eligibleProducts } = require('../../server/services/bedrock/analysisContract');
-const { loadCatalogue } = require('../../server/services/bedrock/catalogue');
+const { loadSeedCatalogue: loadCatalogue } = require('../../server/services/bedrock/catalogue');
 const { makeWireSchema, validateAjvOutput, main, reportedCostUsd } = require('./opus46.cjs');
 const { COMPACT_CONTRACT_VERSION, makeCompactWireSchema, hydrateCompactOutput } = require('./opus46-compact.cjs');
 

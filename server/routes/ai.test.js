@@ -80,8 +80,10 @@ afterAll(() => { delete process.env.JWT_SECRET; });
 
 test('pre-signup analysis uses minimized inputs, validates the contract, and marks its source', async () => {
   completeJson.mockResolvedValue(validAnalysis());
+  loadCatalogue.mockResolvedValue([{ _id: '507f1f77bcf86cd799439011', name: 'Calm Cream', category: 'face_creams', use: 'home',
+    pregnancy: 'safe', archived: false, keyActives: [], strengths: [], suitableFor: [], ingredients: '' }]);
   const res = await invoke(routeHandler('/analyze-skin'), {
-    quizAnswers: { gender: 'she', skin_goals: ['dryness'], name: 'Private Name', email: 'private@example.test' },
+    quizAnswers: { gender: 'she', skin_goals: ['dryness'], pregnant_or_ttc: false, allergies: ['none'], irritants: ['none'], name: 'Private Name', email: 'private@example.test' },
     language: 'en', images: [
       { angle: 'front', mediaType: 'image/png', base64: PNG },
       { angle: 'shelf', mediaType: 'image/png', base64: PNG },
@@ -95,8 +97,19 @@ test('pre-signup analysis uses minimized inputs, validates the contract, and mar
   expect(JSON.stringify(request.messages)).toContain('Photo angle: front.');
   expect(JSON.stringify(request.messages)).toContain('Photo angle: shelf.');
   expect(request.schema.required).toEqual(['era', 'srProducts', 'shelfAnalysis']);
+  expect(request.messages[0].content[0].text).toContain('507f1f77bcf86cd799439011');
+  expect(request.messages[0].content[0].text).toContain('Calm Cream');
+  expect(request.wireSchema.properties.era.properties.event_prep).toEqual({ type: 'null' });
   expect(consumeRateLimit).toHaveBeenNthCalledWith(1, 'analysis_ip', expect.any(String), expect.any(Number));
   expect(consumeRateLimit).toHaveBeenNthCalledWith(2, 'analysis_global', 'all', expect.any(Number));
+});
+
+test('catalogue failures stop the paid request instead of falling back to seed records', async () => {
+  loadCatalogue.mockRejectedValue(new Error('database unavailable'));
+  const res = await invoke(routeHandler('/analyze-skin'), { quizAnswers: {}, language: 'en', images: [] });
+  expect(res.statusCode).toBe(500);
+  expect(res.body).toEqual({ error: 'Analysis is unavailable' });
+  expect(completeJson).not.toHaveBeenCalled();
 });
 
 test('rejects oversized or malformed photos before consuming paid-call budget', async () => {
@@ -145,6 +158,8 @@ test('SSE analysis sends only progress before full semantic validation and retur
     expect(options.signal).toBeInstanceOf(AbortSignal);
     expect(options.timeoutMs).toBeLessThanOrEqual(84_000);
     options.onEvent({ phase: 'first_content', elapsedMs: 3, contentBytes: 12, rawContent: 'private provider text' });
+    options.onEvent({ phase: 'counted', elapsedMs: 2, inputTokens: 15604, outputTokenLimit: 5580, estimatedCostUsd: 0.249976, rawContent: 'private provider text' });
+    options.onEvent({ phase: 'complete', elapsedMs: 4, finishReason: 'end_turn' });
     return validAnalysis();
   });
   const res = await invokeSse(routeHandler('/analyze-skin'), {
@@ -160,6 +175,8 @@ test('SSE analysis sends only progress before full semantic validation and retur
     'channel', 'requestId', 'phase', 'elapsedMs', 'status', 'imageCount', 'quizBytes', 'catalogueCount', 'messageCount', 'code',
   ].includes(key)))).toBe(true);
   expect(records.find(record => record.channel === 'analysis-provider')).toHaveProperty('providerElapsedMs');
+  expect(records.find(record => record.phase === 'counted')).toMatchObject({ inputTokens: 15604, outputTokenLimit: 5580, estimatedCostUsd: 0.249976 });
+  expect(records.find(record => record.phase === 'complete')).toHaveProperty('finishReason', 'end_turn');
   expect(JSON.stringify(records)).not.toMatch(/private provider text|Private Person|private@example\.test/);
   log.mockRestore();
   expect(res.statusCode).toBe(200);

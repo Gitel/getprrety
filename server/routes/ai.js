@@ -4,8 +4,9 @@ const requireAuth = require('../middleware/auth');
 const { consumeRateLimit } = require('../services/rateLimit');
 const { completeJson, BedrockError, TIMEOUT_MS } = require('../services/bedrock/client');
 const { loadCatalogue } = require('../services/bedrock/catalogue');
+const { prepareSkinRequest } = require('../services/bedrock/skinRequest');
 const {
-  outputSchema, buildMessages, validateOutput, sanitizeQuiz,
+  validateOutput, sanitizeQuiz,
   allergiesFromQuiz, activeIrritantClasses, eligibilityLimitations, isPregnancyCaution,
 } = require('../services/bedrock/analysisContract');
 const { enforceAnalysisBudget } = require('../services/bedrock/analysisBudget');
@@ -29,7 +30,7 @@ function sendSse(res, event, data) {
 }
 
 function safeTelemetry(requestId, event) {
-  const allowed = ['request_start', 'headers', 'first_body', 'first_content', 'last_content', 'body_end', 'validated', 'usage', 'complete', 'timeout', 'cancelled', 'error'];
+  const allowed = ['request_start', 'headers', 'first_body', 'first_content', 'last_content', 'body_end', 'counted', 'validated', 'usage', 'complete', 'timeout', 'cancelled', 'error'];
   if (!allowed.includes(event.phase)) return;
   // Copy only approved metrics so a future provider event cannot leak model text into logs.
   const record = { requestId, phase: event.phase };
@@ -38,7 +39,12 @@ function safeTelemetry(requestId, event) {
   if (Number.isSafeInteger(event.contentBytes) && event.contentBytes >= 0) record.contentBytes = event.contentBytes;
   if (Number.isFinite(event.costUsd) && event.costUsd >= 0) record.costUsd = event.costUsd;
   if (typeof event.providerRequestId === 'string' && /^[A-Za-z0-9._:-]{1,128}$/.test(event.providerRequestId)) record.providerRequestId = event.providerRequestId;
-  if (['stop', 'completed', 'length'].includes(event.finishReason)) record.finishReason = event.finishReason;
+  // Native Opus completion reasons and count metrics identify latency/cost failures without logging content.
+  if (['end_turn', 'stop_sequence', 'max_tokens'].includes(event.finishReason)) record.finishReason = event.finishReason;
+  for (const key of ['inputTokens', 'outputTokenLimit']) {
+    if (Number.isSafeInteger(event[key]) && event[key] >= 0) record[key] = event[key];
+  }
+  if (Number.isFinite(event.estimatedCostUsd) && event.estimatedCostUsd >= 0) record.estimatedCostUsd = event.estimatedCostUsd;
   if (typeof event.code === 'string' && /^(BEDROCK_[A-Z0-9_]+|ANALYSIS_[A-Z0-9_]+)$/.test(event.code)) record.code = event.code;
   if (event.phase === 'usage' && event.usage) {
     const usage = event.usage;
@@ -178,9 +184,9 @@ router.post('/analyze-skin', async (req, res) => {
       return res.status(429).json({ error: 'Analysis rate limit exceeded' });
     }
 
-    const catalogue = loadCatalogue();
+    const catalogue = await withSignal(loadCatalogue(), deadline.controller.signal);
     logAnalysisPhase(deadline, 'catalogue_loaded', { catalogueCount: Array.isArray(catalogue) ? catalogue.length : 0 });
-    const prompt = buildMessages({ quiz, language, images, catalogue });
+    const prompt = prepareSkinRequest({ quiz, language, images, catalogue });
     logAnalysisPhase(deadline, 'prompt_ready', {
       messageCount: Array.isArray(prompt.messages) ? prompt.messages.length : 0,
     });
@@ -189,7 +195,6 @@ router.post('/analyze-skin', async (req, res) => {
     logAnalysisPhase(deadline, 'provider_start');
     const output = await completeJson({
       ...prompt,
-      schema: outputSchema,
       stream: wantsSse,
       signal: deadline.controller.signal,
       timeoutMs: remainingMs,

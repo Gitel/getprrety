@@ -6,8 +6,10 @@ import { ANALYSIS, FIRST_TIME_USER } from './support/fixtures-data.js';
 import { walkQuizToLoading } from './support/quiz.js';
 import { openHome, openProfileFromHome } from './support/nav.js';
 import compactHelper from '../tools/bedrock-eval/opus46-compact.cjs';
+import analysisContract from '../server/services/bedrock/analysisContract.js';
 
 const { hydrateCompactOutput } = compactHelper;
+const { validateOutput } = analysisContract;
 
 const ANALYZE_URL = 'http://api.e2e.test/api/ai/analyze-skin';
 const CORS = {
@@ -29,12 +31,13 @@ function bedrockResponse(language = 'en') {
     ? { summary: 'התשובות מצביעות על צורך בשגרה עדינה.', cleanser: 'ניקוי עדין', moisturizer: 'קרם לחות', sunscreen: 'הגנה מהשמש', useSpf: 'השתמשי במסנן קרינה רחב טווח SPF 30 ומעלה בכל בוקר.' }
     : { summary: 'Your answers support a simple, gentle routine.', cleanser: 'Gentle cleanser', moisturizer: 'Moisturizer', sunscreen: 'Sunscreen', useSpf: 'Use a broad-spectrum SPF 30 or higher each morning.' };
   const productId = '64b000000000000000000001';
+  const cleanserId = '64b000000000000000000002';
   const routineLabels = hebrew
     ? { cleanse: '\u05e0\u05d9\u05e7\u05d5\u05d9', moisturize: '\u05dc\u05d7\u05d5\u05ea', protect: '\u05d4\u05d2\u05e0\u05d4' }
     : { cleanse: 'Cleanse', moisturize: 'Moisturize', protect: 'Protect' };
   const srStep = (step, category_id, routine_category, matched) => ({
     step, category_id, routine_category,
-    sr_product_id: matched ? productId : null,
+    sr_product_id: matched ? (category_id === 'cleanse' ? cleanserId : productId) : null,
     sr_product_name: matched ? (category_id === 'cleanse' ? words.cleanser : words.moisturizer) : '',
     key_actives_matched: [],
     use_instruction: matched ? 'Use as directed.' : '',
@@ -77,29 +80,25 @@ function bedrockResponse(language = 'en') {
 }
 
 // The server hydrates compact model output before returning canonical fields to the client.
-function hydratedCompactBedrockResponse(language = 'en', eligibleCatalogue = [{ _id: '64b000000000000000000001', name: 'Hydrated Calm Cream' }]) {
+function hydratedCompactBedrockResponse(language = 'en', eligibleCatalogue = [
+  { _id: '64b000000000000000000001', name: 'Hydrated Calm Cream', category: 'face_creams', use: 'home', archived: false },
+  { _id: '64b000000000000000000002', name: 'Hydrated Gentle Cleanser', category: 'cleansers_peelings', use: 'home', archived: false },
+]) {
   const canonical = bedrockResponse(language);
   if (eligibleCatalogue.length === 0) {
     canonical.srProducts = null;
     canonical.era.product_audit.current_products_assessment = [];
     canonical.era.product_audit.most_urgent_gap = null;
   }
-  const productName = 'Hydrated Calm Cream';
-  let productId = null;
+  const productNames = new Map(eligibleCatalogue.map(product => [product._id, product.name]));
   if (canonical.srProducts) {
-    productId = canonical.srProducts.era_hero_product.sr_product_id;
-    canonical.srProducts.era_hero_product.sr_product_name = productName;
+    canonical.srProducts.era_hero_product.sr_product_name = productNames.get(canonical.srProducts.era_hero_product.sr_product_id);
     for (const period of ['am', 'pm']) for (const step of canonical.srProducts[period]) {
-      if (step.sr_product_id) step.sr_product_name = productName;
+      if (step.sr_product_id) step.sr_product_name = productNames.get(step.sr_product_id);
     }
   }
-  canonical.shelfAnalysis = eligibleCatalogue.length === 0 ? null : {
-    identified_products: [{ status: 'compatible', brand: 'Photo Brand', product_name: 'Photo Cream',
-      category: 'face_creams', status_reason: 'The visible product appears compatible.',
-      use_instruction: 'Use as directed.', sr_substitute_name: productName, sr_substitute_product_id: productId }],
-    shelf_summary: { overall_note: 'One photographed product was reviewed.' },
-    transition_plan: { first_sr_purchase: productName, first_sr_purchase_product_id: productId },
-  };
+  // The signup walkthrough skips shelf photos, so its canonical API result must keep shelf analysis null.
+  canonical.shelfAnalysis = null;
   const compact = structuredClone(canonical);
   for (const period of ['am', 'pm']) for (const step of compact.era.routine[period]) delete step.category;
   for (const item of compact.era.product_audit.current_products_assessment) delete item.suggested_replacement;
@@ -117,7 +116,10 @@ function hydratedCompactBedrockResponse(language = 'en', eligibleCatalogue = [{ 
     for (const item of compact.shelfAnalysis.identified_products) delete item.sr_substitute_name;
     delete compact.shelfAnalysis.transition_plan.first_sr_purchase;
   }
-  return hydrateCompactOutput(compact, { eligibleProducts: eligibleCatalogue, language });
+  const hydrated = hydrateCompactOutput(compact, { eligibleProducts: eligibleCatalogue, language });
+  const errors = validateOutput(hydrated, { quiz: { pregnant_or_ttc: false, allergies: ['none'], irritants: ['none'] }, language, images: [] }, eligibleCatalogue).errors;
+  if (errors.length) throw new Error(`Invalid compact fixture: ${errors.join('; ')}`);
+  return hydrated;
 }
 
 async function interceptAnalysis(page, results) {
@@ -262,7 +264,6 @@ test.describe('successful pre-signup Bedrock analysis', () => {
     await expect(page.getByText('Barrier Healing Era', { exact: true })).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(t('home:fallbackBanner.title'), { exact: true })).toHaveCount(0);
     await expect(page.getByText(SAFETY_TEXT.en, { exact: false })).toBeVisible();
-    await expect(page.getByText('Photo Cream', { exact: false })).toBeVisible();
     await expect(page.getByText('Hydrated Calm Cream', { exact: false }).first()).toBeVisible();
     expect(calls[0].authorization).toBeNull();
     expect(calls[0].body.language).toBe('en');
@@ -295,6 +296,10 @@ test.describe('successful pre-signup Bedrock analysis', () => {
     await page.getByText(t('home:tabs.am'), { exact: true }).click();
     await expect(page.getByText('Sunscreen', { exact: true })).toBeVisible();
     await expect(page.getByText(bedrockResponse('en').srProducts.am[2].no_match_note, { exact: true })).toBeVisible();
+    await page.reload();
+    await openHome(page, t);
+    await page.getByText(t('home:tabs.am'), { exact: true }).click();
+    await expect(page.getByText('Hydrated Calm Cream', { exact: true })).toBeVisible();
   });
 
   test('skipped hormone answers are omitted while the generic Bedrock SPF guidance renders', async ({ page, mock, t }) => {
@@ -387,8 +392,8 @@ test.describe('Hebrew Bedrock safety copy', () => {
   test.use({ lang: 'he' });
 
   test('sends Hebrew as the analysis language and displays the returned safety flag in RTL', async ({ page, t }) => {
-    // The no-eligible-products response proves generic routine guidance remains available without SR steps.
-    const calls = await interceptAnalysis(page, [{ status: 200, body: hydratedCompactBedrockResponse('he', []) }]);
+    // A Mongo-shaped ID must hydrate to the exact catalogue name before client persistence.
+    const calls = await interceptAnalysis(page, [{ status: 200, body: hydratedCompactBedrockResponse('he') }]);
     await page.goto('/');
     await walkQuizToLoading(page, t);
     await expect.poll(() => calls.length, { timeout: 10_000 }).toBe(1);
@@ -406,8 +411,11 @@ test.describe('Hebrew Bedrock safety copy', () => {
     await expect(page.getByText(SAFETY_TEXT.he, { exact: false })).toBeVisible();
     await openHome(page, t);
     await page.getByText(t('home:tabs.am'), { exact: true }).click();
-    await expect(page.getByText('\u05d4\u05d2\u05e0\u05d4', { exact: true })).toBeVisible();
-    await expect(page.getByText('Hydrated Calm Cream', { exact: true })).toHaveCount(0);
+    await expect(page.getByText('Hydrated Calm Cream', { exact: true })).toBeVisible();
+    await page.reload();
+    await openHome(page, t);
+    await page.getByText(t('home:tabs.am'), { exact: true }).click();
+    await expect(page.getByText('Hydrated Calm Cream', { exact: true })).toBeVisible();
   });
 });
 

@@ -4,9 +4,10 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const Ajv = require('ajv');
 const { execFileSync } = require('node:child_process');
-const { outputSchema, buildMessages, validateOutput, eligibleProducts: selectEligibleProducts } = require('../../server/services/bedrock/analysisContract');
-const { loadCatalogue } = require('../../server/services/bedrock/catalogue');
-const { COMPACT_CONTRACT_VERSION, COMPACT_SYSTEM_INSTRUCTIONS, makeCompactWireSchema, hydrateCompactOutput } = require('./opus46-compact.cjs');
+const { outputSchema, validateOutput, eligibleProducts: selectEligibleProducts } = require('../../server/services/bedrock/analysisContract');
+const { loadSeedCatalogue, loadSnapshotCatalogue } = require('../../server/services/bedrock/catalogue');
+const { prepareSkinRequest } = require('../../server/services/bedrock/skinRequest');
+const { COMPACT_CONTRACT_VERSION } = require('../../server/services/bedrock/compact');
 const { readCase } = require('./runner.cjs');
 const { parseArgs, isInside, getToken } = require('./run.cjs');
 const { writeAtomicCheckpoint } = require('./investigate.cjs');
@@ -290,19 +291,14 @@ async function main(argv = process.argv.slice(2), deps = {}) {
   if (!/^case-[a-z0-9-]{1,64}$/.test(caseId) || !['en', 'he'].includes(language)) throw new Error('case ID or language is invalid');
   const testCase = await readCase(path.join(inputDirectory, caseId));
   if (testCase.caseId !== caseId) throw new Error('case folder and case ID do not match');
-  const catalogue = loadCatalogue();
+  const catalogue = options['catalogue-file']
+    ? loadSnapshotCatalogue(path.resolve(options['catalogue-file']))
+    : loadSeedCatalogue();
   const eligibleCatalogue = selectEligibleProducts(catalogue, testCase.quiz);
-  const built = buildMessages({ quiz: testCase.quiz, language, images: testCase.images, catalogue });
-  const baseWireSchema = makeWireSchema(outputSchema);
-  // The semantic contract requires null shelf analysis when no shelf photo was supplied.
-  const hasShelfPhoto = testCase.images.some(image => image.angle === 'shelf');
-  if (!hasShelfPhoto) baseWireSchema.properties.shelfAnalysis = { type: 'null' };
-  // Mirror analysisContract.hasNoEvent: accepted outputs must set event_prep to null when no event was supplied.
-  if (hasShelfPhoto && hasNoEvent(testCase.quiz)) baseWireSchema.properties.era.properties.event_prep = { type: 'null' };
-  const wireSchema = makeCompactWireSchema(baseWireSchema, { hasEligibleProducts: eligibleCatalogue.length > 0 });
-  // Keep the canonical prompt fingerprint separate from the compact-only count/inference prompt.
-  const compactBuilt = { ...built, system: `${built.system}\n\n${COMPACT_SYSTEM_INSTRUCTIONS}` };
-  const converse = toConverse(compactBuilt, wireSchema);
+  const prepared = prepareSkinRequest({ quiz: testCase.quiz, language, images: testCase.images, catalogue });
+  const { wireSchema } = prepared;
+  // This is the same production request used for counts and inference.
+  const converse = toConverse(prepared, wireSchema);
   const countSchemaFields = { output_config: { format: { type: 'json_schema', schema: wireSchema } } };
   const countInput = { system: converse.system, messages: converse.messages, additionalModelRequestFields: countSchemaFields };
   const promptSha256 = promptFingerprint(countInput);
@@ -314,7 +310,7 @@ async function main(argv = process.argv.slice(2), deps = {}) {
       costGate: 'estimate_not_guarantee_with_128_input_token_allowance_and_0.01_usd_output_reserve' } : {}),
     caseId, language, imageCount: testCase.images.length, stream: false, tier: 'default', promptSha256,
     compactContractVersion: COMPACT_CONTRACT_VERSION,
-    productionPromptSha256: promptFingerprint(built), schemaSha256: promptFingerprint(outputSchema), wireSchemaSha256: promptFingerprint(wireSchema),
+    productionPromptSha256: promptFingerprint({ system: prepared.system, messages: prepared.messages }), schemaSha256: promptFingerprint(outputSchema), wireSchemaSha256: promptFingerprint(wireSchema),
     sourceCommit: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: ROOT, encoding: 'utf8' }).trim(),
     pricing: { inputUsdPerMillion: INPUT_USD_PER_MILLION, outputUsdPerMillion: OUTPUT_USD_PER_MILLION, source: 'https://www-cdn.anthropic.com/files/4zrzovbb/website/3684c2faafb97418665782cea0001f439f74b1d2.pdf' } };
   const token = (deps.getToken || getToken)(options['server-dir']);
@@ -361,7 +357,7 @@ async function main(argv = process.argv.slice(2), deps = {}) {
       let canonicalOutput = null;
       if (!wireSchemaErrors.length) {
         try {
-          canonicalOutput = hydrateCompactOutput(inferred.output, { eligibleProducts: eligibleCatalogue, language });
+          canonicalOutput = prepared.hydrateOutput(inferred.output);
         } catch {
           // Keep model-supplied product IDs and labels out of error details and saved reports.
           report.hydrationErrorCount = 1;
@@ -396,12 +392,6 @@ async function main(argv = process.argv.slice(2), deps = {}) {
   process.stdout.write(`${JSON.stringify(report)}\n`);
   if (report.status !== 'counted' && report.status !== 'valid') process.exitCode = 1;
   return report;
-}
-
-// Keep this evaluator predicate aligned with analysisContract.js until that canonical helper is exported.
-function hasNoEvent(quiz) {
-  const event = String(quiz.event_type || quiz.event || '').trim().toLowerCase();
-  return !event || ['none', 'no_event', 'no event'].includes(event);
 }
 
 function summarizeSemanticErrors(errors) {

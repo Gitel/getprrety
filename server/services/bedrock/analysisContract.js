@@ -502,7 +502,7 @@ function validateOutput(output, caseData = {}, catalogue = []) {
 }
 
 module.exports = {
-  ERA_IDS, ROUTINE_CATEGORY_IDS, outputSchema, buildMessages, validateOutput,
+  ERA_IDS, ROUTINE_CATEGORY_IDS, outputSchema, buildMessages, validateOutput, hasNoEvent,
   sanitizeQuiz, eligibleProducts, hasCompleteSafetyContext, isPregnancyCaution, allergiesFromQuiz, activeIrritantClasses,
   productSafetyIssue, eligibilityLimitations,
 };
