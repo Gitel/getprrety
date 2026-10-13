@@ -81,8 +81,8 @@ function bedrockResponse(language = 'en') {
 
 // The server hydrates compact model output before returning canonical fields to the client.
 function hydratedCompactBedrockResponse(language = 'en', eligibleCatalogue = [
-  { _id: '64b000000000000000000001', name: 'Hydrated Calm Cream', category: 'face_creams', use: 'home', archived: false },
-  { _id: '64b000000000000000000002', name: 'Hydrated Gentle Cleanser', category: 'cleansers_peelings', use: 'home', archived: false },
+  { _id: '64b000000000000000000001', name: 'Hydrated Calm Cream', category: 'face_creams', use: 'home', archived: false, ingredients: 'Aqua, glycerin' },
+  { _id: '64b000000000000000000002', name: 'Hydrated Gentle Cleanser', category: 'cleansers_peelings', use: 'home', archived: false, ingredients: 'Aqua, glycerin' },
 ]) {
   const canonical = bedrockResponse(language);
   if (eligibleCatalogue.length === 0) {
@@ -279,6 +279,9 @@ test.describe('successful pre-signup Bedrock analysis', () => {
     await expect(page.getByText(t('onboarding:timing.headline'))).toBeVisible();
     await expect.poll(() => mock.callsTo('POST', '/api/analysis').length).toBe(1);
     expect(mock.lastCall('POST', '/api/analysis').body.source).toBe('bedrock');
+    // Persistence must retain stable catalogue IDs alongside the server-hydrated names.
+    expect(mock.lastCall('POST', '/api/analysis').body.srProducts.am.map(step => step.sr_product_id))
+      .toEqual(['64b000000000000000000002', '64b000000000000000000001', null]);
 
     await finishSignupOnboarding(page, t);
     await openProfileFromHome(page, t);
@@ -392,7 +395,7 @@ test.describe('analysis transport failure', () => {
 test.describe('Hebrew Bedrock safety copy', () => {
   test.use({ lang: 'he' });
 
-  test('sends Hebrew as the analysis language and displays the returned safety flag in RTL', async ({ page, t }) => {
+  test('sends Hebrew as the analysis language and displays the returned safety flag in RTL', async ({ page, mock, t }) => {
     // A Mongo-shaped ID must hydrate to the exact catalogue name before client persistence.
     const calls = await interceptAnalysis(page, [{ status: 200, body: hydratedCompactBedrockResponse('he') }]);
     await page.goto('/');
@@ -405,7 +408,9 @@ test.describe('Hebrew Bedrock safety copy', () => {
     await page.getByText(t('auth:signup.ctaAfterQuiz'), { exact: true }).click();
     await finishSignupOnboarding(page, t);
     await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
-    // Empty SR recommendations remove the optional audit tabs, but Profile still shows analysis and safety.
+    // Matched IDs and exact catalogue names survive signup before the localized Profile is shown.
+    expect(mock.lastCall('POST', '/api/analysis').body.srProducts.am.map(step => step.sr_product_id))
+      .toEqual(['64b000000000000000000002', '64b000000000000000000001', null]);
     await openHome(page, t);
     await page.getByText(t('home:viewAnalysis.title')).click();
     await expect(page.getByText(t('profile:analysisTitle'))).toBeVisible();
