@@ -16,12 +16,20 @@ const MAX_AUDIT_ITEMS = 20;    // per audit bucket
 const MAX_INSIGHTS = 20;
 const MAX_SHELF_PRODUCTS = 30;
 const MAX_ACTIVES = 10;
+const ROUTINE_CATEGORIES = ['cleanse', 'treat', 'moisturize', 'protect', 'other'];
 
 // A trimmed, length-capped string. Numbers are accepted (form fields sometimes arrive as
 // numbers from JSON); anything else becomes ''.
 function text(value, max) {
   if (typeof value === 'number' && Number.isFinite(value)) value = String(value);
   return typeof value === 'string' ? value.trim().slice(0, max) : '';
+}
+
+// Catalogue IDs stay opaque bounded strings and only survive alongside their display name.
+function nullableProductId(value, associatedName) {
+  if (!associatedName || typeof value !== 'string') return null;
+  const id = value.trim().slice(0, 100);
+  return id || null;
 }
 
 function isObject(value) {
@@ -39,7 +47,12 @@ function sanitizeRoutine(value) {
   const src = isObject(value) ? value : {};
   const step = s => {
     if (!isObject(s)) return null;
-    const out = { name: text(s.name, 120), description: text(s.description, 1000) };
+    // Saved product-less instructions use this ID to rejoin the generic routine after reload.
+    const categoryId = ROUTINE_CATEGORIES.includes(s.category_id) ? s.category_id : null;
+    const out = {
+      ...(categoryId ? { category_id: categoryId } : {}),
+      name: text(s.name, 120), description: text(s.description, 1000),
+    };
     return out.name || out.description ? out : null;
   };
   return { am: list(src.am, MAX_STEPS, step), pm: list(src.pm, MAX_STEPS, step) };
@@ -109,6 +122,8 @@ function sanitizeSrProducts(value) {
     const out = {
       // Displayed as the step number; always renumbered by position so it stays 1, 2, 3...
       step: i + 1,
+      // Keep the same bounded category link for a saved unmatched product step.
+      ...(ROUTINE_CATEGORIES.includes(s.category_id) ? { category_id: s.category_id } : {}),
       routine_category: text(s.routine_category, 120),
       // The app shows the product block only when sr_product_id is set, and falls back
       // to no_match_note otherwise. So the id follows the name:
@@ -116,7 +131,7 @@ function sanitizeSrProducts(value) {
       //    otherwise the name would silently not show;
       //  - no name means no id, so clearing the name shows no_match_note instead of an
       //    empty product block.
-      sr_product_id: name ? (text(s.sr_product_id, 100) || 'admin-entered') : '',
+      sr_product_id: name ? (nullableProductId(s.sr_product_id, name) || 'admin-entered') : null,
       sr_product_name: name,
       // The app calls .replace() on each entry, so every one must be a string.
       key_actives_matched: list(s.key_actives_matched, MAX_ACTIVES, a => text(a, 60) || null),
@@ -133,6 +148,7 @@ function sanitizeSrProducts(value) {
     bundle_note: text(value.bundle_note, 1000),
     era_hero_product: {
       sr_product_name: text(hero.sr_product_name, 200),
+      sr_product_id: nullableProductId(hero.sr_product_id, text(hero.sr_product_name, 200)),
       hero_reason: text(hero.hero_reason, 1000),
     },
     am: steps(value.am),
@@ -162,6 +178,7 @@ function sanitizeShelfAnalysis(value) {
       status_reason: text(p.status_reason, 1000),
       use_instruction: text(p.use_instruction, 1000),
       sr_substitute_name: text(p.sr_substitute_name, 200),
+      sr_substitute_product_id: nullableProductId(p.sr_substitute_product_id, text(p.sr_substitute_name, 200)),
     };
     return out.brand || out.product_name || out.category ? out : null;
   };
@@ -170,7 +187,10 @@ function sanitizeShelfAnalysis(value) {
   return {
     identified_products: products,
     shelf_summary: { overall_note: text(summary.overall_note, 1000) },
-    transition_plan: { first_sr_purchase: text(plan.first_sr_purchase, 200) },
+    transition_plan: {
+      first_sr_purchase: text(plan.first_sr_purchase, 200),
+      first_sr_purchase_product_id: nullableProductId(plan.first_sr_purchase_product_id, text(plan.first_sr_purchase, 200)),
+    },
   };
 }
 

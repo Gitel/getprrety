@@ -3,7 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { C, QUESTIONS, buildFallback } from '../constants';
-import { analyzeWithRailway } from '../lib/analyzeWithRailway';
+import { analyzeSkin } from '../lib/analyzeWithRailway';
 import { pollScan } from '../lib/skinScan';
 import { persistAnalysis, withSavedId, skipRetrySave } from '../lib/persistAnalysis';
 import { logActivity } from '../lib/logActivity';
@@ -28,13 +28,14 @@ const SCAN_WAIT_COPY = [
 ];
 
 export default function LoadingScreen({ navigation, route }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   // Set by FallbackBanner's "Try again": a re-run of an analysis that already fell back.
   const isRetry = Boolean(route?.params?.retry);
   const { answers, user, setAnalysis, analysisSaveFailed, setAnalysisSaveFailed } = useApp();
   const [step, setStep]               = useState(0);
   const [complete, setComplete]       = useState(false);
   const [scanWaitLabel, setScanWaitLabel] = useState(null); // a SCAN_WAIT_COPY key, not text
+  const [analysisPhase, setAnalysisPhase] = useState(null);
   const called                        = useRef(false);
   // Latest "first save failed" flag for finish(), which runs inside the mount-time effect
   // below and would otherwise see the value from mount. On a retry, the first save can
@@ -141,12 +142,12 @@ export default function LoadingScreen({ navigation, route }) {
     }
     advanceStage(0);
 
-    analyzeWithRailway(answers || {})
+    analyzeSkin(answers || {}, i18n.language, progress => setAnalysisPhase(progress.phase))
       .then(analysis => {
         apiRef.result = analysis;
       })
       .catch(err => {
-        console.warn('Railway fallback:', err.message);
+        console.warn('Bedrock fallback:', err.message);
         // Stamp the canned template as a fallback, with the reason, so it is never
         // mistaken for a personalized result (saved with the analysis; shown as a
         // banner in the app, a marker on /admin and a label in the clinic email).
@@ -174,6 +175,11 @@ export default function LoadingScreen({ navigation, route }) {
         <Text style={s.emoji}>🌙</Text>
         <Text style={s.title}>{title}</Text>
         <Text style={s.subtitle}>{t('quiz:loading.subtitle')}</Text>
+
+        {/* Show server-reported phase only; the analysis itself stays hidden until it is complete. */}
+        {analysisPhase && !complete && (
+          <Text style={s.analysisProgress}>{t(`quiz:loading.analysisProgress.${analysisPhase}`)}</Text>
+        )}
 
         <View style={s.steps}>
           {stages.map((label, i) => {
@@ -223,4 +229,5 @@ const s = StyleSheet.create({
   doneBadge: { backgroundColor: '#7A9E6E15', borderWidth: 1.5, borderColor: '#7A9E6E40', borderRadius: 14, padding: 13, paddingHorizontal: 20 },
   doneText:  { fontFamily: 'DMSans_500Medium', fontSize: 13, color: '#7A9E6E' },
   scanWaitLabel: { fontFamily: 'DMSans_400Regular', fontSize: 12, color: C.accent, fontStyle: 'italic', textAlign: 'center' },
+  analysisProgress: { fontFamily: 'DMSans_400Regular', fontSize: 12, color: C.accent, textAlign: 'center', marginTop: -18, marginBottom: 18 },
 });

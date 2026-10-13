@@ -32,6 +32,11 @@ test('sends srProducts and shelfAnalysis with the analysis', async () => {
   expect(body.eraId).toBe('glow_building');
 });
 
+test('persists the Bedrock source alongside the analysis', async () => {
+  await persistAnalysis({ analysis: { ...analysis, source: 'bedrock' }, answers: {} });
+  expect(api.post.mock.calls[0][1].source).toBe('bedrock');
+});
+
 test('sends null for both when the analysis service returned none', async () => {
   await persistAnalysis({ analysis, answers: {} });
   const [, body] = api.post.mock.calls[0];

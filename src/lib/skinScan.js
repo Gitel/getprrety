@@ -32,6 +32,7 @@ const SCAN_QUIZ_KEYS = [
   'skin_goals', 'top_concern', 'post_cleanse_feel',
   'gender', 'tone', 'work_environment', 'irritants', 'routine_products', 'water_intake',
   'sleep', 'stress', 'alcohol', 'smoke', 'exercise', 'allergies', 'diagnosed_conditions',
+  'allergies_other', 'irritants_other',
 ];
 
 // Builds the answers sent at scan init. `age` replaces the birthday, and pregnancy /
@@ -40,11 +41,26 @@ const SCAN_QUIZ_KEYS = [
 export function scanQuizAnswers(answers = {}, today = new Date()) {
   const picked = {};
   SCAN_QUIZ_KEYS.forEach(key => {
-    if (answers[key] !== undefined && answers[key] !== null) picked[key] = answers[key];
+    if (answers[key] !== undefined && answers[key] !== null) {
+      // The scan's later score-reading provider also uses the user's written allergy/irritant notes.
+      picked[key] = ['allergies_other', 'irritants_other'].includes(key) && typeof answers[key] === 'string'
+        ? answers[key].slice(0, 240)
+        : answers[key];
+    }
   });
   const age = ageFromBirthday(answers.birthday, today);
   if (age != null) picked.age = age;
   picked.pregnancy_caution = hasPregnancyCaution(answers);
+  // Only new snapshots with explicit allergy, irritant, and pregnancy applicability answers
+  // may authorize product matching; older snapshots remain distinguishable and fail closed.
+  const hasExplicitChoices = value => Array.isArray(value) && value.length > 0
+    && value.every(choice => typeof choice === 'string' && choice.trim().length > 0);
+  const pregnancyAnswered = answers.gender === 'he'
+    || (answers.gender === 'she' && ['pregnant', 'breastfeeding', 'trying_to_conceive']
+      .every(key => answers.hormones?.[key] === 'yes' || answers.hormones?.[key] === 'no'));
+  if (hasExplicitChoices(answers.allergies) && hasExplicitChoices(answers.irritants) && pregnancyAnswered) {
+    picked.safetyContextVersion = 1;
+  }
   return picked;
 }
 

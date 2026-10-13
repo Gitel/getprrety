@@ -3,7 +3,7 @@
 // ONE route handler on the browser context sees every request the page makes:
 //   - the app's own origin (the vite preview server)   -> passed through untouched;
 //   - MOCK_API_ORIGIN (VITE_API_URL of the test build)  -> answered by handleApi() below;
-//   - the Railway analysis service                      -> 503 (app uses its fallback plan) or held;
+//   - the Bedrock analysis API route                     -> 503 (app uses its fallback plan) or held;
 //   - Google Fonts CSS / Google Identity script         -> empty 200;
 //   - anything else                                     -> aborted and recorded as "blocked".
 //
@@ -15,7 +15,6 @@ import * as fx from './fixtures-data.js';
 import { FIXED_ISO } from './page-init.js';
 
 export const MOCK_API_ORIGIN = 'http://api.e2e.test';
-const RAILWAY_HOST = 'getpretty-api-production.up.railway.app';
 // The fake Shopify store the checkout link points at, and how long a payment hold lasts.
 const CHECKOUT_HOST = 'shop.e2e.test';
 const CHECKOUT_BASE = `https://${CHECKOUT_HOST}/cart/12345:1`;
@@ -63,8 +62,8 @@ export function createMock({ appOrigin }) {
   const calls = [];               // every call to the mock API: { method, path, query, body, authed }
   const unmocked = [];            // "METHOD /path" of API calls this mock does not know
   const blockedHosts = new Set(); // other origins the page tried to reach (aborted)
-  let railwayMode = 'fail';       // what /analyze-skin answers: 'fail' | 'hang'
-  const railwayPending = [];      // held /analyze-skin requests while mode is 'hang'
+  let analysisMode = 'fail';      // what /api/ai/analyze-skin answers: 'fail' | 'hang'
+  const analysisPending = [];     // held analysis requests while mode is 'hang'
   const overrides = new Map();    // "METHOD /path" -> { status, body }, see mock.override()
   const delays = new Map();       // "METHOD /path" -> [ms, ...] one-shot answer delays, see mock.delay()
 
@@ -165,6 +164,13 @@ export function createMock({ appOrigin }) {
     }
 
     // --- analysis ---
+    if (key === 'POST /api/ai/analyze-skin') {
+      if (analysisMode === 'hang') {
+        analysisPending.push(route);
+        return undefined;
+      }
+      return json(route, 503, { error: 'e2e: analysis service is offline' });
+    }
     if (key === 'GET /api/analysis/latest') {
       if (deny()) return undefined;
       return state.analysis ? json(route, 200, { analysis: state.analysis }) : json(route, 404, { error: 'No analysis found' });
@@ -172,9 +178,9 @@ export function createMock({ appOrigin }) {
     if (key === 'POST /api/analysis') {
       if (deny()) return undefined;
       // The server stores what the client sends and adds _id / createdAt / firstReadingAt.
-      return json(route, 201, {
-        analysis: { ...body, _id: 'analysis-saved', createdAt: '2026-09-29T09:00:00.000Z', firstReadingAt: '2026-09-29T09:00:00.000Z' },
-      });
+      const saved = { ...body, _id: 'analysis-saved', createdAt: '2026-09-29T09:00:00.000Z', firstReadingAt: '2026-09-29T09:00:00.000Z' };
+      state.analysis = saved;
+      return json(route, 201, { analysis: saved });
     }
     if (key === 'POST /api/ai/product-recommendations') {
       return deny() || json(route, 200, fx.PRODUCT_RECS);
@@ -294,14 +300,6 @@ export function createMock({ appOrigin }) {
 
   // ---- everything that is not the API ------------------------------------------------------
   async function handleExternal(route, u) {
-    // The analysis service on Railway. Failing makes the app use its built-in fallback plan.
-    if (u.hostname === RAILWAY_HOST) {
-      if (u.pathname === '/analyze-skin' && railwayMode === 'hang') {
-        railwayPending.push(route); // released later by mock.releaseAnalysis()
-        return undefined;
-      }
-      return route.fulfill({ status: 503, headers: CORS, contentType: 'application/json', body: '{"error":"e2e: analysis service is offline"}' });
-    }
     // The Shopify checkout host: a tiny page so the pop-up loads (and is not counted as blocked).
     if (u.hostname === CHECKOUT_HOST) {
       return route.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html><html><body>e2e checkout</body></html>' });
@@ -353,16 +351,15 @@ export function createMock({ appOrigin }) {
     callsTo(method, path) { return calls.filter(c => c.method === method && c.path === path); },
     lastCall(method, path) { return this.callsTo(method, path).at(-1); },
 
-    // Analysis service (Railway) control: hold the /analyze-skin request, then release it.
-    holdAnalysis() { railwayMode = 'hang'; },
+    // Hold the same backend analysis route the app uses, then release it into fallback.
+    holdAnalysis() { analysisMode = 'hang'; },
     async releaseAnalysis() {
-      railwayMode = 'fail';
-      for (const route of railwayPending.splice(0)) {
+      analysisMode = 'fail';
+      for (const route of analysisPending.splice(0)) {
         await route.fulfill({ status: 503, headers: CORS, contentType: 'application/json', body: '{"error":"e2e: analysis service is offline"}' }).catch(() => {});
       }
     },
 
-    // Used by the teardown check in test.js.
     // Paid flow helpers (what the Shopify webhook / the hold sweep do on the real server):
     //   payBooking(): the live hold becomes a confirmed booking (no hold time, no checkout link).
     //   expireHold(): the hold runs out; upcoming is gone and its slot is free again.
@@ -377,6 +374,7 @@ export function createMock({ appOrigin }) {
       state.booking.upcoming = null;
     },
 
+    // Used by the teardown check in test.js.
     unmocked: () => [...unmocked],
     blockedHosts: () => [...blockedHosts],
   };

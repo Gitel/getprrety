@@ -1,0 +1,7 @@
+C:\Users\almog\WorkSpace\GetPretty\wt\bedrock-evaluation\tools\bedrock-eval\contract.test.cjs
+C:\Users\almog\WorkSpace\GetPretty\wt\bedrock-evaluation\tools\bedrock-eval\extract.test.cjs
+C:\Users\almog\WorkSpace\GetPretty\wt\bedrock-evaluation\tools\bedrock-eval\investigate.test.cjs
+C:\Users\almog\WorkSpace\GetPretty\wt\bedrock-evaluation\tools\bedrock-eval\opus46.test.cjs
+C:\Users\almog\WorkSpace\GetPretty\wt\bedrock-evaluation\tools\bedrock-eval\opus46-compact.test.cjs
+C:\Users\almog\WorkSpace\GetPretty\wt\bedrock-evaluation\tools\bedrock-eval\opus46-wave.test.cjs
+C:\Users\almog\WorkSpace\GetPretty\wt\bedrock-evaluation\tools\bedrock-eval\runner.test.cjs

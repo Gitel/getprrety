@@ -30,11 +30,11 @@ function locationFromQuizAnswers(answers) {
   return { city, country, lat, lng, timezone };
 }
 
-// Reads the client's claim about where the result came from (see SkinAnalysis.source).
+// Reads the client's allowlisted provider claim so Bedrock provenance survives persistence.
 // Anything unexpected is stored as null ("unknown") rather than rejected: this is
 // diagnostic metadata, and it must never be the reason an assessment fails to save.
 function analysisSourceFromBody(body) {
-  const source = body?.source === 'gemini' || body?.source === 'fallback' ? body.source : null;
+  const source = ['gemini', 'bedrock', 'fallback'].includes(body?.source) ? body.source : null;
   // A reason only makes sense for a fallback; cap it so a long error cannot bloat the doc.
   const fallbackReason = source === 'fallback' && typeof body.fallbackReason === 'string' && body.fallbackReason.trim()
     ? body.fallbackReason.trim().slice(0, 200)
@@ -42,8 +42,8 @@ function analysisSourceFromBody(body) {
   return { source, fallbackReason };
 }
 
-// The Gemini extras the client relays from the Railway response (see SkinAnalysis).
-// The server cannot validate their shape (Railway owns it), so each one is run through
+// The analysis extras the client relays from the provider response (see SkinAnalysis).
+// The server cannot validate their full shape (the provider contract owns it), so each one is run through
 // the same sanitizer as quiz answers: drops data: URLs, strings over 5000 chars and
 // prototype keys, and caps array length, key count and nesting depth. Missing -> null.
 const GEMINI_EXTRA_FIELDS = ['srProducts', 'shelfAnalysis', 'safetyFlags', 'checkInPrompts', 'eventPrep'];

@@ -1,0 +1,557 @@
+TAP version 13
+# Subtest: production server and evaluator share the same prompt and schema contract
+ok 1 - production server and evaluator share the same prompt and schema contract
+  ---
+  duration_ms: 100.6571
+  type: 'test'
+  ...
+# Subtest: message builder excludes identifying fields and only includes eligible home products
+ok 2 - message builder excludes identifying fields and only includes eligible home products
+  ---
+  duration_ms: 2.0228
+  type: 'test'
+  ...
+# Subtest: legacy quiz fields exported from existing analyses remain available to the shared contract
+ok 3 - legacy quiz fields exported from existing analyses remain available to the shared contract
+  ---
+  duration_ms: 1.0125
+  type: 'test'
+  ...
+# Subtest: route and prompt share a whitelist sanitizer that preserves legacy answer values
+ok 4 - route and prompt share a whitelist sanitizer that preserves legacy answer values
+  ---
+  duration_ms: 0.5568
+  type: 'test'
+  ...
+# Subtest: quiz sanitizer rejects oversized values, nested payload objects, non-finite values, and inherited keys
+ok 5 - quiz sanitizer rejects oversized values, nested payload objects, non-finite values, and inherited keys
+  ---
+  duration_ms: 0.8384
+  type: 'test'
+  ...
+# Subtest: missing and single-hormone negative answers stay incomplete while an aggregate no is complete
+ok 6 - missing and single-hormone negative answers stay incomplete while an aggregate no is complete
+  ---
+  duration_ms: 1.0922
+  type: 'test'
+  ...
+# Subtest: catalogue picks require explicit allergy, irritant, and pregnancy answers
+ok 7 - catalogue picks require explicit allergy, irritant, and pregnancy answers
+  ---
+  duration_ms: 0.8632
+  type: 'test'
+  ...
+# Subtest: broad allergies and missing ingredient lists prevent confident product selection
+ok 8 - broad allergies and missing ingredient lists prevent confident product selection
+  ---
+  duration_ms: 3.6236
+  type: 'test'
+  ...
+# Subtest: controlled allergy and irritant aliases cover fragrance, AHA/BHA, retinoids, and sulfates
+ok 9 - controlled allergy and irritant aliases cover fragrance, AHA/BHA, retinoids, and sulfates
+  ---
+  duration_ms: 7.0495
+  type: 'test'
+  ...
+# Subtest: free-text known labels map to ingredient aliases and unresolved labels block picks
+ok 10 - free-text known labels map to ingredient aliases and unresolved labels block picks
+  ---
+  duration_ms: 2.8792
+  type: 'test'
+  ...
+# Subtest: generic routine puts cleansing first, treatment before moisturizer, and AM protection last
+ok 11 - generic routine puts cleansing first, treatment before moisturizer, and AM protection last
+  ---
+  duration_ms: 1.5645
+  type: 'test'
+  ...
+# Subtest: generic cleanser and SPF coverage, category order, and duplicates are checked
+ok 12 - generic cleanser and SPF coverage, category order, and duplicates are checked
+  ---
+  duration_ms: 1.4387
+  type: 'test'
+  ...
+# Subtest: unmatched cleanser and sunscreen require a useful note and no product name or ID
+ok 13 - unmatched cleanser and sunscreen require a useful note and no product name or ID
+  ---
+  duration_ms: 2.3563
+  type: 'test'
+  ...
+# Subtest: routine product categories reject clear cleanser and moisturizer mismatches
+ok 14 - routine product categories reject clear cleanser and moisturizer mismatches
+  ---
+  duration_ms: 3.4141
+  type: 'test'
+  ...
+# Subtest: event preparation must be null when the quiz has no event or marks none
+ok 15 - event preparation must be null when the quiz has no event or marks none
+  ---
+  duration_ms: 0.8715
+  type: 'test'
+  ...
+# Subtest: audit replacement fields must be null except for a known replacement ID and exact name
+ok 16 - audit replacement fields must be null except for a known replacement ID and exact name
+  ---
+  duration_ms: 0.9089
+  type: 'test'
+  ...
+# Subtest: null allergy answers do not create a fake restriction and blank required prose is rejected
+ok 17 - null allergy answers do not create a fake restriction and blank required prose is rejected
+  ---
+  duration_ms: 1.0052
+  type: 'test'
+  ...
+# Subtest: image context labels are retained and shelf analysis requires a shelf image
+ok 18 - image context labels are retained and shelf analysis requires a shelf image
+  ---
+  duration_ms: 1.5322
+  type: 'test'
+  ...
+# Subtest: language validation rejects English analysis prose when Hebrew was requested
+ok 19 - language validation rejects English analysis prose when Hebrew was requested
+  ---
+  duration_ms: 0.3828
+  type: 'test'
+  ...
+# Subtest: age is calculated at the historical analysis date and rejects malformed birthdays
+ok 20 - age is calculated at the historical analysis date and rejects malformed birthdays
+  ---
+  duration_ms: 1.5463
+  type: 'test'
+  ...
+# Subtest: quiz minimization retains allowed fields and drops identifying or unrestricted answers
+ok 21 - quiz minimization retains allowed fields and drops identifying or unrestricted answers
+  ---
+  duration_ms: 2.1473
+  type: 'test'
+  ...
+# Subtest: missing pregnancy answers remain missing; an explicit positive is normalized
+ok 22 - missing pregnancy answers remain missing; an explicit positive is normalized
+  ---
+  duration_ms: 0.7149
+  type: 'test'
+  ...
+# Subtest: legacy answer names, existing age, numeric stress, and safety normalization survive minimization
+ok 23 - legacy answer names, existing age, numeric stress, and safety normalization survive minimization
+  ---
+  duration_ms: 0.6072
+  type: 'test'
+  ...
+# Subtest: only valid inline JPEG and PNG data URLs are accepted; remote/local paths are never fetched
+ok 24 - only valid inline JPEG and PNG data URLs are accepted; remote/local paths are never fetched
+  ---
+  duration_ms: 1.0349
+  type: 'test'
+  ...
+# Subtest: case IDs are stable hashes and the export writes only minimized metadata plus linked inline photos
+ok 25 - case IDs are stable hashes and the export writes only minimized metadata plus linked inline photos
+  ---
+  duration_ms: 108.3009
+  type: 'test'
+  ...
+# Subtest: compares separately labelled calls once and omits private input/output and credential values
+ok 26 - compares separately labelled calls once and omits private input/output and credential values
+  ---
+  duration_ms: 7.2602
+  type: 'test'
+  ...
+# Subtest: unknown cost stops before another paid request without retrying a timeout
+ok 27 - unknown cost stops before another paid request without retrying a timeout
+  ---
+  duration_ms: 1.2307
+  type: 'test'
+  ...
+# Subtest: known over-cap usage stops the study even when a candidate is returned
+ok 28 - known over-cap usage stops the study even when a candidate is returned
+  ---
+  duration_ms: 0.9329
+  type: 'test'
+  ...
+# Subtest: malformed cached usage cannot become a known zero-cache charge
+ok 29 - malformed cached usage cannot become a known zero-cache charge
+  ---
+  duration_ms: 0.9611
+  type: 'test'
+  ...
+# Subtest: semantic validation failure is retained without exposing its private details
+ok 30 - semantic validation failure is retained without exposing its private details
+  ---
+  duration_ms: 0.7286
+  type: 'test'
+  ...
+# Subtest: telemetry uses bounded phase and numeric allowlists
+ok 31 - telemetry uses bounded phase and numeric allowlists
+  ---
+  duration_ms: 1.5864
+  type: 'test'
+  ...
+# Subtest: acceptance requires exactly the six authorized case folders and derives its timeout from the server deadline
+ok 32 - acceptance requires exactly the six authorized case folders and derives its timeout from the server deadline
+  ---
+  duration_ms: 0.9195
+  type: 'test'
+  ...
+# Subtest: checkpoints unknown in-flight cost before a paid call and retains the result before stopping
+ok 33 - checkpoints unknown in-flight cost before a paid call and retains the result before stopping
+  ---
+  duration_ms: 1.849
+  type: 'test'
+  ...
+# Subtest: checkpoint failure prevents a provider call from starting
+ok 34 - checkpoint failure prevents a provider call from starting
+  ---
+  duration_ms: 0.9258
+  type: 'test'
+  ...
+# Subtest: atomic checkpoint replaces an owned report and leaves valid JSON with no temporary sibling
+ok 35 - atomic checkpoint replaces an owned report and leaves valid JSON with no temporary sibling
+  ---
+  duration_ms: 53.869
+  type: 'test'
+  ...
+# Subtest: compact all-five schema is immutable, smaller, and excludes server-restored labels/numbering
+ok 36 - compact all-five schema is immutable, smaller, and excludes server-restored labels/numbering
+  ---
+  duration_ms: 8.7049
+  type: 'test'
+  ...
+# Subtest: English compact response hydrates exact names and step order then passes canonical/schema/semantic validation
+ok 37 - English compact response hydrates exact names and step order then passes canonical/schema/semantic validation
+  ---
+  duration_ms: 62.9579
+  type: 'test'
+  ...
+# Subtest: Hebrew compact response keeps localized explanations and canonical fields after hydration
+ok 38 - Hebrew compact response keeps localized explanations and canonical fields after hydration
+  ---
+  duration_ms: 48.1627
+  type: 'test'
+  ...
+# Subtest: hydration rejects empty, unknown, malformed, and ineligible catalogue IDs without echoing them
+ok 39 - hydration rejects empty, unknown, malformed, and ineligible catalogue IDs without echoing them
+  ---
+  duration_ms: 6.367
+  type: 'test'
+  ...
+# Subtest: null catalogue IDs restore canonical null/empty values and non-replacement audit nulls
+ok 40 - null catalogue IDs restore canonical null/empty values and non-replacement audit nulls
+  ---
+  duration_ms: 1.8803
+  type: 'test'
+  ...
+# {"generatedAt":"2026-10-13T05:17:24.589Z","mode":"count","model":"us.anthropic.claude-opus-4-6-v1","countModel":"anthropic.claude-opus-4-6-v1","region":"us-east-1","routing":"US cross-region","timeoutMs":90000,"automaticRetries":0,"countApi":"bedrock-runtime","countMethod":"bedrock-runtime-converse-native-schema-v1","schemaAwareCount":true,"inputCountAllowanceTokens":128,"costGate":"estimate_not_guarantee_with_128_input_token_allowance_and_0.01_usd_output_reserve","caseId":"case-compact-stale","language":"en","imageCount":0,"stream":false,"tier":"default","promptSha256":"936cccf591a58f4e524f53c3c31d7cbb9284ed6045e836a8f269711b41563063","compactContractVersion":"opus46-compact-all5-v1","productionPromptSha256":"11e0076598a07b9bb20fa7f0b50db21be4eac253b9cfc6a191a922ab7e1064b5","schemaSha256":"0447d9a66e0dffc8951965c7f2668383a0a150da276eed2ab0a4e3b1b02edb3d","wireSchemaSha256":"2baff196e1eeec5632356879d1b2ddba581765f14e438ce27df7941f22c34631","sourceCommit":"5e66bb831f43465a51f46e8570592fd204e08a67","pricing":{"inputUsdPerMillion":5.5,"outputUsdPerMillion":27.5,"source":"https://www-cdn.anthropic.com/files/4zrzovbb/website/3684c2faafb97418665782cea0001f439f74b1d2.pdf"},"phases":[{"phase":"request_start","elapsedMs":0},{"phase":"headers","elapsedMs":27,"status":200},{"phase":"first_body","elapsedMs":29},{"phase":"body_end","elapsedMs":30},{"phase":"end","elapsedMs":32}],"status":"counted","costUsd":null,"costUnknown":false,"inputTokens":10000,"outputTokenLimit":6701,"estimatedInputCostUsd":0.055,"bufferedInputCostUsd":0.055704,"reservedCostUsd":0.01,"elapsedMs":30,"totalMs":32}
+# {"generatedAt":"2026-10-13T05:17:24.692Z","mode":"analysis","model":"us.anthropic.claude-opus-4-6-v1","countModel":"anthropic.claude-opus-4-6-v1","region":"us-east-1","routing":"US cross-region","timeoutMs":90000,"automaticRetries":0,"caseId":"case-compact-stale","language":"en","imageCount":0,"stream":false,"tier":"default","promptSha256":"936cccf591a58f4e524f53c3c31d7cbb9284ed6045e836a8f269711b41563063","compactContractVersion":"opus46-compact-all5-v1","productionPromptSha256":"11e0076598a07b9bb20fa7f0b50db21be4eac253b9cfc6a191a922ab7e1064b5","schemaSha256":"0447d9a66e0dffc8951965c7f2668383a0a150da276eed2ab0a4e3b1b02edb3d","wireSchemaSha256":"2baff196e1eeec5632356879d1b2ddba581765f14e438ce27df7941f22c34631","sourceCommit":"5e66bb831f43465a51f46e8570592fd204e08a67","pricing":{"inputUsdPerMillion":5.5,"outputUsdPerMillion":27.5,"source":"https://www-cdn.anthropic.com/files/4zrzovbb/website/3684c2faafb97418665782cea0001f439f74b1d2.pdf"},"phases":[{"phase":"end","elapsedMs":1}],"providerRequestId":null,"status":"failed","costUsd":null,"costUnknown":true,"failureCategory":"budget","totalMs":1}
+# Subtest: a stale core-three count fingerprint is rejected before a paid request and leaves a durable gate record
+ok 41 - a stale core-three count fingerprint is rejected before a paid request and leaves a durable gate record
+  ---
+  duration_ms: 195.1936
+  type: 'test'
+  ...
+# {"generatedAt":"2026-10-13T05:17:24.773Z","mode":"count","model":"us.anthropic.claude-opus-4-6-v1","countModel":"anthropic.claude-opus-4-6-v1","region":"us-east-1","routing":"US cross-region","timeoutMs":90000,"automaticRetries":0,"countApi":"bedrock-runtime","countMethod":"bedrock-runtime-converse-native-schema-v1","schemaAwareCount":true,"inputCountAllowanceTokens":128,"costGate":"estimate_not_guarantee_with_128_input_token_allowance_and_0.01_usd_output_reserve","caseId":"case-compact-empty-catalogue","language":"en","imageCount":0,"stream":false,"tier":"default","promptSha256":"4e05a29bbd6c77f9af2ecf16e99678ea55a33b2d359708a96fffbf85650ccd41","compactContractVersion":"opus46-compact-all5-v1","productionPromptSha256":"af8080d3fce9404be0d42f1e21730b343a9717ebfc497b5e4b8984b16fbacc11","schemaSha256":"0447d9a66e0dffc8951965c7f2668383a0a150da276eed2ab0a4e3b1b02edb3d","wireSchemaSha256":"3863078ac9ee13d8b29fd29bc162525da5823b3245bd7a117c75c62e8736a4f1","sourceCommit":"5e66bb831f43465a51f46e8570592fd204e08a67","pricing":{"inputUsdPerMillion":5.5,"outputUsdPerMillion":27.5,"source":"https://www-cdn.anthropic.com/files/4zrzovbb/website/3684c2faafb97418665782cea0001f439f74b1d2.pdf"},"phases":[{"phase":"request_start","elapsedMs":0},{"phase":"headers","elapsedMs":0,"status":200},{"phase":"first_body","elapsedMs":0},{"phase":"body_end","elapsedMs":0},{"phase":"end","elapsedMs":1}],"status":"counted","costUsd":null,"costUnknown":false,"inputTokens":10000,"outputTokenLimit":6701,"estimatedInputCostUsd":0.055,"bufferedInputCostUsd":0.055704,"reservedCostUsd":0.01,"elapsedMs":0,"totalMs":1}
+# {"generatedAt":"2026-10-13T05:17:24.827Z","mode":"analysis","model":"us.anthropic.claude-opus-4-6-v1","countModel":"anthropic.claude-opus-4-6-v1","region":"us-east-1","routing":"US cross-region","timeoutMs":90000,"automaticRetries":0,"caseId":"case-compact-empty-catalogue","language":"en","imageCount":0,"stream":false,"tier":"default","promptSha256":"4e05a29bbd6c77f9af2ecf16e99678ea55a33b2d359708a96fffbf85650ccd41","compactContractVersion":"opus46-compact-all5-v1","productionPromptSha256":"af8080d3fce9404be0d42f1e21730b343a9717ebfc497b5e4b8984b16fbacc11","schemaSha256":"0447d9a66e0dffc8951965c7f2668383a0a150da276eed2ab0a4e3b1b02edb3d","wireSchemaSha256":"3863078ac9ee13d8b29fd29bc162525da5823b3245bd7a117c75c62e8736a4f1","sourceCommit":"5e66bb831f43465a51f46e8570592fd204e08a67","pricing":{"inputUsdPerMillion":5.5,"outputUsdPerMillion":27.5,"source":"https://www-cdn.anthropic.com/files/4zrzovbb/website/3684c2faafb97418665782cea0001f439f74b1d2.pdf"},"phases":[{"phase":"request_start","elapsedMs":0},{"phase":"headers","elapsedMs":0,"status":200},{"phase":"first_body","elapsedMs":1},{"phase":"body_end","elapsedMs":1},{"phase":"validation","elapsedMs":69},{"phase":"end","elapsedMs":69}],"status":"valid","costUsd":0.0011,"costUnknown":false,"outputTokenLimit":6701,"usage":{"inputTokens":100,"outputTokens":20,"cacheReadInputTokens":0,"cacheWriteInputTokens":0},"stopReason":"end_turn","elapsedMs":1,"outputBytes":819,"wireSchemaErrorCount":0,"canonicalSchemaErrorCount":0,"schemaErrorCount":0,"semanticErrorCount":0,"semanticErrorCategories":{},"qualityMetrics":{"amCoreStepsPresent":true,"pmCoreStepsPresent":true,"amStartsCleanse":true,"amEndsProtect":true,"pmStartsCleanse":true,"catalogueReferencedIdCount":0,"catalogueValidIdCount":0,"safetyFlagCount":1,"shelfProductCount":0},"totalMs":69}
+# Subtest: empty eligible catalogue removes SR schema, accepts only null SR output, and keeps valid analysis quality and cost
+ok 42 - empty eligible catalogue removes SR schema, accepts only null SR output, and keeps valid analysis quality and cost
+  ---
+  duration_ms: 226.7045
+  type: 'test'
+  ...
+# {"generatedAt":"2026-10-13T05:17:24.993Z","mode":"count","model":"us.anthropic.claude-opus-4-6-v1","countModel":"anthropic.claude-opus-4-6-v1","region":"us-east-1","routing":"US cross-region","timeoutMs":90000,"automaticRetries":0,"countApi":"bedrock-runtime","countMethod":"bedrock-runtime-converse-native-schema-v1","schemaAwareCount":true,"inputCountAllowanceTokens":128,"costGate":"estimate_not_guarantee_with_128_input_token_allowance_and_0.01_usd_output_reserve","caseId":"case-compact-hydrate","language":"en","imageCount":0,"stream":false,"tier":"default","promptSha256":"936cccf591a58f4e524f53c3c31d7cbb9284ed6045e836a8f269711b41563063","compactContractVersion":"opus46-compact-all5-v1","productionPromptSha256":"11e0076598a07b9bb20fa7f0b50db21be4eac253b9cfc6a191a922ab7e1064b5","schemaSha256":"0447d9a66e0dffc8951965c7f2668383a0a150da276eed2ab0a4e3b1b02edb3d","wireSchemaSha256":"2baff196e1eeec5632356879d1b2ddba581765f14e438ce27df7941f22c34631","sourceCommit":"5e66bb831f43465a51f46e8570592fd204e08a67","pricing":{"inputUsdPerMillion":5.5,"outputUsdPerMillion":27.5,"source":"https://www-cdn.anthropic.com/files/4zrzovbb/website/3684c2faafb97418665782cea0001f439f74b1d2.pdf"},"phases":[{"phase":"request_start","elapsedMs":0},{"phase":"headers","elapsedMs":1,"status":200},{"phase":"first_body","elapsedMs":1},{"phase":"body_end","elapsedMs":1},{"phase":"end","elapsedMs":1}],"status":"counted","costUsd":null,"costUnknown":false,"inputTokens":10000,"outputTokenLimit":6701,"estimatedInputCostUsd":0.055,"bufferedInputCostUsd":0.055704,"reservedCostUsd":0.01,"elapsedMs":1,"totalMs":1}
+# {"generatedAt":"2026-10-13T05:17:25.045Z","mode":"analysis","model":"us.anthropic.claude-opus-4-6-v1","countModel":"anthropic.claude-opus-4-6-v1","region":"us-east-1","routing":"US cross-region","timeoutMs":90000,"automaticRetries":0,"caseId":"case-compact-hydrate","language":"en","imageCount":0,"stream":false,"tier":"default","promptSha256":"936cccf591a58f4e524f53c3c31d7cbb9284ed6045e836a8f269711b41563063","compactContractVersion":"opus46-compact-all5-v1","productionPromptSha256":"11e0076598a07b9bb20fa7f0b50db21be4eac253b9cfc6a191a922ab7e1064b5","schemaSha256":"0447d9a66e0dffc8951965c7f2668383a0a150da276eed2ab0a4e3b1b02edb3d","wireSchemaSha256":"2baff196e1eeec5632356879d1b2ddba581765f14e438ce27df7941f22c34631","sourceCommit":"5e66bb831f43465a51f46e8570592fd204e08a67","pricing":{"inputUsdPerMillion":5.5,"outputUsdPerMillion":27.5,"source":"https://www-cdn.anthropic.com/files/4zrzovbb/website/3684c2faafb97418665782cea0001f439f74b1d2.pdf"},"phases":[{"phase":"request_start","elapsedMs":0},{"phase":"headers","elapsedMs":9,"status":200},{"phase":"first_body","elapsedMs":9},{"phase":"body_end","elapsedMs":10},{"phase":"validation","elapsedMs":35},{"phase":"end","elapsedMs":36}],"status":"failed","costUsd":0.0011,"costUnknown":false,"outputTokenLimit":6701,"usage":{"inputTokens":100,"outputTokens":20,"cacheReadInputTokens":0,"cacheWriteInputTokens":0},"stopReason":"end_turn","elapsedMs":10,"outputBytes":2358,"wireSchemaErrorCount":0,"hydrationErrorCount":1,"canonicalSchemaErrorCount":0,"schemaErrorCount":1,"semanticErrorCount":null,"failureCategory":"validation","totalMs":36}
+# Subtest: analysis checkpoints in-flight status before fetch and retains reported cost if ID hydration fails
+ok 43 - analysis checkpoints in-flight status before fetch and retains reported cost if ID hydration fails
+  ---
+  duration_ms: 147.4553
+  type: 'test'
+  ...
+# {"generatedAt":"2026-10-13T05:17:25.145Z","mode":"count","model":"us.anthropic.claude-opus-4-6-v1","countModel":"anthropic.claude-opus-4-6-v1","region":"us-east-1","routing":"US cross-region","timeoutMs":90000,"automaticRetries":0,"countApi":"bedrock-runtime","countMethod":"bedrock-runtime-converse-native-schema-v1","schemaAwareCount":true,"inputCountAllowanceTokens":128,"costGate":"estimate_not_guarantee_with_128_input_token_allowance_and_0.01_usd_output_reserve","caseId":"case-compact-success","language":"en","imageCount":0,"stream":false,"tier":"default","promptSha256":"936cccf591a58f4e524f53c3c31d7cbb9284ed6045e836a8f269711b41563063","compactContractVersion":"opus46-compact-all5-v1","productionPromptSha256":"11e0076598a07b9bb20fa7f0b50db21be4eac253b9cfc6a191a922ab7e1064b5","schemaSha256":"0447d9a66e0dffc8951965c7f2668383a0a150da276eed2ab0a4e3b1b02edb3d","wireSchemaSha256":"2baff196e1eeec5632356879d1b2ddba581765f14e438ce27df7941f22c34631","sourceCommit":"5e66bb831f43465a51f46e8570592fd204e08a67","pricing":{"inputUsdPerMillion":5.5,"outputUsdPerMillion":27.5,"source":"https://www-cdn.anthropic.com/files/4zrzovbb/website/3684c2faafb97418665782cea0001f439f74b1d2.pdf"},"phases":[{"phase":"request_start","elapsedMs":0},{"phase":"headers","elapsedMs":1,"status":200},{"phase":"first_body","elapsedMs":1},{"phase":"body_end","elapsedMs":1},{"phase":"end","elapsedMs":1}],"status":"counted","costUsd":null,"costUnknown":false,"inputTokens":10000,"outputTokenLimit":6701,"estimatedInputCostUsd":0.055,"bufferedInputCostUsd":0.055704,"reservedCostUsd":0.01,"elapsedMs":1,"totalMs":1}
+# {"generatedAt":"2026-10-13T05:17:25.188Z","mode":"analysis","model":"us.anthropic.claude-opus-4-6-v1","countModel":"anthropic.claude-opus-4-6-v1","region":"us-east-1","routing":"US cross-region","timeoutMs":90000,"automaticRetries":0,"caseId":"case-compact-success","language":"en","imageCount":0,"stream":false,"tier":"default","promptSha256":"936cccf591a58f4e524f53c3c31d7cbb9284ed6045e836a8f269711b41563063","compactContractVersion":"opus46-compact-all5-v1","productionPromptSha256":"11e0076598a07b9bb20fa7f0b50db21be4eac253b9cfc6a191a922ab7e1064b5","schemaSha256":"0447d9a66e0dffc8951965c7f2668383a0a150da276eed2ab0a4e3b1b02edb3d","wireSchemaSha256":"2baff196e1eeec5632356879d1b2ddba581765f14e438ce27df7941f22c34631","sourceCommit":"5e66bb831f43465a51f46e8570592fd204e08a67","pricing":{"inputUsdPerMillion":5.5,"outputUsdPerMillion":27.5,"source":"https://www-cdn.anthropic.com/files/4zrzovbb/website/3684c2faafb97418665782cea0001f439f74b1d2.pdf"},"phases":[{"phase":"request_start","elapsedMs":0},{"phase":"headers","elapsedMs":0,"status":200},{"phase":"first_body","elapsedMs":1},{"phase":"body_end","elapsedMs":1},{"phase":"validation","elapsedMs":43},{"phase":"end","elapsedMs":44}],"status":"valid","costUsd":0.0011,"costUnknown":false,"outputTokenLimit":6701,"usage":{"inputTokens":100,"outputTokens":20,"cacheReadInputTokens":0,"cacheWriteInputTokens":0},"stopReason":"end_turn","elapsedMs":1,"outputBytes":2357,"wireSchemaErrorCount":0,"canonicalSchemaErrorCount":0,"schemaErrorCount":0,"semanticErrorCount":0,"semanticErrorCategories":{},"qualityMetrics":{"amCoreStepsPresent":true,"pmCoreStepsPresent":true,"amStartsCleanse":true,"amEndsProtect":true,"pmStartsCleanse":true,"catalogueReferencedIdCount":6,"catalogueValidIdCount":6,"safetyFlagCount":1,"shelfProductCount":0},"totalMs":44}
+# Subtest: successful compact analysis returns a valid hydrated result, quality metrics, and known cost
+ok 44 - successful compact analysis returns a valid hydrated result, quality metrics, and known cost
+  ---
+  duration_ms: 146.9644
+  type: 'test'
+  ...
+# Subtest: wave checkpoints each inference before the single paid-call boundary and keeps only safe metrics
+ok 45 - wave checkpoints each inference before the single paid-call boundary and keeps only safe metrics
+  ---
+  duration_ms: 108.3816
+  type: 'test'
+  ...
+# Subtest: wave stops before another analysis when the previous cost is unknown
+ok 46 - wave stops before another analysis when the previous cost is unknown
+  ---
+  duration_ms: 92.3794
+  type: 'test'
+  ...
+# Subtest: stop policy allows known validation failures to proceed but stops other failures
+ok 47 - stop policy allows known validation failures to proceed but stops other failures
+  ---
+  duration_ms: 0.372
+  type: 'test'
+  ...
+# Subtest: external manifest supports the public packaging fixture from its own input folder
+ok 48 - external manifest supports the public packaging fixture from its own input folder
+  ---
+  duration_ms: 87.4603
+  type: 'test'
+  ...
+# Subtest: all 14 free counts checkpoint before the first inference and preserve each paid result before continuing
+ok 49 - all 14 free counts checkpoint before the first inference and preserve each paid result before continuing
+  ---
+  duration_ms: 351.9099
+  type: 'test'
+  ...
+# Subtest: a thrown final count failure is marked unbilled and prevents every inference
+ok 50 - a thrown final count failure is marked unbilled and prevents every inference
+  ---
+  duration_ms: 51.3475
+  type: 'test'
+  ...
+# Subtest: pre-inference review callback receives completed count metadata and can stop before billing
+ok 51 - pre-inference review callback receives completed count metadata and can stop before billing
+  ---
+  duration_ms: 23.8714
+  type: 'test'
+  ...
+# Subtest: compiled grammar errors get a fixed safe reason without retaining provider prose
+ok 52 - compiled grammar errors get a fixed safe reason without retaining provider prose
+  ---
+  duration_ms: 29.1009
+  type: 'test'
+  ...
+# Subtest: wire schema drops Bedrock-unsupported bounds but preserves structure for local contract validation
+ok 53 - wire schema drops Bedrock-unsupported bounds but preserves structure for local contract validation
+  ---
+  duration_ms: 2.9566
+  type: 'test'
+  ...
+# Subtest: wire schema collapses nullable object combinators while canonical validation remains authoritative
+ok 54 - wire schema collapses nullable object combinators while canonical validation remains authoritative
+  ---
+  duration_ms: 359.4946
+  type: 'test'
+  ...
+# {"generatedAt":"2026-10-13T05:17:24.775Z","mode":"count","model":"us.anthropic.claude-opus-4-6-v1","countModel":"anthropic.claude-opus-4-6-v1","region":"us-east-1","routing":"US cross-region","timeoutMs":90000,"automaticRetries":0,"countApi":"bedrock-runtime","countMethod":"bedrock-runtime-converse-native-schema-v1","schemaAwareCount":true,"inputCountAllowanceTokens":128,"costGate":"estimate_not_guarantee_with_128_input_token_allowance_and_0.01_usd_output_reserve","caseId":"case-568f7d2ab3","language":"en","imageCount":0,"stream":false,"tier":"default","promptSha256":"838b90e16a8718332542495b24fa2bf3100a4e2344be494dd1a53bc9790ff37e","compactContractVersion":"opus46-compact-all5-v1","productionPromptSha256":"bf5e98c3a379ed7e30a8071afc44cfb17f05232b15ad01457dc7642ab87d9cc8","schemaSha256":"0447d9a66e0dffc8951965c7f2668383a0a150da276eed2ab0a4e3b1b02edb3d","wireSchemaSha256":"3863078ac9ee13d8b29fd29bc162525da5823b3245bd7a117c75c62e8736a4f1","sourceCommit":"5e66bb831f43465a51f46e8570592fd204e08a67","pricing":{"inputUsdPerMillion":5.5,"outputUsdPerMillion":27.5,"source":"https://www-cdn.anthropic.com/files/4zrzovbb/website/3684c2faafb97418665782cea0001f439f74b1d2.pdf"},"phases":[{"phase":"request_start","elapsedMs":0},{"phase":"headers","elapsedMs":27,"status":200},{"phase":"first_body","elapsedMs":28},{"phase":"body_end","elapsedMs":29},{"phase":"end","elapsedMs":30}],"status":"counted","costUsd":null,"costUnknown":false,"inputTokens":10000,"outputTokenLimit":6701,"estimatedInputCostUsd":0.055,"bufferedInputCostUsd":0.055704,"reservedCostUsd":0.01,"elapsedMs":29,"totalMs":30}
+# {"generatedAt":"2026-10-13T05:17:24.859Z","mode":"analysis","model":"us.anthropic.claude-opus-4-6-v1","countModel":"anthropic.claude-opus-4-6-v1","region":"us-east-1","routing":"US cross-region","timeoutMs":90000,"automaticRetries":0,"caseId":"case-568f7d2ab3","language":"en","imageCount":0,"stream":false,"tier":"default","promptSha256":"838b90e16a8718332542495b24fa2bf3100a4e2344be494dd1a53bc9790ff37e","compactContractVersion":"opus46-compact-all5-v1","productionPromptSha256":"bf5e98c3a379ed7e30a8071afc44cfb17f05232b15ad01457dc7642ab87d9cc8","schemaSha256":"0447d9a66e0dffc8951965c7f2668383a0a150da276eed2ab0a4e3b1b02edb3d","wireSchemaSha256":"3863078ac9ee13d8b29fd29bc162525da5823b3245bd7a117c75c62e8736a4f1","sourceCommit":"5e66bb831f43465a51f46e8570592fd204e08a67","pricing":{"inputUsdPerMillion":5.5,"outputUsdPerMillion":27.5,"source":"https://www-cdn.anthropic.com/files/4zrzovbb/website/3684c2faafb97418665782cea0001f439f74b1d2.pdf"},"phases":[{"phase":"request_start","elapsedMs":0},{"phase":"headers","elapsedMs":0,"status":200},{"phase":"first_body","elapsedMs":0},{"phase":"body_end","elapsedMs":0},{"phase":"validation","elapsedMs":28},{"phase":"end","elapsedMs":28}],"status":"failed","costUsd":0.0011,"costUnknown":false,"outputTokenLimit":6701,"usage":{"inputTokens":100,"outputTokens":20,"cacheReadInputTokens":0,"cacheWriteInputTokens":0},"stopReason":"end_turn","elapsedMs":0,"outputBytes":2,"wireSchemaErrorCount":3,"canonicalSchemaErrorCount":0,"schemaErrorCount":3,"semanticErrorCount":null,"failureCategory":"validation","totalMs":28}
+# Subtest: no-photo probe sends shelf-null schema to count and inference without changing canonical validation
+ok 55 - no-photo probe sends shelf-null schema to count and inference without changing canonical validation
+  ---
+  duration_ms: 247.8015
+  type: 'test'
+  ...
+# {"generatedAt":"2026-10-13T05:17:25.011Z","mode":"count","model":"us.anthropic.claude-opus-4-6-v1","countModel":"anthropic.claude-opus-4-6-v1","region":"us-east-1","routing":"US cross-region","timeoutMs":90000,"automaticRetries":0,"countApi":"bedrock-runtime","countMethod":"bedrock-runtime-converse-native-schema-v1","schemaAwareCount":true,"inputCountAllowanceTokens":128,"costGate":"estimate_not_guarantee_with_128_input_token_allowance_and_0.01_usd_output_reserve","caseId":"case-aaaaaaaaaa","language":"en","imageCount":1,"stream":false,"tier":"default","promptSha256":"b59b0c62f1deb39df8da1d7d06dacd333192bf4659a186970d4d58103414261c","compactContractVersion":"opus46-compact-all5-v1","productionPromptSha256":"30e5c0e79845ad606e466155333895616b4a120c77ef19c7d03dad97b2522913","schemaSha256":"0447d9a66e0dffc8951965c7f2668383a0a150da276eed2ab0a4e3b1b02edb3d","wireSchemaSha256":"b3c8f80dded7e7ff04babe1bb2d8c2f306919aa7ca2e7e17d65fc3b47bee9893","sourceCommit":"5e66bb831f43465a51f46e8570592fd204e08a67","pricing":{"inputUsdPerMillion":5.5,"outputUsdPerMillion":27.5,"source":"https://www-cdn.anthropic.com/files/4zrzovbb/website/3684c2faafb97418665782cea0001f439f74b1d2.pdf"},"phases":[{"phase":"request_start","elapsedMs":0},{"phase":"headers","elapsedMs":1,"status":200},{"phase":"first_body","elapsedMs":1},{"phase":"body_end","elapsedMs":1},{"phase":"end","elapsedMs":1}],"status":"counted","costUsd":null,"costUnknown":false,"inputTokens":10000,"outputTokenLimit":6701,"estimatedInputCostUsd":0.055,"bufferedInputCostUsd":0.055704,"reservedCostUsd":0.01,"elapsedMs":1,"totalMs":1}
+# {"generatedAt":"2026-10-13T05:17:25.056Z","mode":"count","model":"us.anthropic.claude-opus-4-6-v1","countModel":"anthropic.claude-opus-4-6-v1","region":"us-east-1","routing":"US cross-region","timeoutMs":90000,"automaticRetries":0,"countApi":"bedrock-runtime","countMethod":"bedrock-runtime-converse-native-schema-v1","schemaAwareCount":true,"inputCountAllowanceTokens":128,"costGate":"estimate_not_guarantee_with_128_input_token_allowance_and_0.01_usd_output_reserve","caseId":"case-bbbbbbbbbb","language":"en","imageCount":0,"stream":false,"tier":"default","promptSha256":"838b90e16a8718332542495b24fa2bf3100a4e2344be494dd1a53bc9790ff37e","compactContractVersion":"opus46-compact-all5-v1","productionPromptSha256":"bf5e98c3a379ed7e30a8071afc44cfb17f05232b15ad01457dc7642ab87d9cc8","schemaSha256":"0447d9a66e0dffc8951965c7f2668383a0a150da276eed2ab0a4e3b1b02edb3d","wireSchemaSha256":"3863078ac9ee13d8b29fd29bc162525da5823b3245bd7a117c75c62e8736a4f1","sourceCommit":"5e66bb831f43465a51f46e8570592fd204e08a67","pricing":{"inputUsdPerMillion":5.5,"outputUsdPerMillion":27.5,"source":"https://www-cdn.anthropic.com/files/4zrzovbb/website/3684c2faafb97418665782cea0001f439f74b1d2.pdf"},"phases":[{"phase":"request_start","elapsedMs":0},{"phase":"headers","elapsedMs":1,"status":200},{"phase":"first_body","elapsedMs":1},{"phase":"body_end","elapsedMs":1},{"phase":"end","elapsedMs":1}],"status":"counted","costUsd":null,"costUnknown":false,"inputTokens":10000,"outputTokenLimit":6701,"estimatedInputCostUsd":0.055,"bufferedInputCostUsd":0.055704,"reservedCostUsd":0.01,"elapsedMs":1,"totalMs":1}
+# {"generatedAt":"2026-10-13T05:17:25.105Z","mode":"count","model":"us.anthropic.claude-opus-4-6-v1","countModel":"anthropic.claude-opus-4-6-v1","region":"us-east-1","routing":"US cross-region","timeoutMs":90000,"automaticRetries":0,"countApi":"bedrock-runtime","countMethod":"bedrock-runtime-converse-native-schema-v1","schemaAwareCount":true,"inputCountAllowanceTokens":128,"costGate":"estimate_not_guarantee_with_128_input_token_allowance_and_0.01_usd_output_reserve","caseId":"case-cccccccccc","language":"en","imageCount":1,"stream":false,"tier":"default","promptSha256":"e2579ed345e6c2a5414b6e7318235bd6195c937460d711b7b1f4bc211a629181","compactContractVersion":"opus46-compact-all5-v1","productionPromptSha256":"231396bfaa461735debb7260bba91b81984adacbfc4449b2a48adc3e1412bd59","schemaSha256":"0447d9a66e0dffc8951965c7f2668383a0a150da276eed2ab0a4e3b1b02edb3d","wireSchemaSha256":"cfd64e6b9ec64cc081ca4ad660775e2648322b7dfc059372ecc7c828ee70aa85","sourceCommit":"5e66bb831f43465a51f46e8570592fd204e08a67","pricing":{"inputUsdPerMillion":5.5,"outputUsdPerMillion":27.5,"source":"https://www-cdn.anthropic.com/files/4zrzovbb/website/3684c2faafb97418665782cea0001f439f74b1d2.pdf"},"phases":[{"phase":"request_start","elapsedMs":0},{"phase":"headers","elapsedMs":0,"status":200},{"phase":"first_body","elapsedMs":0},{"phase":"body_end","elapsedMs":0},{"phase":"end","elapsedMs":1}],"status":"counted","costUsd":null,"costUnknown":false,"inputTokens":10000,"outputTokenLimit":6701,"estimatedInputCostUsd":0.055,"bufferedInputCostUsd":0.055704,"reservedCostUsd":0.01,"elapsedMs":0,"totalMs":1}
+# {"generatedAt":"2026-10-13T05:17:25.160Z","mode":"analysis","model":"us.anthropic.claude-opus-4-6-v1","countModel":"anthropic.claude-opus-4-6-v1","region":"us-east-1","routing":"US cross-region","timeoutMs":90000,"automaticRetries":0,"caseId":"case-aaaaaaaaaa","language":"en","imageCount":1,"stream":false,"tier":"default","promptSha256":"b59b0c62f1deb39df8da1d7d06dacd333192bf4659a186970d4d58103414261c","compactContractVersion":"opus46-compact-all5-v1","productionPromptSha256":"30e5c0e79845ad606e466155333895616b4a120c77ef19c7d03dad97b2522913","schemaSha256":"0447d9a66e0dffc8951965c7f2668383a0a150da276eed2ab0a4e3b1b02edb3d","wireSchemaSha256":"b3c8f80dded7e7ff04babe1bb2d8c2f306919aa7ca2e7e17d65fc3b47bee9893","sourceCommit":"5e66bb831f43465a51f46e8570592fd204e08a67","pricing":{"inputUsdPerMillion":5.5,"outputUsdPerMillion":27.5,"source":"https://www-cdn.anthropic.com/files/4zrzovbb/website/3684c2faafb97418665782cea0001f439f74b1d2.pdf"},"phases":[{"phase":"request_start","elapsedMs":0},{"phase":"headers","elapsedMs":1,"status":200},{"phase":"first_body","elapsedMs":1},{"phase":"body_end","elapsedMs":1},{"phase":"validation","elapsedMs":37},{"phase":"end","elapsedMs":38}],"status":"valid","costUsd":0.0011,"costUnknown":false,"outputTokenLimit":6701,"usage":{"inputTokens":100,"outputTokens":20,"cacheReadInputTokens":0,"cacheWriteInputTokens":0},"stopReason":"end_turn","elapsedMs":1,"outputBytes":835,"wireSchemaErrorCount":0,"canonicalSchemaErrorCount":0,"schemaErrorCount":0,"semanticErrorCount":0,"semanticErrorCategories":{},"qualityMetrics":{"amCoreStepsPresent":true,"pmCoreStepsPresent":true,"amStartsCleanse":true,"amEndsProtect":true,"pmStartsCleanse":true,"catalogueReferencedIdCount":0,"catalogueValidIdCount":0,"safetyFlagCount":0,"shelfProductCount":0},"totalMs":38}
+# Subtest: shelf photo narrows no-event wire schema consistently while preserving event and no-shelf schemas
+ok 56 - shelf photo narrows no-event wire schema consistently while preserving event and no-shelf schemas
+  ---
+  duration_ms: 256.6533
+  type: 'test'
+  ...
+# Subtest: Converse builder preserves typed text and every validated inline photo
+ok 57 - Converse builder preserves typed text and every validated inline photo
+  ---
+  duration_ms: 1.8513
+  type: 'test'
+  ...
+# {"generatedAt":"2026-10-13T05:17:25.266Z","mode":"count","model":"us.anthropic.claude-opus-4-6-v1","countModel":"anthropic.claude-opus-4-6-v1","region":"us-east-1","routing":"US cross-region","timeoutMs":90000,"automaticRetries":0,"countApi":"bedrock-runtime","countMethod":"bedrock-runtime-converse-native-schema-v1","schemaAwareCount":true,"inputCountAllowanceTokens":128,"costGate":"estimate_not_guarantee_with_128_input_token_allowance_and_0.01_usd_output_reserve","caseId":"case-aaaaaaaaaa","language":"he","imageCount":1,"stream":false,"tier":"default","promptSha256":"abde294a11740aa678a231095ce1a0e840cce5ba4f37a5c87e257d5a4b3b1a76","compactContractVersion":"opus46-compact-all5-v1","productionPromptSha256":"19dbeb3564f0c9a85d8cad6545c218f245087330b2f4767dc642289cd886d58b","schemaSha256":"0447d9a66e0dffc8951965c7f2668383a0a150da276eed2ab0a4e3b1b02edb3d","wireSchemaSha256":"3863078ac9ee13d8b29fd29bc162525da5823b3245bd7a117c75c62e8736a4f1","sourceCommit":"5e66bb831f43465a51f46e8570592fd204e08a67","pricing":{"inputUsdPerMillion":5.5,"outputUsdPerMillion":27.5,"source":"https://www-cdn.anthropic.com/files/4zrzovbb/website/3684c2faafb97418665782cea0001f439f74b1d2.pdf"},"phases":[{"phase":"request_start","elapsedMs":0},{"phase":"headers","elapsedMs":1,"status":200},{"phase":"first_body","elapsedMs":1},{"phase":"body_end","elapsedMs":1},{"phase":"end","elapsedMs":1}],"status":"counted","costUsd":null,"costUnknown":false,"inputTokens":1000,"outputTokenLimit":8000,"estimatedInputCostUsd":0.0055,"bufferedInputCostUsd":0.006204,"reservedCostUsd":0.01,"elapsedMs":1,"totalMs":1}
+# Subtest: selected safe case ID and Hebrew language carry linked photo evidence into CountTokens
+ok 58 - selected safe case ID and Hebrew language carry linked photo evidence into CountTokens
+  ---
+  duration_ms: 43.8899
+  type: 'test'
+  ...
+# Subtest: Mantle CountTokens fails closed for selected cases before any provider call
+ok 59 - Mantle CountTokens fails closed for selected cases before any provider call
+  ---
+  duration_ms: 7.9559
+  type: 'test'
+  ...
+# Subtest: input token estimate reserves one cent and caps output at 8000 tokens
+ok 60 - input token estimate reserves one cent and caps output at 8000 tokens
+  ---
+  duration_ms: 0.2895
+  type: 'test'
+  ...
+# Subtest: cost is computed at Standard rates and unknown cache pricing stays unknown
+ok 61 - cost is computed at Standard rates and unknown cache pricing stays unknown
+  ---
+  duration_ms: 0.2133
+  type: 'test'
+  ...
+# Subtest: CountTokens uses native regional Converse shape and bearer auth without exposing response data
+ok 62 - CountTokens uses native regional Converse shape and bearer auth without exposing response data
+  ---
+  duration_ms: 1.6868
+  type: 'test'
+  ...
+# Subtest: Mantle fallback CountTokens uses the Anthropic count endpoint and API key headers
+ok 63 - Mantle fallback CountTokens uses the Anthropic count endpoint and API key headers
+  ---
+  duration_ms: 0.5649
+  type: 'test'
+  ...
+# Subtest: provider failure categorization accepts capitalized and nested messages without retaining their text
+ok 64 - provider failure categorization accepts capitalized and nested messages without retaining their text
+  ---
+  duration_ms: 1.1747
+  type: 'test'
+  ...
+# Subtest: non-200 response records only fixed category and status, never provider body text
+ok 65 - non-200 response records only fixed category and status, never provider body text
+  ---
+  duration_ms: 0.5351
+  type: 'test'
+  ...
+# Subtest: analysis sends selected output cap and treats unknown cache usage as cost-unknown
+ok 66 - analysis sends selected output cap and treats unknown cache usage as cost-unknown
+  ---
+  duration_ms: 0.3779
+  type: 'test'
+  ...
+# Subtest: original local schema still rejects constraints omitted from the wire schema
+ok 67 - original local schema still rejects constraints omitted from the wire schema
+  ---
+  duration_ms: 11.8347
+  type: 'test'
+  ...
+# Subtest: count report cannot supply a different model or enlarge the recomputed output budget
+ok 68 - count report cannot supply a different model or enlarge the recomputed output budget
+  ---
+  duration_ms: 0.2306
+  type: 'test'
+  ...
+# Subtest: first-body measurement waits for actual bytes and releases its reader
+ok 69 - first-body measurement waits for actual bytes and releases its reader
+  ---
+  duration_ms: 0.8941
+  type: 'test'
+  ...
+# Subtest: response cost survives invalid generated JSON without retaining provider prose
+ok 70 - response cost survives invalid generated JSON without retaining provider prose
+  ---
+  duration_ms: 0.4162
+  type: 'test'
+  ...
+# {"generatedAt":"2026-10-13T05:17:25.340Z","mode":"count","model":"us.anthropic.claude-opus-4-6-v1","countModel":"anthropic.claude-opus-4-6-v1","region":"us-east-1","routing":"US cross-region","timeoutMs":90000,"automaticRetries":0,"countApi":"bedrock-runtime","countMethod":"bedrock-runtime-converse-native-schema-v1","schemaAwareCount":true,"inputCountAllowanceTokens":128,"costGate":"estimate_not_guarantee_with_128_input_token_allowance_and_0.01_usd_output_reserve","caseId":"case-568f7d2ab3","language":"en","imageCount":0,"stream":false,"tier":"default","promptSha256":"838b90e16a8718332542495b24fa2bf3100a4e2344be494dd1a53bc9790ff37e","compactContractVersion":"opus46-compact-all5-v1","productionPromptSha256":"bf5e98c3a379ed7e30a8071afc44cfb17f05232b15ad01457dc7642ab87d9cc8","schemaSha256":"0447d9a66e0dffc8951965c7f2668383a0a150da276eed2ab0a4e3b1b02edb3d","wireSchemaSha256":"3863078ac9ee13d8b29fd29bc162525da5823b3245bd7a117c75c62e8736a4f1","sourceCommit":"5e66bb831f43465a51f46e8570592fd204e08a67","pricing":{"inputUsdPerMillion":5.5,"outputUsdPerMillion":27.5,"source":"https://www-cdn.anthropic.com/files/4zrzovbb/website/3684c2faafb97418665782cea0001f439f74b1d2.pdf"},"phases":[{"phase":"request_start","elapsedMs":0},{"phase":"headers","elapsedMs":7,"status":403,"providerRequestId":"req-safe"},{"phase":"first_body","elapsedMs":7},{"phase":"end","elapsedMs":8}],"providerRequestId":"req-safe","status":"failed","costUsd":null,"costUnknown":false,"failureCategory":"access","httpStatus":403,"failureReason":"permission_denied","exceptionType":"AccessDeniedException","totalMs":8}
+# Subtest: schema-aware CountTokens failure checkpoints before the request and retains safe error phases without leaking inputs
+ok 71 - schema-aware CountTokens failure checkpoints before the request and retains safe error phases without leaking inputs
+  ---
+  duration_ms: 46.5252
+  type: 'test'
+  ...
+# {"generatedAt":"2026-10-13T05:17:25.382Z","mode":"count","model":"us.anthropic.claude-opus-4-6-v1","countModel":"anthropic.claude-opus-4-6-v1","region":"us-east-1","routing":"US cross-region","timeoutMs":90000,"automaticRetries":0,"countApi":"bedrock-runtime","countMethod":"bedrock-runtime-converse-native-schema-v1","schemaAwareCount":true,"inputCountAllowanceTokens":128,"costGate":"estimate_not_guarantee_with_128_input_token_allowance_and_0.01_usd_output_reserve","caseId":"case-568f7d2ab3","language":"en","imageCount":0,"stream":false,"tier":"default","promptSha256":"838b90e16a8718332542495b24fa2bf3100a4e2344be494dd1a53bc9790ff37e","compactContractVersion":"opus46-compact-all5-v1","productionPromptSha256":"bf5e98c3a379ed7e30a8071afc44cfb17f05232b15ad01457dc7642ab87d9cc8","schemaSha256":"0447d9a66e0dffc8951965c7f2668383a0a150da276eed2ab0a4e3b1b02edb3d","wireSchemaSha256":"3863078ac9ee13d8b29fd29bc162525da5823b3245bd7a117c75c62e8736a4f1","sourceCommit":"5e66bb831f43465a51f46e8570592fd204e08a67","pricing":{"inputUsdPerMillion":5.5,"outputUsdPerMillion":27.5,"source":"https://www-cdn.anthropic.com/files/4zrzovbb/website/3684c2faafb97418665782cea0001f439f74b1d2.pdf"},"phases":[{"phase":"request_start","elapsedMs":0},{"phase":"headers","elapsedMs":0,"status":200},{"phase":"first_body","elapsedMs":0},{"phase":"body_end","elapsedMs":1},{"phase":"end","elapsedMs":0}],"status":"counted","costUsd":null,"costUnknown":false,"inputTokens":10000,"outputTokenLimit":6701,"estimatedInputCostUsd":0.055,"bufferedInputCostUsd":0.055704,"reservedCostUsd":0.01,"elapsedMs":1,"totalMs":0}
+# {"generatedAt":"2026-10-13T05:17:25.415Z","mode":"analysis","model":"us.anthropic.claude-opus-4-6-v1","countModel":"anthropic.claude-opus-4-6-v1","region":"us-east-1","routing":"US cross-region","timeoutMs":90000,"automaticRetries":0,"caseId":"case-568f7d2ab3","language":"en","imageCount":0,"stream":false,"tier":"default","promptSha256":"838b90e16a8718332542495b24fa2bf3100a4e2344be494dd1a53bc9790ff37e","compactContractVersion":"opus46-compact-all5-v1","productionPromptSha256":"bf5e98c3a379ed7e30a8071afc44cfb17f05232b15ad01457dc7642ab87d9cc8","schemaSha256":"0447d9a66e0dffc8951965c7f2668383a0a150da276eed2ab0a4e3b1b02edb3d","wireSchemaSha256":"3863078ac9ee13d8b29fd29bc162525da5823b3245bd7a117c75c62e8736a4f1","sourceCommit":"5e66bb831f43465a51f46e8570592fd204e08a67","pricing":{"inputUsdPerMillion":5.5,"outputUsdPerMillion":27.5,"source":"https://www-cdn.anthropic.com/files/4zrzovbb/website/3684c2faafb97418665782cea0001f439f74b1d2.pdf"},"phases":[{"phase":"request_start","elapsedMs":0},{"phase":"headers","elapsedMs":0,"status":200},{"phase":"first_body","elapsedMs":0},{"phase":"body_end","elapsedMs":0},{"phase":"validation","elapsedMs":10},{"phase":"end","elapsedMs":11}],"status":"failed","costUsd":0.0011,"costUnknown":false,"outputTokenLimit":6701,"usage":{"inputTokens":100,"outputTokens":20,"cacheReadInputTokens":0,"cacheWriteInputTokens":0},"stopReason":"end_turn","elapsedMs":0,"outputBytes":28,"wireSchemaErrorCount":4,"canonicalSchemaErrorCount":0,"schemaErrorCount":4,"semanticErrorCount":null,"failureCategory":"validation","totalMs":11}
+# {"generatedAt":"2026-10-13T05:17:25.458Z","mode":"analysis","model":"us.anthropic.claude-opus-4-6-v1","countModel":"anthropic.claude-opus-4-6-v1","region":"us-east-1","routing":"US cross-region","timeoutMs":90000,"automaticRetries":0,"caseId":"case-568f7d2ab3","language":"en","imageCount":0,"stream":false,"tier":"default","promptSha256":"838b90e16a8718332542495b24fa2bf3100a4e2344be494dd1a53bc9790ff37e","compactContractVersion":"opus46-compact-all5-v1","productionPromptSha256":"bf5e98c3a379ed7e30a8071afc44cfb17f05232b15ad01457dc7642ab87d9cc8","schemaSha256":"0447d9a66e0dffc8951965c7f2668383a0a150da276eed2ab0a4e3b1b02edb3d","wireSchemaSha256":"3863078ac9ee13d8b29fd29bc162525da5823b3245bd7a117c75c62e8736a4f1","sourceCommit":"5e66bb831f43465a51f46e8570592fd204e08a67","pricing":{"inputUsdPerMillion":5.5,"outputUsdPerMillion":27.5,"source":"https://www-cdn.anthropic.com/files/4zrzovbb/website/3684c2faafb97418665782cea0001f439f74b1d2.pdf"},"phases":[{"phase":"end","elapsedMs":1}],"providerRequestId":null,"status":"failed","costUsd":null,"costUnknown":true,"failureCategory":"budget","totalMs":1}
+# Subtest: analysis retains known cost when the original schema rejects the output, and rejects a forged budget before fetching
+ok 72 - analysis retains known cost when the original schema rejects the output, and rejects a forged budget before fetching
+  ---
+  duration_ms: 119.1783
+  type: 'test'
+  ...
+# Subtest: deadline aborts a stalled request and records a timeout phase
+ok 73 - deadline aborts a stalled request and records a timeout phase
+  ---
+  duration_ms: 23.9245
+  type: 'test'
+  ...
+# Subtest: standard-tier accounting uses cached input rate and charges reasoning as completion tokens
+ok 74 - standard-tier accounting uses cached input rate and charges reasoning as completion tokens
+  ---
+  duration_ms: 2.8613
+  type: 'test'
+  ...
+# Subtest: a valid response uses the fixed Oregon Grok endpoint and strict response schema
+ok 75 - a valid response uses the fixed Oregon Grok endpoint and strict response schema
+  ---
+  duration_ms: 51.9587
+  type: 'test'
+  ...
+# Subtest: only completed stop/completed finish reasons are accepted
+ok 76 - only completed stop/completed finish reasons are accepted
+  ---
+  duration_ms: 74.2648
+  type: 'test'
+  ...
+# Subtest: request latency includes time spent reading the response body
+ok 77 - request latency includes time spent reading the response body
+  ---
+  duration_ms: 68.3609
+  type: 'test'
+  ...
+# Subtest: a completed invalid response gets one bounded correction attempt
+ok 78 - a completed invalid response gets one bounded correction attempt
+  ---
+  duration_ms: 25.3056
+  type: 'test'
+  ...
+# Subtest: the saved seed catalogue is usable through stable seedKey IDs
+ok 79 - the saved seed catalogue is usable through stable seedKey IDs
+  ---
+  duration_ms: 3.4368
+  type: 'test'
+  ...
+# Subtest: a partial budget-stopped report cannot be reported as a successful CLI run
+ok 80 - a partial budget-stopped report cannot be reported as a successful CLI run
+  ---
+  duration_ms: 0.4584
+  type: 'test'
+  ...
+# Subtest: analysis-cost CLI option cannot exceed the approved quarter-dollar ceiling
+ok 81 - analysis-cost CLI option cannot exceed the approved quarter-dollar ceiling
+  ---
+  duration_ms: 0.8438
+  type: 'test'
+  ...
+# Subtest: a one-attempt run records known usage and leaves an invalid answer invalid
+ok 82 - a one-attempt run records known usage and leaves an invalid answer invalid
+  ---
+  duration_ms: 10.9786
+  type: 'test'
+  ...
+# Subtest: maxAttempts only accepts one or two attempts
+ok 83 - maxAttempts only accepts one or two attempts
+  ---
+  duration_ms: 1.0983
+  type: 'test'
+  ...
+# Subtest: provider errors are recorded once and missing usage remains unknown rather than free
+ok 84 - provider errors are recorded once and missing usage remains unknown rather than free
+  ---
+  duration_ms: 18.5958
+  type: 'test'
+  ...
+# Subtest: an invalid response with missing usage is not retried at unknown cost
+ok 85 - an invalid response with missing usage is not retried at unknown cost
+  ---
+  duration_ms: 9.5527
+  type: 'test'
+  ...
+# Subtest: image paths cannot escape their case folder
+ok 86 - image paths cannot escape their case folder
+  ---
+  duration_ms: 0.726
+  type: 'test'
+  ...
+# Subtest: case image loader enforces supported formats, signatures, labels, and angle counts
+ok 87 - case image loader enforces supported formats, signatures, labels, and angle counts
+  ---
+  duration_ms: 109.7424
+  type: 'test'
+  ...
+# Subtest: the run cost guard stops before starting another logical analysis
+ok 88 - the run cost guard stops before starting another logical analysis
+  ---
+  duration_ms: 17.146
+  type: 'test'
+  ...
+1..88
+# tests 88
+# suites 0
+# pass 88
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1497.0884
