@@ -1,229 +1,161 @@
-const { completeJson, BASE_URL, MODEL, TIMEOUT_MS, MAX_OUTPUT_TOKENS, MAX_REPORTED_COST_USD, reportedCostUsd } = require('./client');
+'use strict';
 
-const schema = {
-  type: 'object', additionalProperties: false, required: ['ok'],
-  properties: { ok: { type: 'boolean' } },
-};
-const response = body => ({ ok: true, json: async () => ({
-  usage: { prompt_tokens: 100, completion_tokens: 100 },
-  ...body,
-  choices: body.choices?.map(choice => ({ finish_reason: 'stop', ...choice })),
-}) });
+const { EventStreamCodec } = require('@smithy/eventstream-codec');
+const { toUtf8, fromUtf8 } = require('@smithy/util-utf8');
+const { completeJson, BASE_URL, MODEL, TIMEOUT_MS, MAX_OUTPUT_TOKENS, MAX_REPORTED_COST_USD, reportedCostUsd, makeWireSchema } = require('./client');
 
-test('uses the fixed Oregon model, strict schema, and server-only bearer token', async () => {
-  const fetchImpl = jest.fn().mockResolvedValue(response({ choices: [{ message: { content: '{"ok":true}' } }] }));
-  await expect(completeJson({
-    system: 'system', messages: [{ role: 'user', content: 'input' }], schema, token: 'test-token', fetchImpl,
-  })).resolves.toEqual({ ok: true });
-  const [url, options] = fetchImpl.mock.calls[0];
-  expect(url).toBe(`${BASE_URL}/chat/completions`);
-  expect(options.headers.Authorization).toBe('Bearer test-token');
-  expect(options.signal).toBeInstanceOf(AbortSignal);
-  expect(JSON.parse(options.body)).toMatchObject({
-    model: MODEL,
-    max_completion_tokens: MAX_OUTPUT_TOKENS,
-    reasoning_effort: 'low',
-    response_format: { type: 'json_schema', json_schema: { strict: true, schema } },
-  });
+const schema = { type: 'object', additionalProperties: false, required: ['ok'], properties: { ok: { type: 'boolean' } } };
+const result = { ok: true };
+const jsonResponse = value => ({ ok: true, status: 200, headers: new Headers(), body: new ReadableStream({ start(controller) { controller.enqueue(new TextEncoder().encode(JSON.stringify(value))); controller.close(); } }) });
+const countBody = inputTokens => ({ inputTokens });
+const converseBody = (content = result, extra = {}) => ({
+  usage: { inputTokens: 100, outputTokens: 20 }, stopReason: 'end_turn',
+  output: { message: { content: [{ text: JSON.stringify(content) }] } }, ...extra,
+});
+function mockFetch(...responses) { return jest.fn().mockImplementation(async () => responses.shift()); }
+
+function eventFrame(eventType, value) {
+  const codec = new EventStreamCodec(toUtf8, fromUtf8);
+  const body = new TextEncoder().encode(JSON.stringify(value));
+  return codec.encode({ headers: { ':message-type': { type: 'string', value: 'event' }, ':event-type': { type: 'string', value: eventType }, ':content-type': { type: 'string', value: 'application/json' } }, body });
+}
+
+function streamResponse(frames, splitAt = 11) {
+  const bytes = Buffer.concat(frames.map(frame => Buffer.from(frame)));
+  return { ok: true, status: 200, headers: new Headers({ 'x-amzn-requestid': 'aws-request-123' }), body: new ReadableStream({ start(controller) {
+    controller.enqueue(bytes.slice(0, splitAt)); controller.enqueue(bytes.slice(splitAt)); controller.close();
+  } }) };
+}
+
+test('uses native Runtime CountTokens and Converse APIs with capped output and explicit bearer auth', async () => {
+  const fetchImpl = mockFetch(jsonResponse(countBody(100)), jsonResponse(converseBody()));
+  await expect(completeJson({ system: 'rules', messages: [{ role: 'user', content: 'input' }], schema, token: 'test-token', fetchImpl }))
+    .resolves.toEqual(result);
+  expect(fetchImpl).toHaveBeenCalledTimes(2);
+  const [countUrl, countOptions] = fetchImpl.mock.calls[0];
+  expect(countUrl).toBe(`${BASE_URL}/model/anthropic.claude-opus-4-6-v1/count-tokens`);
+  expect(countOptions.headers.Authorization).toBe('Bearer test-token');
+  expect(JSON.parse(countOptions.body)).toMatchObject({ input: { converse: { additionalModelRequestFields: { output_config: { format: { type: 'json_schema', schema } } } } } });
+  const [invokeUrl, invokeOptions] = fetchImpl.mock.calls[1];
+  expect(invokeUrl).toBe(`${BASE_URL}/model/${encodeURIComponent(MODEL)}/converse`);
+  expect(JSON.parse(invokeOptions.body)).toMatchObject({ inferenceConfig: { maxTokens: MAX_OUTPUT_TOKENS }, outputConfig: { textFormat: { type: 'json_schema', structure: { jsonSchema: { schema: JSON.stringify(schema) } } } }, messages: [{ role: 'user', content: [{ text: 'input' }] }] });
   expect(TIMEOUT_MS).toBe(90_000);
 });
 
-test('does not call the provider when the server token is missing', async () => {
-  const fetchImpl = jest.fn();
-  await expect(completeJson({ system: '', messages: [], schema, token: '', fetchImpl }))
-    .rejects.toMatchObject({ code: 'BEDROCK_NOT_CONFIGURED', status: 503 });
-  expect(fetchImpl).not.toHaveBeenCalled();
-});
-
-test('validates returned JSON against the supplied schema', async () => {
-  const fetchImpl = jest.fn().mockResolvedValue(response({ choices: [{ message: { content: '{"ok":"yes"}' } }] }));
-  await expect(completeJson({ system: '', messages: [], schema, token: 'test-token', fetchImpl }))
-    .rejects.toMatchObject({ code: 'BEDROCK_SCHEMA_INVALID' });
-  expect(fetchImpl).toHaveBeenCalledTimes(1);
-});
-
-test('compiles the shared nullable analysis schema in Ajv strict mode', async () => {
-  const { outputSchema } = require('./analysisContract');
-  const fetchImpl = jest.fn().mockResolvedValue(response({ choices: [{ message: { content: '{}' } }] }));
-  await expect(completeJson({ system: '', messages: [], schema: outputSchema, token: 'test-token', fetchImpl }))
-    .rejects.toMatchObject({ code: 'BEDROCK_SCHEMA_INVALID' });
-});
-
-test('fails closed on malformed JSON and provider errors without echoing upstream bodies', async () => {
-  const malformed = jest.fn().mockResolvedValue(response({ choices: [{ message: { content: 'not-json' } }] }));
-  await expect(completeJson({ system: '', messages: [], schema, token: 'test-token', fetchImpl: malformed }))
-    .rejects.toMatchObject({ code: 'BEDROCK_INVALID_JSON' });
-  const rejected = jest.fn().mockResolvedValue({ ok: false, status: 429, text: async () => 'private upstream text' });
-  await expect(completeJson({ system: '', messages: [], schema, token: 'test-token', fetchImpl: rejected }))
-    .rejects.toMatchObject({ code: 'BEDROCK_HTTP_429', message: 'Analysis provider failed' });
-});
-
-test.each([
-  ['refusal', { message: { content: '{"ok":true}', refusal: 'restricted content' }, finish_reason: 'stop' }, 'BEDROCK_REFUSED'],
-  ['truncated output', { message: { content: '{"ok":true}', refusal: null }, finish_reason: 'length' }, 'BEDROCK_OUTPUT_TRUNCATED'],
-])('rejects %s even when the partial content parses', async (_label, choice, code) => {
-  const fetchImpl = jest.fn().mockResolvedValue(response({ choices: [choice] }));
-  await expect(completeJson({ system: '', messages: [], schema, token: 'test-token', fetchImpl }))
-    .rejects.toMatchObject({ code });
-});
-
-test('applies the timeout through response-body consumption and never retries', async () => {
-  let signal;
-  const fetchImpl = jest.fn().mockImplementation(async (_url, options) => {
-    signal = options.signal;
-    return { ok: true, json: () => new Promise((resolve, reject) => {
-      const timer = setTimeout(() => resolve({ usage: { prompt_tokens: 100, completion_tokens: 100 }, choices: [{ message: { content: '{"ok":true}' } }] }), 20);
-      signal.addEventListener('abort', () => {
-        clearTimeout(timer);
-        reject(Object.assign(new Error('aborted'), { name: 'AbortError' }));
-      }, { once: true });
-    }) };
-  });
-  await expect(completeJson({ system: '', messages: [], schema, token: 'test-token', fetchImpl, timeoutMs: 5 }))
-    .rejects.toMatchObject({ code: 'BEDROCK_TIMEOUT' });
-  expect(signal.aborted).toBe(true);
-  expect(fetchImpl).toHaveBeenCalledTimes(1);
-});
-
-test('calculates provider-reported cost including cached input at the evaluator rates', () => {
-  expect(reportedCostUsd({ prompt_tokens: 1_000_000, completion_tokens: 0, prompt_tokens_details: { cached_tokens: 400_000 } }))
-    .toBeCloseTo(1.54);
-  expect(MAX_REPORTED_COST_USD).toBe(0.25);
-});
-
-test.each([
-  ['missing usage', undefined],
-  ['invalid prompt usage', { prompt_tokens: -1, completion_tokens: 1 }],
-  ['invalid cached usage', { prompt_tokens: 1, completion_tokens: 1, prompt_tokens_details: { cached_tokens: '1' } }],
-])('fails closed for %s without retrying', async (_label, usage) => {
-  const fetchImpl = jest.fn().mockResolvedValue(response({ usage, choices: [{ message: { content: '{"ok":true}' } }] }));
-  await expect(completeJson({ system: '', messages: [], schema, token: 'test-token', fetchImpl }))
-    .rejects.toMatchObject({ code: 'BEDROCK_USAGE_UNKNOWN' });
-  expect(fetchImpl).toHaveBeenCalledTimes(1);
-});
-
-test('rejects a response whose reported cost exceeds the shared ceiling', async () => {
-  const fetchImpl = jest.fn().mockResolvedValue(response({
-    usage: { prompt_tokens: 120_000, completion_tokens: 0 },
-    choices: [{ message: { content: '{"ok":true}' } }],
+test('uses one whole-operation deadline for token counting and does not invoke if count hangs', async () => {
+  const fetchImpl = jest.fn().mockImplementation((_url, options) => new Promise((resolve, reject) => {
+    options.signal.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })), { once: true });
   }));
-  await expect(completeJson({ system: '', messages: [], schema, token: 'test-token', fetchImpl }))
-    .rejects.toMatchObject({ code: 'BEDROCK_COST_LIMIT' });
-  expect(fetchImpl).toHaveBeenCalledTimes(1);
-});
-
-test('rejects cached-token usage greater than prompt-token usage', () => {
-  expect(reportedCostUsd({ prompt_tokens: 10, completion_tokens: 1, prompt_tokens_details: { cached_tokens: 11 } })).toBeNull();
-});
-
-test('requires an explicit successful finish reason', async () => {
-  const fetchImpl = jest.fn().mockResolvedValue({ ok: true, json: async () => ({
-    usage: { prompt_tokens: 100, completion_tokens: 100 },
-    choices: [{ message: { content: '{"ok":true}' } }],
-  }) });
-  await expect(completeJson({ system: '', messages: [], schema, token: 'test-token', fetchImpl }))
-    .rejects.toMatchObject({ code: 'BEDROCK_FINISH_REASON_INVALID' });
-  expect(fetchImpl).toHaveBeenCalledTimes(1);
-});
-
-function streamResponse(events, { splitAt = 13 } = {}) {
-  const bytes = new TextEncoder().encode(events);
-  const chunks = [bytes.slice(0, splitAt), bytes.slice(splitAt)];
-  return {
-    ok: true,
-    status: 200,
-    headers: new Headers({ 'x-request-id': 'provider-123' }),
-    body: new ReadableStream({ start(controller) { chunks.forEach(chunk => controller.enqueue(chunk)); controller.close(); } }),
-  };
-}
-
-const sse = value => `data: ${JSON.stringify(value)}\r\n\r\n`;
-const usage = { prompt_tokens: 100, completion_tokens: 20, prompt_tokens_details: { cached_tokens: 10 } };
-
-test('streams split UTF-8 and CRLF events, records safe telemetry, and returns only validated JSON', async () => {
-  const telemetry = [];
-  const wire = [
-    sse({ marker: 'é', choices: [{ delta: { content: '{"ok":' }, finish_reason: null }] }),
-    sse({ choices: [{ delta: { content: 'true}' }, finish_reason: null }] }),
-    sse({ choices: [{ delta: {}, finish_reason: 'stop' }] }),
-    sse({ choices: [], usage }),
-    'data: [DONE]\r\n\r\n',
-  ].join('');
-  const splitAt = new TextEncoder().encode(wire).indexOf(0xc3) + 1;
-  const fetchImpl = jest.fn().mockResolvedValue(streamResponse(wire, { splitAt }));
-  await expect(completeJson({ system: '', messages: [], schema, token: 'test-token', fetchImpl, stream: true, onEvent: e => telemetry.push(e) }))
-    .resolves.toEqual({ ok: true });
-  const requestBody = JSON.parse(fetchImpl.mock.calls[0][1].body);
-  expect(requestBody).toMatchObject({ stream: true, stream_options: { include_usage: true } });
-  expect(telemetry.map(event => event.phase)).toEqual(expect.arrayContaining([
-    'request_start', 'headers', 'first_body', 'first_content', 'last_content', 'body_end', 'usage', 'validated', 'complete',
-  ]));
-  expect(telemetry.find(event => event.phase === 'headers')).toMatchObject({ providerRequestId: 'provider-123' });
-  expect(telemetry.find(event => event.phase === 'usage')).toMatchObject({ usage: { prompt_tokens: 100, completion_tokens: 20 } });
-  expect(JSON.stringify(telemetry)).not.toContain('{"ok":');
-});
-
-test.each([
-  ['missing usage', [sse({ choices: [{ delta: { content: '{"ok":true}' }, finish_reason: 'stop' }] }), 'data: [DONE]\n\n'], 'BEDROCK_USAGE_UNKNOWN'],
-  ['missing finish', [sse({ choices: [{ delta: { content: '{"ok":true}' }, finish_reason: null }] }), sse({ choices: [], usage }), 'data: [DONE]\n\n'], 'BEDROCK_FINISH_REASON_INVALID'],
-  ['missing done marker', [sse({ choices: [{ delta: { content: '{"ok":true}' }, finish_reason: 'stop' }] }), sse({ choices: [], usage })], 'BEDROCK_STREAM_MISSING_DONE'],
-  ['truncated finish', [sse({ choices: [{ delta: { content: '{"ok":true}' }, finish_reason: 'length' }] }), sse({ choices: [], usage }), 'data: [DONE]\n\n'], 'BEDROCK_OUTPUT_TRUNCATED'],
-  ['provider refusal', [sse({ choices: [{ delta: { refusal: 'blocked' }, finish_reason: 'stop' }] }), sse({ choices: [], usage }), 'data: [DONE]\n\n'], 'BEDROCK_REFUSED'],
-])('stream fails closed for %s', async (_label, frames, code) => {
-  const fetchImpl = jest.fn().mockResolvedValue(streamResponse(frames.join('')));
-  await expect(completeJson({ system: '', messages: [], schema, token: 'test-token', fetchImpl, stream: true }))
-    .rejects.toMatchObject({ code });
-  expect(fetchImpl).toHaveBeenCalledTimes(1);
-});
-
-test('stream timeout aborts a stalled provider body without retrying', async () => {
-  const fetchImpl = jest.fn().mockResolvedValue({ ok: true, body: new ReadableStream({ start() {} }) });
-  await expect(completeJson({ system: '', messages: [], schema, token: 'test-token', fetchImpl, stream: true, timeoutMs: 5 }))
+  await expect(completeJson({ system: '', messages: [], schema, token: 'test-token', fetchImpl, timeoutMs: 5 }))
     .rejects.toMatchObject({ code: 'BEDROCK_TIMEOUT', status: 504 });
   expect(fetchImpl).toHaveBeenCalledTimes(1);
 });
 
-test('stream rejects an oversized provider SSE frame before retaining it', async () => {
-  const content = 'x'.repeat(2 * 1024 * 1024 + 1);
-  const fetchImpl = jest.fn().mockResolvedValue(streamResponse(sse({ choices: [{ delta: { content }, finish_reason: null }] })));
-  await expect(completeJson({ system: '', messages: [], schema, token: 'test-token', fetchImpl, stream: true }))
-    .rejects.toMatchObject({ code: 'BEDROCK_STREAM_TOO_LARGE' });
-  expect(fetchImpl).toHaveBeenCalledTimes(1);
+test('preflight rejects unknown counts and keeps estimate below the shared cost ceiling', async () => {
+  const noCount = mockFetch(jsonResponse({}));
+  await expect(completeJson({ system: '', messages: [], schema, token: 'test-token', fetchImpl: noCount })).rejects.toMatchObject({ code: 'BEDROCK_COUNT_UNKNOWN' });
+  expect(noCount).toHaveBeenCalledTimes(1);
+  const fetchImpl = mockFetch(jsonResponse(countBody(15_604)), jsonResponse(converseBody()));
+  const events = [];
+  await completeJson({ system: '', messages: [], schema, token: 'test-token', fetchImpl, maxOutputTokens: 8_000, onEvent: event => events.push(event) });
+  expect(events.find(event => event.phase === 'counted')).toMatchObject({ inputTokens: 15_604, outputTokenLimit: 5_580 });
+  expect(events.find(event => event.phase === 'counted').estimatedCostUsd).toBeLessThan(MAX_REPORTED_COST_USD);
 });
 
-test('aborted analysis stream is classified as cancelled and stops provider reading', async () => {
+test('converts images without dropping them and rejects images above the REST request limit', async () => {
+  const fetchImpl = mockFetch(jsonResponse(countBody(20)), jsonResponse(converseBody()));
+  await completeJson({ system: '', messages: [{ role: 'user', content: [{ type: 'text', text: 'photo' }, { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${Buffer.from('img').toString('base64')}` } }] }], schema, token: 'test-token', fetchImpl });
+  expect(JSON.parse(fetchImpl.mock.calls[0][1].body).input.converse.messages[0].content[1].image.source.bytes).toBe(Buffer.from('img').toString('base64'));
+  const tooLarge = Buffer.alloc(Math.floor(3.75 * 1024 * 1024) + 1).toString('base64');
+  const unused = jest.fn();
+  await expect(completeJson({ system: '', messages: [{ role: 'user', content: [{ type: 'image_url', image_url: { url: `data:image/png;base64,${tooLarge}` } }] }], schema, token: 'test-token', fetchImpl: unused })).rejects.toMatchObject({ code: 'BEDROCK_IMAGE_TOO_LARGE' });
+  expect(unused).not.toHaveBeenCalled();
+});
+
+test('validates Bedrock JSON against wire then hydrated canonical schemas', async () => {
+  const wireSchema = { type: 'object', additionalProperties: false, required: ['value'], properties: { value: { type: 'string' } } };
+  const fetchImpl = mockFetch(jsonResponse(countBody(10)), jsonResponse(converseBody({ value: 'x' })));
+  const hydrateOutput = jest.fn(value => ({ ok: value.value === 'x' }));
+  await expect(completeJson({ system: '', messages: [], schema, wireSchema, hydrateOutput, token: 'test-token', fetchImpl })).resolves.toEqual(result);
+  expect(hydrateOutput).toHaveBeenCalledWith({ value: 'x' });
+  const badWire = mockFetch(jsonResponse(countBody(10)), jsonResponse(converseBody({ value: 1 })));
+  await expect(completeJson({ system: '', messages: [], schema, wireSchema, hydrateOutput, token: 'test-token', fetchImpl: badWire })).rejects.toMatchObject({ code: 'BEDROCK_WIRE_SCHEMA_INVALID' });
+});
+
+test('stream decodes split EventStream frames, validates EOF, stop and metadata, and reports sanitized usage', async () => {
+  const telemetry = [];
+  const frames = [
+    eventFrame('messageStart', { role: 'assistant' }),
+    eventFrame('contentBlockDelta', { contentBlockIndex: 0, delta: { text: '{"ok":' } }),
+    eventFrame('contentBlockDelta', { contentBlockIndex: 0, delta: { text: 'true}' } }),
+    eventFrame('messageStop', { stopReason: 'end_turn' }),
+    eventFrame('metadata', { usage: { inputTokens: 100, outputTokens: 20 } }),
+  ];
+  const fetchImpl = mockFetch(jsonResponse(countBody(100)), streamResponse(frames));
+  await expect(completeJson({ system: '', messages: [], schema, token: 'test-token', fetchImpl, stream: true, onEvent: event => telemetry.push(event) })).resolves.toEqual(result);
+  expect(fetchImpl.mock.calls[1][0]).toBe(`${BASE_URL}/model/${encodeURIComponent(MODEL)}/converse-stream`);
+  expect(fetchImpl.mock.calls[1][1].headers.Accept).toBe('application/vnd.amazon.eventstream');
+  expect(telemetry).toEqual(expect.arrayContaining([expect.objectContaining({ phase: 'counted' }), expect.objectContaining({ phase: 'usage', usage: { prompt_tokens: 100, completion_tokens: 20, prompt_tokens_details: { cached_tokens: 0 } } }), expect.objectContaining({ phase: 'validated' })]));
+  expect(JSON.stringify(telemetry)).not.toContain('{"ok":');
+});
+
+test.each([
+  ['missing metadata', [{ type: 'messageStart', value: { role: 'assistant' } }, { type: 'messageStop', value: { stopReason: 'end_turn' } }], 'BEDROCK_STREAM_INCOMPLETE'],
+  ['missing stop', [{ type: 'messageStart', value: { role: 'assistant' } }, { type: 'metadata', value: { usage: { inputTokens: 10, outputTokens: 1 } } }], 'BEDROCK_STREAM_INVALID_ORDER'],
+  ['truncated output', [{ type: 'messageStart', value: { role: 'assistant' } }, { type: 'messageStop', value: { stopReason: 'max_tokens' } }, { type: 'metadata', value: { usage: { inputTokens: 10, outputTokens: 1 } } }], 'BEDROCK_OUTPUT_TRUNCATED'],
+])('fails closed when native stream has %s', async (_name, events, code) => {
+  const frames = events.map(event => eventFrame(event.type, event.value));
+  const fetchImpl = mockFetch(jsonResponse(countBody(10)), streamResponse(frames));
+  await expect(completeJson({ system: '', messages: [], schema, token: 'test-token', fetchImpl, stream: true })).rejects.toMatchObject({ code });
+});
+
+test('cancels a pending native stream read when the caller disconnects', async () => {
+  const startFrame = eventFrame('messageStart', { role: 'assistant' });
+  const fetchImpl = jest.fn().mockResolvedValueOnce(jsonResponse(countBody(10))).mockResolvedValueOnce({ ok: true, status: 200, headers: new Headers(), body: new ReadableStream({ start(controller) { controller.enqueue(startFrame); } }) });
   const cancellation = new AbortController();
-  const fetchImpl = jest.fn().mockResolvedValue({ ok: true, body: new ReadableStream({ start() {} }) });
   const pending = completeJson({ system: '', messages: [], schema, token: 'test-token', fetchImpl, stream: true, signal: cancellation.signal });
   setTimeout(() => cancellation.abort('CANCELLED'), 5);
   await expect(pending).rejects.toMatchObject({ code: 'BEDROCK_CANCELLED', status: 499 });
 });
 
-test('non-stream response telemetry marks the actual first body byte and bounds JSON reads', async () => {
-  const body = JSON.stringify({ usage, choices: [{ message: { content: '{"ok":true}' }, finish_reason: 'stop' }] });
-  const bytes = new TextEncoder().encode(body);
+test('rejects bad EventStream CRCs and retains already received usage telemetry', async () => {
+  const good = [eventFrame('messageStart', { role: 'assistant' }), eventFrame('messageStop', { stopReason: 'end_turn' }), eventFrame('metadata', { usage: { inputTokens: 100, outputTokens: 20 } })];
+  const corrupted = Buffer.from(eventFrame('messageStart', { role: 'assistant' }));
+  corrupted[corrupted.length - 1] ^= 0xff;
+  const bytes = Buffer.concat([...good, corrupted].map(frame => Buffer.from(frame)));
   const telemetry = [];
-  const text = jest.fn();
-  const fetchImpl = jest.fn().mockResolvedValue({
-    ok: true, status: 200, headers: new Headers(),
-    text,
-    body: new ReadableStream({ start(controller) {
-      setTimeout(() => { controller.enqueue(bytes.slice(0, 3)); controller.enqueue(bytes.slice(3)); controller.close(); }, 5);
-    } }),
-  });
-  await expect(completeJson({ system: '', messages: [], schema, token: 'test-token', fetchImpl, onEvent: event => telemetry.push(event) }))
-    .resolves.toEqual({ ok: true });
-  expect(telemetry.map(event => event.phase)).toEqual(expect.arrayContaining(['first_body', 'body_end', 'usage', 'first_content', 'last_content']));
-  expect(telemetry.find(event => event.phase === 'first_body').elapsedMs).toBeGreaterThanOrEqual(1);
-  expect(text).not.toHaveBeenCalled();
+  const fetchImpl = mockFetch(jsonResponse(countBody(10)), { ok: true, status: 200, headers: new Headers(), body: new ReadableStream({ start(controller) { controller.enqueue(bytes); controller.close(); } }) });
+  await expect(completeJson({ system: '', messages: [], schema, token: 'test-token', fetchImpl, stream: true, onEvent: event => telemetry.push(event) })).rejects.toMatchObject({ code: 'BEDROCK_STREAM_FRAME_INVALID' });
+  expect(telemetry.find(event => event.phase === 'usage')).toMatchObject({ usage: { prompt_tokens: 100, completion_tokens: 20 } });
 });
 
-test('non-stream JSON body is size-limited while consuming it', async () => {
-  const fetchImpl = jest.fn().mockResolvedValue({
-    ok: true, status: 200, headers: new Headers(),
-    body: new ReadableStream({ start(controller) { controller.enqueue(new Uint8Array(2 * 1024 * 1024 + 1)); controller.close(); } }),
-  });
-  await expect(completeJson({ system: '', messages: [], schema, token: 'test-token', fetchImpl }))
-    .rejects.toMatchObject({ code: 'BEDROCK_RESPONSE_TOO_LARGE' });
-  expect(fetchImpl).toHaveBeenCalledTimes(1);
+test('rejects a response that exceeds the reported-cost ceiling after recording its usage', async () => {
+  const fetchImpl = mockFetch(jsonResponse(countBody(10)), jsonResponse(converseBody(result, { usage: { inputTokens: 40_000, outputTokens: 2_000 } })));
+  const telemetry = [];
+  await expect(completeJson({ system: '', messages: [], schema, token: 'test-token', fetchImpl, onEvent: event => telemetry.push(event) })).rejects.toMatchObject({ code: 'BEDROCK_COST_LIMIT' });
+  expect(telemetry.find(event => event.phase === 'usage')).toMatchObject({ usage: { prompt_tokens: 40_000, completion_tokens: 2_000 }, costUsd: 0.275 });
+  expect(fetchImpl).toHaveBeenCalledTimes(2);
+});
+
+test('maps refusals and provider errors to safe fixed codes without retrying', async () => {
+  const refusal = mockFetch(jsonResponse(countBody(10)), jsonResponse(converseBody(result, { stopReason: 'guardrail_intervened' })));
+  await expect(completeJson({ system: '', messages: [], schema, token: 'test-token', fetchImpl: refusal })).rejects.toMatchObject({ code: 'BEDROCK_REFUSED' });
+  const failed = jest.fn().mockResolvedValue({ ok: false, status: 429, headers: new Headers(), body: new ReadableStream({ start(controller) { controller.enqueue(new TextEncoder().encode('private details')); controller.close(); } }) });
+  await expect(completeJson({ system: '', messages: [], schema, token: 'test-token', fetchImpl: failed })).rejects.toMatchObject({ code: 'BEDROCK_HTTP_429', message: 'Analysis provider failed' });
+  expect(failed).toHaveBeenCalledTimes(1);
+});
+
+test('usage pricing fails closed for unsupported prompt cache usage', () => {
+  expect(reportedCostUsd({ inputTokens: 1_000_000, outputTokens: 0 })).toBe(5.5);
+  expect(reportedCostUsd({ inputTokens: 1_000_000, outputTokens: 0, cacheReadInputTokens: 1 })).toBeNull();
+  expect(MAX_REPORTED_COST_USD).toBe(0.25);
+  expect(makeWireSchema({ type: 'string', maxLength: 10 })).toEqual({ type: 'string' });
+});
+
+test('does not call provider when token is missing or cancellation precedes count', async () => {
+  const fetchImpl = jest.fn();
+  await expect(completeJson({ system: '', messages: [], schema, token: '', fetchImpl })).rejects.toMatchObject({ code: 'BEDROCK_NOT_CONFIGURED', status: 503 });
+  const controller = new AbortController(); controller.abort('CANCELLED');
+  await expect(completeJson({ system: '', messages: [], schema, token: 'test-token', fetchImpl, signal: controller.signal })).rejects.toMatchObject({ code: 'BEDROCK_CANCELLED', status: 499 });
+  expect(fetchImpl).not.toHaveBeenCalled();
 });
