@@ -1,8 +1,13 @@
 jest.mock('../../models/SkinScan', () => ({ findOneAndUpdate: jest.fn(), updateOne: jest.fn() }));
 jest.mock('../bedrock/client', () => ({ completeJson: jest.fn(), isConfigured: jest.fn() }));
+jest.mock('../bedrock/catalogue', () => {
+  const actual = jest.requireActual('../bedrock/catalogue');
+  return { ...actual, loadCatalogue: jest.fn(() => Promise.resolve(actual.loadSeedCatalogue())) };
+});
 
 const SkinScan = require('../../models/SkinScan');
 const { completeJson, isConfigured } = require('../bedrock/client');
+const { loadCatalogue } = require('../bedrock/catalogue');
 const {
   buildReadingRequest, sanitizeReading, readingStatusFor, maybeRequestReading, STALE_PENDING_MS,
 } = require('./scoreReading');
@@ -167,6 +172,7 @@ describe('maybeRequestReading', () => {
   beforeEach(() => {
     isConfigured.mockReturnValue(true);
     completeJson.mockReset();
+    loadCatalogue.mockClear();
     SkinScan.findOneAndUpdate.mockReset();
     SkinScan.updateOne.mockReset().mockResolvedValue({});
     jest.spyOn(console, 'warn').mockImplementation(() => {});
@@ -261,6 +267,7 @@ describe('maybeRequestReading', () => {
     completeJson.mockResolvedValue(goodBody());
     await maybeRequestReading(scan, NOW);
     expect(JSON.parse(completeJson.mock.calls[0][0].messages[0].content).eligible_catalogue.length).toBeGreaterThan(0);
+    expect(loadCatalogue).toHaveBeenCalledTimes(1);
   });
 
   test('a stale pending claim (server restart) is taken over', async () => {

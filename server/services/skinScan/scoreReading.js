@@ -182,7 +182,7 @@ async function callBedrock(scan) {
     && hasCompleteSafetyAnswers(safeRequest.quizAnswers)
     && !hasReportedIngredientIrritant(safeRequest.quizAnswers);
   // Legacy snapshots may lack safety answers; still write score prose, but do not suggest products without explicit clearance.
-  const catalogue = safetyComplete ? eligibleProducts(loadCatalogue(), safeRequest.quizAnswers) : [];
+  const catalogue = safetyComplete ? eligibleProducts(await loadCatalogue(), safeRequest.quizAnswers) : [];
   safeRequest.eligible_catalogue = catalogue.map(product => ({
     name: product.name,
     keyActives: product.keyActives,
