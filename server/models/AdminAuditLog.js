@@ -26,6 +26,14 @@ const ACTIONS = [
   'signin_link_sent',           // User page: sign-in link emailed
   'invite_created',             // Users page: invite link created for a new user
   'booking_attention_handled',  // Bookings page: admin marked a flagged booking as handled
+  // Customer page (item 12): result sections added after the first editors shipped.
+  'score_reading_updated',      // Customer page: "Your Skin Reading" copy stored on the scan
+  'safety_updated',             // Customer page: safety flags / check-in prompts
+  // AI settings page (item 12): prompts + limits. `fields` holds the AI task key
+  // (skin_analysis / score_reading / market_picks), never the prompt text itself.
+  'ai_config_published',        // AI settings: new prompt/limits version saved and made live
+  'ai_config_restored',         // AI settings: an older version or the built-in default made live again
+  'ai_config_tested',           // AI settings: optional paid test run on a built-in sample case
 ];
 
 // Who changed what, and when. Records the NAMES of changed fields, never their values:
