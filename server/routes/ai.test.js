@@ -6,11 +6,23 @@ jest.mock('../services/bedrock/client', () => ({
   BedrockError: class BedrockError extends Error { constructor(code, status = 502) { super('Analysis provider failed'); this.code = code; this.status = status; } },
 }));
 jest.mock('../services/bedrock/catalogue', () => ({ loadCatalogue: jest.fn() }));
+// The admin AI settings live in MongoDB; these tests use the built-in defaults unless a test overrides them.
+jest.mock('../services/aiConfig/aiConfig', () => {
+  const actual = jest.requireActual('../services/aiConfig/aiConfig');
+  return {
+    ...actual,
+    getActiveConfig: jest.fn(async key => ({
+      guidance: actual.DEFAULTS[key].defaultGuidance, limits: { ...actual.DEFAULTS[key].defaultLimits },
+      versionId: null, source: 'default', savedBy: null, savedAt: null,
+    })),
+  };
+});
 
 const router = require('./ai');
 const { consumeRateLimit } = require('../services/rateLimit');
 const { completeJson, BedrockError } = require('../services/bedrock/client');
 const { loadCatalogue } = require('../services/bedrock/catalogue');
+const { getActiveConfig } = require('../services/aiConfig/aiConfig');
 const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 
 const validAnalysis = () => ({
@@ -267,4 +279,59 @@ test('recommendations retain the existing provider-failure response', async () =
   });
   expect(res.statusCode).toBe(502);
   expect(res.body).toEqual({ error: 'Recommendation service failed' });
+});
+
+// Saved admin settings (guidance + limits) must reach the provider call; the defaults equal today's values.
+const savedConfig = key => ({
+  guidance: 'Be extra gentle.', limits: { timeoutSec: 30, maxOutputTokens: 1234, maxCostUsd: 0.1 },
+  versionId: 'v1', source: 'saved', savedBy: 'admin@example.test', savedAt: new Date(),
+});
+
+test('analyze-skin passes the saved guidance and limits to the prompt and the provider call', async () => {
+  getActiveConfig.mockResolvedValueOnce(savedConfig());
+  completeJson.mockResolvedValue(validAnalysis());
+  const res = await invoke(routeHandler('/analyze-skin'), { quizAnswers: {}, language: 'en', images: [] });
+  expect(res.statusCode).toBe(200);
+  expect(getActiveConfig).toHaveBeenCalledWith('skin_analysis');
+  const request = completeJson.mock.calls[0][0];
+  expect(request.system).toContain('Clinic guidance:\nBe extra gentle.');
+  expect(request.maxOutputTokens).toBe(1234);
+  expect(request.maxCostUsd).toBe(0.1);
+  // 30 s admin timeout is below the 85 s server deadline, so it is what the provider call gets.
+  expect(request.timeoutMs).toBe(30_000);
+});
+
+test('analyze-skin with the default config keeps today\'s limits (90 s capped by the server deadline, 8000, 0.25)', async () => {
+  completeJson.mockResolvedValue(validAnalysis());
+  await invoke(routeHandler('/analyze-skin'), { quizAnswers: {}, language: 'en', images: [] });
+  const request = completeJson.mock.calls[0][0];
+  expect(request.maxOutputTokens).toBe(8000);
+  expect(request.maxCostUsd).toBe(0.25);
+  // The 85 s server deadline (minus its 1 s reserve) still caps a 90 s admin timeout.
+  expect(request.timeoutMs).toBeLessThanOrEqual(84_000);
+  expect(request.timeoutMs).toBeGreaterThan(83_000);
+});
+
+test('market recommendations pass the saved guidance and limits to the provider call', async () => {
+  getActiveConfig.mockResolvedValueOnce(savedConfig());
+  completeJson.mockResolvedValue({ add: [], replace: [] });
+  await invoke(routeHandler('/product-recommendations'), {
+    productAudit: { add: [{ product: 'moisturizer' }], replace: [] }, country: 'US', eraName: 'Barrier',
+    quizAnswers: { allergies: ['none'], irritants: ['nothing'], pregnancy_caution: false },
+  });
+  expect(getActiveConfig).toHaveBeenCalledWith('market_picks');
+  const request = completeJson.mock.calls[0][0];
+  expect(request.system).toContain('Clinic guidance:\nBe extra gentle.');
+  expect(request).toMatchObject({ maxOutputTokens: 1234, maxCostUsd: 0.1, timeoutMs: 30_000, schemaName: 'product_recommendations' });
+});
+
+test('market recommendations with the default config use the built-in prompt and 1000 tokens', async () => {
+  completeJson.mockResolvedValue({ add: [], replace: [] });
+  await invoke(routeHandler('/product-recommendations'), {
+    productAudit: { add: [{ product: 'moisturizer' }], replace: [] }, country: 'US', eraName: 'Barrier',
+    quizAnswers: { allergies: ['none'], irritants: ['nothing'], pregnancy_caution: false },
+  });
+  const request = completeJson.mock.calls[0][0];
+  expect(request.system).toContain('Recommend reputable skincare products sold in the requested country.');
+  expect(request).toMatchObject({ maxOutputTokens: 1000, maxCostUsd: 0.25, timeoutMs: 90_000 });
 });

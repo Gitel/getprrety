@@ -2,9 +2,11 @@ const router = require('express').Router();
 const { randomUUID } = require('node:crypto');
 const requireAuth = require('../middleware/auth');
 const { consumeRateLimit } = require('../services/rateLimit');
-const { completeJson, BedrockError, TIMEOUT_MS } = require('../services/bedrock/client');
+const { completeJson, BedrockError } = require('../services/bedrock/client');
 const { loadCatalogue } = require('../services/bedrock/catalogue');
 const { prepareSkinRequest } = require('../services/bedrock/skinRequest');
+const { getActiveConfig } = require('../services/aiConfig/aiConfig');
+const { buildMarketPicksRequest } = require('../services/aiConfig/marketPicksRequest');
 const {
   validateOutput, sanitizeQuiz,
   allergiesFromQuiz, activeIrritantClasses, eligibilityLimitations, isPregnancyCaution,
@@ -186,11 +188,14 @@ router.post('/analyze-skin', async (req, res) => {
 
     const catalogue = await withSignal(loadCatalogue(), deadline.controller.signal);
     logAnalysisPhase(deadline, 'catalogue_loaded', { catalogueCount: Array.isArray(catalogue) ? catalogue.length : 0 });
-    const prompt = prepareSkinRequest({ quiz, language, images, catalogue });
+    // Admin-tunable guidance and limits (built-in defaults when none saved or the DB read fails).
+    const aiConfig = await withSignal(getActiveConfig('skin_analysis'), deadline.controller.signal);
+    const prompt = prepareSkinRequest({ quiz, language, images, catalogue, guidance: aiConfig.guidance });
     logAnalysisPhase(deadline, 'prompt_ready', {
       messageCount: Array.isArray(prompt.messages) ? prompt.messages.length : 0,
     });
-    const remainingMs = Math.min(TIMEOUT_MS, deadline.expiresAt - Date.now() - RESPONSE_RESERVE_MS);
+    // The 85 s server deadline (analysisDeadline.js) still applies on top of the admin timeout.
+    const remainingMs = Math.min(aiConfig.limits.timeoutSec * 1000, deadline.expiresAt - Date.now() - RESPONSE_RESERVE_MS);
     if (remainingMs <= 0 || deadline.controller.signal.aborted) throw new BedrockError('BEDROCK_TIMEOUT', 504);
     logAnalysisPhase(deadline, 'provider_start');
     const output = await completeJson({
@@ -198,6 +203,8 @@ router.post('/analyze-skin', async (req, res) => {
       stream: wantsSse,
       signal: deadline.controller.signal,
       timeoutMs: remainingMs,
+      maxOutputTokens: aiConfig.limits.maxOutputTokens,
+      maxCostUsd: aiConfig.limits.maxCostUsd,
       onEvent: providerEvent => {
         safeTelemetry(requestId, providerEvent);
         if (providerEvent.phase === 'first_content') event('progress', { phase: 'generating' });
@@ -285,14 +292,6 @@ router.post('/product-recommendations', requireAuth, async (req, res) => {
     const replace = Array.isArray(productAudit.replace) ? productAudit.replace.slice(0, 10) : [];
     if (!add.length && !replace.length) return res.json({ add: [], replace: [] });
 
-    const safeCountry = String(country).slice(0, 100);
-    const safeEra = String(eraName).slice(0, 100);
-    const needs = [
-      ...add.map((item, index) => `[add_${index}] [ADD] ${String(item.product || '').slice(0, 200)}`),
-      ...replace.map((item, index) =>
-        `[replace_${index}] [REPLACE] ${String(item.from || '').slice(0, 120)} with ${String(item.to || '').slice(0, 200)}`
-      ),
-    ].join('\n');
     const quiz = minimizedQuiz(req.body?.quizAnswers || req.body?.safetyContext || {});
     const safetyContext = {
       allergies: allergiesFromQuiz(quiz),
@@ -305,21 +304,14 @@ router.post('/product-recommendations', requireAuth, async (req, res) => {
       || hasReportedIngredientIrritant(quiz) || safetyContext.pregnancyCaution) {
       return res.json({ add: [], replace: [] });
     }
-    const recommendationSchema = {
-      type: 'object', additionalProperties: false, required: ['add', 'replace'],
-      properties: {
-        add: { type: 'array', maxItems: add.length, items: recommendationItemSchema(add.length) },
-        replace: { type: 'array', maxItems: replace.length, items: recommendationItemSchema(replace.length) },
-      },
-    };
-    const system = 'Recommend reputable skincare products sold in the requested country. Avoid products whose ingredients conflict with the supplied allergies, irritants, or pregnancy caution. Product ingredient lists are not supplied, so never claim a recommendation is allergy-safe or pregnancy-safe; if safety cannot be assessed, return an empty list for that item. Use only HTTPS URLs and return the requested strict JSON object.';
-    const messages = [{ role: 'user', content: `Country: ${safeCountry}\nSkin Era: ${safeEra}\nSafety context: ${JSON.stringify(safetyContext)}\nNeeds:\n${needs}` }];
+    // Admin-tunable guidance and limits (built-in defaults when none saved or the DB read fails).
+    const aiConfig = await getActiveConfig('market_picks');
+    const request = buildMarketPicksRequest({ add, replace, country, eraName, safetyContext, guidance: aiConfig.guidance });
     const parsed = await completeJson({
-      system,
-      messages,
-      schema: recommendationSchema,
-      schemaName: 'product_recommendations',
-      maxOutputTokens: 1_000,
+      ...request,
+      maxOutputTokens: aiConfig.limits.maxOutputTokens,
+      timeoutMs: aiConfig.limits.timeoutSec * 1000,
+      maxCostUsd: aiConfig.limits.maxCostUsd,
     });
     res.json({
       add: cleanRecommendationList(parsed?.add, add.length),
@@ -331,18 +323,6 @@ router.post('/product-recommendations', requireAuth, async (req, res) => {
     res.status(502).json({ error: 'Recommendation service failed' });
   }
 });
-
-function recommendationItemSchema(maxLength) {
-  return {
-    type: 'object', additionalProperties: false, required: ['index', 'rec'],
-    properties: {
-      index: { type: 'integer', minimum: 0, maximum: Math.max(0, maxLength - 1) },
-      rec: { type: 'object', additionalProperties: false, required: ['brand', 'name', 'price', 'url', 'retailer'], properties: {
-        brand: { type: 'string' }, name: { type: 'string' }, price: { type: 'string' }, url: { type: 'string' }, retailer: { type: 'string' },
-      } },
-    },
-  };
-}
 
 module.exports = router;
 // Also used by services/analysisFields.js to sanitize admin-edited product picks with
