@@ -208,8 +208,10 @@ test.describe('Home routine step photos', () => {
     await page.getByText(t('home:tabs.pm'), { exact: true }).click();
     await expect(page.getByTestId(`routine-step-photo-${PID.cleanser}`)).toBeVisible();
     await expect(page.getByTestId(`routine-step-photo-${PID.moisturizer}`)).toBeVisible();
-    // Every PM step has a catalogue product, so the AM-only placeholder is not rendered.
-    await expect(page.getByTestId('routine-step-photo-placeholder')).toHaveCount(0);
+    // The PM serum step has a catalogue product but hasPhoto=false (fixtures), and the contract says
+    // a thumbnail needs hasPhoto, so exactly that one step shows the placeholder.
+    await expect(page.getByTestId(`routine-step-photo-${PID.serum}`)).toHaveCount(0);
+    await expect(page.getByTestId('routine-step-photo-placeholder')).toHaveCount(1);
   });
 
   test('a step with an old non-catalogue id (sr-clean) shows the placeholder and asks for no photo', async ({ page, t, mock }) => {

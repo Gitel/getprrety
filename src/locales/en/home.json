@@ -47,7 +47,11 @@
   },
   "viewAnalysis": {
     "title": "View my full analysis",
-    "subtitle": "Your skin analysis, product audit and product routine"
+    "subtitle": "Your skin analysis and score"
+  },
+  "myProducts": {
+    "title": "My products",
+    "subtitle": "Recommended for you and what is on your shelf"
   },
   "logProducts": {
     "title": "Log your products",

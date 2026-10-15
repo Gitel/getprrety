@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  View, Text, Pressable, ScrollView, Modal, StyleSheet,
+  View, Text, Image, Pressable, ScrollView, Modal, StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
@@ -11,6 +11,8 @@ import { api } from '../lib/api';
 import { logActivity } from '../lib/logActivity';
 import FallbackBanner from '../components/FallbackBanner';
 import { MenuButton } from '../components/SideMenu';
+import { useCatalogueProducts } from '../lib/useCatalogueProducts';
+import { photoUrl } from '../lib/catalogueApi';
 import { routineSteps, defaultRoutineTab, localDay, routineKeyFor, tickedIndices } from '../lib/homeRoutine';
 
 // The English text homeRoutine.js puts on a routine step when Railway matched no product for it.
@@ -48,6 +50,11 @@ export default function HomeScreen({ navigation }) {
   const amSteps    = routineSteps(analysis, 'am');
   const pmSteps    = routineSteps(analysis, 'pm');
   const steps      = tab === 'am' ? amSteps : pmSteps;
+  // Catalogue data (photo flags) for every matched step of BOTH routines, so switching the AM/PM
+  // tab does not refetch. Steps without a catalogue id (productId null) are simply left out.
+  const { products: catalogue } = useCatalogueProducts(
+    [...amSteps, ...pmSteps].map(st => st.productId).filter(Boolean),
+  );
   const routineKey = routineKeyFor(amSteps, pmSteps);
   const today      = localDay();
   const doneCount  = steps.filter((_, i) => done[tab + i]).length;
@@ -220,6 +227,18 @@ export default function HomeScreen({ navigation }) {
                   {done[tab + i] ? '✓' : i + 1}
                 </Text>
               </View>
+              {/* Thumbnail: the product photo only when the step has a product whose catalogue data
+                  loaded AND has a photo; otherwise a neutral placeholder so rows stay aligned. */}
+              {(() => {
+                const url = step.productId ? photoUrl(catalogue[step.productId]) : null;
+                return url ? (
+                  <Image testID={`routine-step-photo-${step.productId}`} source={{ uri: url }} style={s.stepPhoto} />
+                ) : (
+                  <View testID="routine-step-photo-placeholder" style={[s.stepPhoto, s.stepPhotoPlaceholder]}>
+                    <Text style={{ fontSize: 16 }}>🧴</Text>
+                  </View>
+                );
+              })()}
               <View style={{ flex: 1 }}>
                 {/* Product steps carry their routine slot (e.g. "cleanser") as a caption */}
                 {step.category ? <Text style={s.stepCategory}>{step.category}</Text> : null}
@@ -256,6 +275,20 @@ export default function HomeScreen({ navigation }) {
           <View style={{ flex: 1, marginStart: 12 }}>
             <Text style={s.productCtaTitle}>{t('home:viewAnalysis.title')}</Text>
             <Text style={s.productCtaSub}>{t('home:viewAnalysis.subtitle')}</Text>
+          </View>
+          <Text style={[s.checkInArrow, { color: era.color }]}>{t('common:arrowNext')}</Text>
+        </Pressable>
+
+        {/* My products: the clinic-recommended products and the user's shelf (screen registered in App.jsx) */}
+        <Pressable
+          testID="home-my-products-card"
+          style={[s.productCta, { borderColor: era.color + '40', marginBottom: 12 }]}
+          onPress={() => navigation.navigate('MyProducts')}
+        >
+          <Text style={{ fontSize: 20 }}>🧴</Text>
+          <View style={{ flex: 1, marginStart: 12 }}>
+            <Text style={s.productCtaTitle}>{t('home:myProducts.title')}</Text>
+            <Text style={s.productCtaSub}>{t('home:myProducts.subtitle')}</Text>
           </View>
           <Text style={[s.checkInArrow, { color: era.color }]}>{t('common:arrowNext')}</Text>
         </Pressable>
@@ -354,6 +387,8 @@ const s = StyleSheet.create({
   stepCard:    { backgroundColor: C.card, borderWidth: 1, borderColor: C.border, borderRadius: 13, padding: 15, flexDirection: 'row', alignItems: 'flex-start', gap: 13 },
   stepNum:     { width: 28, height: 28, borderRadius: 14, backgroundColor: '#F0EBE5', alignItems: 'center', justifyContent: 'center' },
   stepNumText: { fontFamily: 'DMSans_500Medium', fontSize: 11, color: C.muted },
+  stepPhoto:   { width: 44, height: 44, borderRadius: 10, backgroundColor: '#F0EBE5' },
+  stepPhotoPlaceholder:{ alignItems: 'center', justifyContent: 'center' },
   stepCategory:{ fontFamily: 'DMSans_400Regular', fontSize: 10, color: C.muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 2 },
   stepName:    { fontFamily: 'DMSans_500Medium', fontSize: 14, color: C.text, marginBottom: 2 },
   stepDesc:    { fontFamily: 'DMSans_400Regular', fontSize: 12, color: C.muted, lineHeight: 18 },
