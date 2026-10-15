@@ -394,7 +394,8 @@ test.describe('price and shop link', () => {
       expect(res.status(), bad).toBe(400);
       await expect(notice(page)).toHaveText('Price must be a number of 0 or more (up to 2 decimals).');
     }
-    await page.reload();
+    // A plain GET of the edit page: reload() after a 400 would re-POST the bad form.
+    await page.goto(page.url());
     await expect(page.locator('input[name="price"]')).toHaveValue('');
   });
 
@@ -411,7 +412,8 @@ test.describe('price and shop link', () => {
       expect(res.status(), bad).toBe(400);
       await expect(notice(page)).toHaveText('The shop link must start with https://');
     }
-    await page.reload();
+    // A plain GET of the edit page: reload() after a 400 would re-POST the bad form.
+    await page.goto(page.url());
     await expect(page.locator('input[name="shopUrl"]')).toHaveValue('');
   });
 });
