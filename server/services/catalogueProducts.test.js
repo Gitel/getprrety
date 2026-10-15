@@ -60,6 +60,7 @@ describe('parseProductForm', () => {
     expect(product).toEqual({
       name: 'Herbal Mousse', category: 'cleansers_peelings', use: 'home', pregnancy: 'safe',
       keyActives: ['A', 'B', 'C'], strengths: ['x', 'y'], suitableFor: [], ingredients: 'water',
+      price: null, shopUrl: null,
     });
   });
 
@@ -340,5 +341,80 @@ describe('slug follows the name (stateful fake)', () => {
     }
     expect(model.findByIdAndUpdate).not.toHaveBeenCalled();
     expect(JSON.stringify(model.docs)).toBe(before);
+  });
+});
+
+describe('price and shopUrl', () => {
+  test.each([
+    ['', null], ['  ', null], [undefined, null], ['0', 0], ['129', 129], ['129.9', 129.9], ['129.90', 129.9],
+  ])('price %p -> %p', (price, expected) => {
+    expect(parseProductForm({ ...form, price }).product.price).toBe(expected);
+  });
+
+  test.each(['-1', '1.234', 'abc', '1e3', '12,5', '0x10'])('rejects price %p', price => {
+    expect(parseProductForm({ ...form, price })).toEqual({ error: 'catalogue_invalid_price' });
+  });
+
+  test.each([
+    ['', null], [undefined, null], ['https://shop.example.test/zit', 'https://shop.example.test/zit'],
+    ['  https://shop.example.test  ', 'https://shop.example.test'],
+  ])('shopUrl %p -> %p', (shopUrl, expected) => {
+    expect(parseProductForm({ ...form, shopUrl }).product.shopUrl).toBe(expected);
+  });
+
+  test.each([
+    'http://shop.example.test', 'javascript:alert(1)', 'shop.example.test/x', 'https://', 'https://' + 'a'.repeat(500),
+  ])('rejects shopUrl %p', shopUrl => {
+    expect(parseProductForm({ ...form, shopUrl })).toEqual({ error: 'catalogue_invalid_shop_url' });
+  });
+
+  test('create refuses an invalid price / link before writing', async () => {
+    const model = fakeModel(null);
+    expect(await createProduct({ ...form, price: '-5' }, { productModel: model })).toEqual({ ok: false, code: 'catalogue_invalid_price' });
+    expect(await createProduct({ ...form, shopUrl: 'http://x.test' }, { productModel: model })).toEqual({ ok: false, code: 'catalogue_invalid_shop_url' });
+    expect(model.create).not.toHaveBeenCalled();
+  });
+
+  test('create stores price and shopUrl', async () => {
+    const model = fakeModel(null);
+    await createProduct({ ...form, price: '49.5', shopUrl: 'https://s.test/a' }, { productModel: model });
+    expect(model.create.mock.calls[0][0]).toMatchObject({ price: 49.5, shopUrl: 'https://s.test/a' });
+  });
+
+  const current = {
+    name: 'Herbal Mousse', category: 'cleansers_peelings', use: 'home', pregnancy: 'safe',
+    keyActives: [], strengths: [], suitableFor: [], ingredients: '', price: 49.5, shopUrl: 'https://s.test/a',
+  };
+
+  test('unchanged price / link (also "49.50" vs 49.5) writes nothing', async () => {
+    const model = fakeModel(current);
+    const result = await updateProduct(ID, { ...form, price: '49.50', shopUrl: 'https://s.test/a' }, { productModel: model });
+    expect(result).toEqual({ ok: true, changed: [] });
+    expect(model.findByIdAndUpdate).not.toHaveBeenCalled();
+  });
+
+  test('a product that never had the fields: blank form is unchanged', async () => {
+    const { price, shopUrl, ...legacy } = current;
+    const model = fakeModel(legacy);
+    expect(await updateProduct(ID, form, { productModel: model })).toEqual({ ok: true, changed: [] });
+  });
+
+  test('changing the price only $sets price; blank clears to null', async () => {
+    const model = fakeModel(current);
+    expect(await updateProduct(ID, { ...form, price: '60', shopUrl: 'https://s.test/a' }, { productModel: model }))
+      .toEqual({ ok: true, changed: ['price'] });
+    expect(model.findByIdAndUpdate.mock.calls[0][1]).toEqual({ $set: { price: 60 } });
+
+    const model2 = fakeModel(current);
+    expect(await updateProduct(ID, { ...form, price: '', shopUrl: '' }, { productModel: model2 }))
+      .toEqual({ ok: true, changed: ['price', 'shopUrl'] });
+    expect(model2.findByIdAndUpdate.mock.calls[0][1]).toEqual({ $set: { price: null, shopUrl: null } });
+  });
+
+  test('update with an invalid link returns the code and writes nothing', async () => {
+    const model = fakeModel(current);
+    expect(await updateProduct(ID, { ...form, shopUrl: 'http://s.test' }, { productModel: model }))
+      .toEqual({ ok: false, code: 'catalogue_invalid_shop_url' });
+    expect(model.findByIdAndUpdate).not.toHaveBeenCalled();
   });
 });

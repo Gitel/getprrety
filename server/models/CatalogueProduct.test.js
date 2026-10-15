@@ -56,3 +56,28 @@ test('seedKey is optional (admin-created products have none)', async () => {
   await expect(new CatalogueProduct(valid).validate()).resolves.toBeUndefined();
   expect(new CatalogueProduct({ ...valid, seedKey: 'herbal-cleansing-mousse' }).seedKey).toBe('herbal-cleansing-mousse');
 });
+
+describe('price and shopUrl (optional shop fields)', () => {
+  test('both default to null', () => {
+    const doc = new CatalogueProduct(valid);
+    expect(doc.price).toBeNull();
+    expect(doc.shopUrl).toBeNull();
+  });
+
+  test('accepts a price of 0 or more and an https link', async () => {
+    await expect(new CatalogueProduct({ ...valid, price: 0, shopUrl: 'https://shop.example.test/x' }).validate()).resolves.toBeUndefined();
+  });
+
+  test('rejects a negative price', () => {
+    expect(new CatalogueProduct({ ...valid, price: -1 }).validateSync().errors.price).toBeDefined();
+  });
+
+  test.each(['http://shop.example.test', 'javascript:alert(1)', 'shop.example.test'])('rejects shopUrl %p', shopUrl => {
+    expect(new CatalogueProduct({ ...valid, shopUrl }).validateSync().errors.shopUrl).toBeDefined();
+  });
+
+  test('rejects a shopUrl over 500 characters', () => {
+    const shopUrl = 'https://x.test/' + 'a'.repeat(490);
+    expect(new CatalogueProduct({ ...valid, shopUrl }).validateSync().errors.shopUrl).toBeDefined();
+  });
+});

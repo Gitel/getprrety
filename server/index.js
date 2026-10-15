@@ -15,6 +15,7 @@ dns.setServers(['8.8.8.8', '1.1.1.1']);
 
 const authRoutes     = require('./routes/auth');
 const profileRoutes  = require('./routes/profile');
+const catalogueRoutes = require('./routes/catalogue');
 const analysisRoutes = require('./routes/analysis');
 const checkinRoutes  = require('./routes/checkins');
 const productRoutes  = require('./routes/products');
@@ -70,6 +71,7 @@ app.get('/health', (_, res) => res.json({ status: 'ok' }));
 app.use('/api/auth',      authRoutes);
 app.use('/api/profile',   profileRoutes);
 app.use('/api/analysis',  analysisRoutes);
+app.use('/api/catalogue', catalogueRoutes); // catalogue product data (auth) + product photos (public)
 app.use('/api/checkins',  checkinRoutes);
 app.use('/api/products',  productRoutes);
 app.use('/api/uploads',   uploadRoutes);

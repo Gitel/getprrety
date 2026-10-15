@@ -17,6 +17,8 @@ const PREGNANCY = ['safe', 'avoid', 'not_stated'];
 // - nameKey is the lower-cased name; its unique index makes names unique ignoring case.
 // - the photo bytes live inside the document (like the Upload model) so no file storage is
 //   needed. List queries must exclude them with .select('-photo.data').
+// - price (ILS, optional) and shopUrl (optional https link) feed the "Buy" button of the app's
+//   My products screen. null means "not set": the app then hides the price / button.
 // - archived hides a product instead of deleting it.
 const catalogueProductSchema = new mongoose.Schema({
   slug:      { type: String, required: true, unique: true, match: /^[a-z0-9]+(?:-[a-z0-9]+)*$/ },
@@ -38,6 +40,9 @@ const catalogueProductSchema = new mongoose.Schema({
     mimeType: String,
     size:     Number,
   },
+  price:     { type: Number, min: 0, default: null },
+  // https only: the app opens this link, so javascript: / http: values must never be stored.
+  shopUrl:   { type: String, maxlength: 500, match: /^https:\/\//i, default: null },
   archived: { type: Boolean, default: false },
 }, { timestamps: true });
 
