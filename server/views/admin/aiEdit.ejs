@@ -1,0 +1,162 @@
+<%#
+  Edit page for one AI task. Data comes from routes/adminAi.js:
+    key, def (title + lockedRules), bounds, form (values to print), errors ({ field: message }),
+    live (active config), activeLabel, versions (newest first), sampleCases, canEdit, notice.
+  `canEdit` is false for dashboard admins who are not built-in: the page is then read-only.
+%>
+<%- include('_head', { title: 'AI settings: ' + def.title }) %>
+<%- include('_nav', { active: 'ai' }) %>
+<%
+  var ro = canEdit ? '' : 'readonly';
+  var fieldErrors = locals.errors || {};
+  // Prints a value into an attribute / textarea ('' for undefined so nothing shows "undefined").
+  function val(v) { return v === undefined || v === null ? '' : v; }
+%>
+<main>
+  <% if (locals.notice) { %>
+    <div class="notice <%= notice.error ? 'error' : '' %>"><%= notice.text %></div>
+  <% } %>
+
+  <p class="muted"><a href="/admin/ai">&larr; All AI settings</a></p>
+  <h1 style="font-size: 20px; margin: 0 0 6px;"><%= def.title %></h1>
+  <p class="muted">Live now: <span class="ai-active-version"><%= activeLabel %></span>. Changes apply to NEW analyses only.</p>
+
+  <div class="card">
+    <h2>Locked rules (set in code, read-only)</h2>
+    <%# {language} is filled in with the customer's language when the AI is called. %>
+    <% if (def.lockedRules.indexOf('{language}') !== -1) { %>
+      <p class="muted">The text <code>{language}</code> is replaced with the customer's language when the AI is called.</p>
+    <% } %>
+    <pre class="locked-rules" style="white-space: pre-wrap; background: #f6efe3; padding: 12px; border-radius: 6px; font-size: 13px; max-height: 320px; overflow: auto;"><%= def.lockedRules %></pre>
+  </div>
+
+  <div class="card">
+    <h2>Guidance and limits</h2>
+    <form id="ai-config-form" method="post" action="/admin/ai/<%= key %>">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+      <label for="guidance">Guidance (added after the locked rules; may be empty, up to <%= bounds.guidanceMax %> characters)</label>
+      <textarea id="guidance" name="guidance" rows="10" <%= ro %>><%= val(form.guidance) %></textarea>
+      <% if (fieldErrors.guidance) { %><div class="field-error" data-field="guidance" style="color: #9b3b30; font-size: 13px;"><%= fieldErrors.guidance %></div><% } %>
+
+      <label for="timeoutSec">Timeout in seconds (allowed: <%= bounds.timeoutSec.min %> to <%= bounds.timeoutSec.max %>)</label>
+      <input type="number" id="timeoutSec" name="timeoutSec" min="<%= bounds.timeoutSec.min %>" max="<%= bounds.timeoutSec.max %>" step="1" value="<%= val(form.timeoutSec) %>" <%= ro %>>
+      <% if (fieldErrors.timeoutSec) { %><div class="field-error" data-field="timeoutSec" style="color: #9b3b30; font-size: 13px;"><%= fieldErrors.timeoutSec %></div><% } %>
+
+      <label for="maxOutputTokens">Max output tokens (allowed: <%= bounds.maxOutputTokens.min %> to <%= bounds.maxOutputTokens.max %>)</label>
+      <input type="number" id="maxOutputTokens" name="maxOutputTokens" min="<%= bounds.maxOutputTokens.min %>" max="<%= bounds.maxOutputTokens.max %>" step="1" value="<%= val(form.maxOutputTokens) %>" <%= ro %>>
+      <% if (fieldErrors.maxOutputTokens) { %><div class="field-error" data-field="maxOutputTokens" style="color: #9b3b30; font-size: 13px;"><%= fieldErrors.maxOutputTokens %></div><% } %>
+
+      <label for="maxCostUsd">Cost cap per request in USD (allowed: <%= bounds.maxCostUsd.min.toFixed(2) %> to <%= bounds.maxCostUsd.max.toFixed(2) %>)</label>
+      <input type="number" id="maxCostUsd" name="maxCostUsd" min="<%= bounds.maxCostUsd.min %>" max="<%= bounds.maxCostUsd.max %>" step="0.01" value="<%= val(form.maxCostUsd) %>" <%= ro %>>
+      <% if (key === 'skin_analysis') { %>
+        <div class="muted">A skin analysis usually costs about $0.10-0.20; a cap below that may make analyses fail.</div>
+      <% } %>
+      <% if (fieldErrors.maxCostUsd) { %><div class="field-error" data-field="maxCostUsd" style="color: #9b3b30; font-size: 13px;"><%= fieldErrors.maxCostUsd %></div><% } %>
+
+      <label for="note">Note for the history (optional, up to <%= bounds.noteMax %> characters)</label>
+      <input type="text" id="note" name="note" value="<%= val(form.note) %>" <%= ro %>>
+      <% if (fieldErrors.note) { %><div class="field-error" data-field="note" style="color: #9b3b30; font-size: 13px;"><%= fieldErrors.note %></div><% } %>
+
+      <% if (canEdit) { %>
+        <p><button type="submit" data-action="publish">Publish</button></p>
+      <% } %>
+    </form>
+  </div>
+
+  <% if (canEdit) { %>
+    <div class="card">
+      <h2>Test run</h2>
+      <p class="muted">Runs ONE real AI call with the values currently in the form (unsaved) on a built-in sample case. It costs money and saves nothing. Up to 20 runs per hour.</p>
+      <label for="sampleCase">Sample case</label>
+      <select id="sampleCase" name="sampleCase">
+        <% sampleCases.forEach(function (c) { %>
+          <option value="<%= c.id %>"><%= c.label %></option>
+        <% }); %>
+      </select>
+      <p><button type="button" data-action="test" data-url="/admin/ai/<%= key %>/test" data-csrf="<%= csrfToken %>">Run test</button></p>
+      <pre id="ai-test-result" style="white-space: pre-wrap; font-size: 13px;"></pre>
+    </div>
+  <% } %>
+
+  <div class="card">
+    <h2>History</h2>
+    <% if (canEdit) { %>
+      <form data-restore-default method="post" action="/admin/ai/<%= key %>/restore">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <input type="hidden" name="versionId" value="default">
+        <button type="submit" class="btn secondary small">Restore built-in default</button>
+      </form>
+    <% } %>
+    <table class="ai-history" style="margin-top: 12px;">
+      <thead>
+        <tr><th>Saved</th><th>By</th><th>Limits (timeout / tokens / cost)</th><th>Note</th><th></th></tr>
+      </thead>
+      <tbody>
+        <% versions.forEach(function (v) { %>
+          <tr data-version-id="<%= v.id %>">
+            <td><%= v.createdAt ? new Date(v.createdAt).toISOString().replace('T', ' ').slice(0, 16) : '' %></td>
+            <td><%= v.createdBy %></td>
+            <td><%= v.limits.timeoutSec %> s / <%= v.limits.maxOutputTokens %> / $<%= v.limits.maxCostUsd %></td>
+            <td><%= v.note %><% if (v.restoredFrom) { %> <span class="muted">(restore)</span><% } %></td>
+            <td>
+              <% if (canEdit) { %>
+                <form data-restore method="post" action="/admin/ai/<%= key %>/restore">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                  <input type="hidden" name="versionId" value="<%= v.id %>">
+                  <button type="submit" class="small" data-action="restore">Restore</button>
+                </form>
+              <% } %>
+            </td>
+          </tr>
+        <% }); %>
+        <% if (!versions.length) { %>
+          <tr><td colspan="5" class="muted">No saved versions yet: the built-in default is live.</td></tr>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+</main>
+
+<% if (canEdit) { %>
+<script>
+  // "Run test" button. Inline script blocks are allowed by the /admin CSP, inline onclick= is not,
+  // so the listener is attached here. It sends the CURRENT form values as JSON and prints the answer.
+  (function () {
+    var btn = document.querySelector('button[data-action="test"]');
+    var out = document.getElementById('ai-test-result');
+    var form = document.getElementById('ai-config-form');
+    btn.addEventListener('click', function () {
+      var body = {
+        guidance: form.elements.guidance.value,
+        timeoutSec: form.elements.timeoutSec.value,
+        maxOutputTokens: form.elements.maxOutputTokens.value,
+        maxCostUsd: form.elements.maxCostUsd.value,
+        note: form.elements.note.value,
+        sampleCase: document.getElementById('sampleCase').value
+      };
+      // A real call can take up to ~90 s: disable the button so it cannot be double-clicked.
+      btn.disabled = true;
+      out.textContent = 'Running... this can take up to 90 seconds.';
+      fetch(btn.getAttribute('data-url'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': btn.getAttribute('data-csrf') },
+        body: JSON.stringify(body)
+      }).then(function (res) {
+        return res.json().then(function (data) { return { status: res.status, data: data }; });
+      }).then(function (r) {
+        if (r.data && r.data.code === 'BEDROCK_NOT_CONFIGURED') {
+          out.textContent = 'AI is not configured on this server.';
+        } else if (r.status >= 400 && r.data && r.data.error) {
+          out.textContent = r.data.error + (r.data.errors ? '\n' + JSON.stringify(r.data.errors, null, 2) : '');
+        } else {
+          out.textContent = JSON.stringify(r.data, null, 2);
+        }
+      }).catch(function () {
+        out.textContent = 'The test could not be completed. Try again.';
+      }).then(function () { btn.disabled = false; });
+    });
+  })();
+</script>
+<% } %>
+<%- include('_foot') %>

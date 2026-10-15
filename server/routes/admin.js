@@ -154,6 +154,9 @@ router.use(helmet({
 // from req.body. Scoped to /admin: the public API has no reason to accept form posts.
 router.use(express.urlencoded({ extended: false, limit: '1mb' }));
 
+// AI settings pages (prompts, limits, history, test run) live in their own router.
+router.use('/ai', require('./adminAi'));
+
 function adminGoogleClientId() {
   return process.env.ADMIN_GOOGLE_CLIENT_ID
     || (process.env.GOOGLE_CLIENT_IDS || '').split(',').map(v => v.trim()).filter(Boolean)[0]

@@ -1,0 +1,29 @@
+<%#
+  AI settings list: one row per AI task with which version is live. `rows` = [{ key, title, activeLabel }]
+  built in routes/adminAi.js.
+%>
+<%- include('_head', { title: 'AI settings' }) %>
+<%- include('_nav', { active: 'ai' }) %>
+<main>
+  <% if (locals.notice) { %>
+    <div class="notice <%= notice.error ? 'error' : '' %>"><%= notice.text %></div>
+  <% } %>
+
+  <h1 style="font-size: 20px; margin: 0 0 6px;">AI settings</h1>
+  <p class="muted">Tune the guidance and limits of each AI task. Changes apply to new analyses only.</p>
+
+  <table>
+    <thead>
+      <tr><th>Task</th><th>Live version</th></tr>
+    </thead>
+    <tbody>
+      <% rows.forEach(function (r) { %>
+        <tr data-ai-key="<%= r.key %>">
+          <td><a href="/admin/ai/<%= r.key %>"><%= r.title %></a></td>
+          <td class="ai-active-version"><%= r.activeLabel %></td>
+        </tr>
+      <% }); %>
+    </tbody>
+  </table>
+</main>
+<%- include('_foot') %>
