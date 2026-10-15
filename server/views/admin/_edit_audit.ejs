@@ -48,7 +48,7 @@
       <%- include('_rowTools') %>
       <div class="grid2">
         <div><label>Replace this</label><input type="text" data-path="from" maxlength="200" value="<%= item.from || '' %>"></div>
-        <div><label>With this</label><input type="text" data-path="to" maxlength="200" value="<%= item.to || '' %>"></div>
+        <div><label>With this (catalogue product)</label><%- include('_productPicker', { idPath: 'to_product_id', namePath: 'to', id: item.to_product_id, name: item.to }) %></div>
       </div>
       <label>Why</label>
       <textarea data-path="reason" maxlength="500" rows="2"><%= item.reason || '' %></textarea>

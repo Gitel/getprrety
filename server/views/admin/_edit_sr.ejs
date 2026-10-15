@@ -12,7 +12,7 @@
       <%- include('_rowTools') %>
       <div class="grid2">
         <div><label>Step (e.g. Cleanse, Serum, SPF)</label><input type="text" data-path="routine_category" maxlength="120" value="<%= step.routine_category || '' %>"></div>
-        <div><label>SR product name</label><input type="text" data-path="sr_product_name" maxlength="200" value="<%= step.sr_product_name || '' %>"></div>
+        <div><label>SR product</label><%- include('_productPicker', { idPath: 'sr_product_id', namePath: 'sr_product_name', id: step.sr_product_id, name: step.sr_product_name }) %></div>
       </div>
       <label>Key actives (comma separated, the app shows the first 3)</label>
       <input type="text" data-path="key_actives_matched" data-split="," maxlength="700"
@@ -23,9 +23,8 @@
       <textarea data-path="match_reason" maxlength="1000" rows="2"><%= step.match_reason || '' %></textarea>
       <label>Text shown when there is no SR product for this step</label>
       <input type="text" data-path="no_match_note" maxlength="1000" value="<%= step.no_match_note || '' %>" placeholder="Source externally for this step.">
-      <%# Catalogue id from the analysis service. Kept as-is; with a product name and no id
-          the server stores a marker id so the name is shown (see analysisFields.js). %>
-      <input type="hidden" data-path="sr_product_id" value="<%= step.sr_product_id || '' %>">
+      <%# The product picker above stores the catalogue id; "No product" turns the step into an
+          unmatched step that shows the note above (the server clears the id and name). %>
     </div>
 <% } %>
 <div class="card" id="sr">
@@ -41,8 +40,8 @@
 
     <fieldset>
       <legend>Era hero product</legend>
-      <label>Product name</label>
-      <input type="text" data-path="srProducts.era_hero_product.sr_product_name" maxlength="200" value="<%= hero.sr_product_name || '' %>">
+      <label>Product</label>
+      <%- include('_productPicker', { idPath: 'srProducts.era_hero_product.sr_product_id', namePath: 'srProducts.era_hero_product.sr_product_name', id: hero.sr_product_id, name: hero.sr_product_name }) %>
       <label>Why it is the hero</label>
       <textarea data-path="srProducts.era_hero_product.hero_reason" maxlength="1000" rows="2"><%= hero.hero_reason || '' %></textarea>
     </fieldset>

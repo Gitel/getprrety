@@ -242,3 +242,213 @@ describe('updateAnalysisSection: audit + product picks, SR Ritual, shelf', () =>
     expect(m2.findByIdAndUpdate.mock.calls[0][1].$set.shelfAnalysis.identified_products[0]).toMatchObject({ product_name: 'Cleanser', status: 'compatible' });
   });
 });
+
+// ---- T5: catalogue picker, score reading, safety ----------------------------------------
+describe('updateAnalysisSection: catalogue product picker', () => {
+  const { updateAnalysisSection } = require('./adminEdits');
+  const AID = '64b000000000000000000001';
+  const SAFE = 'a'.repeat(24);
+  const AVOID = 'b'.repeat(24);
+  const UNKNOWN = 'c'.repeat(24);
+  // What loadCatalogue() returns: only ACTIVE home-use products, so an archived one is simply absent.
+  const catalogue = [
+    { _id: SAFE, name: 'Safe Peel', use: 'home', archived: false, pregnancy: 'safe', ingredients: 'aqua' },
+    { _id: AVOID, name: 'Avoid Mask', use: 'home', archived: false, pregnancy: 'avoid', ingredients: 'aqua' },
+  ];
+  const PREGNANT = { pregnancy_caution: true, allergies: ['none'], irritants: ['none'] };
+  const OPEN = { pregnancy_caution: false, allergies: ['none'], irritants: ['none'] };
+  const model = current => ({
+    findById: jest.fn(() => ({ select: () => ({ lean: async () => ({ userId: 'u1', quizAnswers: OPEN, ...current }) }) })),
+    findByIdAndUpdate: jest.fn(async () => ({})),
+  });
+  const deps = (m, loader) => ({ analysisModel: m, catalogueLoader: loader || jest.fn(async () => catalogue) });
+  const hero = (id, name = 'typed by hand') => ({ srProducts: { bundle_note: 'n', era_hero_product: { sr_product_id: id, sr_product_name: name, hero_reason: 'r' } } });
+
+  test('an eligible pick saves and the server fills the name from the catalogue', async () => {
+    const m = model({ srProducts: null });
+    const result = await updateAnalysisSection(AID, 'sr', hero(SAFE, 'client typed name'), deps(m));
+    expect(result).toMatchObject({ ok: true, action: 'sr_ritual_updated' });
+    const { $set } = m.findByIdAndUpdate.mock.calls[0][1];
+    expect($set.srProducts.era_hero_product).toMatchObject({ sr_product_id: SAFE, sr_product_name: 'Safe Peel' });
+  });
+
+  test('a product that pregnancy caution excludes is rejected and nothing is written', async () => {
+    const m = model({ srProducts: null, quizAnswers: PREGNANT });
+    await expect(updateAnalysisSection(AID, 'sr', hero(AVOID), deps(m)))
+      .resolves.toEqual({ ok: false, code: 'analysis_product_ineligible' });
+    expect(m.findByIdAndUpdate).not.toHaveBeenCalled();
+    // ...while the pregnancy-safe product is still allowed for the same customer.
+    await expect(updateAnalysisSection(AID, 'sr', hero(SAFE), deps(model({ srProducts: null, quizAnswers: PREGNANT }))))
+      .resolves.toMatchObject({ ok: true });
+  });
+
+  test('an incomplete / unusable quiz means nothing is eligible', async () => {
+    const m = model({ srProducts: null, quizAnswers: { pregnancy_caution: 'not a valid shape', allergies: 'oops' } });
+    await expect(updateAnalysisSection(AID, 'sr', hero(SAFE), deps(m)))
+      .resolves.toEqual({ ok: false, code: 'analysis_product_ineligible' });
+  });
+
+  test('unknown, archived (absent from the active list) and non-id values are rejected', async () => {
+    for (const bad of [UNKNOWN, 'not-an-id']) {
+      const m = model({ srProducts: null });
+      await expect(updateAnalysisSection(AID, 'sr', hero(bad), deps(m))).resolves.toEqual({ ok: false, code: 'analysis_product_unknown' });
+      expect(m.findByIdAndUpdate).not.toHaveBeenCalled();
+    }
+  });
+
+  test('"No product" clears id and name; an SR step keeps its no_match_note', async () => {
+    const current = { srProducts: { bundle_note: 'n', era_hero_product: { sr_product_id: SAFE, sr_product_name: 'Safe Peel', hero_reason: 'r' },
+      am: [{ step: 1, routine_category: 'Cleanse', sr_product_id: SAFE, sr_product_name: 'Safe Peel', no_match_note: 'Any gentle cleanser' }], pm: [] } };
+    const m = model(current);
+    const loader = jest.fn(async () => catalogue);
+    await updateAnalysisSection(AID, 'sr', { srProducts: {
+      bundle_note: 'n', era_hero_product: { sr_product_id: '', sr_product_name: 'stale', hero_reason: 'r' },
+      am: [{ routine_category: 'Cleanse', sr_product_id: '', sr_product_name: 'stale', no_match_note: 'Any gentle cleanser' }],
+    } }, deps(m, loader));
+    const { srProducts } = m.findByIdAndUpdate.mock.calls[0][1].$set;
+    expect(srProducts.era_hero_product).toMatchObject({ sr_product_id: null, sr_product_name: '' });
+    expect(srProducts.am[0]).toMatchObject({ sr_product_id: null, sr_product_name: '', no_match_note: 'Any gentle cleanser' });
+    expect(loader).not.toHaveBeenCalled(); // clearing never needs the catalogue
+  });
+
+  test('a legacy value is kept with "keep:" and never touches the catalogue', async () => {
+    const current = { srProducts: { bundle_note: 'n', era_hero_product: { sr_product_name: 'Old Serum', sr_product_id: 'admin-entered', hero_reason: 'r' }, am: [], pm: [] } };
+    const m = model(current);
+    const loader = jest.fn(async () => catalogue);
+    const result = await updateAnalysisSection(AID, 'sr', hero('keep:admin-entered', 'Old Serum'), deps(m, loader));
+    expect(result).toMatchObject({ ok: true, changed: [] }); // identical -> no write, no audit
+    expect(m.findByIdAndUpdate).not.toHaveBeenCalled();
+    expect(loader).not.toHaveBeenCalled();
+  });
+
+  test('"keep:" cannot smuggle in a catalogue id that is not already stored', async () => {
+    await expect(updateAnalysisSection(AID, 'sr', hero('keep:' + AVOID), deps(model({ srProducts: null, quizAnswers: PREGNANT }))))
+      .resolves.toEqual({ ok: false, code: 'analysis_product_unknown' });
+  });
+
+  test('an unchanged stored pick is not re-judged against eligibility', async () => {
+    const current = { quizAnswers: PREGNANT, srProducts: { bundle_note: 'n', era_hero_product: { sr_product_name: 'Avoid Mask', sr_product_id: AVOID, hero_reason: 'r' }, am: [], pm: [] } };
+    await expect(updateAnalysisSection(AID, 'sr', hero(AVOID, 'Avoid Mask'), deps(model(current)))).resolves.toMatchObject({ ok: true, changed: [] });
+  });
+
+  test('audit: the replace picker stores to_product_id + name; shelf: substitute and first purchase', async () => {
+    const m = model({ productAudit: {}, productRecs: null });
+    await updateAnalysisSection(AID, 'audit', { productAudit: { replace: [{ from: 'Toner', to_product_id: SAFE, to: 'x' }] } }, deps(m));
+    expect(m.findByIdAndUpdate.mock.calls[0][1].$set.productAudit.replace[0]).toMatchObject({ from: 'Toner', to: 'Safe Peel', to_product_id: SAFE });
+
+    const m2 = model({ shelfAnalysis: null });
+    await updateAnalysisSection(AID, 'shelf', { shelfAnalysis: {
+      identified_products: [{ product_name: 'Cleanser', sr_substitute_product_id: SAFE, sr_substitute_name: 'x' }],
+      transition_plan: { first_sr_purchase_product_id: SAFE, first_sr_purchase: 'x' },
+    } }, deps(m2));
+    const shelf = m2.findByIdAndUpdate.mock.calls[0][1].$set.shelfAnalysis;
+    expect(shelf.identified_products[0]).toMatchObject({ sr_substitute_product_id: SAFE, sr_substitute_name: 'Safe Peel' });
+    expect(shelf.transition_plan).toMatchObject({ first_sr_purchase_product_id: SAFE, first_sr_purchase: 'Safe Peel' });
+  });
+});
+
+describe('updateAnalysisSection: safety', () => {
+  const { updateAnalysisSection } = require('./adminEdits');
+  const AID = '64b000000000000000000001';
+  const model = current => ({
+    findById: jest.fn(() => ({ select: () => ({ lean: async () => ({ userId: 'u1', ...current }) }) })),
+    findByIdAndUpdate: jest.fn(async () => ({})),
+  });
+
+  test('saves both lists (bounded) and audits as safety_updated', async () => {
+    const m = model({ safetyFlags: ['Old'], checkInPrompts: null });
+    const many = Array.from({ length: 40 }, (_, i) => 'Prompt ' + i);
+    const result = await updateAnalysisSection(AID, 'safety', { safetyFlags: ['New', ' '], checkInPrompts: many }, { analysisModel: m });
+    expect(result).toEqual({ ok: true, changed: ['safetyFlags', 'checkInPrompts'], action: 'safety_updated', userId: 'u1' });
+    const { $set } = m.findByIdAndUpdate.mock.calls[0][1];
+    expect($set.safetyFlags).toEqual(['New']);
+    expect($set.checkInPrompts).toHaveLength(20);
+  });
+
+  test('unchanged (including an old analysis with no stored lists) writes nothing', async () => {
+    const same = model({ safetyFlags: ['A'], checkInPrompts: ['B'] });
+    expect((await updateAnalysisSection(AID, 'safety', { safetyFlags: ['A'], checkInPrompts: ['B'] }, { analysisModel: same })).changed).toEqual([]);
+    const empty = model({ safetyFlags: null });
+    expect((await updateAnalysisSection(AID, 'safety', { safetyFlags: [], checkInPrompts: [] }, { analysisModel: empty })).changed).toEqual([]);
+    expect(same.findByIdAndUpdate).not.toHaveBeenCalled();
+    expect(empty.findByIdAndUpdate).not.toHaveBeenCalled();
+  });
+});
+
+describe('updateAnalysisSection: score reading', () => {
+  const { updateAnalysisSection } = require('./adminEdits');
+  const AID = '64b000000000000000000001';
+  const SID = '64b0000000000000000000cc';
+  const reading = () => ({
+    startHere: { title: 'Start', body: 'Body text' },
+    signals: [
+      { key: 'barrier', potential: 90, weeks: '6-8 weeks', driver: 'Dry', why: 'Why one', lever: 'Lever one', shelf: { status: 'missing', text: 'No moisturiser' }, product: null },
+      { key: 'clarity', potential: 85, weeks: '4 weeks', driver: null, why: 'Why two', lever: null, shelf: null, product: null },
+    ],
+  });
+  const analysisModel = current => ({
+    findById: jest.fn(() => ({ select: () => ({ lean: async () => ({ userId: 'u1', skinScanId: SID, ...current }) }) })),
+    findByIdAndUpdate: jest.fn(async () => ({})),
+  });
+  const scanModel = scan => ({
+    findById: jest.fn(() => ({ select: () => ({ lean: async () => scan }) })),
+    findByIdAndUpdate: jest.fn(async () => ({})),
+  });
+  const body = (over = {}) => ({
+    startHere: { title: 'Start', body: 'Body text' },
+    signals: [{ key: 'barrier', driver: 'Dry', why: 'Why one', lever: 'Lever one' }, { key: 'clarity', why: 'Why two' }],
+    ...over,
+  });
+  const run = (b, scan) => {
+    const sm = scanModel(scan);
+    return updateAnalysisSection(AID, 'reading', b, { analysisModel: analysisModel({}), scanModel: sm }).then(r => ({ r, sm }));
+  };
+
+  test('merges edited text and keeps potential / weeks / shelf / product from the stored reading', async () => {
+    // The scan has no scores, so sanitizeReading alone would null every "potential": they must survive anyway.
+    const { r, sm } = await run(body({ startHere: { title: 'New title', body: 'Body text' } }), { _id: SID, userId: 'u1', reading: reading() });
+    expect(r).toEqual({ ok: true, changed: ['startHere.title'], action: 'score_reading_updated', userId: 'u1' });
+    const saved = sm.findByIdAndUpdate.mock.calls[0][1].$set.reading;
+    expect(saved.startHere).toEqual({ title: 'New title', body: 'Body text' });
+    expect(saved.signals[0]).toMatchObject({ key: 'barrier', potential: 90, weeks: '6-8 weeks', shelf: { status: 'missing', text: 'No moisturiser' }, product: null });
+    expect(saved.signals[1]).toMatchObject({ key: 'clarity', potential: 85, why: 'Why two' });
+  });
+
+  test('a changed signal text is reported by field name only', async () => {
+    const b = body();
+    b.signals[0].why = 'A better reason';
+    const { r } = await run(b, { _id: SID, userId: 'u1', reading: reading() });
+    expect(r.changed).toEqual(['barrier.why']);
+  });
+
+  test('unchanged form writes nothing', async () => {
+    const { r, sm } = await run(body(), { _id: SID, userId: 'u1', reading: reading() });
+    expect(r.changed).toEqual([]);
+    expect(sm.findByIdAndUpdate).not.toHaveBeenCalled();
+  });
+
+  test('over-long text is rejected, not truncated', async () => {
+    const b = body();
+    b.signals[0].why = 'x'.repeat(401);
+    const { r, sm } = await run(b, { _id: SID, userId: 'u1', reading: reading() });
+    expect(r).toEqual({ ok: false, code: 'analysis_invalid_reading' });
+    expect(sm.findByIdAndUpdate).not.toHaveBeenCalled();
+    const tooLongTitle = await run(body({ startHere: { title: 'x'.repeat(81), body: 'b' } }), { _id: SID, userId: 'u1', reading: reading() });
+    expect(tooLongTitle.r.code).toBe('analysis_invalid_reading');
+  });
+
+  test('a start-here with a title but no body is invalid', async () => {
+    const { r } = await run(body({ startHere: { title: 'Only title', body: '' } }), { _id: SID, userId: 'u1', reading: reading() });
+    expect(r.code).toBe('analysis_invalid_reading');
+  });
+
+  test('no reading, no scan, or a scan belonging to another user -> analysis_no_reading', async () => {
+    expect((await run(body(), { _id: SID, userId: 'u1', reading: null })).r.code).toBe('analysis_no_reading');
+    expect((await run(body(), null)).r.code).toBe('analysis_no_reading');
+    const other = await run(body(), { _id: SID, userId: 'someone-else', reading: reading() });
+    expect(other.r).toEqual({ ok: false, code: 'analysis_no_reading' });
+    expect(other.sm.findByIdAndUpdate).not.toHaveBeenCalled();
+    const noLink = await updateAnalysisSection(AID, 'reading', body(), { analysisModel: analysisModel({ skinScanId: null }), scanModel: scanModel(null) });
+    expect(noLink.code).toBe('analysis_no_reading');
+  });
+});

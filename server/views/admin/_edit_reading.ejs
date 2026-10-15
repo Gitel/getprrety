@@ -1,0 +1,48 @@
+<%#
+  Editor: the Profile "score reading" copy (the "Start here" box and the per-signal text).
+  It lives on the linked SkinScan, not on the analysis. Shown only when that scan has a
+  reading (routes/admin.js passes `reading`; `readingScores` = { signalKey: today's score }).
+  Saves to POST /admin/customer/:id/edit/reading  (services/adminEdits.js SECTIONS.reading).
+  Editable: start-here title/body and each signal's driver / why / lever.
+  NOT editable (kept from the stored reading by the server): potential, weeks, shelf, product.
+%>
+<%
+  var rd = locals.reading || {};
+  var rdStart = rd.startHere || {};
+  var rdScores = locals.readingScores || {};
+%>
+<div class="card" id="reading">
+  <h2>Score reading (Profile screen)</h2>
+  <p class="muted">The written copy next to the customer's scan scores. The possible score, weeks, shelf line and product are generated and cannot be edited here.</p>
+  <form data-json-editor action="/admin/customer/<%= analysis._id %>/edit/reading">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+    <fieldset>
+      <legend>Start here</legend>
+      <label>Title (max 80 characters)</label>
+      <input type="text" data-path="startHere.title" maxlength="80" value="<%= rdStart.title || '' %>">
+      <label>Text (max 600 characters)</label>
+      <textarea data-path="startHere.body" maxlength="600" rows="3"><%= rdStart.body || '' %></textarea>
+    </fieldset>
+
+    <%# One row per signal. The hidden key tells the server which stored signal the row edits. %>
+    <div data-list="signals">
+      <% (Array.isArray(rd.signals) ? rd.signals : []).forEach(function (sig) { %>
+        <div class="row">
+          <input type="hidden" data-path="key" value="<%= sig.key %>">
+          <strong><%= sig.key %></strong>
+          <% if (rdScores[sig.key] != null) { %><span class="muted"> - today's score <%= rdScores[sig.key] %></span><% } %>
+          <label>What drags it (max 400)</label>
+          <input type="text" data-path="driver" maxlength="400" value="<%= sig.driver || '' %>">
+          <label>Why (max 400)</label>
+          <textarea data-path="why" maxlength="400" rows="2"><%= sig.why || '' %></textarea>
+          <label>What moves it (max 400)</label>
+          <input type="text" data-path="lever" maxlength="400" value="<%= sig.lever || '' %>">
+        </div>
+      <% }); %>
+    </div>
+
+    <p><button type="submit">Save score reading</button></p>
+    <p class="editor-status muted"></p>
+  </form>
+</div>

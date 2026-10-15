@@ -16,6 +16,8 @@ const MAX_AUDIT_ITEMS = 20;    // per audit bucket
 const MAX_INSIGHTS = 20;
 const MAX_SHELF_PRODUCTS = 30;
 const MAX_ACTIVES = 10;
+const MAX_SAFETY_ITEMS = 20;   // safetyFlags / checkInPrompts list length
+const MAX_SAFETY_TEXT = 500;   // characters per safety flag / check-in prompt
 const ROUTINE_CATEGORIES = ['cleanse', 'treat', 'moisturize', 'protect', 'other'];
 
 // A trimmed, length-capped string. Numbers are accepted (form fields sometimes arrive as
@@ -71,7 +73,13 @@ function sanitizeProductAudit(value) {
   };
   const replace = i => {
     if (!isObject(i)) return null;
-    const out = { from: text(i.from, 200), to: text(i.to, 200), reason: text(i.reason, 500) };
+    const to = text(i.to, 200);
+    const out = {
+      from: text(i.from, 200), to, reason: text(i.reason, 500),
+      // Catalogue id of the replacement product (set by the admin picker or the AI). Like
+      // the other product ids it only survives alongside its display name.
+      to_product_id: nullableProductId(i.to_product_id, to),
+    };
     return out.from ? out : null;
   };
   const add = i => {
@@ -109,6 +117,12 @@ function sanitizeProductRecs(value, productAudit) {
 
 function sanitizeKeyInsights(value) {
   return list(value, MAX_INSIGHTS, i => text(i, 500) || null);
+}
+
+// safetyFlags / checkInPrompts: a bounded list of non-empty strings (the admin types one
+// per line). Blank lines are dropped; too many / too long entries are cut.
+function sanitizeTextList(value) {
+  return list(value, MAX_SAFETY_ITEMS, i => text(i, MAX_SAFETY_TEXT) || null);
 }
 
 // SR Ritual (Profile screen). Returns null when there is nothing to show, which the app
@@ -200,8 +214,9 @@ module.exports = {
   sanitizeProductAudit,
   sanitizeProductRecs,
   sanitizeKeyInsights,
+  sanitizeTextList,
   sanitizeSrProducts,
   sanitizeShelfAnalysis,
   SHELF_STATUSES,
-  LIMITS: { MAX_STEPS, MAX_AUDIT_ITEMS, MAX_INSIGHTS, MAX_SHELF_PRODUCTS, MAX_ACTIVES },
+  LIMITS: { MAX_STEPS, MAX_AUDIT_ITEMS, MAX_INSIGHTS, MAX_SHELF_PRODUCTS, MAX_ACTIVES, MAX_SAFETY_ITEMS, MAX_SAFETY_TEXT },
 };

@@ -1,0 +1,33 @@
+<%#
+  Catalogue product picker used by the SR Ritual, product audit and shelf editors.
+  Locals (passed by the including editor):
+    idPath  - data-path of the select: the field that stores the catalogue product id
+    namePath - data-path of the matching display-name field. The SERVER fills the name from
+               the catalogue when a product is picked, so the name is only posted (hidden)
+               for a LEGACY value (see below).
+    id, name - what is stored now.
+  Render data used: pickerProducts = [{ _id, name }] (active home-use catalogue products).
+
+  Options: "No product" (empty value), then every catalogue product, the stored one selected.
+  A LEGACY value is a stored product that is not in the list (old free text, the old
+  'admin-entered' marker, an archived product). It is shown as a read-only line and kept
+  through a "keep:<id>" option unless the admin picks something else
+  (services/adminEdits.js resolvePicks).
+%>
+<%
+  var pickerList = locals.pickerProducts || [];
+  var storedId = id ? String(id) : '';
+  var inList = !storedId || pickerList.some(function (p) { return String(p._id) === storedId; });
+  var isLegacy = (storedId && !inList) || (!storedId && name);
+%>
+<% if (isLegacy) { %>
+  <p class="legacy-product muted">Current (not from the catalogue): <%= name %></p>
+  <input type="hidden" data-path="<%= namePath %>" value="<%= name || '' %>">
+<% } %>
+<select data-product-picker data-path="<%= idPath %>">
+  <option value="">No product</option>
+  <% if (isLegacy) { %><option value="keep:<%= storedId %>" selected>Keep current: <%= name %></option><% } %>
+  <% pickerList.forEach(function (p) { %>
+    <option value="<%= p._id %>" <%= String(p._id) === storedId ? 'selected' : '' %>><%= p.name %></option>
+  <% }); %>
+</select>

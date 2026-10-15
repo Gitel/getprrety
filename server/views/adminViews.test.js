@@ -605,3 +605,136 @@ describe('sign-in link card and invites', () => {
     expect(html).toContain('navigator.clipboard.writeText');
   });
 });
+
+describe('customer page: catalogue pickers, score reading and safety editors', () => {
+  const PEEL = 'a'.repeat(24);
+  const pickerProducts = [{ _id: PEEL, name: 'One Step Peel' }, { _id: 'b'.repeat(24), name: 'Other Cream' }];
+  const reading = {
+    startHere: { title: 'Start here', body: 'Body' },
+    signals: [{ key: 'barrier', potential: 90, weeks: '6 weeks', driver: 'Dry', why: 'Why', lever: 'Lever', shelf: null, product: null }],
+  };
+  const renderCustomer = extra => render('customer', {
+    analysis: {
+      ...analysis,
+      srProducts: {
+        bundle_note: 'n',
+        era_hero_product: { sr_product_name: 'One Step Peel', sr_product_id: PEEL, hero_reason: 'r' },
+        am: [
+          { routine_category: 'Cleanse', sr_product_name: 'Old Typed Serum', sr_product_id: 'admin-entered' }, // legacy
+          { routine_category: 'Protect', sr_product_name: '', sr_product_id: null, no_match_note: 'Any SPF' },
+        ],
+        pm: [],
+      },
+      productAudit: { keep: [], remove: [], add: [], replace: [{ from: 'Toner', to: 'Old text only', reason: 'r' }] },
+      safetyFlags: ['Flag one', 'Flag <b>two</b>'], checkInPrompts: ['Prompt one'],
+    },
+    user: { _id: analysis.userId, email: 'ada@example.com', firstName: 'Ada' },
+    imageIds: [], resent: false, dashboardUrl: 'https://x/admin/customer/1',
+    eras: Object.values(require('../services/eras').ERAS),
+    shelfStatuses: require('../services/analysisFields').SHELF_STATUSES,
+    isLatest: true, notice: null, pickerProducts, ...extra,
+  });
+
+  test('pickers list "No product" first, then catalogue products, with the stored one selected', async () => {
+    const html = await renderCustomer({ reading: null });
+    expect(html).toContain('data-product-picker');
+    expect(html).toContain('data-path="srProducts.era_hero_product.sr_product_id"');
+    expect(html).toMatch(new RegExp(`<option value="${PEEL}" selected>One Step Peel</option>`));
+    expect(html).toContain('<option value="">No product</option>');
+    for (const path of ['sr_product_id', 'to_product_id', 'sr_substitute_product_id', 'shelfAnalysis.transition_plan.first_sr_purchase_product_id']) {
+      expect(html).toContain(`data-product-picker data-path="${path}"`);
+    }
+    // The old free-text name inputs are gone.
+    expect(html).not.toContain('<input type="text" data-path="sr_product_name"');
+  });
+
+  test('a legacy product is shown read-only and kept through a "keep:" option', async () => {
+    const html = await renderCustomer({ reading: null });
+    expect(html).toContain('class="legacy-product');
+    expect(html).toContain('Old Typed Serum');
+    expect(html).toContain('<option value="keep:admin-entered" selected>');
+    expect(html).toContain('Old text only'); // replace "to" without an id is legacy too
+    expect(html).toContain('<option value="keep:" selected>');
+  });
+
+  test('reading card renders only with a reading; safety card always, escaped, one item per line', async () => {
+    const withReading = await renderCustomer({ reading, readingScores: { barrier: 55 } });
+    expect(withReading).toContain('id="reading"');
+    expect(withReading).toContain('/admin/customer/64b000000000000000000001/edit/reading');
+    expect(withReading).toContain('data-path="startHere.title"');
+    expect(withReading).toContain('<input type="hidden" data-path="key" value="barrier">');
+    expect(withReading).toContain("today's score 55");
+    expect(withReading).toContain('id="safety"');
+    expect(withReading).toContain('Flag one\nFlag &lt;b&gt;two&lt;/b&gt;');
+    expect(withReading).toContain('data-split="&#10;"');
+
+    const without = await renderCustomer({ reading: null });
+    expect(without).not.toContain('id="reading"');
+    expect(without).toContain('id="safety"');
+  });
+
+  test('renders without the new locals (older callers)', async () => {
+    const html = await renderCustomer({ pickerProducts: undefined });
+    expect(html).toContain('data-product-picker');
+  });
+});
+
+// AI settings pages (routes/adminAi.js). Editable and read-only variants of the edit page.
+describe('AI settings pages', () => {
+  const { DEFAULTS, BOUNDS } = require('../services/aiConfig/aiConfig');
+  const editData = (over = {}) => ({
+    key: 'skin_analysis',
+    def: DEFAULTS.skin_analysis,
+    bounds: BOUNDS,
+    form: { guidance: 'Be <kind>', timeoutSec: 90, maxOutputTokens: 8000, maxCostUsd: 0.25, note: '' },
+    errors: {},
+    live: {},
+    activeLabel: 'Built-in default',
+    versions: [{
+      id: '64b0000000000000000000c1', guidance: 'g', limits: { timeoutSec: 60, maxOutputTokens: 4000, maxCostUsd: 0.1 },
+      note: 'first', createdBy: 'a@example.com', restoredFrom: null, createdAt: new Date('2026-10-01T10:00:00Z'),
+    }],
+    sampleCases: [{ id: 'en_basic', label: 'English' }],
+    canEdit: true,
+    notice: null,
+    ...over,
+  });
+
+  test('list page renders one row per key with the live version label', async () => {
+    const html = await render('ai', { rows: [{ key: 'skin_analysis', title: 'Skin analysis', activeLabel: 'Built-in default' }] });
+    expect(html).toContain('data-ai-key="skin_analysis"');
+    expect(html).toContain('href="/admin/ai/skin_analysis"');
+    expect(html).toContain('Built-in default');
+    expect(html).toContain('href="/admin/ai" class="active"');
+  });
+
+  test('editable edit page has the form, csrf, test button, restore forms and escapes values', async () => {
+    const html = await render('aiEdit', editData());
+    expect(html).toContain('id="ai-config-form"');
+    expect(html).toContain('name="_csrf" value="TEST_CSRF_TOKEN"');
+    expect(html).toContain('data-action="publish"');
+    expect(html).toContain('data-action="test"');
+    expect(html).toContain('data-restore-default');
+    expect(html).toContain('data-version-id="64b0000000000000000000c1"');
+    expect(html).toContain('Be &lt;kind&gt;');
+    expect(html).toContain('$0.10-0.20');
+  });
+
+  test('field errors are shown next to the field', async () => {
+    const html = await render('aiEdit', editData({ errors: { timeoutSec: 'Enter a whole number from 20 to 90.' } }));
+    expect(html).toContain('data-field="timeoutSec"');
+  });
+
+  test('read-only variant has readonly inputs and no publish, test or restore controls', async () => {
+    const html = await render('aiEdit', editData({
+      canEdit: false, key: 'market_picks', def: DEFAULTS.market_picks,
+      notice: { text: 'Only built-in admins can change AI settings.', error: true },
+    }));
+    expect(html).toContain('name="guidance" rows="10" readonly>');
+    expect(html).not.toContain('data-action="publish"');
+    expect(html).not.toContain('data-action="test"');
+    expect(html).not.toContain('data-action="restore"');
+    expect(html).not.toContain('$0.10-0.20');
+    expect(html).toContain('Only built-in admins can change AI settings.');
+  });
+});

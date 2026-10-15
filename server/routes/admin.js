@@ -5,6 +5,9 @@ const express = require('express');
 const router = express.Router();
 
 const SkinAnalysis = require('../models/SkinAnalysis');
+const SkinScan = require('../models/SkinScan');
+const CatalogueProduct = require('../models/CatalogueProduct');
+const { scanView } = require('../services/skinScan/scanView');
 const User = require('../models/User');
 const Upload = require('../models/Upload');
 const { notifyClinic, mailConfigError } = require('../services/clinicNotify');
@@ -245,9 +248,29 @@ router.get('/customer/:id', adminPage, async (req, res, next) => {
       ? await SkinAnalysis.findOne({ userId: analysis.userId }).sort({ createdAt: -1 }).select('_id').lean()
       : null;
 
+    // Product picker options: active home-use catalogue products (the same set the AI may pick from).
+    const pickerProducts = await CatalogueProduct.find({ use: 'home', archived: { $ne: true } })
+      .select('name category').sort('name').lean();
+
+    // The linked scan's written score reading, for the "Score reading" editor. A scan that
+    // belongs to another user is ignored, mirroring the check in services/adminEdits.js.
+    let reading = null;
+    let readingScores = {};
+    if (analysis.skinScanId) {
+      const scan = await SkinScan.findById(analysis.skinScanId).select('userId merged reading').lean();
+      if (scan && scan.reading && String(scan.userId) === String(analysis.userId)) {
+        reading = scan.reading;
+        // Today's score per signal, shown next to each signal so the admin sees what the copy describes.
+        readingScores = Object.fromEntries((((scanView(scan).signals || {}).signals) || []).map(sg => [sg.key, sg.score]));
+      }
+    }
+
     res.render('admin/customer', {
       analysis,
       user,
+      pickerProducts,
+      reading,
+      readingScores,
       imageIds,
       resent: req.query.resent === '1',
       dashboardUrl: `${publicBaseUrl(req)}/admin/customer/${analysis._id}`,
