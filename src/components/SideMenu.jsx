@@ -207,6 +207,11 @@ const MenuBody = memo(function MenuBody({ currentScreen, onClose, navigationRef,
           <Item icon={'\u2728'} label={t('menu:mySkinProfile')} current={currentScreen === 'Profile'}
             onPress={() => go('Profile', { fromHome: true })} />
         ) : null}
+        {/* Products the analysis recommends (needs an analysis, like the skin profile row). */}
+        {analysis ? (
+          <Item icon={'🧴'} label={t('menu:myProducts')} current={currentScreen === 'MyProducts'}
+            onPress={() => go('MyProducts')} />
+        ) : null}
         <Item
           icon={'\uD83D\uDCAC'}
           label={t('menu:messages')}

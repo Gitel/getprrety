@@ -12,6 +12,7 @@ import SplashScreen from './src/screens/SplashScreen';
 import QuizScreen from './src/screens/QuizScreen';
 import LoadingScreen from './src/screens/LoadingScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
+import MyProductsScreen from './src/screens/MyProductsScreen';
 import SignUpScreen from './src/screens/SignUpScreen';
 import SkinTimingScreen from './src/screens/SkinTimingScreen';
 import SkinSelfieScreen from './src/screens/SkinSelfieScreen';
@@ -37,6 +38,7 @@ const screens = {
   Quiz: QuizScreen,
   Loading: LoadingScreen,
   Profile: ProfileScreen,
+  MyProducts: MyProductsScreen, // all recommended products with photos/prices (side menu, Home card, Profile link)
   SignUp: SignUpScreen,
   SkinTiming: SkinTimingScreen,
   SkinSelfie: SkinSelfieScreen,

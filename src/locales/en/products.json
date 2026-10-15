@@ -1,0 +1,20 @@
+{
+  "title": "My products",
+  "intro": "Your SR Cosmetics picks for your routine",
+  "replace": {
+    "title": "Swap suggestions",
+    "instead": "Instead of {{from}}"
+  },
+  "otherOptions": {
+    "title": "Other options",
+    "hint": "Products from other brands, suggested by AI"
+  },
+  "card": {
+    "buy": "Buy",
+    "unavailable": "No longer available"
+  },
+  "empty": {
+    "title": "No product picks yet",
+    "body": "When your analysis includes SR Cosmetics products, they appear here."
+  }
+}

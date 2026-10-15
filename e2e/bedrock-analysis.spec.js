@@ -265,7 +265,7 @@ test.describe('successful pre-signup Bedrock analysis', () => {
     await expect(page.getByText('Barrier Healing Era', { exact: true })).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(t('home:fallbackBanner.title'), { exact: true })).toHaveCount(0);
     await expect(page.getByText(SAFETY_TEXT.en, { exact: false })).toBeVisible();
-    await expect(page.getByText('Hydrated Calm Cream', { exact: false }).first()).toBeVisible();
+    // (The SR product names moved from Profile to My products; checked below after opening it.)
     expect(calls[0].authorization).toBeNull();
     expect(calls[0].body.language).toBe('en');
     expect(calls[0].body.quizAnswers).toBeTruthy();
@@ -286,6 +286,9 @@ test.describe('successful pre-signup Bedrock analysis', () => {
     await finishSignupOnboarding(page, t);
     await openProfileFromHome(page, t);
     await expect(page.getByText(SAFETY_TEXT.en, { exact: false })).toBeVisible();
+    // The market picks now load on My products, not Profile: open it first.
+    await page.getByTestId('profile-my-products-link').click();
+    await expect(page.getByText('Hydrated Calm Cream', { exact: false }).first()).toBeVisible();
     await expect.poll(() => mock.callsTo('POST', '/api/ai/product-recommendations').length).toBe(1);
     const recRequest = mock.lastCall('POST', '/api/ai/product-recommendations').body;
     expect(recRequest.language).toBe('en');
@@ -346,6 +349,8 @@ test.describe('reopened analysis safety context', () => {
     } });
     await openHome(page, t);
     await openProfileFromHome(page, t);
+    // The market picks now load on My products, not Profile: open it first.
+    await page.getByTestId('profile-my-products-link').click();
     await expect.poll(() => mock.callsTo('POST', '/api/ai/product-recommendations').length).toBe(1);
     const body = mock.lastCall('POST', '/api/ai/product-recommendations').body;
     expect(body.safetyContext).toMatchObject({

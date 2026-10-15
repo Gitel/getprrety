@@ -1,7 +1,7 @@
 import { menuAction } from './sideMenu';
 
 // The screens that can show or be reached from the side menu.
-const SCREENS = ['Home', 'Profile', 'Messages', 'Settings', 'ProductCamera'];
+const SCREENS = ['Home', 'Profile', 'MyProducts', 'Messages', 'Settings', 'ProductCamera'];
 const OTHERS = SCREENS.filter(s => s !== 'Home');
 
 test.each(SCREENS)('tapping the current screen (%s) closes the menu', screen => {
@@ -22,11 +22,11 @@ test.each(HOPS)('%s -> %s replaces the top screen', (from, to) => {
 });
 
 test('every ordered pair of menu screens is covered', () => {
-  // 5 same-screen + 4 to-Home + 4 from-Home + 12 hops = all 25 pairs.
+  // 6 same-screen + 5 to-Home + 5 from-Home + 20 hops = all 36 pairs.
   const all = SCREENS.flatMap(a => SCREENS.map(b => menuAction(a, b)));
-  expect(all).toHaveLength(25);
-  expect(all.filter(x => x === 'close')).toHaveLength(5);
-  expect(all.filter(x => x === 'back')).toHaveLength(4);
-  expect(all.filter(x => x === 'navigate')).toHaveLength(4);
-  expect(all.filter(x => x === 'replace')).toHaveLength(12);
+  expect(all).toHaveLength(36);
+  expect(all.filter(x => x === 'close')).toHaveLength(6);
+  expect(all.filter(x => x === 'back')).toHaveLength(5);
+  expect(all.filter(x => x === 'navigate')).toHaveLength(5);
+  expect(all.filter(x => x === 'replace')).toHaveLength(20);
 });

@@ -3,7 +3,7 @@
 // Background (root App.jsx): navigation is a plain array "stack" of screens.
 //   navigate(name) pushes a screen, replace(name) swaps the top screen,
 //   goBack() pops the top screen.
-// Every menu screen (Home, Profile, Messages, Settings, ProductCamera) is opened from
+// Every menu screen (Home, Profile, MyProducts, Messages, Settings, ProductCamera) is opened from
 // Home, so Home always sits directly beneath the current menu screen:
 //   [..., Home, Messages]
 // We want Back to always land on Home, wherever the user hopped to from the menu.

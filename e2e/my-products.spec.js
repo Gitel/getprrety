@@ -22,32 +22,6 @@ import { openMenu, panelOf } from './support/nav.js';
 
 test.use({ signedIn: true });
 
-// The contract's English copy (section 3 "Locale keys"). The locale files do not have these keys until
-// the feature is built, and t() THROWS on a missing key, which would hide every selector bug behind
-// "key not found". So `tc` tries the real locale first (the source of truth once the keys exist) and
-// falls back to the contract text only while they are missing.
-const CONTRACT_EN = {
-  'menu:myProducts': 'My products',
-  'products:title': 'My products',
-  'products:intro': 'Your SR Cosmetics picks for your routine',
-  'products:replace.title': 'Swap suggestions',
-  'products:replace.instead': 'Instead of {{from}}',
-  'products:otherOptions.title': 'Other options',
-  'products:otherOptions.hint': 'Products from other brands, suggested by AI',
-  'products:card.buy': 'Buy',
-  'products:card.unavailable': 'No longer available',
-  'products:empty.title': 'No product picks yet',
-  'products:empty.body': 'When your analysis includes SR Cosmetics products, they appear here.',
-};
-function tc(t, key, vars) {
-  try {
-    return t(key, vars);
-  } catch (err) {
-    if (!(key in CONTRACT_EN)) throw err;
-    return CONTRACT_EN[key].replace(/\{\{\s*(\w+)\s*\}\}/g, (_m, name) => String(vars[name]));
-  }
-}
-
 const MIDDLE_DOT = String.fromCharCode(0xb7);
 
 // Prices render with Intl.NumberFormat(lang, { style: 'currency', currency: 'ILS' }) (contract section 3).
@@ -59,7 +33,7 @@ const ils = (lang, amount) => new Intl.NumberFormat(lang, { style: 'currency', c
 async function openMyProducts(page, t) {
   await page.goto('/');
   await openMenu(page, t);
-  await panelOf(page, t).getByText(tc(t, 'menu:myProducts'), { exact: true }).click();
+  await panelOf(page, t).getByText(t('menu:myProducts'), { exact: true }).click();
   await expect(page.getByTestId('myproducts-hero')).toBeVisible();
 }
 
@@ -82,10 +56,10 @@ test.describe('entry point: side menu', () => {
     await openMenu(page, t);
     const panel = panelOf(page, t);
     const profileRow = await panel.getByText(t('menu:mySkinProfile'), { exact: true }).boundingBox();
-    const productsRow = await panel.getByText(tc(t, 'menu:myProducts'), { exact: true }).boundingBox();
+    const productsRow = await panel.getByText(t('menu:myProducts'), { exact: true }).boundingBox();
     // The menu is a vertical list: "after" means lower on the screen.
     expect(productsRow.y).toBeGreaterThan(profileRow.y);
-    await panel.getByText(tc(t, 'menu:myProducts'), { exact: true }).click();
+    await panel.getByText(t('menu:myProducts'), { exact: true }).click();
     await expect(page.getByTestId('myproducts-hero')).toBeVisible();
     // Home is gone (only the top screen is mounted).
     await expect(page.getByText(t('home:greeting.morning'))).toHaveCount(0);
@@ -148,7 +122,7 @@ test.describe('with the full fixture analysis', () => {
       expect(src).toContain(`/api/catalogue/products/${PID.moisturizer}/photo?v=1700000000002`);
       await expect.poll(() => mock.callsTo('GET', `/api/catalogue/products/${PID.moisturizer}/photo`).length).toBeGreaterThan(0);
       await expect(c.getByTestId(`product-price-${PID.moisturizer}`)).toHaveText(ils('en', 24));
-      await expect(c.getByTestId(`product-buy-${PID.moisturizer}`)).toContainText(tc(t, 'products:card.buy'));
+      await expect(c.getByTestId(`product-buy-${PID.moisturizer}`)).toContainText(t('products:card.buy'));
     });
 
     test('price but no shop link: price shown, no Buy button', async ({ page, t }) => {
@@ -191,7 +165,7 @@ test.describe('with the full fixture analysis', () => {
       await page.getByTestId('myproducts-ritual').getByText(t('profile:sr.evening'), { exact: true }).click();
       const c = card(page, 'myproducts-ritual', PID.archived);
       await expect(c).toContainText('Retired Calming Toner');
-      await expect(c).toContainText(tc(t, 'products:card.unavailable'));
+      await expect(c).toContainText(t('products:card.unavailable'));
       await expect(c.getByTestId(`product-buy-${PID.archived}`)).toHaveCount(0);
     });
   });
@@ -199,8 +173,8 @@ test.describe('with the full fixture analysis', () => {
   test('replace section: "Instead of ..." with the reason and the recommended product card', async ({ page, t }) => {
     await openMyProducts(page, t);
     const section = page.getByTestId('myproducts-replace');
-    await expect(section).toContainText(tc(t, 'products:replace.title'));
-    await expect(section).toContainText(tc(t, 'products:replace.instead', { from: 'Foaming cleanser' }));
+    await expect(section).toContainText(t('products:replace.title'));
+    await expect(section).toContainText(t('products:replace.instead', { from: 'Foaming cleanser' }));
     await expect(section).toContainText('The current one leaves skin tight.');
     // The replacement is the item's to_product_id (the cleanser).
     await expect(card(page, 'myproducts-replace', PID.cleanser)).toContainText('Gentle Gel Cleanser');
@@ -232,8 +206,8 @@ test.describe('with the full fixture analysis', () => {
     test('shows the AI market picks (moved here from Profile); the picks are fetched once, authed', async ({ page, t, mock }) => {
       await openMyProducts(page, t);
       const section = page.getByTestId('myproducts-other-options');
-      await expect(section).toContainText(tc(t, 'products:otherOptions.title'));
-      await expect(section).toContainText(tc(t, 'products:otherOptions.hint'));
+      await expect(section).toContainText(t('products:otherOptions.title'));
+      await expect(section).toContainText(t('products:otherOptions.hint'));
       // One pick per replace / add item from PRODUCT_RECS: the price comes from the mock.
       for (const price of ['$18', '$24', '$32']) await expect(section.getByText(price, { exact: true })).toBeVisible();
       await expect(section).toContainText('Ceramide Moisturizing Cream');
@@ -293,8 +267,8 @@ test.describe('empty state', () => {
     await openMyProducts(page, t);
     const empty = page.getByTestId('myproducts-empty');
     await expect(empty).toBeVisible();
-    await expect(empty).toContainText(tc(t, 'products:empty.title'));
-    await expect(empty).toContainText(tc(t, 'products:empty.body'));
+    await expect(empty).toContainText(t('products:empty.title'));
+    await expect(empty).toContainText(t('products:empty.body'));
     await expect(page.getByTestId('myproducts-ritual')).toHaveCount(0);
     await expect(page.getByTestId('myproducts-replace')).toHaveCount(0);
     // No ids to ask for: the catalogue endpoint (which answers 400 on an empty list) is never called.
@@ -316,10 +290,10 @@ test.describe('Hebrew (RTL)', () => {
       await expect(page.getByTestId(id)).toBeVisible();
     }
     // Hebrew labels (a missing Hebrew key would fall back to English here, so assert they differ).
-    const replaceTitle = tc(t, 'products:replace.title');
-    expect(replaceTitle).not.toBe(CONTRACT_EN['products:replace.title']);
+    const replaceTitle = t('products:replace.title');
+    expect(replaceTitle).not.toBe(makeT('en')('products:replace.title'));
     await expect(page.getByTestId('myproducts-replace')).toContainText(replaceTitle);
-    await expect(page.getByTestId('myproducts-replace')).toContainText(tc(t, 'products:replace.instead', { from: 'Foaming cleanser' }));
+    await expect(page.getByTestId('myproducts-replace')).toContainText(t('products:replace.instead', { from: 'Foaming cleanser' }));
     await expect(page.getByTestId('myproducts-ritual').getByText(t('profile:sr.evening'), { exact: true })).toBeVisible();
     // The card keeps its data; the price uses the Hebrew currency format.
     const c = card(page, 'myproducts-ritual', PID.moisturizer);
