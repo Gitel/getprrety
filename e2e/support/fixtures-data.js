@@ -102,6 +102,28 @@ export const SKIN_SCAN = {
   readingStatus: 'ready',
 };
 
+// Catalogue ids used by the fixture analysis. 24-hex like real Mongo ids: the app only asks the
+// catalogue for ids that match /^[a-f0-9]{24}$/ (old ids such as "sr-clean" are ignored).
+export const PID = {
+  cleanser: '64b0000000000000000000a1',  // photo + price, NO shop link (-> no Buy button)
+  moisturizer: '64b0000000000000000000a2', // photo + price + https shop link (-> Buy button)
+  serum: '64b0000000000000000000a3',     // no photo, no price, no shop link (text-only card)
+  archived: '64b0000000000000000000a4',  // archived, still has photo/price/link (-> "No longer available", no Buy)
+};
+
+// The fake shop host the mock serves (see CHECKOUT_HOST in mock-api.js), so a Buy tap that opens
+// the link loads a tiny page instead of being counted as a blocked host.
+export const SHOP_URL = 'https://shop.e2e.test/products/barrier-repair-cream';
+
+// What GET /api/catalogue/products?ids= returns per product (contract section 1). The mock answers
+// in the order of the requested ids and leaves unknown ids out.
+export const CATALOGUE = [
+  { id: PID.cleanser, name: 'Gentle Gel Cleanser', category: 'cleansers_peelings', keyActives: ['glycerin', 'panthenol'], price: 18, shopUrl: null, hasPhoto: true, photoVersion: 1700000000001, archived: false },
+  { id: PID.moisturizer, name: 'Barrier Repair Cream', category: 'face_creams', keyActives: ['ceramides', 'squalane'], price: 24, shopUrl: SHOP_URL, hasPhoto: true, photoVersion: 1700000000002, archived: false },
+  { id: PID.serum, name: 'Hydra Calm Serum', category: 'serums', keyActives: ['hyaluronic_acid'], price: null, shopUrl: null, hasPhoto: false, photoVersion: 1700000000003, archived: false },
+  { id: PID.archived, name: 'Retired Calming Toner', category: 'toners', keyActives: ['centella'], price: 15, shopUrl: 'https://shop.e2e.test/products/retired-toner', hasPhoto: true, photoVersion: 1700000000004, archived: true },
+];
+
 // A saved analysis as GET /api/analysis/latest returns it. It exercises every block of the
 // Home and Profile screens: era, analysis text, insights, product audit (keep / remove /
 // replace / add), generic routine, affirmation, the SR product routine (AM and PM, with
@@ -122,7 +144,8 @@ export const ANALYSIS = {
   productAudit: {
     keep: [{ product: 'Mineral sunscreen', reason: 'Gentle and effective, keep using it every morning.' }],
     remove: [{ product: 'Foaming scrub', reason: 'Physical scrubs damage a stressed barrier.' }],
-    replace: [{ from: 'Foaming cleanser', to: 'Gentle gel cleanser', reason: 'The current one leaves skin tight.' }],
+    // `to` is the catalogue name restored by the server; `to_product_id` is its stable catalogue id.
+    replace: [{ from: 'Foaming cleanser', to: 'Gentle Gel Cleanser', to_product_id: PID.cleanser, reason: 'The current one leaves skin tight.' }],
     add: [
       { product: 'Ceramide moisturizer', reason: 'Most urgent addition for your era', priority: 'essential' },
       { product: 'Hydrating serum', reason: 'Adds water back into the skin.', priority: 'recommended' },
@@ -140,49 +163,53 @@ export const ANALYSIS = {
     ],
   },
   affirmation: 'I give my skin permission to heal at its own pace.',
-  // The product-matched routine. Home and Profile prefer it over `routine` (homeRoutine.js).
+  // The product-matched routine, in the shape the Bedrock pipeline returns after hydration
+  // (server/services/bedrock/analysisContract.js srStep + compact.js hydrateCompactOutput):
+  // catalogue ids, category_id, and for an UNMATCHED step sr_product_id null + sr_product_name ''
+  // + a no_match_note. Home and Profile prefer it over `routine` (homeRoutine.js).
   srProducts: {
     bundle_note: 'A three-step barrier bundle covers your whole routine.',
     era_hero_product: {
-      sr_product_name: 'Barrier Repair Cream',
+      sr_product_id: PID.moisturizer, sr_product_name: 'Barrier Repair Cream',
       hero_reason: 'The one product that moves your era the most.',
     },
     am: [
       {
-        step: 1, routine_category: 'Cleanser', sr_product_id: 'sr-clean', sr_product_name: 'Gentle Gel Cleanser',
+        step: 1, category_id: 'cleanse', routine_category: 'Cleanser', sr_product_id: PID.cleanser, sr_product_name: 'Gentle Gel Cleanser',
         key_actives_matched: ['glycerin', 'panthenol', 'oat_extract'],
         use_instruction: 'Massage onto damp skin, rinse with lukewarm water.',
-        match_reason: 'Sulfate free and pH balanced for a stressed barrier.',
+        match_reason: 'Sulfate free and pH balanced for a stressed barrier.', no_match_note: '',
       },
       {
-        step: 2, routine_category: 'Moisturizer', sr_product_id: 'sr-moist', sr_product_name: 'Barrier Repair Cream',
+        step: 2, category_id: 'moisturize', routine_category: 'Moisturizer', sr_product_id: PID.moisturizer, sr_product_name: 'Barrier Repair Cream',
         key_actives_matched: ['ceramides', 'squalane'],
         use_instruction: 'Apply a pea-sized amount to face and neck.',
-        match_reason: 'Rebuilds the lipid barrier.',
+        match_reason: 'Rebuilds the lipid barrier.', no_match_note: '',
       },
       {
-        step: 3, routine_category: 'Sunscreen', sr_product_id: null, sr_product_name: null,
+        step: 3, category_id: 'protect', routine_category: 'Sunscreen', sr_product_id: null, sr_product_name: '',
+        key_actives_matched: [], use_instruction: '', match_reason: '',
         no_match_note: 'Use your own mineral SPF 30+ as the last morning step.',
       },
     ],
     pm: [
       {
-        step: 1, routine_category: 'Cleanser', sr_product_id: 'sr-clean', sr_product_name: 'Gentle Gel Cleanser',
+        step: 1, category_id: 'cleanse', routine_category: 'Cleanser', sr_product_id: PID.cleanser, sr_product_name: 'Gentle Gel Cleanser',
         key_actives_matched: ['glycerin'],
         use_instruction: 'Double cleanse if you wore sunscreen.',
-        match_reason: 'Removes the day without stripping.',
+        match_reason: 'Removes the day without stripping.', no_match_note: '',
       },
       {
-        step: 2, routine_category: 'Treatment', sr_product_id: 'sr-serum', sr_product_name: 'Hydra Calm Serum',
+        step: 2, category_id: 'treat', routine_category: 'Treatment', sr_product_id: PID.serum, sr_product_name: 'Hydra Calm Serum',
         key_actives_matched: ['hyaluronic_acid', 'centella'],
         use_instruction: 'Press into slightly damp skin.',
-        match_reason: 'Calms redness and restores water.',
+        match_reason: 'Calms redness and restores water.', no_match_note: '',
       },
       {
-        step: 3, routine_category: 'Moisturizer', sr_product_id: 'sr-moist', sr_product_name: 'Barrier Repair Cream',
+        step: 3, category_id: 'moisturize', routine_category: 'Moisturizer', sr_product_id: PID.moisturizer, sr_product_name: 'Barrier Repair Cream',
         key_actives_matched: ['ceramides'],
         use_instruction: 'Apply generously as the last step.',
-        match_reason: 'Overnight is when skin rebuilds most.',
+        match_reason: 'Overnight is when skin rebuilds most.', no_match_note: '',
       },
     ],
   },
@@ -192,18 +219,20 @@ export const ANALYSIS = {
       {
         brand: 'Acme', product_name: 'Foaming Cleanser', category: 'cleanser', status: 'conflicting',
         status_reason: 'Sulfates are too harsh for your barrier.',
-        use_instruction: 'Stop using for now.', sr_substitute_name: 'Gentle Gel Cleanser',
+        use_instruction: 'Stop using for now.', sr_substitute_name: 'Gentle Gel Cleanser', sr_substitute_product_id: PID.cleanser,
       },
       {
         brand: 'Acme', product_name: 'Mineral Sunscreen SPF 30', category: 'sunscreen', status: 'compatible',
         status_reason: 'Gentle and broad spectrum.', use_instruction: 'Every morning.',
+        sr_substitute_name: '', sr_substitute_product_id: null,
       },
       {
         brand: 'Acme', product_name: 'Salicylic Toner', category: 'toner', status: 'borderline',
         status_reason: 'Fine once a week, too strong daily.', use_instruction: 'Use twice a week at most.',
+        sr_substitute_name: '', sr_substitute_product_id: null,
       },
     ],
-    transition_plan: { first_sr_purchase: 'Barrier Repair Cream' },
+    transition_plan: { first_sr_purchase: 'Barrier Repair Cream', first_sr_purchase_product_id: PID.moisturizer },
   },
   skinScanId: 'scan-1',
   skinScan: SKIN_SCAN,

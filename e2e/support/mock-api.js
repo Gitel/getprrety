@@ -19,6 +19,8 @@ export const MOCK_API_ORIGIN = 'http://api.e2e.test';
 const CHECKOUT_HOST = 'shop.e2e.test';
 const CHECKOUT_BASE = `https://${CHECKOUT_HOST}/cart/12345:1`;
 const HOLD_MINUTES = 15;
+// A valid 1x1 transparent PNG: what the mocked catalogue photo endpoint returns.
+const TINY_PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
 
 // Authorization must be listed by name: "*" does not cover it in a preflight.
 const CORS = {
@@ -291,6 +293,31 @@ export function createMock({ appOrigin }) {
     if (key === 'GET /api/cities/autocomplete') {
       const q = (url.searchParams.get('q') || '').toLowerCase();
       return json(route, 200, fx.CITIES.filter(c => c.city.toLowerCase().startsWith(q)));
+    }
+
+    // --- catalogue (contract section 1). Test a fetch failure with
+    //     mock.override('GET', '/api/catalogue/products', 500, { error: 'boom' }). ---
+    if (key === 'GET /api/catalogue/products') {
+      if (deny()) return undefined;
+      // 1-20 comma separated 24-hex ids, else 400 INVALID_IDS (like the real route).
+      const ids = String(url.searchParams.get('ids') || '').split(',');
+      if (ids.length < 1 || ids.length > 20 || !ids.every(id => /^[a-f0-9]{24}$/.test(id))) {
+        return json(route, 400, { error: 'INVALID_IDS' });
+      }
+      // Answer in the order of the request, drop duplicates and unknown ids.
+      const byId = new Map(fx.CATALOGUE.map(p => [p.id, p]));
+      const products = [...new Set(ids)].map(id => byId.get(id)).filter(Boolean);
+      return json(route, 200, { products });
+    }
+    // The photo route is PUBLIC (an <img> tag cannot send a Bearer token): no deny() here.
+    const photoMatch = /^GET \/api\/catalogue\/products\/([a-f0-9]{24})\/photo$/.exec(key);
+    if (photoMatch) {
+      const product = fx.CATALOGUE.find(p => p.id === photoMatch[1]);
+      if (!product || !product.hasPhoto) return json(route, 404, { error: 'Not found' });
+      return route.fulfill({
+        status: 200, headers: { ...CORS, 'Cache-Control': 'public, max-age=31536000, immutable' },
+        contentType: 'image/png', body: TINY_PNG,
+      });
     }
 
     // Unknown endpoint: answer 404 and remember it; the test fails at teardown.
