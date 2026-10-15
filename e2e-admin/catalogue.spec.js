@@ -348,3 +348,70 @@ test.describe('catalogue', () => {
     await expect(page.locator('code.slug')).toHaveText('caliente-peeling-mask');
   });
 });
+
+// ---------------------------------------------------------------------------------------
+// 9. Price and shop link (test-first against AI/plans/catalogue-recs-and-ai-admin-contract.md
+//    section 1, "Catalogue model and admin form"). These fail until T3 adds the two fields.
+//    They run last in the file because spec 2 expects exactly the 34 seeded rows.
+// ---------------------------------------------------------------------------------------
+test.describe('price and shop link', () => {
+  const saveButton = page => page.getByRole('button', { name: 'Save', exact: true });
+
+  test('9. valid price and https link save and show; blank clears both to null', async ({ page, context }) => {
+    await signIn(context);
+    await openProduct(page, 'zit-out-serum');
+    await page.locator('input[name="price"]').fill('129.90');
+    await page.locator('input[name="shopUrl"]').fill('https://shop.example.test/zit-out');
+    await saveButton(page).click();
+    await expect(notice(page)).toHaveText('Product saved.');
+
+    // Reload: values kept in the form.
+    await page.reload();
+    await expect(page.locator('input[name="price"]')).toHaveValue('129.9');
+    await expect(page.locator('input[name="shopUrl"]')).toHaveValue('https://shop.example.test/zit-out');
+
+    // Blank values store null (the inputs come back empty).
+    await page.locator('input[name="price"]').fill('');
+    await page.locator('input[name="shopUrl"]').fill('');
+    await saveButton(page).click();
+    await expect(notice(page)).toHaveText('Product saved.');
+    await page.reload();
+    await expect(page.locator('input[name="price"]')).toHaveValue('');
+    await expect(page.locator('input[name="shopUrl"]')).toHaveValue('');
+  });
+
+  test('9b. an invalid price is rejected with the price notice and nothing is saved', async ({ page, context }) => {
+    await signIn(context);
+    await openProduct(page, 'zit-out-serum');
+    for (const bad of ['-1', 'abc', '10.999']) {
+      // type=number inputs may block the submit in the browser; the server rule is what we test.
+      await page.locator('form').first().evaluate(f => { f.noValidate = true; });
+      await page.locator('input[name="price"]').fill(bad);
+      const [res] = await Promise.all([
+        page.waitForResponse(r => r.request().method() === 'POST' && /\/admin\/catalogue\/[0-9a-f]{24}$/.test(new URL(r.url()).pathname)),
+        saveButton(page).click(),
+      ]);
+      expect(res.status(), bad).toBe(400);
+      await expect(notice(page)).toHaveText('Price must be a number of 0 or more (up to 2 decimals).');
+    }
+    await page.reload();
+    await expect(page.locator('input[name="price"]')).toHaveValue('');
+  });
+
+  test('9c. a non-https shop link is rejected with the link notice and nothing is saved', async ({ page, context }) => {
+    await signIn(context);
+    await openProduct(page, 'zit-out-serum');
+    for (const bad of ['http://shop.example.test/x', 'javascript:alert(1)', 'shop.example.test/x']) {
+      await page.locator('form').first().evaluate(f => { f.noValidate = true; });
+      await page.locator('input[name="shopUrl"]').fill(bad);
+      const [res] = await Promise.all([
+        page.waitForResponse(r => r.request().method() === 'POST' && /\/admin\/catalogue\/[0-9a-f]{24}$/.test(new URL(r.url()).pathname)),
+        saveButton(page).click(),
+      ]);
+      expect(res.status(), bad).toBe(400);
+      await expect(notice(page)).toHaveText('The shop link must start with https://');
+    }
+    await page.reload();
+    await expect(page.locator('input[name="shopUrl"]')).toHaveValue('');
+  });
+});
