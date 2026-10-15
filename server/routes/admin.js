@@ -574,6 +574,10 @@ function formValues(source) {
     name: str(s.name), category: str(s.category), use: str(s.use), pregnancy: str(s.pregnancy),
     keyActives: list(s.keyActives), ingredients: str(s.ingredients),
     strengths: list(s.strengths), suitableFor: list(s.suitableFor),
+    // Item 5: optional shop price (ILS) and https link. A stored product has price as a Number
+    // (or null), a submitted form has it as a string, so both are turned into display text.
+    price: s.price === null || s.price === undefined ? '' : String(s.price),
+    shopUrl: str(s.shopUrl),
   };
 }
 
