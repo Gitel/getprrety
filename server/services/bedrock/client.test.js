@@ -2,7 +2,7 @@
 
 const { EventStreamCodec } = require('@smithy/eventstream-codec');
 const { toUtf8, fromUtf8 } = require('@smithy/util-utf8');
-const { completeJson, BASE_URL, MODEL, TIMEOUT_MS, MAX_OUTPUT_TOKENS, MAX_REPORTED_COST_USD, reportedCostUsd, makeWireSchema } = require('./client');
+const { completeJson, BASE_URL, MODEL, TIMEOUT_MS, MAX_OUTPUT_TOKENS, MAX_REPORTED_COST_USD, MAX_COST_CEILING_USD, reportedCostUsd, makeWireSchema } = require('./client');
 
 const schema = { type: 'object', additionalProperties: false, required: ['ok'], properties: { ok: { type: 'boolean' } } };
 const result = { ok: true };
@@ -158,4 +158,20 @@ test('does not call provider when token is missing or cancellation precedes coun
   const controller = new AbortController(); controller.abort('CANCELLED');
   await expect(completeJson({ system: '', messages: [], schema, token: 'test-token', fetchImpl, signal: controller.signal })).rejects.toMatchObject({ code: 'BEDROCK_CANCELLED', status: 499 });
   expect(fetchImpl).not.toHaveBeenCalled();
+});
+
+// maxCostUsd (admin AI settings) replaces the 0.25 default, but never goes above the 0.50 code ceiling.
+test('maxCostUsd raises or lowers the per-request cost cap and is clamped to the 0.50 ceiling', async () => {
+  const run = (usage, maxCostUsd) => completeJson({
+    system: '', messages: [], schema, token: 'test-token', maxCostUsd,
+    fetchImpl: mockFetch(jsonResponse(countBody(10)), jsonResponse(converseBody(result, { usage }))),
+  });
+  // 0.275 USD of usage: over the 0.25 default, fine under a 0.50 cap.
+  await expect(run({ inputTokens: 40_000, outputTokens: 2_000 }, 0.5)).resolves.toEqual(result);
+  // 0.055 USD of usage: fine by default, over a 0.05 cap.
+  await expect(run({ inputTokens: 5_000, outputTokens: 1_000 })).resolves.toEqual(result);
+  await expect(run({ inputTokens: 5_000, outputTokens: 1_000 }, 0.05)).rejects.toMatchObject({ code: 'BEDROCK_COST_LIMIT' });
+  // 0.55 USD of usage: a 5 USD request is clamped to the 0.50 ceiling, so it still fails.
+  await expect(run({ inputTokens: 100_000, outputTokens: 0 }, 5)).rejects.toMatchObject({ code: 'BEDROCK_COST_LIMIT' });
+  expect(MAX_COST_CEILING_USD).toBe(0.5);
 });

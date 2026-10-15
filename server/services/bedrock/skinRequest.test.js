@@ -23,3 +23,16 @@ test('permits shelf analysis with a shelf photo while still pruning absent event
   expect(request.wireSchema.properties.era.properties.event_prep).toEqual({ type: 'null' });
   expect(request.wireSchema.properties.srProducts).toEqual({ type: 'null' });
 });
+
+// The editable guidance goes between the locked rules and the compact-contract rules.
+test('custom guidance is appended under the Clinic guidance heading before the compact rules', () => {
+  const request = prepareSkinRequest({ quiz: {}, language: 'en', images: [], catalogue: [], guidance: 'Use a warm tone.' });
+  expect(request.system).toContain('\n\nClinic guidance:\nUse a warm tone.\n\nCompact response contract');
+  expect(request.system).not.toContain('You are producing a cautious');
+});
+
+test('empty guidance leaves out the heading entirely', () => {
+  const request = prepareSkinRequest({ quiz: {}, language: 'en', images: [], catalogue: [], guidance: '' });
+  expect(request.system).not.toContain('Clinic guidance:');
+  expect(request.system).toContain('Compact response contract');
+});

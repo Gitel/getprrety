@@ -13,6 +13,8 @@ const COUNT_MODEL = 'anthropic.claude-opus-4-6-v1';
 const TIMEOUT_MS = 90_000;
 const MAX_OUTPUT_TOKENS = 8_000;
 const MAX_REPORTED_COST_USD = 0.25;
+// Hard code ceiling for the per-request cost cap, whatever the admin AI settings say.
+const MAX_COST_CEILING_USD = 0.50;
 const RESERVED_COST_USD = 0.01;
 const INPUT_ALLOWANCE_TOKENS = 128;
 const INPUT_USD_PER_MILLION = 5.5;
@@ -185,9 +187,11 @@ function mapUsage(usage) {
 }
 
 // Count, preflight the price ceiling, invoke once, then validate wire and canonical output without exposing partial JSON.
-async function completeJson({ system, messages, schema, schemaName = 'skin_analysis', maxOutputTokens = MAX_OUTPUT_TOKENS, token = process.env.AWS_BEARER_TOKEN_BEDROCK, fetchImpl = fetch, timeoutMs = TIMEOUT_MS, signal, stream = false, onEvent, wireSchema, hydrateOutput }) {
+async function completeJson({ system, messages, schema, schemaName = 'skin_analysis', maxOutputTokens = MAX_OUTPUT_TOKENS, maxCostUsd = MAX_REPORTED_COST_USD, token = process.env.AWS_BEARER_TOKEN_BEDROCK, fetchImpl = fetch, timeoutMs = TIMEOUT_MS, signal, stream = false, onEvent, wireSchema, hydrateOutput }) {
   if (!token) throw new BedrockError('BEDROCK_NOT_CONFIGURED', 503);
   const controller = new AbortController(); const startedAt = Date.now(); const expiresAt = startedAt + timeoutMs; const elapsed = () => Date.now() - startedAt;
+  // Per-request cost cap: the caller's value (admin AI settings), never above the code ceiling.
+  const costLimitUsd = Math.min(MAX_COST_CEILING_USD, Number.isFinite(maxCostUsd) && maxCostUsd > 0 ? maxCostUsd : MAX_REPORTED_COST_USD);
   const timer = setTimeout(() => controller.abort('TIMEOUT'), timeoutMs);
   const onAbort = () => controller.abort(signal.reason || 'CANCELLED');
   if (signal?.aborted) onAbort(); else signal?.addEventListener('abort', onAbort, { once: true });
@@ -218,7 +222,7 @@ async function completeJson({ system, messages, schema, schemaName = 'skin_analy
     if (!isSafeTokenCount(countResult.inputTokens) || countResult.inputTokens < 1) throw new BedrockError('BEDROCK_COUNT_UNKNOWN');
     count = countResult.inputTokens;
     const estimatedInput = count + INPUT_ALLOWANCE_TOKENS;
-    cap = Math.min(boundedMax, Math.floor((MAX_REPORTED_COST_USD - RESERVED_COST_USD - estimatedInput * INPUT_USD_PER_MILLION / 1_000_000) * 1_000_000 / OUTPUT_USD_PER_MILLION));
+    cap = Math.min(boundedMax, Math.floor((costLimitUsd - RESERVED_COST_USD - estimatedInput * INPUT_USD_PER_MILLION / 1_000_000) * 1_000_000 / OUTPUT_USD_PER_MILLION));
     if (cap < 1) throw new BedrockError('BEDROCK_COST_LIMIT');
     const estimatedCostUsd = (estimatedInput * INPUT_USD_PER_MILLION + cap * OUTPUT_USD_PER_MILLION) / 1_000_000 + RESERVED_COST_USD;
     emit(onEvent, { phase: 'counted', elapsedMs: elapsed(), inputTokens: count, outputTokenLimit: cap, estimatedCostUsd });
@@ -280,7 +284,7 @@ async function completeJson({ system, messages, schema, schemaName = 'skin_analy
     const usage = mapUsage(invocationUsage);
     if (!stream) emit(onEvent, { phase: 'usage', elapsedMs: elapsed(), usage: safeUsage(usage), costUsd: reportedCostUsd(usage) });
     if (reportedCostUsd(usage) === null) throw new BedrockError('BEDROCK_USAGE_UNKNOWN');
-    if (reportedCostUsd(usage) > MAX_REPORTED_COST_USD) throw new BedrockError('BEDROCK_COST_LIMIT');
+    if (reportedCostUsd(usage) > costLimitUsd) throw new BedrockError('BEDROCK_COST_LIMIT');
     checkDeadline();
     if (refusal) throw new BedrockError('BEDROCK_REFUSED');
     if (stopReason === 'max_tokens') throw new BedrockError('BEDROCK_OUTPUT_TRUNCATED');
@@ -305,4 +309,4 @@ async function completeJson({ system, messages, schema, schemaName = 'skin_analy
   } finally { clearTimeout(timer); signal?.removeEventListener('abort', onAbort); }
 }
 
-module.exports = { BASE_URL, MODEL, TIMEOUT_MS, MAX_OUTPUT_TOKENS, MAX_REPORTED_COST_USD, reportedCostUsd, safeUsage, BedrockError, isConfigured, completeJson, makeWireSchema };
+module.exports = { BASE_URL, MODEL, TIMEOUT_MS, MAX_OUTPUT_TOKENS, MAX_REPORTED_COST_USD, MAX_COST_CEILING_USD, reportedCostUsd, safeUsage, BedrockError, isConfigured, completeJson, makeWireSchema };
