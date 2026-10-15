@@ -4,16 +4,22 @@
 // The steps Home shows for one tab ('am' | 'pm'), as { name, description, category? }.
 // The product-matched routine replaces generic steps when available; unmatched steps
 // reconnect by category_id to preserve guidance from the shared server analysis contract.
+// A catalogue product id is a 24-char hex Mongo ObjectId; anything else (null,
+// 'admin-entered', old ids like 'sr-clean') is not a real catalogue product.
+const PRODUCT_ID = /^[a-f0-9]{24}$/;
+const asProductId = id => (typeof id === 'string' && PRODUCT_ID.test(id) ? id : null);
+
 export function routineSteps(analysis, tab) {
   const productSteps = analysis?.srProducts?.[tab];
   if (Array.isArray(productSteps) && productSteps.length > 0) {
     const genericByCategory = new Map((analysis?.routine?.[tab] || []).map(step => [step.category_id, step]));
     return productSteps.map(step => (step.sr_product_id
       // Matched product: show the product, with its routine slot as a caption.
-      ? { name: step.sr_product_name, description: step.use_instruction, category: step.routine_category }
+      ? { name: step.sr_product_name, description: step.use_instruction, category: step.routine_category, productId: asProductId(step.sr_product_id) }
       // Unmatched steps remain visible and keep their generic safety instruction, including SPF.
       : {
         name: step.routine_category,
+        productId: null,
         // Catalogue notes can be generic (“no match”); retain the specific SPF direction after reload.
         description: step.category_id === 'protect'
           ? genericByCategory.get(step.category_id)?.description || step.no_match_note || 'Source externally for this step.'

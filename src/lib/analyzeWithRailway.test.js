@@ -121,6 +121,17 @@ describe('mapToAppFormat', () => {
     expect(result.keyInsights).toEqual(['Hydration: Good']);
   });
 
+  test('replace items carry to_product_id (string) or null', () => {
+    const r = railway();
+    r.era.product_audit = { current_products_assessment: [
+      { product_type: 'Cleanser', verdict: 'replace', suggested_replacement: 'Gentle Wash', suggested_replacement_product_id: 'a'.repeat(24), note: 'n' },
+      { product_type: 'Toner', verdict: 'replace', suggested_replacement: 'Free text', note: 'n' },
+    ] };
+    const { replace } = mapToAppFormat(r, {}).productAudit;
+    expect(replace.map(x => x.to_product_id)).toEqual(['a'.repeat(24), null]);
+    expect(replace[1].to).toBe('Free text');
+  });
+
   test('carries srProducts on the analysis so it is saved with it', () => {
     const srProducts = { am: [{ step: 1, routine_category: 'cleanser' }], pm: [] };
     expect(mapToAppFormat(railway({ srProducts }), {}).srProducts).toBe(srProducts);

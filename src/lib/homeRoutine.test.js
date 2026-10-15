@@ -17,8 +17,8 @@ describe('routineSteps', () => {
       pm: [],
     };
     expect(routineSteps({ routine: GENERIC, srProducts }, 'am')).toEqual([
-      { name: 'Gentle Wash', description: 'Massage 30s', category: 'cleanser' },
-      { name: 'spf', description: 'Use any mineral SPF 30+' },
+      { name: 'Gentle Wash', description: 'Massage 30s', category: 'cleanser', productId: null }, // 'p1' is not a 24-hex id
+      { name: 'spf', description: 'Use any mineral SPF 30+', productId: null },
     ]);
     // Empty product list for PM -> generic PM steps remain.
     expect(routineSteps({ routine: GENERIC, srProducts }, 'pm')).toEqual(GENERIC.pm);
@@ -30,8 +30,19 @@ describe('routineSteps', () => {
       srProducts: { am: [{ category_id: 'protect', routine_category: 'Sunscreen', sr_product_id: null, no_match_note: 'No catalogue match.' }], pm: [] },
     };
     expect(routineSteps(analysis, 'am')).toEqual([
-      { name: 'Sunscreen', description: 'Use broad-spectrum SPF 30+.' },
+      { name: 'Sunscreen', description: 'Use broad-spectrum SPF 30+.', productId: null },
     ]);
+  });
+
+  test('productId is the sr_product_id only when it is a 24-hex catalogue id', () => {
+    const hex = 'a'.repeat(24);
+    const mk = id => ({ am: [{ routine_category: 'cleanser', sr_product_id: id, sr_product_name: 'X', use_instruction: 'Y', no_match_note: 'n' }], pm: [] });
+    const idOf = id => routineSteps({ srProducts: mk(id) }, 'am')[0].productId;
+    expect(idOf(hex)).toBe(hex);
+    expect(idOf('admin-entered')).toBeNull();
+    expect(idOf('sr-clean')).toBeNull();
+    expect(idOf('A'.repeat(24))).toBeNull(); // uppercase is not a stored id
+    expect(idOf(null)).toBeNull();
   });
 
   test('no analysis: no steps', () => {
@@ -68,4 +79,14 @@ describe('routineKeyFor', () => {
 test('tickedIndices extracts one tab, sorted, ignoring unticked steps', () => {
   expect(tickedIndices({ am2: true, am0: true, am1: false, pm0: true }, 'am')).toEqual([0, 2]);
   expect(tickedIndices({ am0: true }, 'pm')).toEqual([]);
+});
+
+// The tick key hashes step NAMES only. Adding productId to steps must not change it,
+// otherwise every user's saved ticks for today would be thrown away after the update.
+test('routineKeyFor ignores productId (key unchanged by the productId addition)', () => {
+  const am = [{ name: 'Gentle Wash', description: 'd', category: 'cleanser' }];
+  const pm = [{ name: 'Night Cream', description: 'd' }];
+  const withIds = [{ ...am[0], productId: 'a'.repeat(24) }];
+  expect(routineKeyFor(withIds, pm)).toBe(routineKeyFor(am, pm));
+  expect(routineKeyFor(am, pm)).toBe('1719124d'); // value computed before the change
 });

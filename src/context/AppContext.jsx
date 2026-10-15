@@ -9,6 +9,7 @@ import { fetchUnreadCount } from '../lib/messages';
 // Sign-in link (#signin=<token> in the URL): read + strip the token, and redeem it.
 import { readSigninToken, redeemSigninLink } from '../lib/signinLink';
 // Language rule (device / account / pending) lives in languageSync.js; this file only calls it.
+import { clearCatalogueCache } from '../lib/catalogueApi';
 import { bootLanguage, retryPendingLanguage, clearPendingOnLogout } from '../lib/languageSync';
 
 const AppContext = createContext(null);
@@ -133,6 +134,7 @@ export function AppProvider({ children }) {
     setAnalysisSaveFailed(false);
     setUnreadMessages(0);
     setProductRecsCache(null);
+    clearCatalogueCache(); // drop cached catalogue products so the next user starts clean
   }
 
   return (

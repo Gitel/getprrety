@@ -187,6 +187,10 @@ export function mapToAppFormat(analysisResponse, answers) {
                             .map(p => ({
                               from: p.product_type,
                               to: p.suggested_replacement || p.replacement || p.replace_with || null,
+                              // Catalogue id of the suggested product (string) or null; the UI uses it
+                              // to show the product card. Free-text `to` stays as the fallback.
+                              to_product_id: typeof p.suggested_replacement_product_id === 'string'
+                                ? p.suggested_replacement_product_id : null,
                               reason: p.note,
                             }));
   const add = [];
