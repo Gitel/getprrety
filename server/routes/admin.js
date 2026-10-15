@@ -89,6 +89,15 @@ const NOTICES = {
   invite_existing_user:      { text: 'That email already has an account. A sign-in link was created for it instead.' },
   invite_invalid:            { text: 'Enter a valid email address.', error: true },
   delete_confirm_mismatch: { text: 'Nothing was deleted: the email you typed does not match this account.', error: true },
+  // Item 5 (catalogue price / shop link on the product form).
+  catalogue_invalid_price:    { text: 'Price must be a number of 0 or more (up to 2 decimals).', error: true },
+  catalogue_invalid_shop_url: { text: 'The shop link must start with https://', error: true },
+  // Item 12 (customer result editing). These codes come back from services/adminEdits.js and
+  // are shown inline in the editor (the edit route answers { error: <text> }).
+  analysis_product_unknown:    { text: 'That product is not in the catalogue (or it was archived). Pick another one.', error: true },
+  analysis_product_ineligible: { text: 'That product is not suitable for this customer (allergy, pregnancy or not a home-use product). Pick another one.', error: true },
+  analysis_invalid_reading:    { text: 'The skin reading text is missing a required field or is too long.', error: true },
+  analysis_no_reading:         { text: 'This reading has no score-section text to edit.', error: true },
 };
 
 function noticeFrom(req) {
