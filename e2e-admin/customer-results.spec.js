@@ -137,6 +137,9 @@ test.describe('reading section', () => {
     await firstSignal.locator('[data-path="why"]').fill('Edited why for barrier.');
     const res = await saveSection(page, 'reading');
     expect(res.status()).toBe(200);
+    // Wait for the editor's redirect to finish (the notice appears on the new page);
+    // reloading while that navigation is still running aborts it.
+    await expect(notice(page)).toBeVisible();
 
     // Persists after reload, in the form...
     await page.reload();
@@ -173,6 +176,9 @@ test.describe('safety section', () => {
     await card.locator('textarea[data-path="checkInPrompts"]').fill('How is your skin today?\nAny irritation?');
     const res = await saveSection(page, 'safety');
     expect(res.status()).toBe(200);
+    // Wait for the editor's redirect to finish (the notice appears on the new page);
+    // reloading while that navigation is still running aborts it.
+    await expect(notice(page)).toBeVisible();
 
     await page.reload();
     await expect(page.locator('#safety textarea[data-path="safetyFlags"]')).toHaveValue('Flag one\nFlag two');
