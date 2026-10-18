@@ -1,7 +1,7 @@
 jest.mock('../../models/SkinScan', () => ({ findOneAndUpdate: jest.fn(), updateOne: jest.fn() }));
-jest.mock('../bedrock/client', () => ({ completeJson: jest.fn(), isConfigured: jest.fn() }));
-jest.mock('../bedrock/catalogue', () => {
-  const actual = jest.requireActual('../bedrock/catalogue');
+jest.mock('../anthropic/client', () => ({ completeJson: jest.fn(), isConfigured: jest.fn() }));
+jest.mock('../anthropic/catalogue', () => {
+  const actual = jest.requireActual('../anthropic/catalogue');
   return { ...actual, loadCatalogue: jest.fn(() => Promise.resolve(actual.loadSeedCatalogue())) };
 });
 
@@ -18,8 +18,8 @@ jest.mock('../aiConfig/aiConfig', () => {
 
 const SkinScan = require('../../models/SkinScan');
 const { getActiveConfig } = require('../aiConfig/aiConfig');
-const { completeJson, isConfigured } = require('../bedrock/client');
-const { loadCatalogue } = require('../bedrock/catalogue');
+const { completeJson, isConfigured } = require('../anthropic/client');
+const { loadCatalogue } = require('../anthropic/catalogue');
 const {
   buildReadingRequest, sanitizeReading, readingStatusFor, maybeRequestReading, STALE_PENDING_MS,
 } = require('./scoreReading');
@@ -216,7 +216,7 @@ describe('maybeRequestReading', () => {
     expect(completeJson).not.toHaveBeenCalled();
   });
 
-  test('claims once, calls Bedrock once and stores the sanitized reading as ready', async () => {
+  test('claims once, calls Anthropic once and stores the sanitized reading as ready', async () => {
     const requestedAt = new Date(NOW);
     SkinScan.findOneAndUpdate.mockResolvedValue({ ...completeScan(), readingStatus: 'pending', readingRequestedAt: requestedAt });
     const providerOutput = goodBody();
@@ -309,7 +309,7 @@ describe('maybeRequestReading', () => {
 
   test.each([
     ['an empty response', () => completeJson.mockResolvedValue({ start_here: null, signals: [] })],
-    ['a network error / timeout', () => completeJson.mockRejectedValue(Object.assign(new Error('provider failure'), { code: 'BEDROCK_TIMEOUT' }))],
+    ['a network error / timeout', () => completeJson.mockRejectedValue(Object.assign(new Error('provider failure'), { code: 'ANTHROPIC_TIMEOUT' }))],
   ])('%s is stored as failed (final) without throwing', async (_, arrange) => {
     SkinScan.findOneAndUpdate.mockResolvedValue({ ...completeScan(), readingRequestedAt: new Date(NOW) });
     arrange();

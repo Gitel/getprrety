@@ -1,4 +1,4 @@
-﻿'use strict';
+'use strict';
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
@@ -6,8 +6,8 @@ const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
 const Ajv = require('ajv');
-const { outputSchema, validateOutput, eligibleProducts } = require('../../server/services/bedrock/analysisContract');
-const { loadSeedCatalogue: loadCatalogue } = require('../../server/services/bedrock/catalogue');
+const { outputSchema, validateOutput, eligibleProducts } = require('../../server/services/anthropic/analysisContract');
+const { loadSeedCatalogue: loadCatalogue } = require('../../server/services/anthropic/catalogue');
 const { makeWireSchema, validateAjvOutput, main, reportedCostUsd } = require('./opus46.cjs');
 const { COMPACT_CONTRACT_VERSION, makeCompactWireSchema, hydrateCompactOutput } = require('./opus46-compact.cjs');
 
@@ -90,6 +90,21 @@ function compactOutput(canonical) {
   for (const item of wire.shelfAnalysis.identified_products) delete item.sr_substitute_name;
   delete wire.shelfAnalysis.transition_plan.first_sr_purchase;
   return wire;
+}
+
+// Inject the shared Anthropic adapter boundaries so evaluator tests stay offline and inspect the exact request.
+function mockCountTokens(inputTokens = 10_000, inspect = () => {}) {
+  return async request => { await inspect(request); return { inputTokens }; };
+}
+
+function mockComplete(output, usage, inspect = () => {}) {
+  return async options => {
+    await inspect(options);
+    options.onEvent({ phase: 'counted', inputTokens: 10_000, outputTokenLimit: options.maxOutputTokens });
+    options.onEvent({ phase: 'usage', usage, costUsd: reportedCostUsd(usage) });
+    options.onEvent({ phase: 'complete', finishReason: 'end_turn' });
+    return output;
+  };
 }
 
 const compactSchema = makeCompactWireSchema(makeWireSchema(outputSchema));
@@ -201,14 +216,14 @@ test('a stale core-three count fingerprint is rejected before a paid request and
   const previousExitCode = process.exitCode;
   try {
     const count = await main(['--mode', 'count', '--case-id', caseId, '--input-dir', directory, '--output', countFile], {
-      getToken: () => 'test-token', fetchImpl: async () => new Response(JSON.stringify({ inputTokens: 10_000 })),
+      getToken: () => 'test-token', countTokensImpl: mockCountTokens(),
     });
     assert.equal(count.status, 'counted');
     await fs.writeFile(countFile, JSON.stringify({ ...count, promptSha256: 'old-core3-prompt-fingerprint' }));
     let paidCalls = 0;
     const analysis = await main(['--mode', 'analysis', '--case-id', caseId, '--input-dir', directory,
       '--count-report', countFile, '--output', resultFile], {
-      getToken: () => 'test-token', fetchImpl: async () => { paidCalls += 1; throw new Error('must not call'); },
+      getToken: () => 'test-token', countTokensImpl: mockCountTokens(), completeImpl: async () => { paidCalls += 1; throw new Error('must not call'); },
     });
     assert.equal(analysis.failureCategory, 'budget');
     assert.equal(analysis.automaticRetries, 0);
@@ -235,12 +250,11 @@ test('empty eligible catalogue removes SR schema, accepts only null SR output, a
   const usage = { inputTokens: 100, outputTokens: 20, cacheReadInputTokens: 0, cacheWriteInputTokens: 0 };
   try {
     const count = await main(['--mode', 'count', '--case-id', caseId, '--input-dir', directory, '--output', countFile], {
-      getToken: () => 'test-token', fetchImpl: async (_url, init) => {
-        const schema = JSON.parse(init.body).input.converse.additionalModelRequestFields.output_config.format.schema;
+      getToken: () => 'test-token', countTokensImpl: mockCountTokens(10_000, request => {
+        const schema = request.wireSchema;
         assert.deepEqual(schema.properties.srProducts, { type: 'null' });
         assert.equal(Object.hasOwn(schema.$defs, 'srStep'), false);
-        return new Response(JSON.stringify({ inputTokens: 10_000 }));
-      },
+      }),
     });
     const output = compactOutput(canonicalOutput());
     output.srProducts = null;
@@ -249,12 +263,7 @@ test('empty eligible catalogue removes SR schema, accepts only null SR output, a
     output.era.product_audit.most_urgent_gap = null;
     const analysis = await main(['--mode', 'analysis', '--case-id', caseId, '--input-dir', directory,
       '--count-report', countFile, '--output', resultFile], {
-      getToken: () => 'test-token', fetchImpl: async (_url, init) => {
-        const schema = JSON.parse(JSON.parse(init.body).outputConfig.textFormat.structure.jsonSchema.schema);
-        assert.deepEqual(schema.properties.srProducts, { type: 'null' });
-        assert.equal(Object.hasOwn(schema.$defs, 'srStep'), false);
-        return new Response(JSON.stringify({ output: { message: { content: [{ text: JSON.stringify(output) }] } }, usage, stopReason: 'end_turn' }));
-      },
+      getToken: () => 'test-token', completeImpl: mockComplete(output, usage),
     });
     assert.equal(count.status, 'counted');
     assert.equal(analysis.status, 'valid');
@@ -289,7 +298,7 @@ test('analysis checkpoints in-flight status before fetch and retains reported co
   const previousExitCode = process.exitCode;
   try {
     const count = await main(['--mode', 'count', '--case-id', caseId, '--input-dir', directory, '--output', countFile], {
-      getToken: () => 'test-token', fetchImpl: async () => new Response(JSON.stringify({ inputTokens: 10_000 })),
+      getToken: () => 'test-token', countTokensImpl: mockCountTokens(),
     });
     const wire = compactOutput(canonicalOutput());
     wire.srProducts.era_hero_product.sr_product_id = 'unknown-private-id';
@@ -299,14 +308,12 @@ test('analysis checkpoints in-flight status before fetch and retains reported co
     const analysis = await main(['--mode', 'analysis', '--case-id', caseId, '--input-dir', directory,
       '--count-report', countFile, '--output', resultFile], {
       getToken: () => 'test-token',
-      fetchImpl: async (_url, init) => {
+      completeImpl: mockComplete(wire, usage, async options => {
         const checkpoint = JSON.parse(await fs.readFile(resultFile, 'utf8'));
         checkpointSeen = checkpoint.status === 'in_flight' && checkpoint.costUnknown === true
           && checkpoint.automaticRetries === 0 && checkpoint.compactContractVersion === COMPACT_CONTRACT_VERSION;
-        const body = JSON.parse(init.body);
-        assert.ok(body.system[0].text.includes('numeric step field'));
-        return new Response(JSON.stringify({ output: { message: { content: [{ text: JSON.stringify(wire) }] } }, usage, stopReason: 'end_turn' }));
-      },
+        assert.ok(options.system.includes('numeric step field'));
+      }),
     });
     assert.equal(count.status, 'counted');
     assert.equal(checkpointSeen, true);
@@ -334,7 +341,7 @@ test('successful compact analysis returns a valid hydrated result, quality metri
   const usage = { inputTokens: 100, outputTokens: 20, cacheReadInputTokens: 0, cacheWriteInputTokens: 0 };
   try {
     await main(['--mode', 'count', '--case-id', caseId, '--input-dir', directory, '--output', countFile], {
-      getToken: () => 'test-token', fetchImpl: async () => new Response(JSON.stringify({ inputTokens: 10_000 })),
+      getToken: () => 'test-token', countTokensImpl: mockCountTokens(),
     });
     const wire = compactOutput(canonicalOutput());
     // The no-photo inference schema requires shelfAnalysis to remain null.
@@ -342,9 +349,7 @@ test('successful compact analysis returns a valid hydrated result, quality metri
     const analysis = await main(['--mode', 'analysis', '--case-id', caseId, '--input-dir', directory,
       '--count-report', countFile, '--output', resultFile], {
       getToken: () => 'test-token',
-      fetchImpl: async () => new Response(JSON.stringify({
-        output: { message: { content: [{ text: JSON.stringify(wire) }] } }, usage, stopReason: 'end_turn',
-      })),
+      completeImpl: mockComplete(wire, usage),
     });
     assert.equal(analysis.status, 'valid');
     assert.equal(Object.hasOwn(analysis, 'failureCategory'), false);

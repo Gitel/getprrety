@@ -3,10 +3,10 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { execFileSync } = require('node:child_process');
-const { completeJson, reportedCostUsd, TIMEOUT_MS, MAX_OUTPUT_TOKENS, MAX_REPORTED_COST_USD } = require('../../server/services/bedrock/client');
-const { outputSchema, buildMessages, validateOutput } = require('../../server/services/bedrock/analysisContract');
-const { loadSeedCatalogue: loadCatalogue } = require('../../server/services/bedrock/catalogue');
-const { ANALYSIS_SERVER_TIMEOUT_MS, RESPONSE_RESERVE_MS } = require('../../server/services/bedrock/analysisDeadline');
+const { completeJson, reportedCostUsd, TIMEOUT_MS, MAX_OUTPUT_TOKENS, MAX_REPORTED_COST_USD } = require('../../server/services/anthropic/client');
+const { outputSchema, buildMessages, validateOutput } = require('../../server/services/anthropic/analysisContract');
+const { loadSeedCatalogue: loadCatalogue } = require('../../server/services/anthropic/catalogue');
+const { ANALYSIS_SERVER_TIMEOUT_MS, RESPONSE_RESERVE_MS } = require('../../server/services/anthropic/analysisDeadline');
 const { readCase } = require('./runner.cjs');
 const { parseArgs, isInside, getToken } = require('./run.cjs');
 
@@ -27,14 +27,15 @@ function safeEvent(event) {
   }
   const httpStatus = event.httpStatus ?? event.status;
   if (Number.isInteger(httpStatus) && httpStatus >= 100 && httpStatus <= 599) result.httpStatus = httpStatus;
-  if (['stop', 'completed', 'length'].includes(event.finishReason)) result.finishReason = event.finishReason;
+  // Keep established finish reasons while accepting Anthropic's normalized SDK values.
+  if (['stop', 'completed', 'length', 'end_turn', 'stop_sequence', 'max_tokens'].includes(event.finishReason)) result.finishReason = event.finishReason;
   if (typeof event.providerRequestId === 'string' && /^[\w-]{1,128}$/.test(event.providerRequestId)) result.providerRequestId = event.providerRequestId;
   return result;
 }
 
 // Each labelled configuration gets one call. Unknown or excessive charges stop the next paid request.
 async function runInvestigation({ tasks, catalogue, token, metadata = {}, completeImpl = completeJson, validateImpl = validateOutput, onResult = () => {}, onCheckpoint = async () => {} }) {
-  const report = { generatedAt: new Date().toISOString(), automaticRetries: 0, tier: 'default', reasoningEffort: 'low', maxCompletionTokens: MAX_OUTPUT_TOKENS, maxReportedCostUsd: MAX_REPORTED_COST_USD, schemaSha256: fingerprint(JSON.stringify(outputSchema)), ...metadata, results: [], knownCostUsd: 0, stopReason: null };
+  const report = { generatedAt: new Date().toISOString(), provider: 'anthropic', automaticRetries: 0, tier: 'default', maxCompletionTokens: MAX_OUTPUT_TOKENS, maxReportedCostUsd: MAX_REPORTED_COST_USD, schemaSha256: fingerprint(JSON.stringify(outputSchema)), ...metadata, results: [], knownCostUsd: 0, stopReason: null };
   await onCheckpoint(report);
   for (const task of tasks) {
     const built = buildMessages({ quiz: task.testCase.quiz, language: task.language, images: task.testCase.images, catalogue });
@@ -67,7 +68,7 @@ async function runInvestigation({ tasks, catalogue, token, metadata = {}, comple
       result.valid = validation.errors.length === 0 && !result.costUnknown && result.costUsd <= MAX_REPORTED_COST_USD;
       result.status = result.valid ? 'valid' : 'invalid';
     } catch (error) {
-      result.status = /^BEDROCK_[A-Z0-9_]+$/.test(error?.code || '') ? error.code : 'REQUEST_FAILED';
+      result.status = /^ANTHROPIC_[A-Z0-9_]+$/.test(error?.code || '') ? error.code : 'REQUEST_FAILED';
     }
     result.totalMs = Math.round(performance.now() - started);
     report.knownCostUsd += result.costUsd ?? 0;

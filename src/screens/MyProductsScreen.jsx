@@ -200,7 +200,7 @@ export default function MyProductsScreen({ navigation }) {
                       <Text style={s.reasonText}>{step.match_reason}</Text>
                     </CatalogueProductCard>
                   ) : (
-                    // Unmatched step: Bedrock found no SR product, so show its note instead.
+                    // Unmatched step: the analysis found no SR product, so show its note instead.
                     <View testID={`product-step-unmatched-${srTab}-${i}`} style={[s.textCard, { borderColor: color + '20' }]}>
                       <Text style={s.stepCategory}>{step.step}. {step.routine_category}</Text>
                       <Text style={s.noMatch}>{step.no_match_note || t('profile:sr.noMatch')}</Text>

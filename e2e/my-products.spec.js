@@ -95,7 +95,7 @@ test.describe('with the full fixture analysis', () => {
       const ritual = page.getByTestId('myproducts-ritual');
       await expect(card(page, 'myproducts-ritual', PID.cleanser)).toContainText('Gentle Gel Cleanser');
       await expect(card(page, 'myproducts-ritual', PID.moisturizer)).toContainText('Barrier Repair Cream');
-      // The unmatched sunscreen step shows Bedrock's no-match note instead of a product.
+      // The unmatched sunscreen step shows analysis no-match note instead of a product.
       await expect(ritual.getByText('Use your own mineral SPF 30+ as the last morning step.')).toBeVisible();
       await expect(card(page, 'myproducts-ritual', PID.serum)).toHaveCount(0);
     });

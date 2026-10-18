@@ -17,7 +17,7 @@ function logAnalysisPhase(deadline, phase, metrics = {}) {
   if (Number.isSafeInteger(metrics.quizBytes) && metrics.quizBytes >= 0 && metrics.quizBytes <= 32 * 1024) record.quizBytes = metrics.quizBytes;
   if (Number.isSafeInteger(metrics.catalogueCount) && metrics.catalogueCount >= 0 && metrics.catalogueCount <= 50_000) record.catalogueCount = metrics.catalogueCount;
   if (Number.isSafeInteger(metrics.messageCount) && metrics.messageCount >= 0 && metrics.messageCount <= 100) record.messageCount = metrics.messageCount;
-  if (typeof metrics.code === 'string' && /^(BEDROCK_[A-Z0-9_]+|ANALYSIS_[A-Z0-9_]+|INVALID_INPUT|RATE_LIMITED)$/.test(metrics.code)) record.code = metrics.code;
+  if (typeof metrics.code === 'string' && /^(ANTHROPIC_[A-Z0-9_]+|ANALYSIS_[A-Z0-9_]+|INVALID_INPUT|RATE_LIMITED)$/.test(metrics.code)) record.code = metrics.code;
   console.info('analysis-setup', JSON.stringify(record));
 }
 

@@ -32,7 +32,7 @@ const routineProgressRoutes = require('./routes/routineProgress');
 const adminRoutes    = require('./routes/admin');
 const skinScanPoller = require('./jobs/skinScanPoller');
 const { mailConfigError } = require('./services/clinicNotify');
-const { startAnalysisDeadline } = require('./services/bedrock/analysisDeadline');
+const { startAnalysisDeadline } = require('./services/anthropic/analysisDeadline');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -59,7 +59,7 @@ app.use('/api/skin-scan', express.json({ limit: '35mb' }), skinScanRoutes);
 // Shopify webhooks need the RAW body to verify their HMAC signature, so this mount must stay
 // BEFORE the global express.json() below (which would consume and re-parse the body).
 app.use('/api/payments', express.raw({ type: 'application/json', limit: '1mb' }), paymentRoutes);
-// Skin photos are sent as labelled base64 data for Bedrock; parse this one route before the 1 MB API limit.
+// Skin photos are sent as labelled base64 data for Anthropic; parse this one route before the 1 MB API limit.
 // Start its 85s server deadline at ingress; browser upload time has already begun, so the client keeps a 90s ceiling.
 app.use('/api/ai/analyze-skin', startAnalysisDeadline, express.json({ limit: '35mb' }));
 app.use(express.json({ limit: '1mb' }));

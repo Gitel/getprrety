@@ -3,7 +3,7 @@
 // ONE route handler on the browser context sees every request the page makes:
 //   - the app's own origin (the vite preview server)   -> passed through untouched;
 //   - MOCK_API_ORIGIN (VITE_API_URL of the test build)  -> answered by handleApi() below;
-//   - the Bedrock analysis API route                     -> 503 (app uses its fallback plan) or held;
+//   - the Anthropic analysis API route                     -> 503 (app uses its fallback plan) or held;
 //   - Google Fonts CSS / Google Identity script         -> empty 200;
 //   - anything else                                     -> aborted and recorded as "blocked".
 //

@@ -1,6 +1,6 @@
 'use strict';
 
-// Bedrock structured outputs support this reduced JSON Schema subset; callers still validate against their canonical schemas.
+// Anthropic structured outputs support this reduced JSON Schema subset; callers still validate against their canonical schemas.
 function makeWireSchema(schema) {
   if (Array.isArray(schema)) return schema.map(makeWireSchema);
   if (!schema || typeof schema !== 'object') return schema;

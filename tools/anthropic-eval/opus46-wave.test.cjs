@@ -3,8 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
-const { runWave, stopAfterAnalysis, buildManifest, MAX_MANIFEST_ROWS } = require('./opus46-wave.cjs');
-const { safeProviderFailure } = require('./opus46.cjs');
+const { runWave, stopAfterAnalysis, buildManifest, MAX_MANIFEST_ROWS, safeResult } = require('./opus46-wave.cjs');
 
 async function temporaryDirectory(t) {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'opus46-wave-'));
@@ -206,10 +205,9 @@ test('pre-inference review callback receives completed count metadata and can st
   assert.equal(result.phase, 'stopped');
 });
 
-test('compiled grammar errors get a fixed safe reason without retaining provider prose', () => {
-  const failure = safeProviderFailure({ status: 400, headers: new Headers() }, {
-    message: 'The compiled grammar is too large for this schema. PRIVATE_SCHEMA_DETAIL',
-  });
-  assert.deepEqual(failure, { category: 'request', status: 400, reason: 'compiled_grammar_too_large' });
-  assert.equal(JSON.stringify(failure).includes('PRIVATE_SCHEMA_DETAIL'), false);
+test('wave rows keep fixed Anthropic failure metadata and omit provider prose', () => {
+  const safe = safeResult({ caseId: 'case-568f7d2ab3', language: 'en', status: 'failed', failureCategory: 'request',
+    failureReason: 'ANTHROPIC_HTTP_400', privateProviderText: 'PRIVATE_SCHEMA_DETAIL' });
+  assert.equal(safe.failureReason, 'ANTHROPIC_HTTP_400');
+  assert.equal(JSON.stringify(safe).includes('PRIVATE_SCHEMA_DETAIL'), false);
 });

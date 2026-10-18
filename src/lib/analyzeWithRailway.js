@@ -219,8 +219,8 @@ export function mapToAppFormat(analysisResponse, answers) {
     checkInPrompts: eraResponse.check_in_prompts || [],
     safetyFlags:    eraResponse.safety_flags || [],
     eventPrep:      eraResponse.event_prep || null,
-    // Preserve the server provider marker through display and persistence.
-    source:         analysisResponse?.source === 'bedrock' ? 'bedrock' : 'gemini',
+    // Keep current Anthropic and legacy Bedrock provenance through display and persistence.
+    source:         ['anthropic', 'bedrock'].includes(analysisResponse?.source) ? analysisResponse.source : 'gemini',
     // Product-matched AM/PM routine and shelf-photo audit. Kept ON the analysis (not in
     // separate state) so they are saved and restored with it; before, they lived only in
     // React state and disappeared on reload. The backend validates these contract shapes.
@@ -262,7 +262,7 @@ async function toAnalysisImages(refs) {
 export function minimizeQuizAnswers(answers = {}) {
   const { name, city, country, ...payload } = buildQuizPayload(answers);
   // Keep buildQuizPayload's compatibility defaults for its other callers, but do not
-  // turn skipped safety questions into negative answers on paid Bedrock requests.
+  // turn skipped safety questions into negative answers on paid Anthropic requests.
   for (const key of ['allergies', 'allergies_other', 'irritants', 'irritants_other']) {
     if (Object.hasOwn(answers, key)) payload[key] = answers[key];
     else delete payload[key];
@@ -320,6 +320,7 @@ export async function analyzeSkin(answers = {}, language = i18n.language, onProg
     language: String(language || 'en').toLowerCase().startsWith('he') ? 'he' : 'en',
     images,
   }, { timeoutMs: ANALYZE_TIMEOUT_MS, stream: true, onProgress });
-  if (data?.source !== 'bedrock') throw new Error('Invalid analysis response: missing Bedrock source');
+  // A fresh call must come from Anthropic; older Bedrock provenance is retained only on saved records.
+  if (data?.source !== 'anthropic') throw new Error('Invalid analysis response: missing Anthropic source');
   return mapToAppFormat(data, answers);
 }

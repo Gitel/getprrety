@@ -2,7 +2,7 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const crypto = require('node:crypto');
-const { main: runCase, DEFAULT_CASE_ID, INPUT_COUNT_ALLOWANCE_TOKENS, RESERVED_COST_USD } = require('./opus46.cjs');
+const { main: runCase, DEFAULT_CASE_ID, INPUT_COUNT_ALLOWANCE_TOKENS, RESERVED_COST_USD, MODEL } = require('./opus46.cjs');
 const { parseArgs, isInside, getToken } = require('./run.cjs');
 const { writeAtomicCheckpoint } = require('./investigate.cjs');
 
@@ -74,7 +74,7 @@ function safeThrownCategory(error, fallback) {
   return allowed.has(error?.category) ? error.category : fallback;
 }
 
-async function runWave({ inputDir, manifestFile, outputFile, serverDir, getTokenImpl = getToken, fetchImpl = fetch, runCaseImpl = runCase,
+async function runWave({ inputDir, manifestFile, outputFile, serverDir, getTokenImpl = getToken, runCaseImpl = runCase,
   beforeInference = async () => {}, caseIds = CASE_IDS, languages = LANGUAGES }) {
   const checkpointFile = path.resolve(outputFile);
   if (!outputFile) throw new Error('required: --output FILE');
@@ -84,7 +84,7 @@ async function runWave({ inputDir, manifestFile, outputFile, serverDir, getToken
   const outputDirectory = path.dirname(checkpointFile);
   await fs.mkdir(outputDirectory, { recursive: true });
   const report = {
-    generatedAt: new Date().toISOString(), model: 'us.anthropic.claude-opus-4-6-v1', region: 'us-east-1',
+    generatedAt: new Date().toISOString(), provider: 'anthropic', model: MODEL,
     timeoutMs: 90_000, automaticRetries: 0, tier: 'default', caseLimitUsd: CASE_LIMIT_USD, waveLimitUsd: WAVE_LIMIT_USD,
     inputCountAllowanceTokens: INPUT_COUNT_ALLOWANCE_TOKENS, outputReserveUsd: RESERVED_COST_USD,
     costGate: 'estimate_not_guarantee_with_count_allowance_and_output_reserve', phase: 'counting',
@@ -112,7 +112,7 @@ async function runWave({ inputDir, manifestFile, outputFile, serverDir, getToken
     let counted;
     try {
       counted = await runCaseImpl(['--mode', 'count', '--input-dir', task.inputDir, '--output', countFile,
-        '--case-id', item.caseId, '--language', item.language], { getToken: () => token, fetchImpl });
+        '--case-id', item.caseId, '--language', item.language], { getToken: () => token });
     } catch (error) {
       row.status = 'count_failed';
       row.countStatus = 'failed';
@@ -174,7 +174,7 @@ async function runWave({ inputDir, manifestFile, outputFile, serverDir, getToken
     let analyzed;
     try {
       analyzed = await runCaseImpl(['--mode', 'analysis', '--input-dir', task.inputDir, '--output', analysisFile,
-        '--count-report', countFiles[index], '--case-id', item.caseId, '--language', item.language], { getToken: () => token, fetchImpl });
+        '--count-report', countFiles[index], '--case-id', item.caseId, '--language', item.language], { getToken: () => token });
     } catch (error) {
       analyzed = { status: 'failed', caseId: item.caseId, language: item.language, costUsd: null, costUnknown: true,
         failureCategory: safeThrownCategory(error, 'setup_or_inference_unknown') };

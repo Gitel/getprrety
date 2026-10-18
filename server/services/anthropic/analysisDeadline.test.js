@@ -32,6 +32,17 @@ test('setup telemetry uses ingress elapsed time and an explicit safe field allow
   log.mockRestore();
 });
 
+test('setup telemetry preserves safe Anthropic provider error codes', () => {
+  const log = jest.spyOn(console, 'info').mockImplementation(() => {});
+  logAnalysisPhase({ requestId: 'req-safe-2', startedAt: 1_000 }, 'route_error', {
+    code: 'ANTHROPIC_HTTP_503',
+  });
+  expect(JSON.parse(log.mock.calls[0][1])).toMatchObject({
+    requestId: 'req-safe-2', phase: 'route_error', code: 'ANTHROPIC_HTTP_503',
+  });
+  log.mockRestore();
+});
+
 test('ingress and response finish are correlated by the same server request id', () => {
   const log = jest.spyOn(console, 'info').mockImplementation(() => {});
   const { res, deadline } = setup();

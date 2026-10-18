@@ -44,12 +44,30 @@ test('customer page renders and embeds the CSRF token in the resend form', async
   expect(html).toContain('name="_csrf" value="TEST_CSRF_TOKEN"');
 });
 
+test('customer page identifies a new Anthropic analysis', async () => {
+  const html = await render('customer', {
+    analysis: { ...analysis, source: 'anthropic' },
+    user: { _id: analysis.userId, email: 'ada@example.com', firstName: 'Ada' },
+    imageIds: [], resent: false, dashboardUrl: 'x', eras: Object.values(require('../services/eras').ERAS),
+    shelfStatuses: require('../services/analysisFields').SHELF_STATUSES, isLatest: true, notice: null,
+  });
+  expect(html).toContain('Analysis provider: Anthropic');
+});
+
 test('clients list renders', async () => {
   const html = await render('list', {
     rows: [{ ...analysis, userId: { firstName: 'Ada', email: 'ada@example.com' } }],
     mailProblem: null,
   });
   expect(html).toContain('Ada');
+});
+
+test('clients list labels Anthropic analyses', async () => {
+  const html = await render('list', {
+    rows: [{ ...analysis, source: 'anthropic', userId: { firstName: 'Ada', email: 'ada@example.com' } }],
+    mailProblem: null,
+  });
+  expect(html).toContain('Anthropic');
 });
 
 test('login page renders without a session', async () => {
@@ -718,6 +736,12 @@ describe('AI settings pages', () => {
     expect(html).toContain('data-version-id="64b0000000000000000000c1"');
     expect(html).toContain('Be &lt;kind&gt;');
     expect(html).toContain('$0.10-0.20');
+  });
+
+  test('AI test button recognizes missing Anthropic configuration', async () => {
+    const html = await render('aiEdit', editData());
+    expect(html).toContain("r.data.code === 'ANTHROPIC_NOT_CONFIGURED'");
+    expect(html).toContain('AI is not configured on this server.');
   });
 
   test('field errors are shown next to the field', async () => {

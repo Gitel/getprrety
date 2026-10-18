@@ -233,7 +233,7 @@ async function run() {
   const { MongoClient } = require(path.join(serverDir, 'node_modules', 'mongodb'));
   const uri = serverEnv.MONGODB_URI;
   if (!uri) throw new Error('MONGODB_URI is missing from the explicitly supplied server .env.');
-  const client = new MongoClient(uri, { readPreference: 'secondaryPreferred', appName: 'bedrock-evaluation-readonly-export' });
+  const client = new MongoClient(uri, { readPreference: 'secondaryPreferred', appName: 'anthropic-evaluation-readonly-export' });
   try {
     await client.connect();
     const dbName = new URL(uri).pathname.replace(/^\//, '').split('/')[0] || 'getprrety';
@@ -255,7 +255,7 @@ async function run() {
 if (require.main === module) {
   run().catch((error) => {
     // Print only a safe error summary; never emit connection strings, answers, or image data.
-    console.error(`Bedrock evaluation export failed (${error.name}).`);
+    console.error(`Anthropic evaluation export failed (${error.name}).`);
     process.exitCode = 1;
   });
 }

@@ -62,7 +62,7 @@ function validOutput() {
 }
 
 test('production server and evaluator share the same prompt and schema contract', () => {
-  assert.equal(require('../../server/services/bedrock/analysisContract'), contract);
+  assert.equal(require('../../server/services/anthropic/analysisContract'), contract);
   assert.equal(outputSchema.additionalProperties, false);
   assert.deepEqual(outputSchema.required, ['era', 'srProducts', 'shelfAnalysis']);
   assert.deepEqual(outputSchema.properties.era.properties.era.properties.id.enum,

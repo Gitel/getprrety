@@ -72,8 +72,8 @@
       <% if (analysis.fallbackReason) { %><br><code><%= analysis.fallbackReason %></code><% } %>
     </div>
   <% } %>
-  <%# Show the provider explicitly so admins can distinguish a Bedrock result from a legacy one. %>
-  <% if (analysis.source === 'bedrock') { %><div class="ok">Analysis provider: Bedrock</div><% } %>
+  <%# Show current and legacy provider provenance so admins can distinguish saved results. %>
+  <% if (analysis.source === 'anthropic') { %><div class="ok">Analysis provider: Anthropic</div><% } else if (analysis.source === 'bedrock') { %><div class="ok">Analysis provider: Bedrock</div><% } %>
   <%- include('_edit_fields') %>
 
   <%- include('_edit_routine') %>

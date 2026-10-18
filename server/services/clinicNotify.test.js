@@ -67,6 +67,12 @@ describe('buildClinicEmailHtml', () => {
     expect(html).not.toContain('Generic result');
   });
 
+  test('names Anthropic as the provider in clinic mail', () => {
+    const html = buildClinicEmailHtml({ analysis: makeAnalysis({ source: 'anthropic' }), user: { email: 'a@b.co' } });
+    expect(html).toContain('<strong>Analysis provider:</strong> Anthropic');
+    expect(html).not.toContain('Generic result');
+  });
+
   test('escapes HTML in quiz answers', () => {
     const analysis = makeAnalysis({ quizAnswers: { name: '<script>x</script>', allergies: [] } });
     const html = buildClinicEmailHtml({ analysis, user: { email: 'a@b.co' } });

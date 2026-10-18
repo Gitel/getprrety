@@ -4,7 +4,7 @@ const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
 const { AUTHORIZED_CASE_IDS, ACCEPTANCE_TIMEOUT_MS, assertAuthorizedCaseFolders, runInvestigation, safeEvent, writeAtomicCheckpoint } = require('./investigate.cjs');
-const { ANALYSIS_SERVER_TIMEOUT_MS, RESPONSE_RESERVE_MS } = require('../../server/services/bedrock/analysisDeadline');
+const { ANALYSIS_SERVER_TIMEOUT_MS, RESPONSE_RESERVE_MS } = require('../../server/services/anthropic/analysisDeadline');
 
 const usage = { prompt_tokens: 100, completion_tokens: 100, completion_tokens_details: { reasoning_tokens: 20 } };
 const tasks = [false, true, true].map((stream, index) => ({ label: `configuration-${index}`, stream, compact: index === 2, timeoutMs: 90000, language: 'en', testCase: { caseId: 'case-fixture', quiz: { name: 'PRIVATE_INPUT' }, images: [] } }));
@@ -29,10 +29,10 @@ test('compares separately labelled calls once and omits private input/output and
 test('unknown cost stops before another paid request without retrying a timeout', async () => {
   let calls = 0;
   const report = await runInvestigation({ tasks, catalogue: [], token: 'test-token', validateImpl,
-    completeImpl: async () => { calls++; throw Object.assign(new Error('PRIVATE_FAILURE'), { code: 'BEDROCK_TIMEOUT' }); },
+    completeImpl: async () => { calls++; throw Object.assign(new Error('PRIVATE_FAILURE'), { code: 'ANTHROPIC_TIMEOUT' }); },
   });
   assert.equal(calls, 1);
-  assert.equal(report.results[0].status, 'BEDROCK_TIMEOUT');
+  assert.equal(report.results[0].status, 'ANTHROPIC_TIMEOUT');
   assert.equal(report.results[0].costUsd, null);
   assert.equal(report.stopReason, 'unknown provider cost');
   assert.equal(JSON.stringify(report).includes('PRIVATE_FAILURE'), false);
@@ -67,6 +67,8 @@ test('semantic validation failure is retained without exposing its private detai
 test('telemetry uses bounded phase and numeric allowlists', () => {
   assert.equal(safeEvent({ phase: 'PRIVATE_BODY' }), null);
   assert.deepEqual(safeEvent({ phase: 'headers', elapsedMs: 4, status: 200, error: 'PRIVATE_BODY', contentBytes: -1 }), { phase: 'headers', elapsedMs: 4, httpStatus: 200 });
+  assert.deepEqual(safeEvent({ phase: 'complete', finishReason: 'end_turn' }), { phase: 'complete', finishReason: 'end_turn' });
+  assert.deepEqual(safeEvent({ phase: 'complete', finishReason: 'stop' }), { phase: 'complete', finishReason: 'stop' });
   assert.deepEqual(safeEvent({ phase: 'headers', status: 2000 }), { phase: 'headers' });
 });
 
@@ -83,13 +85,13 @@ test('checkpoints unknown in-flight cost before a paid call and retains the resu
   let calls = 0;
   const report = await runInvestigation({ tasks, catalogue: [], token: 'test-token', validateImpl,
     onCheckpoint: async snapshot => { checkpoints.push(JSON.parse(JSON.stringify(snapshot))); order.push(`checkpoint:${snapshot.results.at(-1)?.status || 'metadata'}`); },
-    completeImpl: async () => { calls++; order.push('paid-call'); throw Object.assign(new Error('PRIVATE_FAILURE'), { code: 'BEDROCK_TIMEOUT' }); },
+    completeImpl: async () => { calls++; order.push('paid-call'); throw Object.assign(new Error('PRIVATE_FAILURE'), { code: 'ANTHROPIC_TIMEOUT' }); },
   });
   assert.equal(calls, 1);
   assert.deepEqual(order.slice(0, 3), ['checkpoint:metadata', 'checkpoint:in_flight', 'paid-call']);
   assert.equal(checkpoints[1].results[0].costUnknown, true);
   assert.equal(checkpoints[1].results[0].status, 'in_flight');
-  assert.equal(checkpoints.at(-1).results[0].status, 'BEDROCK_TIMEOUT');
+  assert.equal(checkpoints.at(-1).results[0].status, 'ANTHROPIC_TIMEOUT');
   assert.equal(checkpoints.at(-1).results[0].costUnknown, true);
   assert.equal(checkpoints.at(-1).stopReason, 'unknown provider cost');
   assert.equal(JSON.stringify(checkpoints).includes('PRIVATE_FAILURE'), false);

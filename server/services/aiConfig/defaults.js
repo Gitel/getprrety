@@ -11,7 +11,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { COMPACT_SYSTEM_INSTRUCTIONS } = require('../bedrock/compact');
+const { COMPACT_SYSTEM_INSTRUCTIONS } = require('../anthropic/compact');
 
 // Allowed ranges, shared by the form validation and the admin page hints.
 const BOUNDS = {
@@ -23,8 +23,8 @@ const BOUNDS = {
 };
 
 // analysisPrompt.md is the LOCKED part of the skin-analysis prompt (read once at start-up).
-// tools/bedrock-eval and analysisContract.buildMessages still read the same file.
-const SKIN_LOCKED = fs.readFileSync(path.join(__dirname, '..', 'bedrock', 'analysisPrompt.md'), 'utf8').trimEnd();
+// tools/anthropic-eval and analysisContract.buildMessages still read the same file.
+const SKIN_LOCKED = fs.readFileSync(path.join(__dirname, '..', 'anthropic', 'analysisPrompt.md'), 'utf8').trimEnd();
 
 // "{language}" is replaced with English / Hebrew when the system prompt is assembled.
 const SCORE_READING_LOCKED = 'Write the reading in {language} using only supplied quiz and score data. Never diagnose or promise a score change. Only mention a product whose exact name and ingredients appear in eligible_catalogue; otherwise set product to null. Never invent a product URL. Return start_here and signals in the required JSON shape.';

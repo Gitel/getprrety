@@ -1,11 +1,11 @@
 jest.mock('../middleware/auth', () => jest.fn((req, _res, next) => { req.user = req.user || { id: 'user-1' }; next(); }));
 jest.mock('../services/rateLimit', () => ({ consumeRateLimit: jest.fn() }));
-jest.mock('../services/bedrock/client', () => ({
+jest.mock('../services/anthropic/client', () => ({
   TIMEOUT_MS: 90_000,
   completeJson: jest.fn(),
-  BedrockError: class BedrockError extends Error { constructor(code, status = 502) { super('Analysis provider failed'); this.code = code; this.status = status; } },
+  AnthropicError: class AnthropicError extends Error { constructor(code, status = 502) { super('Analysis provider failed'); this.code = code; this.status = status; } },
 }));
-jest.mock('../services/bedrock/catalogue', () => ({ loadCatalogue: jest.fn() }));
+jest.mock('../services/anthropic/catalogue', () => ({ loadCatalogue: jest.fn() }));
 // The admin AI settings live in MongoDB; these tests use the built-in defaults unless a test overrides them.
 jest.mock('../services/aiConfig/aiConfig', () => {
   const actual = jest.requireActual('../services/aiConfig/aiConfig');
@@ -20,8 +20,8 @@ jest.mock('../services/aiConfig/aiConfig', () => {
 
 const router = require('./ai');
 const { consumeRateLimit } = require('../services/rateLimit');
-const { completeJson, BedrockError } = require('../services/bedrock/client');
-const { loadCatalogue } = require('../services/bedrock/catalogue');
+const { completeJson, AnthropicError } = require('../services/anthropic/client');
+const { loadCatalogue } = require('../services/anthropic/catalogue');
 const { getActiveConfig } = require('../services/aiConfig/aiConfig');
 const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 
@@ -102,7 +102,7 @@ test('pre-signup analysis uses minimized inputs, validates the contract, and mar
     ],
   });
   expect(res.statusCode).toBe(200);
-  expect(res.body).toMatchObject({ source: 'bedrock', era: { era: { id: 'barrier_healing' } } });
+  expect(res.body).toMatchObject({ source: 'anthropic', era: { era: { id: 'barrier_healing' } } });
   expect(completeJson).toHaveBeenCalledTimes(1);
   const request = completeJson.mock.calls[0][0];
   expect(JSON.stringify(request.messages)).not.toMatch(/Private Name|private@example\.test/);
@@ -195,7 +195,7 @@ test('SSE analysis sends only progress before full semantic validation and retur
   expect(res.headers).toMatchObject({ 'content-type': 'text/event-stream; charset=utf-8', 'x-accel-buffering': 'no' });
   expect(res.events.map(event => event.event)).toEqual(['progress', 'progress', 'progress', 'complete']);
   expect(res.events.slice(0, 3).map(event => event.data.phase)).toEqual(['waiting', 'generating', 'validating']);
-  expect(res.events[3].data.analysis).toMatchObject({ source: 'bedrock', era: { era: { id: 'barrier_healing' } } });
+  expect(res.events[3].data.analysis).toMatchObject({ source: 'anthropic', era: { era: { id: 'barrier_healing' } } });
 });
 
 test('SSE analysis rejects semantically invalid output without emitting a completion payload', async () => {
@@ -204,14 +204,14 @@ test('SSE analysis rejects semantically invalid output without emitting a comple
   completeJson.mockResolvedValue(invalid);
   const res = await invokeSse(routeHandler('/analyze-skin'), { quizAnswers: {}, language: 'en', images: [] });
   expect(res.events.at(-1)).toMatchObject({
-    event: 'error', data: { error: 'Analysis provider failed', status: 502, code: 'BEDROCK_CONTRACT_INVALID' },
+    event: 'error', data: { error: 'Analysis provider failed', status: 502, code: 'ANTHROPIC_CONTRACT_INVALID' },
   });
   expect(res.events.some(event => event.event === 'complete')).toBe(false);
   expect(JSON.stringify(res.events)).not.toContain('barrier_healing');
 });
 
-test('returns a safe service-unavailable response when Bedrock is not configured', async () => {
-  completeJson.mockRejectedValue(new BedrockError('BEDROCK_NOT_CONFIGURED', 503));
+test('returns a safe service-unavailable response when Anthropic is not configured', async () => {
+  completeJson.mockRejectedValue(new AnthropicError('ANTHROPIC_NOT_CONFIGURED', 503));
   const res = await invoke(routeHandler('/analyze-skin'), { quizAnswers: {}, language: 'en', images: [] });
   expect(res.statusCode).toBe(503);
   expect(res.body).toEqual({ error: 'Analysis is unavailable' });
@@ -272,7 +272,7 @@ test('market recommendations fail closed when answers are missing, empty, invali
 });
 
 test('recommendations retain the existing provider-failure response', async () => {
-  completeJson.mockRejectedValue(new BedrockError('BEDROCK_HTTP_503', 502));
+  completeJson.mockRejectedValue(new AnthropicError('ANTHROPIC_HTTP_503', 502));
   const res = await invoke(routeHandler('/product-recommendations'), {
     productAudit: { add: [{ product: 'cleanser' }] }, country: 'US',
     safetyContext: { pregnant_or_ttc: 'no', allergies: ['none'], irritants: ['nothing'] },

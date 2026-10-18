@@ -1,12 +1,29 @@
-// Bedrock client contract checks. API traffic is intercepted per test so these exercises never
+// Anthropic client contract checks. API traffic is intercepted per test so these exercises never
 // call a provider or real backend; the only saved-analysis POSTs go through the existing mock.
 import { createServer } from 'node:http';
 import { test, expect } from './support/test.js';
 import { ANALYSIS, FIRST_TIME_USER } from './support/fixtures-data.js';
 import { walkQuizToLoading } from './support/quiz.js';
 import { openHome, openProfileFromHome } from './support/nav.js';
-import compactHelper from '../tools/bedrock-eval/opus46-compact.cjs';
-import analysisContract from '../server/services/bedrock/analysisContract.js';
+import compactHelper from '../tools/anthropic-eval/opus46-compact.cjs';
+import analysisContract from '../server/services/anthropic/analysisContract.js';
+
+// Changing the live provider must not invalidate a result already saved by an older build.
+test.describe('saved provider compatibility', () => {
+  test.use({ signedIn: true });
+  for (const source of ['bedrock', 'anthropic']) {
+    test(`reloads a saved ${source} analysis without generating or resaving it`, async ({ page, mock, t }) => {
+      mock.set({ analysis: { ...ANALYSIS, source } });
+      await page.goto('/');
+      await expect(page.getByText(t('home:viewAnalysis.title'), { exact: true })).toBeVisible();
+      await page.reload();
+      await expect(page.getByText(t('home:viewAnalysis.title'), { exact: true })).toBeVisible();
+      await expect(page.getByText(t('home:fallbackBanner.title'), { exact: true })).toHaveCount(0);
+      expect(mock.callsTo('POST', '/api/ai/analyze-skin')).toHaveLength(0);
+      expect(mock.callsTo('POST', '/api/analysis')).toHaveLength(0);
+    });
+  }
+});
 
 const { hydrateCompactOutput } = compactHelper;
 const { validateOutput } = analysisContract;
@@ -25,7 +42,7 @@ const SAFETY_TEXT = {
 
 // Valid app wire shape with a complete AM/PM SR routine. The unmatched protect slot is
 // intentional: it must survive mapping and replace no generic sunscreen guidance.
-function bedrockResponse(language = 'en') {
+function anthropicResponse(language = 'en') {
   const hebrew = language === 'he';
   const words = hebrew
     ? { summary: 'התשובות מצביעות על צורך בשגרה עדינה.', cleanser: 'ניקוי עדין', moisturizer: 'קרם לחות', sunscreen: 'הגנה מהשמש', useSpf: 'השתמשי במסנן קרינה רחב טווח SPF 30 ומעלה בכל בוקר.' }
@@ -75,16 +92,16 @@ function bedrockResponse(language = 'en') {
       pm: [srStep(1, 'cleanse', words.cleanser, true), srStep(2, 'moisturize', words.moisturizer, true)],
     },
     shelfAnalysis: null,
-    source: 'bedrock',
+    source: 'anthropic',
   };
 }
 
 // The server hydrates compact model output before returning canonical fields to the client.
-function hydratedCompactBedrockResponse(language = 'en', eligibleCatalogue = [
+function hydratedCompactAnthropicResponse(language = 'en', eligibleCatalogue = [
   { _id: '64b000000000000000000001', name: 'Hydrated Calm Cream', category: 'face_creams', use: 'home', archived: false, ingredients: 'Aqua, glycerin' },
   { _id: '64b000000000000000000002', name: 'Hydrated Gentle Cleanser', category: 'cleansers_peelings', use: 'home', archived: false, ingredients: 'Aqua, glycerin' },
 ]) {
-  const canonical = bedrockResponse(language);
+  const canonical = anthropicResponse(language);
   if (eligibleCatalogue.length === 0) {
     canonical.srProducts = null;
     canonical.era.product_audit.current_products_assessment = [];
@@ -255,9 +272,9 @@ async function finishSignupOnboarding(page, t) {
 
 test.setTimeout(180_000);
 
-test.describe('successful pre-signup Bedrock analysis', () => {
+test.describe('successful pre-signup Anthropic analysis', () => {
   test('uses the public analysis route, preserves source and unmatched SPF through Home', async ({ page, mock, t }) => {
-    const calls = await interceptAnalysis(page, [{ status: 200, body: hydratedCompactBedrockResponse() }]);
+    const calls = await interceptAnalysis(page, [{ status: 200, body: hydratedCompactAnthropicResponse() }]);
     await page.goto('/');
     await walkQuizToLoading(page, t);
 
@@ -278,7 +295,7 @@ test.describe('successful pre-signup Bedrock analysis', () => {
     await page.getByText(t('auth:signup.ctaAfterQuiz'), { exact: true }).click();
     await expect(page.getByText(t('onboarding:timing.headline'))).toBeVisible();
     await expect.poll(() => mock.callsTo('POST', '/api/analysis').length).toBe(1);
-    expect(mock.lastCall('POST', '/api/analysis').body.source).toBe('bedrock');
+    expect(mock.lastCall('POST', '/api/analysis').body.source).toBe('anthropic');
     // Persistence must retain stable catalogue IDs alongside the server-hydrated names.
     expect(mock.lastCall('POST', '/api/analysis').body.srProducts.am.map(step => step.sr_product_id))
       .toEqual(['64b000000000000000000002', '64b000000000000000000001', null]);
@@ -303,7 +320,7 @@ test.describe('successful pre-signup Bedrock analysis', () => {
     await page.getByText(t('home:tabs.am'), { exact: true }).click();
     // Compact hydration supplies the generic Protect label while retaining actionable SPF guidance.
     await expect(page.getByText('Protect', { exact: true })).toBeVisible();
-    await expect(page.getByText(bedrockResponse('en').srProducts.am[2].no_match_note, { exact: true })).toBeVisible();
+    await expect(page.getByText(anthropicResponse('en').srProducts.am[2].no_match_note, { exact: true })).toBeVisible();
     await page.reload();
     // Reload already boots the saved Home. A second navigation would abort its lazy imports in WebKit.
     await expect(page.getByText(t('home:viewAnalysis.title'), { exact: true })).toBeVisible();
@@ -311,8 +328,8 @@ test.describe('successful pre-signup Bedrock analysis', () => {
     await expect(page.getByText('Hydrated Calm Cream', { exact: true })).toBeVisible();
   });
 
-  test('skipped hormone answers are omitted while the generic Bedrock SPF guidance renders', async ({ page, mock, t }) => {
-    const calls = await interceptAnalysis(page, [{ status: 200, body: bedrockResponse('en') }]);
+  test('skipped hormone answers are omitted while the generic Anthropic SPF guidance renders', async ({ page, mock, t }) => {
+    const calls = await interceptAnalysis(page, [{ status: 200, body: anthropicResponse('en') }]);
     await page.goto('/');
     await walkQuizToLoading(page, t, { skipHormones: true });
 
@@ -331,7 +348,7 @@ test.describe('successful pre-signup Bedrock analysis', () => {
     await finishSignupOnboarding(page, t);
     await page.getByText(t('home:tabs.am'), { exact: true }).click();
     await expect(page.getByText('Sunscreen', { exact: true })).toBeVisible();
-    await expect(page.getByText(bedrockResponse('en').srProducts.am[2].no_match_note, { exact: true })).toBeVisible();
+    await expect(page.getByText(anthropicResponse('en').srProducts.am[2].no_match_note, { exact: true })).toBeVisible();
   });
 });
 
@@ -366,11 +383,11 @@ test.describe('reopened analysis safety context', () => {
 test.describe('interactive fallback retry', () => {
   test.use({ signedIn: true });
 
-  test('retries the backend route and replaces the fallback with Bedrock source', async ({ page, mock, t }) => {
+  test('retries the backend route and replaces the fallback with Anthropic source', async ({ page, mock, t }) => {
     mock.set({ analysis: null, user: FIRST_TIME_USER });
     const calls = await interceptAnalysis(page, [
       { status: 503, body: { error: 'The analysis service is unavailable.' } },
-      { status: 200, body: bedrockResponse('en') },
+      { status: 200, body: anthropicResponse('en') },
     ]);
     await page.goto('/');
     await walkQuizToLoading(page, t);
@@ -385,7 +402,7 @@ test.describe('interactive fallback retry', () => {
     expect(calls[0].body.language).toBe('en');
     expect(calls[1].body.language).toBe('en');
     await expect.poll(() => mock.callsTo('POST', '/api/analysis').length).toBe(2);
-    expect(mock.callsTo('POST', '/api/analysis').map(call => call.body.source)).toEqual(['fallback', 'bedrock']);
+    expect(mock.callsTo('POST', '/api/analysis').map(call => call.body.source)).toEqual(['fallback', 'anthropic']);
   });
 });
 
@@ -399,12 +416,12 @@ test.describe('analysis transport failure', () => {
   });
 });
 
-test.describe('Hebrew Bedrock safety copy', () => {
+test.describe('Hebrew Anthropic safety copy', () => {
   test.use({ lang: 'he' });
 
   test('sends Hebrew as the analysis language and displays the returned safety flag in RTL', async ({ page, mock, t }) => {
     // A Mongo-shaped ID must hydrate to the exact catalogue name before client persistence.
-    const calls = await interceptAnalysis(page, [{ status: 200, body: hydratedCompactBedrockResponse('he') }]);
+    const calls = await interceptAnalysis(page, [{ status: 200, body: hydratedCompactAnthropicResponse('he') }]);
     await page.goto('/');
     await walkQuizToLoading(page, t);
     await expect.poll(() => calls.length, { timeout: 10_000 }).toBe(1);
@@ -435,24 +452,24 @@ test.describe('Hebrew Bedrock safety copy', () => {
 
 // This saved-analysis fixture isolates Home's display contract from model quality. The AM
 // product routine contains an unmatched protect step, which must render instead of disappearing.
-test.describe('unmatched Bedrock sunscreen step', () => {
+test.describe('unmatched Anthropic sunscreen step', () => {
   test.use({ signedIn: true });
 
   test('Home displays the unmatched SPF slot and its safe-use instruction', async ({ page, mock, t }) => {
     const analysis = {
       ...ANALYSIS,
-      source: 'bedrock',
+      source: 'anthropic',
       safetyFlags: [SAFETY_TEXT.en],
-      srProducts: bedrockResponse('en').srProducts,
+      srProducts: anthropicResponse('en').srProducts,
     };
     mock.set({ analysis });
     await openHome(page, t);
     await expect(page.getByText('Sunscreen', { exact: true })).toBeVisible();
-    await expect(page.getByText(bedrockResponse('en').srProducts.am[2].no_match_note, { exact: true })).toBeVisible();
+    await expect(page.getByText(anthropicResponse('en').srProducts.am[2].no_match_note, { exact: true })).toBeVisible();
   });
 });
 
-test.describe('incremental Bedrock analysis stream', () => {
+test.describe('incremental Anthropic analysis stream', () => {
   test('shows progress as it arrives and reveals the validated result only after complete', async ({ page, mock, t }) => {
     const streamServer = await createControlledAnalysisStream();
     try {
@@ -471,7 +488,7 @@ test.describe('incremental Bedrock analysis stream', () => {
 
       stream.send('progress', progressEvent('validating', STREAM_REQUEST_IDS.initial));
       await expect(page.getByText(t('quiz:loading.analysisProgress.validating'), { exact: true })).toBeVisible();
-      stream.send('complete', { requestId: STREAM_REQUEST_IDS.initial, analysis: bedrockResponse('en') });
+      stream.send('complete', { requestId: STREAM_REQUEST_IDS.initial, analysis: anthropicResponse('en') });
       await expect(page.getByText('Barrier Healing Era', { exact: true })).toHaveCount(0);
       expect(mock.callsTo('POST', '/api/analysis')).toHaveLength(0);
       stream.end();
@@ -484,7 +501,7 @@ test.describe('incremental Bedrock analysis stream', () => {
 });
 
 // A failed stream must return control to the existing retry affordance; only a completed retry
-// replaces the persisted fallback analysis with a Bedrock result.
+// replaces the persisted fallback analysis with a Anthropic result.
 test.describe('stream failure and manual retry', () => {
   test.use({ signedIn: true });
 
@@ -514,14 +531,14 @@ test.describe('stream failure and manual retry', () => {
       await expect(page.getByText(t('quiz:loading.analysisProgress.generating'), { exact: true })).toBeVisible();
       await expect.poll(() => mock.callsTo('POST', '/api/analysis').length).toBe(1);
 
-      retryStream.send('complete', { requestId: STREAM_REQUEST_IDS.retry, analysis: bedrockResponse('en') });
+      retryStream.send('complete', { requestId: STREAM_REQUEST_IDS.retry, analysis: anthropicResponse('en') });
       await expect(page.getByText('Barrier Healing Era', { exact: true })).toHaveCount(0);
       await expect.poll(() => mock.callsTo('POST', '/api/analysis').length).toBe(1);
       retryStream.end();
       await expect(page.getByText('Barrier Healing Era', { exact: true })).toBeVisible({ timeout: 30_000 });
       await expect(page.getByText(t('home:fallbackBanner.title'), { exact: true })).toHaveCount(0);
       await expect.poll(() => mock.callsTo('POST', '/api/analysis').length).toBe(2);
-      expect(mock.callsTo('POST', '/api/analysis').map(call => call.body.source)).toEqual(['fallback', 'bedrock']);
+      expect(mock.callsTo('POST', '/api/analysis').map(call => call.body.source)).toEqual(['fallback', 'anthropic']);
     } finally {
       await streamServer.close();
     }
@@ -547,7 +564,7 @@ test.describe('Hebrew analysis stream progress', () => {
       await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
       await expect(page.getByText(translatedEraName, { exact: true })).toHaveCount(0);
 
-      stream.send('complete', { requestId: STREAM_REQUEST_IDS.hebrew, analysis: bedrockResponse('he') });
+      stream.send('complete', { requestId: STREAM_REQUEST_IDS.hebrew, analysis: anthropicResponse('he') });
       await expect(page.getByText(translatedEraName, { exact: true })).toHaveCount(0);
       stream.end();
       await expect(page.getByText(translatedEraName, { exact: true })).toBeVisible({ timeout: 30_000 });

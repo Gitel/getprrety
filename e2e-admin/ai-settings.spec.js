@@ -2,7 +2,7 @@
 // AI/plans/catalogue-recs-and-ai-admin-contract.md section 4. The pages do not exist yet, so
 // these specs are EXPECTED to fail until tasks T4 (service) and T7 (UI) land.
 // They run against the REAL server with an in-memory MongoDB (see support/startServer.js).
-// Bedrock is OFF in this server, so the "test" button must answer "AI is not configured".
+// Anthropic is OFF in this server, so the "test" button must answer "AI is not configured".
 //
 // All specs share one DB and run in file order (one worker). Each group uses its own AI key
 // (skin_analysis, score_reading, market_picks) so they do not depend on each other's edits.
@@ -120,7 +120,7 @@ test.describe('edit page', () => {
     expect(res.status()).toBe(404);
   });
 
-  test('5. the test button reports that AI is not configured (Bedrock is off here)', async ({ page, context }) => {
+  test('5. the test button reports that AI is not configured (Anthropic is off here)', async ({ page, context }) => {
     await signIn(context);
     await page.goto(editUrl('skin_analysis'));
     await page.locator('button[data-action="test"]').click();

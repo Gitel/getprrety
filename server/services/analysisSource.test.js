@@ -39,6 +39,11 @@ describe('analysisSourceFromBody', () => {
       .toEqual({ source: 'bedrock', fallbackReason: null });
   });
 
+  test('keeps an Anthropic result without a fallback reason', () => {
+    expect(analysisSourceFromBody({ source: 'anthropic', fallbackReason: 'ignored' }))
+      .toEqual({ source: 'anthropic', fallbackReason: null });
+  });
+
   test('keeps a fallback with its trimmed reason', () => {
     expect(analysisSourceFromBody({ source: 'fallback', fallbackReason: '  Railway API 404 ' }))
       .toEqual({ source: 'fallback', fallbackReason: 'Railway API 404' });
@@ -63,4 +68,8 @@ describe('analysisSourceFromBody', () => {
 
 test('the saved source enum accepts Bedrock provenance', () => {
   expect(SkinAnalysis.schema.path('source').enumValues).toContain('bedrock');
+});
+
+test('the saved source enum accepts Anthropic provenance', () => {
+  expect(SkinAnalysis.schema.path('source').enumValues).toContain('anthropic');
 });

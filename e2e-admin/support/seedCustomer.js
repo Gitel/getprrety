@@ -51,7 +51,7 @@ const buildReading = () => ({
 
 // Quiz answers that make isPregnancyCaution() true AND hasCompleteSafetyContext() true
 // (allergies + irritants answered, explicit pregnancy answer), so eligibleProducts() keeps ONLY
-// products whose pregnancy field is 'safe'. See server/services/bedrock/analysisContract.js.
+// products whose pregnancy field is 'safe'. See server/services/anthropic/analysisContract.js.
 export const PREGNANCY_QUIZ = { pregnancy_caution: true, allergies: ['none'], irritants: ['none'] };
 // Same completeness but NO restriction: every active home-use product is eligible.
 export const OPEN_QUIZ = { pregnancy_caution: false, allergies: ['none'], irritants: ['none'] };

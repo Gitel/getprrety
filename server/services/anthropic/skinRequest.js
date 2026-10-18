@@ -7,7 +7,7 @@ const { DEFAULTS, assembleSystem } = require('../aiConfig/defaults');
 
 // Prepare the shared production/evaluation prompt and wire contract in one place.
 // `guidance` is the admin-editable part of the prompt (see services/aiConfig); it defaults to the
-// built-in text so callers without a DB (tools/bedrock-eval) get exactly the historical prompt.
+// built-in text so callers without a DB (tools/anthropic-eval) get exactly the historical prompt.
 function prepareSkinRequest({ quiz = {}, language = 'en', images = [], catalogue = [], guidance = DEFAULTS.skin_analysis.defaultGuidance } = {}) {
   const products = eligibleProducts(catalogue, quiz);
   const built = buildMessages({ quiz, language, images, catalogue });

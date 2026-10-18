@@ -156,15 +156,27 @@ describe('mapToAppFormat', () => {
   });
 
   test('preserves the provider source returned by the backend', () => {
+    expect(mapToAppFormat({ ...railway(), source: 'anthropic' }, {}).source).toBe('anthropic');
+    // Saved Bedrock analyses and older backend releases keep their original provenance.
     expect(mapToAppFormat({ ...railway(), source: 'bedrock' }, {}).source).toBe('bedrock');
+  });
+
+  test('requires the Anthropic provider marker on a live analysis response', async () => {
+    api.post.mockResolvedValueOnce({ ...railway(), source: 'unexpected' });
+    await expect(analyzeSkin({}, 'en')).rejects.toThrow('missing Anthropic source');
+  });
+
+  test('does not accept a legacy Bedrock marker on a fresh provider response', async () => {
+    api.post.mockResolvedValueOnce({ ...railway(), source: 'bedrock' });
+    await expect(analyzeSkin({}, 'en')).rejects.toThrow('missing Anthropic source');
   });
 });
 
-describe('Bedrock request', () => {
+describe('Anthropic request', () => {
   beforeEach(() => api.post.mockReset());
 
   test('sends mapped quiz answers, labelled downscaled images, and the current supported language', async () => {
-    const response = { ...railway(), source: 'bedrock' };
+    const response = { ...railway(), source: 'anthropic' };
     api.post.mockResolvedValueOnce(response);
     const answers = {
       gender: 'she', tone: 'III', skin_goals: ['acne'],
@@ -182,11 +194,11 @@ describe('Bedrock request', () => {
       { angle: 'shelf', mediaType: 'image/jpeg', base64: 'c2hlbGY=' },
     ]);
     expect(options).toMatchObject({ timeoutMs: 90000, stream: true });
-    expect(result.source).toBe('bedrock');
+    expect(result.source).toBe('anthropic');
   });
 
   test('forwards only the caller progress callback to streaming mode', async () => {
-    api.post.mockResolvedValueOnce({ ...railway(), source: 'bedrock' });
+    api.post.mockResolvedValueOnce({ ...railway(), source: 'anthropic' });
     const onProgress = jest.fn();
     await analyzeSkin({}, 'en', onProgress);
     expect(api.post.mock.calls[0][2]).toMatchObject({ timeoutMs: 90000, stream: true, onProgress });

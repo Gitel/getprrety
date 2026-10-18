@@ -145,7 +145,7 @@
       }).then(function (res) {
         return res.json().then(function (data) { return { status: res.status, data: data }; });
       }).then(function (r) {
-        if (r.data && r.data.code === 'BEDROCK_NOT_CONFIGURED') {
+        if (r.data && r.data.code === 'ANTHROPIC_NOT_CONFIGURED') {
           out.textContent = 'AI is not configured on this server.';
         } else if (r.status >= 400 && r.data && r.data.error) {
           out.textContent = r.data.error + (r.data.errors ? '\n' + JSON.stringify(r.data.errors, null, 2) : '');

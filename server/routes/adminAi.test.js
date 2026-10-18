@@ -139,12 +139,12 @@ describe('test run', () => {
     expect(runTestCase).not.toHaveBeenCalled();
   });
 
-  test('BEDROCK_NOT_CONFIGURED: answered as-is and NOT audited', async () => {
+  test('ANTHROPIC_NOT_CONFIGURED: answered as-is and NOT audited', async () => {
     consumeRateLimit.mockResolvedValue(true);
-    runTestCase.mockResolvedValue({ ok: false, code: 'BEDROCK_NOT_CONFIGURED' });
+    runTestCase.mockResolvedValue({ ok: false, code: 'ANTHROPIC_NOT_CONFIGURED' });
     const res = fakeRes();
     await handlerFor('/:key/test')(reqFor(goodBody), res, jest.fn());
-    expect(res.body).toEqual({ ok: false, code: 'BEDROCK_NOT_CONFIGURED' });
+    expect(res.body).toEqual({ ok: false, code: 'ANTHROPIC_NOT_CONFIGURED' });
     expect(logAdminAction).not.toHaveBeenCalled();
   });
 

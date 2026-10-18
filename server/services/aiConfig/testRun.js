@@ -5,10 +5,10 @@
 // (prepareSkinRequest, prepareReadingCall, buildMarketPicksRequest), validates the answer the
 // same way, and saves nothing. The caller (routes/adminAi.js) rate-limits it.
 
-const bedrock = require('../bedrock/client');
-const { loadCatalogue } = require('../bedrock/catalogue');
-const { prepareSkinRequest } = require('../bedrock/skinRequest');
-const { validateOutput } = require('../bedrock/analysisContract');
+const anthropic = require('../anthropic/client');
+const { loadCatalogue } = require('../anthropic/catalogue');
+const { prepareSkinRequest } = require('../anthropic/skinRequest');
+const { validateOutput } = require('../anthropic/analysisContract');
 const { prepareReadingCall, finishReading } = require('../skinScan/scoreReading');
 const { buildMarketPicksRequest } = require('./marketPicksRequest');
 
@@ -30,11 +30,11 @@ function skinSummary(output) {
 // deps: injectable for unit tests (defaults are the real provider client and catalogue loader).
 // Returns { ok, durationMs, costUsd, validationErrors, summary } or { ok: false, code, ... }.
 async function runTestCase(key, sampleCase, settings, deps = {}) {
-  const isConfigured = deps.isConfigured || bedrock.isConfigured;
-  const complete = deps.completeJson || bedrock.completeJson;
+  const isConfigured = deps.isConfigured || anthropic.isConfigured;
+  const complete = deps.completeJson || anthropic.completeJson;
   const loadCatalogueImpl = deps.loadCatalogue || loadCatalogue;
   // No provider token: do not call anything (the admin page shows "AI is not configured").
-  if (!isConfigured()) return { ok: false, code: 'BEDROCK_NOT_CONFIGURED' };
+  if (!isConfigured()) return { ok: false, code: 'ANTHROPIC_NOT_CONFIGURED' };
 
   const { guidance, limits } = settings;
   const startedAt = Date.now();
@@ -78,7 +78,7 @@ async function runTestCase(key, sampleCase, settings, deps = {}) {
     return { ok: validationErrors.length === 0, durationMs: Date.now() - startedAt, costUsd, validationErrors, summary };
   } catch (error) {
     // Only a fixed provider error code leaves this function, never provider text or input data.
-    const code = typeof error?.code === 'string' && /^BEDROCK_[A-Z0-9_]+$/.test(error.code) ? error.code : 'TEST_FAILED';
+    const code = typeof error?.code === 'string' && /^ANTHROPIC_[A-Z0-9_]+$/.test(error.code) ? error.code : 'TEST_FAILED';
     return { ok: false, code, durationMs: Date.now() - startedAt, costUsd };
   }
 }

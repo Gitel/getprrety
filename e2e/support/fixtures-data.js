@@ -163,8 +163,8 @@ export const ANALYSIS = {
     ],
   },
   affirmation: 'I give my skin permission to heal at its own pace.',
-  // The product-matched routine, in the shape the Bedrock pipeline returns after hydration
-  // (server/services/bedrock/analysisContract.js srStep + compact.js hydrateCompactOutput):
+  // The product-matched routine, in the shape the analysis pipeline returns after hydration
+  // (server/services/anthropic/analysisContract.js srStep + compact.js hydrateCompactOutput):
   // catalogue ids, category_id, and for an UNMATCHED step sr_product_id null + sr_product_name ''
   // + a no_match_note. Home and Profile prefer it over `routine` (homeRoutine.js).
   srProducts: {

@@ -20,8 +20,7 @@ services:
         sync: false
       - key: ANTHROPIC_API_KEY
         sync: false
-      - key: ANTHROPIC_MODEL
-        sync: false
+      # The server pins Opus 5.5 alongside its token prices so spending caps stay accurate.
       - key: PERFECTCORP_API_KEY
         sync: false
       - key: PERFECTCORP_BASE_URL

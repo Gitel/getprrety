@@ -1,6 +1,6 @@
 const { DEFAULTS, KEYS, BOUNDS, assembleSystem } = require('./defaults');
-const { COMPACT_SYSTEM_INSTRUCTIONS } = require('../bedrock/compact');
-const { prepareSkinRequest } = require('../bedrock/skinRequest');
+const { COMPACT_SYSTEM_INSTRUCTIONS } = require('../anthropic/compact');
+const { prepareSkinRequest } = require('../anthropic/skinRequest');
 
 // The three prompts exactly as they were hard-coded BEFORE the locked/guidance split.
 // The tests below prove the default assembly still contains every one of their sentences.
@@ -48,7 +48,7 @@ describe('defaults keep today\'s prompts', () => {
     for (const sentence of sentences(ORIGINAL_MARKET_PICKS)) expect(assembled).toContain(sentence);
   });
 
-  test('prepareSkinRequest without guidance uses the default guidance (tools/bedrock-eval behaviour)', () => {
+  test('prepareSkinRequest without guidance uses the default guidance (tools/anthropic-eval behaviour)', () => {
     const request = prepareSkinRequest({ quiz: {}, language: 'en', images: [], catalogue: [] });
     expect(request.system).toBe(assembleSystem('skin_analysis', DEFAULTS.skin_analysis.defaultGuidance));
   });
@@ -96,7 +96,7 @@ describe('defaults table', () => {
   });
 
   test('timeout and token defaults match the constants the provider client uses today', () => {
-    const client = require('../bedrock/client');
+    const client = require('../anthropic/client');
     expect(DEFAULTS.skin_analysis.defaultLimits.timeoutSec * 1000).toBe(client.TIMEOUT_MS);
     expect(DEFAULTS.skin_analysis.defaultLimits.maxOutputTokens).toBe(client.MAX_OUTPUT_TOKENS);
     expect(DEFAULTS.skin_analysis.defaultLimits.maxCostUsd).toBe(client.MAX_REPORTED_COST_USD);

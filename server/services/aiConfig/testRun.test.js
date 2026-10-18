@@ -1,6 +1,6 @@
 const { runTestCase } = require('./testRun');
 const { listSampleCases, getSampleCase, SAMPLE_CASES } = require('./sampleCases');
-const { sanitizeQuiz } = require('../bedrock/analysisContract');
+const { sanitizeQuiz } = require('../anthropic/analysisContract');
 const { buildReadingRequest } = require('../skinScan/scoreReading');
 const { DEFAULTS } = require('./defaults');
 
@@ -41,12 +41,12 @@ function fakeComplete(output) {
 const deps = (complete, extra = {}) => ({ isConfigured: () => true, completeJson: complete, loadCatalogue: jest.fn(async () => [product]), ...extra });
 
 describe('runTestCase', () => {
-  test('BEDROCK_NOT_CONFIGURED short-circuits: nothing is loaded or called', async () => {
+  test('ANTHROPIC_NOT_CONFIGURED short-circuits: nothing is loaded or called', async () => {
     const complete = jest.fn();
     const loadCatalogue = jest.fn();
     const result = await runTestCase('skin_analysis', getSampleCase('skin_analysis', 'en_basic'), SETTINGS,
       { isConfigured: () => false, completeJson: complete, loadCatalogue });
-    expect(result).toEqual({ ok: false, code: 'BEDROCK_NOT_CONFIGURED' });
+    expect(result).toEqual({ ok: false, code: 'ANTHROPIC_NOT_CONFIGURED' });
     expect(complete).not.toHaveBeenCalled();
     expect(loadCatalogue).not.toHaveBeenCalled();
   });
@@ -75,9 +75,9 @@ describe('runTestCase', () => {
   });
 
   test('skin_analysis: a provider failure gives only the fixed error code', async () => {
-    const complete = jest.fn(async () => { throw Object.assign(new Error('secret provider text'), { code: 'BEDROCK_TIMEOUT' }); });
+    const complete = jest.fn(async () => { throw Object.assign(new Error('secret provider text'), { code: 'ANTHROPIC_TIMEOUT' }); });
     const result = await runTestCase('skin_analysis', getSampleCase('skin_analysis', 'en_basic'), SETTINGS, deps(complete));
-    expect(result).toMatchObject({ ok: false, code: 'BEDROCK_TIMEOUT' });
+    expect(result).toMatchObject({ ok: false, code: 'ANTHROPIC_TIMEOUT' });
     expect(JSON.stringify(result)).not.toContain('secret');
     const other = await runTestCase('skin_analysis', getSampleCase('skin_analysis', 'en_basic'), SETTINGS,
       deps(jest.fn(async () => { throw new Error('anything'); })));
@@ -156,7 +156,7 @@ describe('sample cases', () => {
   });
 
   test('the pregnancy sample really activates the pregnancy caution', () => {
-    const { isPregnancyCaution } = require('../bedrock/analysisContract');
+    const { isPregnancyCaution } = require('../anthropic/analysisContract');
     expect(isPregnancyCaution(getSampleCase('skin_analysis', 'he_pregnancy').quiz)).toBe(true);
     expect(isPregnancyCaution(getSampleCase('skin_analysis', 'en_basic').quiz)).toBe(false);
   });

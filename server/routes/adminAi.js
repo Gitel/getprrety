@@ -178,7 +178,7 @@ router.post('/:key/test', requireAdmin, requireCsrf, builtInOnly({ json: true })
     const { guidance, timeoutSec, maxOutputTokens, maxCostUsd } = parsed.values;
     const result = await runTestCase(key, sampleCase, { guidance, limits: { timeoutSec, maxOutputTokens, maxCostUsd } });
     // Audit only real attempts: with no provider key nothing was called or spent.
-    if (result.code !== 'BEDROCK_NOT_CONFIGURED') await logAdminAction(req, 'ai_config_tested', { fields: [key] });
+    if (result.code !== 'ANTHROPIC_NOT_CONFIGURED') await logAdminAction(req, 'ai_config_tested', { fields: [key] });
     res.json(result);
   } catch (err) {
     next(err);

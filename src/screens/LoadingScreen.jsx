@@ -147,7 +147,8 @@ export default function LoadingScreen({ navigation, route }) {
         apiRef.result = analysis;
       })
       .catch(err => {
-        console.warn('Bedrock fallback:', err.message);
+        // Name the active provider when the existing fallback flow handles a failed analysis.
+        console.warn('Anthropic fallback:', err.message);
         // Stamp the canned template as a fallback, with the reason, so it is never
         // mistaken for a personalized result (saved with the analysis; shown as a
         // banner in the app, a marker on /admin and a label in the clinic email).

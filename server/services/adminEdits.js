@@ -19,8 +19,8 @@ const {
 const { eraById } = require('./eras');
 // Safety logic is NOT re-implemented here: product eligibility, the quiz whitelist, the
 // catalogue loader and the reading sanitizer are the same ones the AI routes use.
-const { eligibleProducts, sanitizeQuiz } = require('./bedrock/analysisContract');
-const { loadCatalogue } = require('./bedrock/catalogue');
+const { eligibleProducts, sanitizeQuiz } = require('./anthropic/analysisContract');
+const { loadCatalogue } = require('./anthropic/catalogue');
 const { sanitizeReading } = require('./skinScan/scoreReading');
 const { scanView } = require('./skinScan/scanView');
 

@@ -30,6 +30,13 @@ test('waits for the saved analysis even when it arrives after /me (the cold-star
   await expect(loadSession({ timeoutMs: 1000 })).resolves.toEqual({ user: { id: 'u1' }, analysis: SAVED });
 });
 
+test('loads legacy Bedrock provenance from a saved analysis without remapping it', async () => {
+  const saved = { ...SAVED, source: 'bedrock' };
+  routeGet({ me: async () => ({ user: { id: 'u1' } }), latest: async () => ({ analysis: saved }) });
+
+  await expect(loadSession({ timeoutMs: 1000 })).resolves.toEqual({ user: { id: 'u1' }, analysis: saved });
+});
+
 test('requests both in parallel, not one after the other', async () => {
   routeGet({ me: () => later(5, { user: { id: 'u1' } }), latest: () => later(5, { analysis: SAVED }) });
 

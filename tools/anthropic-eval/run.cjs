@@ -43,15 +43,16 @@ function isSuccessfulReport(report, expectedResultCount) {
 }
 
 // An explicit server folder avoids loading a different project's .env by accident.
-function getToken(serverDirectory) {
-  if (process.env.AWS_BEARER_TOKEN_BEDROCK) return process.env.AWS_BEARER_TOKEN_BEDROCK;
-  if (!serverDirectory) throw new Error('Set AWS_BEARER_TOKEN_BEDROCK or pass --server-dir with the existing server folder');
+// Resolve only the direct Anthropic API key; selected server .env loading remains explicit.
+function getToken(serverDirectory, environment = process.env) {
+  if (environment.ANTHROPIC_API_KEY) return environment.ANTHROPIC_API_KEY;
+  if (!serverDirectory) throw new Error('Set ANTHROPIC_API_KEY or pass --server-dir with the existing server folder');
   const absoluteDirectory = path.resolve(serverDirectory);
   const dotenvPath = path.join(absoluteDirectory, 'node_modules', 'dotenv');
   const dotenv = require(dotenvPath);
   dotenv.config({ path: path.join(absoluteDirectory, '.env'), quiet: true });
-  if (!process.env.AWS_BEARER_TOKEN_BEDROCK) throw new Error('AWS_BEARER_TOKEN_BEDROCK was not present in the selected environment or server .env');
-  return process.env.AWS_BEARER_TOKEN_BEDROCK;
+  if (!process.env.ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY was not present in the selected environment or server .env');
+  return process.env.ANTHROPIC_API_KEY;
 }
 
 async function runCli(argv = process.argv.slice(2)) {
