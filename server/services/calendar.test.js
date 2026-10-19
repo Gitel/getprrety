@@ -420,3 +420,71 @@ describe('real client behaviour with an injected fake Google client', () => {
     expect(everything).not.toContain(KEY_B64);
   });
 });
+
+// Shopify consultations (plan AI/plans/shopify-consultation-link.md): find the events a customer
+// email is invited to, made outside the app (the clinic's Google appointment page).
+describe('findAttendeeEvents', () => {
+  const from = new Date('2026-10-19T00:00:00Z');
+  const to = new Date('2026-12-19T00:00:00Z');
+
+  test('mock mode: only external events of that attendee in range, sorted; reset clears them', async () => {
+    process.env.BOOKING_CALENDAR_MOCK = '1';
+    const cal = load();
+    cal.__mock.addExternal({ eventId: 'late', startsAt: '2026-11-02T08:00:00Z', endsAt: '2026-11-02T08:30:00Z', attendees: ['Ada@X.co'] });
+    cal.__mock.addExternal({ eventId: 'early', startsAt: '2026-10-25T08:00:00Z', endsAt: '2026-10-25T08:30:00Z', attendees: ['ada@x.co', 'clinic@x.co'] });
+    cal.__mock.addExternal({ eventId: 'other', startsAt: '2026-10-26T08:00:00Z', endsAt: '2026-10-26T08:30:00Z', attendees: ['bob@x.co'] });
+    cal.__mock.addExternal({ eventId: 'before', startsAt: '2026-10-01T08:00:00Z', endsAt: '2026-10-01T08:30:00Z', attendees: ['ada@x.co'] });
+    const found = await cal.findAttendeeEvents({ email: ' ADA@x.co ', timeMin: from, timeMax: to });
+    expect(found.map(e => e.eventId)).toEqual(['early', 'late']);
+    expect(found[0].startsAt).toEqual(new Date('2026-10-25T08:00:00Z'));
+    cal.__mock.reset();
+    expect(await cal.findAttendeeEvents({ email: 'ada@x.co', timeMin: from, timeMax: to })).toEqual([]);
+  });
+
+  test('an empty email returns [] without calling anything', async () => {
+    process.env.BOOKING_CALENDAR_MOCK = '1';
+    expect(await load().findAttendeeEvents({ email: '', timeMin: from, timeMax: to })).toEqual([]);
+  });
+
+  describe('real client', () => {
+    const ev = (id, extra = {}) => ({
+      id, status: 'confirmed',
+      start: { dateTime: '2026-10-25T10:00:00+03:00' }, end: { dateTime: '2026-10-25T10:30:00+03:00' },
+      attendees: [{ email: 'clinic@x.co', organizer: true }, { email: 'Ada@X.co' }],
+      ...extra,
+    });
+    function build(items) {
+      process.env.GOOGLE_CALENDAR_ID = CAL_ID;
+      process.env.GOOGLE_SERVICE_ACCOUNT_JSON_B64 = KEY_B64;
+      const client = { events: { list: jest.fn().mockResolvedValue({ data: { items } }) } };
+      return { client, svc: load().createCalendarService({ client }) };
+    }
+
+    test('asks Google with q=email, single events, the range; keeps only real attendee matches', async () => {
+      const { client, svc } = build([
+        ev('ok-late', { start: { dateTime: '2026-11-01T10:00:00+02:00' }, end: { dateTime: '2026-11-01T10:30:00+02:00' } }),
+        ev('ok'),
+        ev('cancelled', { status: 'cancelled' }),
+        ev('all-day', { start: { date: '2026-10-25' }, end: { date: '2026-10-26' } }),
+        ev('ours', { extendedProperties: { private: { getprettyBookingId: 'a'.repeat(24) } } }),
+        ev('mention-only', { attendees: [{ email: 'clinic@x.co' }], description: 'ada@x.co' }),
+        ev('no-attendees', { attendees: undefined }),
+      ]);
+      const found = await svc.findAttendeeEvents({ email: 'ada@x.co', timeMin: from, timeMax: to });
+      expect(client.events.list).toHaveBeenCalledWith(expect.objectContaining({
+        calendarId: CAL_ID, q: 'ada@x.co', timeMin: from.toISOString(), timeMax: to.toISOString(), singleEvents: true,
+      }));
+      expect(found).toEqual([
+        { eventId: 'ok', startsAt: new Date('2026-10-25T07:00:00Z'), endsAt: new Date('2026-10-25T07:30:00Z') },
+        { eventId: 'ok-late', startsAt: new Date('2026-11-01T08:00:00Z'), endsAt: new Date('2026-11-01T08:30:00Z') },
+      ]);
+    });
+
+    test('a Google failure becomes a CalendarError', async () => {
+      const { client, svc } = build([]);
+      client.events.list.mockRejectedValueOnce(Object.assign(new Error('forbidden'), { code: 403 }));
+      const err = await svc.findAttendeeEvents({ email: 'ada@x.co', timeMin: from, timeMax: to }).catch(e => e);
+      expect(err.name).toBe('CalendarError');
+    });
+  });
+});
