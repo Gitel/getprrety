@@ -182,6 +182,9 @@ async function expireHolds(deps) {
 
 // Free slots for a range of clinic-local dates. from/to optional (default: today .. the last day
 // the booking window reaches, i.e. the clinic-local date of now + horizonDays).
+// Longest calendar free/busy query we send in one go (see listSlots).
+const BUSY_PIECE_DAYS = 31;
+
 async function listSlots({ from, to } = {}, deps) {
   const d = withDefaults(deps);
   if (!(await isBookingEnabled(d))) return { ok: false, code: 'booking_disabled' };
@@ -199,16 +202,25 @@ async function listSlots({ from, to } = {}, deps) {
   if (!d.slots.isDateString(fromDate) || !d.slots.isDateString(toDate) || fromDate > toDate) {
     return { ok: false, code: 'invalid_range' };
   }
-  if ((Date.parse(toDate) - Date.parse(fromDate)) / DAY > 31) return { ok: false, code: 'invalid_range' };
+  if ((Date.parse(toDate) - Date.parse(fromDate)) / DAY > 181) return { ok: false, code: 'invalid_range' }; // up to the 180 day horizon plus today
 
   // The whole range as instants: local midnight of `from` up to local midnight after `to`.
   const rangeStart = d.slots.zonedToUtc(fromDate, '00:00', config.timeZone);
   const rangeEnd = d.slots.zonedToUtc(addDays(toDate, 1), '00:00', config.timeZone);
 
+  // Google documents no maximum range for a free/busy query, so we never rely on one long query.
+  // Instead the range is cut into consecutive pieces of at most BUSY_PIECE_DAYS days (no gaps, no
+  // overlaps), each piece is asked in parallel, and the answers are joined into one list.
+  const pieces = [];
+  for (let start = rangeStart; start < rangeEnd; ) {
+    const end = new Date(Math.min(start.getTime() + BUSY_PIECE_DAYS * DAY, rangeEnd.getTime()));
+    pieces.push({ start, end });
+    start = end;
+  }
   let busy;
   try {
-    busy = await d.calendar.getBusy({ start: rangeStart, end: rangeEnd });
-  } catch (err) {
+    busy = (await Promise.all(pieces.map(piece => d.calendar.getBusy(piece)))).flat();
+  } catch (err) { // one failing piece fails the whole list
     console.error(`booking: calendar_unavailable while listing slots ${calendarDetail(err)}`);
     return { ok: false, code: 'calendar_unavailable' }; // any calendar failure
   }
@@ -523,7 +535,7 @@ async function markAttentionHandled(id, adminEmail, deps) {
 const NUMBER_FIELDS = [
   ['bufferMinutes', 0, 60],
   ['leadHours', 0, 168],
-  ['horizonDays', 1, 30],
+  ['horizonDays', 1, 180],
 ];
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 

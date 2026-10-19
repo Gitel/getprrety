@@ -1,3 +1,15 @@
+// 2026-10-19 ROUND 2 INTENDED BEHAVIOUR CHANGE (desktop redesign, plan section 8, contract 8.2):
+// the Month view no longer lists the times of the focused day under the grid. A day cell now opens
+// a POP-UP (testID booking-popup) holding the time buttons (booking-slot-<HH:MM>, still radios);
+// picking a time closes it and shows booking-selected. Therefore, in this file:
+//   - every case that clicked booking-slot-* straight after opening the screen now clicks the day
+//     cell first (booking-day-2026-10-01), see pickTime();
+//   - "first day is preselected": the day cell is still the one checked radio, but there is no
+//     "pick a time" radiogroup and no time button until the pop-up opens;
+//   - "choosing another day" opens that day's pop-up and counts its buttons (2 on Sunday);
+//   - after slot_taken / 503-retry the slot is looked for inside the re-opened pop-up.
+// Why: on a desktop the old list stretched across the screen; the pop-up keeps the page compact.
+//
 // 2026-10-19 INTENDED BEHAVIOUR CHANGE (calendar view, plan AI/plans/booking-calendar-and-fix.md):
 // the horizontal day chips + time chips were replaced by a Month / Week / Day calendar (new cases in
 // booking-calendar.spec.js). The contract keeps testID booking-day-<date> on AVAILABLE day cells and
@@ -60,6 +72,12 @@ const homeIsShowing = (page, t) => expect(page.getByText(t('home:greeting.mornin
 const slotButtons = page => page.locator('[data-testid^="booking-slot-"]');
 // Confirm is a Pressable (a div): "disabled" shows as aria-disabled="true".
 const confirmBtn = page => page.getByTestId('booking-confirm');
+// Month view: opens the pop-up of a day (testID booking-day-<date>) and taps one of its time buttons.
+// Picking a time closes the pop-up.
+async function pickTime(page, time, date = '2026-10-01') {
+  await page.getByTestId(`booking-day-${date}`).click();
+  await page.getByTestId(`booking-slot-${time}`).click();
+}
 
 test.describe('opening and the picker (English)', () => {
   test('the menu item opens the screen with the title, subtitle and the day cells', async ({ page, mock, t }) => {
@@ -84,21 +102,25 @@ test.describe('opening and the picker (English)', () => {
     await expect(page.getByTestId('booking-day-2026-10-04')).toHaveAttribute('aria-checked', 'false');
     // The focus day cell is a radio, so a screen reader announces it as selected (free rows are unchecked radios).
     await expect(page.getByRole('radio', { checked: true })).toHaveCount(1);
-    // N-4: the date cells and the time rows are two separate labelled radio groups.
+    // The date cells are a labelled radio group; the times only exist inside the pop-up.
     await expect(page.getByRole('radiogroup', { name: t('booking:pickDay') })).toHaveCount(1);
+    await expect(page.getByRole('radiogroup', { name: t('booking:pickTime') })).toHaveCount(0);
+    await expect(slotButtons(page)).toHaveCount(0);
+    // Opening day 1: a "pick a time" group with three times (24 h, clinic time), none selected.
+    await page.getByTestId('booking-day-2026-10-01').click();
     await expect(page.getByRole('radiogroup', { name: t('booking:pickTime') })).toHaveCount(1);
-    // Day 1 has three times (24 h, clinic time), none selected.
     await expect(slotButtons(page)).toHaveCount(3);
     for (const time of ['10:00', '10:30', '11:00']) {
       await expect(page.getByTestId(`booking-slot-${time}`)).toHaveAttribute('aria-checked', 'false');
     }
     await expect(page.getByTestId('booking-selected')).toHaveCount(0);
+    await page.getByTestId('booking-popup-close').click();
     await expect(confirmBtn(page)).toHaveAttribute('aria-disabled', 'true');
   });
 
   test('choosing another day swaps the time buttons', async ({ page, t }) => {
     await openBooking(page, t);
-    await page.getByTestId('booking-day-2026-10-04').click();
+    await page.getByTestId('booking-day-2026-10-04').click(); // opens that day's pop-up
     await expect(page.getByTestId('booking-day-2026-10-04')).toHaveAttribute('aria-checked', 'true');
     await expect(slotButtons(page)).toHaveCount(2);
     await expect(page.getByTestId('booking-slot-11:00')).toHaveCount(0); // only Thursday has 11:00
@@ -107,8 +129,10 @@ test.describe('opening and the picker (English)', () => {
 
   test('picking a time shows the summary and enables confirm', async ({ page, t }) => {
     await openBooking(page, t);
-    await page.getByTestId('booking-slot-10:30').click();
+    await pickTime(page, '10:30');
+    await page.getByTestId('booking-day-2026-10-01').click(); // reopen: the pick is shown as checked
     await expect(page.getByTestId('booking-slot-10:30')).toHaveAttribute('aria-checked', 'true');
+    await page.getByTestId('booking-popup-close').click();
     await expect(page.getByTestId('booking-selected')).toContainText('Your appointment: Thu, 1 October, 10:30 AM');
     await expect(confirmBtn(page)).not.toHaveAttribute('aria-disabled', 'true');
     // Paid flow: the button leads to payment, it does not book straight away.
@@ -119,7 +143,7 @@ test.describe('opening and the picker (English)', () => {
 test.describe('booking', () => {
   test('confirming holds the slot: POST body, awaiting-payment panel, picker gone, not confirmed yet', async ({ page, mock, t }) => {
     await openBooking(page, t);
-    await page.getByTestId('booking-slot-10:00').click();
+    await pickTime(page, '10:00');
     await confirmBtn(page).click();
 
     const waiting = page.getByTestId('booking-awaiting-payment');
@@ -141,7 +165,7 @@ test.describe('booking', () => {
 
   test('the note is sent with the booking', async ({ page, mock, t }) => {
     await openBooking(page, t);
-    await page.getByTestId('booking-slot-10:30').click();
+    await pickTime(page, '10:30');
     await page.getByTestId('booking-note').fill('First visit, sensitive skin');
     await confirmBtn(page).click();
     await expect(page.getByTestId('booking-awaiting-payment')).toBeVisible();
@@ -153,12 +177,13 @@ test.describe('booking', () => {
   test('slot_taken: shows the text, clears the pick, refetches the slots (2 calls), the slot is gone', async ({ page, mock, t }) => {
     mock.booking({ slotTakenOnce: true });
     await openBooking(page, t);
-    await page.getByTestId('booking-slot-10:00').click();
+    await pickTime(page, '10:00');
     await confirmBtn(page).click();
 
     await expect(page.getByTestId('booking-submit-error')).toContainText(EN.slotTaken);
     await expect.poll(() => mock.callsTo('GET', '/api/bookings/slots').length).toBe(2);
-    // The mock dropped 10:00 of Thursday; Thursday keeps 10:30 and 11:00.
+    // The mock dropped 10:00 of Thursday; Thursday keeps 10:30 and 11:00 (look inside its pop-up).
+    await page.getByTestId('booking-day-2026-10-01').click();
     await expect(page.getByTestId('booking-slot-10:00')).toHaveCount(0);
     await expect(page.getByTestId('booking-slot-10:30')).toBeVisible();
     await expect(page.getByTestId('booking-selected')).toHaveCount(0);
@@ -168,7 +193,7 @@ test.describe('booking', () => {
   test('limit_reached: shows the text and refetches "mine"', async ({ page, mock, t }) => {
     mock.override('POST', '/api/bookings', 409, { error: 'x', code: 'limit_reached' });
     await openBooking(page, t);
-    await page.getByTestId('booking-slot-10:00').click();
+    await pickTime(page, '10:00');
     await confirmBtn(page).click();
     await expect(page.getByTestId('booking-submit-error')).toContainText(EN.limitReached);
     await expect.poll(() => mock.callsTo('GET', '/api/bookings/mine').length).toBe(2);
@@ -184,7 +209,7 @@ test.describe('booking', () => {
     };
     mock.override('POST', '/api/bookings', 201, { booking: hold, warning: 'no_analysis' });
     await openBooking(page, t);
-    await page.getByTestId('booking-slot-10:00').click();
+    await pickTime(page, '10:00');
     await confirmBtn(page).click();
     await expect(page.getByTestId('booking-awaiting-payment')).toBeVisible();
     await expect(page.getByTestId('booking-no-analysis-warning')).toContainText(EN.noAnalysis);
@@ -252,7 +277,7 @@ test.describe('other states', () => {
     // The calendar is back: remove the forced answer, then retry.
     mock.clearOverride('GET', '/api/bookings/slots');
     await page.getByTestId('booking-retry').click();
-    await expect(page.getByTestId('booking-slot-10:00')).toBeVisible();
+    await expect(page.getByTestId('booking-day-2026-10-01')).toBeVisible();
     await expect(page.getByTestId('booking-error')).toHaveCount(0);
     expect(mock.callsTo('GET', '/api/bookings/slots')).toHaveLength(2);
   });
@@ -292,7 +317,8 @@ test.describe('Hebrew (RTL)', () => {
     const screen = page.getByTestId('booking-screen');
     await expect(screen).toContainText(HE.title);
     await expect(screen).toContainText(HE.subtitle);
-    // 24 h times, no AM/PM.
+    // 24 h times, no AM/PM (inside the day pop-up).
+    await page.getByTestId('booking-day-2026-10-01').click();
     await expect(page.getByTestId('booking-slot-10:00')).toContainText('10:00');
     await expect(page.getByTestId('booking-slot-10:00')).not.toContainText(/AM|PM/);
 

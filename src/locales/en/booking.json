@@ -45,5 +45,9 @@
   "shopifyNoTime": "We received your payment. Your appointment time shows here once you pick it on the clinic's booking page.",
   "shopifyHelpTitle": "Something wrong?",
   "shopifyHelpBody": "If your appointment is missing or wrong, message the clinic and we will sort it out.",
-  "bookAnother": "Book another consultation"
+  "bookAnother": "Book another consultation",
+  "close": "Close",
+  "freeCount": "{{count}} free",
+  "full": "Full",
+  "fullDay": "This day is fully booked."
 }

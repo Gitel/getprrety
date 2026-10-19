@@ -683,7 +683,7 @@ describe('listSlots', () => {
     ['malformed from', { from: 'nope', to: '2026-10-12' }],
     ['malformed to', { from: '2026-10-08', to: '12/10/2026' }],
     ['from after to', { from: '2026-10-12', to: '2026-10-08' }],
-    ['a span of more than 31 days', { from: '2026-10-01', to: '2026-11-15' }],
+    ['a span of more than 181 days', { from: '2026-10-01', to: '2027-04-10' }],
   ])('%s -> invalid_range', async (_label, range) => {
     const { world, deps } = userWorld();
     expect(await listSlots(range, deps)).toEqual({ ok: false, code: 'invalid_range' });
@@ -698,6 +698,53 @@ describe('listSlots', () => {
     expect(result.slots[0]).toEqual({ startsAt: '2026-10-08T07:00:00.000Z', endsAt: '2026-10-08T07:30:00.000Z', date: '2026-10-08', time: '10:00' });
     // Horizon: Thu 2026-11-05 17:30 local (UTC+2 after DST) is the last Sun-Thu slot before now + 30 d.
     expect(result.slots[result.slots.length - 1].startsAt).toBe('2026-11-05T15:30:00.000Z');
+  });
+
+  test('no range: the default end follows horizonDays from the config', async () => {
+    const { world, deps } = userWorld();
+    world.config().horizonDays = 90;
+    const result = await listSlots({}, deps);
+    // now + 90 d = Tue 2027-01-05 06:00Z, before Tuesday's 10:00 opening, so the last slot is Mon 4 Jan 17:30 local (UTC+2).
+    expect(result.slots[result.slots.length - 1].startsAt).toBe('2027-01-04T15:30:00.000Z');
+  });
+
+  describe('busy times are fetched in pieces of at most 31 days', () => {
+    const DAYMS = 86400000;
+    test('a 90 day range makes 3 calls (31+31+28 days) that cover it exactly', async () => {
+      const { world, deps } = userWorld();
+      expect((await listSlots({ from: '2026-10-08', to: '2027-01-05' }, deps)).ok).toBe(true);
+      const calls = world.calendar.getBusy.mock.calls.map(c => c[0]);
+      expect(calls).toHaveLength(3);
+      expect(calls.map(c => (c.end - c.start) / DAYMS)).toEqual([31, 31, 28 + 1 / 24]); // the last piece is 1 h longer: clinic clocks go back on 25 Oct
+      expect(calls[1].start.getTime()).toBe(calls[0].end.getTime()); // no gap, no overlap
+      expect(calls[2].start.getTime()).toBe(calls[1].end.getTime());
+      expect(calls[0].start.toISOString()).toBe('2026-10-07T21:00:00.000Z'); // local midnight of 8 Oct (UTC+3)
+      expect(calls[2].end.toISOString()).toBe('2027-01-05T22:00:00.000Z');   // local midnight after 5 Jan (UTC+2)
+    });
+
+    test('busy time returned by a later piece blocks a slot', async () => {
+      const { world, deps } = userWorld();
+      world.config().horizonDays = 90; // the default test config (30) would drop December slots
+      // Mon 2026-12-07 10:00 local (08:00Z) lies in the third piece.
+      world.calendar.getBusy.mockImplementation(async ({ start, end }) => {
+        const t = Date.parse('2026-12-07T08:00:00Z');
+        return start.getTime() <= t && t < end.getTime() ? [{ start: new Date(t), end: new Date(t + 30 * 60000) }] : [];
+      });
+      const result = await listSlots({ from: '2026-10-08', to: '2027-01-05' }, deps);
+      expect(result.slots.map(s => s.startsAt)).not.toContain('2026-12-07T08:00:00.000Z');
+      expect(result.taken.map(s => s.startsAt)).toContain('2026-12-07T08:00:00.000Z');
+    });
+
+    test('one failing piece -> calendar_unavailable', async () => {
+      const { world, deps } = userWorld();
+      world.calendar.getBusy.mockResolvedValueOnce([]).mockRejectedValueOnce(new FakeCalendarError());
+      expect(await listSlots({ from: '2026-10-08', to: '2027-01-05' }, deps)).toEqual({ ok: false, code: 'calendar_unavailable' });
+    });
+
+    test('exactly 181 days is still accepted', async () => {
+      const { deps } = userWorld();
+      expect((await listSlots({ from: '2026-10-01', to: '2027-03-31' }, deps)).ok).toBe(true);
+    });
   });
 
   test('removes calendar busy times and confirmed bookings, but not cancelled ones; exposes no user data', async () => {
@@ -1237,7 +1284,7 @@ describe('updateConfig (form body -> validated settings)', () => {
     ['lead over 168 hours', { leadHours: '169' }],
     ['negative lead', { leadHours: '-1' }],
     ['horizon of 0 days', { horizonDays: '0' }],
-    ['horizon over 30 days', { horizonDays: '31' }],
+    ['horizon over 180 days', { horizonDays: '181' }],
     ['empty number', { leadHours: '' }],
     ['open without leading zero', { day0_open: '9:00' }],
     ['open 24:00', { day0_open: '24:00' }],

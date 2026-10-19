@@ -20,6 +20,8 @@ import ViewSwitcher from '../components/booking/ViewSwitcher';
 import MonthView from '../components/booking/MonthView';
 import WeekView from '../components/booking/WeekView';
 import DayView from '../components/booking/DayView';
+import DayTimesModal from '../components/booking/DayTimesModal';
+import { COLUMN_MAX } from '../components/booking/calendarTheme';
 
 // How often the waiting-for-payment panel re-checks the server (ms).
 const PAYMENT_POLL_MS = 5000;
@@ -48,6 +50,7 @@ export default function BookingScreen({ navigation }) {
   const [index, setIndex] = useState(() => new Map()); // Map<date, [{ ...slot, taken }]> (free + taken times)
   const [view, setView] = useState('month');          // 'month' | 'week' | 'day' (not saved between visits)
   const [focusDate, setFocusDate] = useState(null);   // the date the calendar shows / selected day
+  const [popupDate, setPopupDate] = useState(null);   // date whose times pop-up is open (Month view), null = closed
   const [slot, setSlot] = useState(null);             // selected slot object
   const [note, setNote] = useState('');
   const [sending, setSending] = useState(false);
@@ -184,10 +187,19 @@ export default function BookingScreen({ navigation }) {
     setSubmitError(null);
   }
   // Choosing a time in ANY view: remember it and focus its day so every view agrees.
+  // The Month pop-up is always closed afterwards (in Week / Day it is not open, so this is a no-op).
   function pickSlot(sl) {
     setSlot(sl);
     setFocusDate(sl.date);
     setSubmitError(null);
+    setPopupDate(null);
+  }
+  // Month view: pressing a day focuses it and opens its times pop-up. The chosen time is kept
+  // (the user may only be looking), so unlike pickDay this does NOT clear `slot`.
+  function openDay(date) {
+    setFocusDate(date);
+    setSubmitError(null);
+    setPopupDate(date);
   }
   const viewProps = {
     index, today, range, focusDate, onFocusDate: pickDay, selectedSlot: slot, onSelectSlot: pickSlot, accent, lang,
@@ -328,9 +340,22 @@ export default function BookingScreen({ navigation }) {
         <View style={s.calendar}>
           <ViewSwitcher view={view} onChange={setView} accent={accent} />
         </View>
-        {view === 'month' && <MonthView {...viewProps} />}
+        {view === 'month' && <MonthView {...viewProps} onOpenDay={openDay} />}
         {view === 'week' && <WeekView {...viewProps} />}
         {view === 'day' && <DayView {...viewProps} />}
+
+        {/* Month pop-up: the times of the pressed day (closed by x, overlay, Escape or by picking a time). */}
+        {popupDate && (
+          <DayTimesModal
+            date={popupDate}
+            rows={index.get(popupDate) || []}
+            selectedSlot={slot}
+            onSelectSlot={pickSlot}
+            onClose={() => setPopupDate(null)}
+            accent={accent}
+            lang={lang}
+          />
+        )}
 
         {slot && (
           <Text testID="booking-selected" style={[s.selected, align]}>
@@ -385,15 +410,16 @@ export default function BookingScreen({ navigation }) {
 
 const s = StyleSheet.create({
   safe:        { flex: 1, backgroundColor: C.bg },
-  header:      { paddingHorizontal: 24, paddingTop: 18, paddingBottom: 8 },
+  // The whole screen is a centered column on wide screens (phones: full width, column cap not reached).
+  header:      { width: '100%', maxWidth: COLUMN_MAX, alignSelf: 'center', paddingHorizontal: 24, paddingTop: 18, paddingBottom: 8 },
   topRow:      { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 16 },
   pageTitle:   { fontFamily: 'CormorantGaramond_500Medium', fontSize: 26, color: C.text, marginBottom: 4 },
   subtitle:    { fontFamily: 'DMSans_400Regular', fontSize: 12, color: C.muted },
-  content:     { paddingHorizontal: 24, paddingVertical: 12, paddingBottom: 40 },
+  content:     { width: '100%', maxWidth: COLUMN_MAX, alignSelf: 'center', paddingHorizontal: 24, paddingVertical: 12, paddingBottom: 40 },
   center:      { alignItems: 'center', gap: 14, marginTop: 24 },
   muted:       { fontFamily: 'DMSans_400Regular', fontSize: 13, color: C.muted, textAlign: 'center', marginTop: 24 },
   label:       { fontFamily: 'DMSans_500Medium', fontSize: 13, color: C.text, marginTop: 16, marginBottom: 8 },
-  calendar:    { marginTop: 16, marginBottom: 12 },
+  calendar:    { marginTop: 8 },
   selected:    { fontFamily: 'DMSans_500Medium', fontSize: 14, color: C.text, marginTop: 16 },
   input:       { minHeight: 70, backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: '#E8DDD8', borderRadius: 12, paddingVertical: 10, paddingHorizontal: 12, fontFamily: 'DMSans_400Regular', fontSize: 14, color: '#2C2C2C' },
   error:       { fontFamily: 'DMSans_400Regular', fontSize: 12, color: '#C44B4B', marginTop: 10 },
