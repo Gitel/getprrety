@@ -218,7 +218,7 @@ async function main(argv = process.argv.slice(2), deps = {}) {
       if (!verifyCountReport(countReport, promptSha256, { caseId, language, imageCount: testCase.images.length })) throw Object.assign(new Error('count_report_invalid'), { category: 'budget' });
       const analysisStarted = performance.now();
       report.outputTokenLimit = countReport.outputTokenLimit;
-      const inferred = await infer({ ...request, token, maxTokens: report.outputTokenLimit, onPhase, completeImpl: deps.completeImpl });
+      const inferred = await infer({ ...request, wireSchema, token, maxTokens: report.outputTokenLimit, onPhase, completeImpl: deps.completeImpl });
       // Preserve reported usage even if parsing or local validation subsequently rejects the analysis.
       Object.assign(report, {
         usage: inferred.usage, costUsd: inferred.costUsd, costUnknown: inferred.costUsd === null,

@@ -89,6 +89,23 @@ function compactOutput(canonical) {
   }
   for (const item of wire.shelfAnalysis.identified_products) delete item.sr_substitute_name;
   delete wire.shelfAnalysis.transition_plan.first_sr_purchase;
+  // Model-only empty values avoid expensive nullable grammar branches. Hydration
+  // must restore these without changing any of the canonical content above.
+  for (const item of wire.era.product_audit.current_products_assessment) {
+    if (item.suggested_replacement_product_id === null) item.suggested_replacement_product_id = '';
+  }
+  if (wire.era.product_audit.most_urgent_gap === null) wire.era.product_audit.most_urgent_gap = '';
+  if (wire.era.event_prep === null) wire.era.event_prep = { summary: '', steps: [] };
+  if (wire.srProducts.era_hero_product.sr_product_id === null) wire.srProducts.era_hero_product.sr_product_id = '';
+  for (const period of ['am', 'pm']) for (const step of wire.srProducts[period]) {
+    if (step.sr_product_id === null) step.sr_product_id = '';
+  }
+  for (const item of wire.shelfAnalysis.identified_products) {
+    if (item.sr_substitute_product_id === null) item.sr_substitute_product_id = '';
+  }
+  if (wire.shelfAnalysis.transition_plan.first_sr_purchase_product_id === null) {
+    wire.shelfAnalysis.transition_plan.first_sr_purchase_product_id = '';
+  }
   return wire;
 }
 
@@ -103,7 +120,11 @@ function mockComplete(output, usage, inspect = () => {}) {
     options.onEvent({ phase: 'counted', inputTokens: 10_000, outputTokenLimit: options.maxOutputTokens });
     options.onEvent({ phase: 'usage', usage, costUsd: reportedCostUsd(usage) });
     options.onEvent({ phase: 'complete', finishReason: 'end_turn' });
-    return output;
+    // The real provider is constrained by context-pruned sections, including
+    // event_prep=null when the synthetic test case did not supply an event.
+    const result = structuredClone(output);
+    if (options.wireSchema.properties.era.properties.event_prep.type === 'null') result.era.event_prep = null;
+    return result;
   };
 }
 
@@ -114,7 +135,7 @@ test('compact schema is immutable, smaller, and excludes server-restored labels/
   const before = structuredClone(outputSchema);
   const generic = makeWireSchema(outputSchema);
   const compact = makeCompactWireSchema(generic);
-  assert.equal(COMPACT_CONTRACT_VERSION, 'opus46-compact-v2');
+  assert.equal(COMPACT_CONTRACT_VERSION, 'anthropic-compact-v3');
   assert.deepEqual(outputSchema, before);
   assert.ok(Buffer.byteLength(JSON.stringify(compact)) < Buffer.byteLength(JSON.stringify(generic)));
   assert.ok(compact.$defs.srStep.required.includes('explanation'));
@@ -165,10 +186,10 @@ test('Hebrew compact response keeps localized explanations and canonical fields 
   assert.equal(hydrated.srProducts.am[2].no_match_note, output.srProducts.am[2].no_match_note);
 });
 
-test('hydration rejects empty, unknown, malformed, and ineligible catalogue IDs without echoing them', () => {
+test('hydration rejects unknown, malformed, and ineligible catalogue IDs without echoing them', () => {
   const mutations = [
     output => { output.era.product_audit.current_products_assessment[0].suggested_replacement_product_id = 'unknown-id'; },
-    output => { output.srProducts.era_hero_product.sr_product_id = ''; },
+    output => { output.srProducts.era_hero_product.sr_product_id = ' '; },
     output => { output.srProducts.am[1].sr_product_id = 'archived-or-ineligible'; },
     output => { output.shelfAnalysis.transition_plan.first_sr_purchase_product_id = 17; },
   ];
@@ -192,6 +213,8 @@ test('null catalogue IDs restore canonical null/empty values and non-replacement
   output.srProducts.era_hero_product.sr_product_name = '';
   output.srProducts.am[1].sr_product_id = null;
   output.srProducts.am[1].sr_product_name = '';
+  output.srProducts.am[1].match_reason = '';
+  output.srProducts.am[1].no_match_note = 'No eligible moisturizer match is available.';
   output.shelfAnalysis.identified_products[0].sr_substitute_product_id = null;
   output.shelfAnalysis.identified_products[0].sr_substitute_name = '';
   output.shelfAnalysis.transition_plan.first_sr_purchase_product_id = null;
@@ -202,6 +225,60 @@ test('null catalogue IDs restore canonical null/empty values and non-replacement
   assert.equal(hydrated.srProducts.am[1].sr_product_name, '');
   assert.equal(hydrated.shelfAnalysis.identified_products[0].sr_substitute_name, '');
   assert.equal(hydrated.shelfAnalysis.transition_plan.first_sr_purchase, '');
+  assert.deepEqual(hydrated, output);
+});
+
+test('full compact grammar has no nullable unions and preserves all content sections and enums', () => {
+  function check(node) {
+    if (!node || typeof node !== 'object') return;
+    assert.equal(Array.isArray(node.type), false);
+    assert.equal('anyOf' in node, false);
+    for (const value of Object.values(node)) check(value);
+  }
+  check(compactSchema);
+  assert.equal(compactSchema.properties.srProducts.type, 'object');
+  assert.equal(compactSchema.properties.shelfAnalysis.type, 'object');
+  assert.equal(compactSchema.properties.era.properties.event_prep.type, 'object');
+  assert.deepEqual(compactSchema.properties.era.properties.era.properties.id.enum, outputSchema.properties.era.properties.era.properties.id.enum);
+  assert.deepEqual(compactSchema.$defs.routineStep.properties.category_id.enum, outputSchema.$defs.routineStep.properties.category_id.enum);
+});
+
+test('event and shelf content round-trip exactly while absent optional sections restore null', () => {
+  const canonical = canonicalOutput();
+  canonical.era.event_prep = { summary: 'Prepare gently for your event.', steps: [{ when: 'Before the event', action: 'Keep the routine consistent.' }] };
+  const wire = compactOutput(canonical);
+  assert.equal(validateCompact(wire), true);
+  assert.deepEqual(hydrateCompactOutput(wire, { eligibleProducts: eligible }), canonical);
+  wire.era.event_prep = { summary: '', steps: [] };
+  wire.srProducts = { bundle_note: '', era_hero_product: { sr_product_id: '', hero_reason: '' }, am: [], pm: [] };
+  wire.shelfAnalysis = { identified_products: [], shelf_summary: { overall_note: '' }, transition_plan: { first_sr_purchase_product_id: '' } };
+  assert.equal(validateCompact(wire), true);
+  const hydrated = hydrateCompactOutput(wire, { eligibleProducts: eligible });
+  assert.equal(hydrated.era.event_prep, null);
+  assert.equal(hydrated.srProducts, null);
+  assert.equal(hydrated.shelfAnalysis, null);
+  assert.deepEqual(hydrated.era.skin_analysis, canonical.era.skin_analysis);
+  assert.deepEqual(hydrated.era.safety_flags, canonical.era.safety_flags);
+  // A useful uncertainty note must survive even when no product can be identified.
+  wire.shelfAnalysis.shelf_summary.overall_note = 'The packaging is too blurred to identify.';
+  assert.equal(hydrateCompactOutput(wire, { eligibleProducts: eligible }).shelfAnalysis.shelf_summary.overall_note, wire.shelfAnalysis.shelf_summary.overall_note);
+});
+
+test('empty-value hydration does not bypass product, routine, or evidence validation', () => {
+  const wire = compactOutput(canonicalOutput());
+  wire.era.product_audit.current_products_assessment[0].suggested_replacement_product_id = '';
+  wire.srProducts.am[2].sr_product_id = products.moisturizer._id;
+  wire.era.routine.am = wire.era.routine.am.slice(0, 2);
+  const hydrated = hydrateCompactOutput(wire, { eligibleProducts: eligible });
+  const errors = validateOutput(hydrated, { quiz, language: 'en', images: [] }, catalogue).errors;
+  assert.ok(errors.some(error => error.includes('replacement requires')));
+  assert.ok(errors.some(error => error.includes('core protect')));
+  assert.ok(errors.some(error => error.includes('no catalogue SPF')));
+  assert.ok(errors.some(error => error.includes('no shelf photos')));
+  const before = structuredClone(hydrated);
+  wire.srProducts.am[0].sr_product_id = products.moisturizer._id;
+  assert.throws(() => hydrateCompactOutput(wire, { eligibleProducts: [] }), /compact_response_invalid_catalogue_id/);
+  assert.deepEqual(hydrated, before);
 });
 
 test('a stale core-three count fingerprint is rejected before a paid request and leaves a durable gate record', async t => {
@@ -260,7 +337,7 @@ test('empty eligible catalogue removes SR schema, accepts only null SR output, a
     output.srProducts = null;
     output.shelfAnalysis = null;
     output.era.product_audit.current_products_assessment = [];
-    output.era.product_audit.most_urgent_gap = null;
+    output.era.product_audit.most_urgent_gap = '';
     const analysis = await main(['--mode', 'analysis', '--case-id', caseId, '--input-dir', directory,
       '--count-report', countFile, '--output', resultFile], {
       getToken: () => 'test-token', completeImpl: mockComplete(output, usage),
