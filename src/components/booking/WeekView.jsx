@@ -95,8 +95,8 @@ export default function WeekView({
                 </View>
                 {dates.map((date) => {
                   const entry = (index.get(date) || []).find((r) => r.time === time);
-                  // No entry: a plain white cell keeps the column (and its divider lines).
-                  if (!entry) return <View key={date} style={[s.cell, { height: rowHeight }]} />;
+                  // No entry (closed / outside hours / outside range): the soft "off" colour, same as Month off days.
+                  if (!entry) return <View key={date} style={[s.cell, s.cellOff, { height: rowHeight }]} />;
 
                   const label = `${formatSlotDay(date, lang)}, ${formatTime(time, lang)}`;
                   if (entry.taken) {
@@ -111,7 +111,7 @@ export default function WeekView({
                         aria-disabled={true}
                         style={[s.cell, s.cellTaken, { height: rowHeight }]}
                       >
-                        {wide && <Text style={s.takenText}>{t('booking:taken')}</Text>}
+                        {wide ? <Text style={s.takenText}>{t('booking:taken')}</Text> : <View style={s.takenMark} />}
                       </View>
                     );
                   }
@@ -129,7 +129,7 @@ export default function WeekView({
                       // hovered (web only): stronger tint, and the time text appears (below).
                       style={({ hovered }) => [
                         s.cell,
-                        { height: rowHeight, backgroundColor: on ? accent : hovered ? tint(accent, 0.22) : tint(accent, 0.08) },
+                        { height: rowHeight, backgroundColor: on ? accent : hovered ? tint(accent, 0.32) : tint(accent, 0.17) },
                       ]}
                     >
                       {({ hovered }) => (
@@ -146,10 +146,10 @@ export default function WeekView({
         )}
       </View>
 
-      {/* Legend: tinted swatch = free, grey swatch = taken. */}
+      {/* Legend: tinted swatch (same tint as a free cell) = free, grey swatch = taken. */}
       <View testID="booking-week-legend" style={s.legend}>
         <View style={s.legendItem}>
-          <View style={[s.swatch, { backgroundColor: tint(accent, 0.22), borderColor: accent }]} />
+          <View style={[s.swatch, { backgroundColor: tint(accent, 0.17), borderColor: accent }]} />
           <Text style={s.legendText}>{t('booking:available')}</Text>
         </View>
         <View style={s.legendItem}>
@@ -178,6 +178,9 @@ const s = StyleSheet.create({
   // Every day cell shares the row equally; minWidth 0 keeps the 7 columns the same width.
   cell:      { flex: 1, minWidth: 0, backgroundColor: C.card, alignItems: 'center', justifyContent: 'center' },
   cellTaken: { backgroundColor: CAL.taken },
+  cellOff:   { backgroundColor: CAL.off },
+  // Phones: taken cells have no text, so a short muted dash tells them apart from empty cells without colour alone.
+  takenMark: { width: 10, height: 2, borderRadius: 1, backgroundColor: C.muted },
   takenText: { fontFamily: 'DMSans_400Regular', fontSize: 11, color: C.muted },
   cellTime:  { fontFamily: 'DMSans_500Medium', fontSize: 11 },
   whiteDot:  { width: 8, height: 8, borderRadius: 4, backgroundColor: '#FFFFFF' },

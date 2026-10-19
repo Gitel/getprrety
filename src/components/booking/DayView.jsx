@@ -86,7 +86,7 @@ export default function DayView({
                   // hovered (web only): stronger tint. Selected = solid accent.
                   style={({ hovered }) => [
                     s.cell,
-                    { backgroundColor: on ? accent : hovered ? tint(accent, 0.22) : tint(accent, 0.08) },
+                    { backgroundColor: on ? accent : hovered ? tint(accent, 0.32) : tint(accent, 0.17) },
                   ]}
                 >
                   <Text style={[s.freeText, { color: on ? '#FFFFFF' : accent }]}>
