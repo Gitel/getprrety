@@ -17,7 +17,8 @@ function Arrow({ glyph, testID, label, disabled, onPress }) {
       // Pressable's disabled prop makes react-native-web render aria-disabled="true" (and the native disabled flag), so it cannot be tapped.
       disabled={disabled}
       onPress={disabled ? undefined : onPress}
-      style={[s.arrow, disabled && s.arrowOff]}
+      // hovered (web): a soft tint behind the arrow so it feels clickable.
+      style={({ hovered }) => [s.arrow, hovered && !disabled && s.arrowHover, disabled && s.arrowOff]}
     >
       <Text style={s.glyph}>{glyph}</Text>
     </Pressable>
@@ -39,10 +40,11 @@ export default function NavHeader({
 }
 
 const s = StyleSheet.create({
-  row:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
-  title:    { flex: 1, textAlign: 'center', fontFamily: 'CormorantGaramond_500Medium', fontSize: 20, color: C.text },
+  row:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  title:    { flex: 1, textAlign: 'center', fontFamily: 'CormorantGaramond_500Medium', fontSize: 22, color: C.text },
   // 44 px square = comfortable touch target.
   arrow:    { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  arrowHover: { backgroundColor: 'rgba(0,0,0,0.06)' },
   arrowOff: { opacity: 0.25 },
   glyph:    { fontFamily: 'DMSans_500Medium', fontSize: 28, lineHeight: 30, color: C.text },
 });

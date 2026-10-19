@@ -39,5 +39,9 @@
   "prevWeek": "השבוע הקודם",
   "nextWeek": "השבוע הבא",
   "prevDay": "היום הקודם",
-  "nextDay": "היום הבא"
+  "nextDay": "היום הבא",
+  "close": "סגירה",
+  "freeCount": "‏{{count}} פנויים",
+  "full": "מלא",
+  "fullDay": "היום הזה מלא."
 }

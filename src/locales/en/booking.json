@@ -39,5 +39,9 @@
   "prevWeek": "Previous week",
   "nextWeek": "Next week",
   "prevDay": "Previous day",
-  "nextDay": "Next day"
+  "nextDay": "Next day",
+  "close": "Close",
+  "freeCount": "{{count}} free",
+  "full": "Full",
+  "fullDay": "This day is fully booked."
 }

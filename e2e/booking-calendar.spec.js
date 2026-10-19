@@ -414,15 +414,15 @@ test.describe('desktop layout (1280 x 900)', () => {
 
   test.describe('Hebrew', () => {
     test.use({ lang: 'he' });
-    test('the toggle sits at the LEFT end and the week time column is on the right', async ({ page }) => {
+    test('the toggle sits at the LEFT end and the week time column is on the right of the day cells', async ({ page }) => {
       await openBooking(page, tHe);
       const sw = await tid(page, 'booking-view-switcher').boundingBox();
       const card = await tid(page, 'booking-calendar-card').boundingBox();
       expect(sw.x).toBeLessThan(card.x + 40);
       await tid(page, 'booking-view-week').click();
       const timeCell = await tid(page, 'booking-week-time-10:00').boundingBox();
-      const sunCell = await tid(page, 'booking-week-cell-2026-10-04-10:00').boundingBox();
-      expect(timeCell.x).toBeGreaterThan(sunCell.x);
+      const dayCell = await tid(page, 'booking-week-cell-2026-10-01-10:00').boundingBox();
+      expect(timeCell.x).toBeGreaterThan(dayCell.x);
     });
   });
 });
