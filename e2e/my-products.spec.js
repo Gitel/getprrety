@@ -13,10 +13,9 @@
 //     serum has nothing, and one archived product exists for the "No longer available" case.
 //   - The same product can appear in several sections at once (ritual, replace, hero), so cards are
 //     always looked up INSIDE a section testID, never page-wide (that would break strict mode).
-//   - Market picks ("Other options", POST /api/ai/product-recommendations) used to be tested in the
-//     Profile tests; those assertions moved here.
+//   - Automatic market picks are disabled. Only explicit saved clinic picks can show Other options.
 import { test, expect } from './support/test.js';
-import { ANALYSIS, PID, CATALOGUE, SHOP_URL } from './support/fixtures-data.js';
+import { ANALYSIS, PID, CATALOGUE, SHOP_URL, PRODUCT_RECS } from './support/fixtures-data.js';
 import { makeT } from './support/i18n.js';
 import { openMenu, panelOf } from './support/nav.js';
 
@@ -67,13 +66,15 @@ test.describe('entry point: side menu', () => {
 });
 
 test.describe('with the full fixture analysis', () => {
-  test('shows the hero, ritual, replace, shelf, other options and audit sections, not the empty state', async ({ page, t }) => {
+  test('shows catalogue and audit sections without automatic outside-brand options', async ({ page, t, mock }) => {
     await openMyProducts(page, t);
     for (const id of ['myproducts-hero', 'myproducts-ritual', 'myproducts-replace', 'myproducts-shelf',
-      'myproducts-other-options', 'myproducts-audit']) {
+      'myproducts-audit']) {
       await expect(page.getByTestId(id)).toBeVisible();
     }
     await expect(page.getByTestId('myproducts-empty')).toHaveCount(0);
+    await expect(page.getByTestId('myproducts-other-options')).toHaveCount(0);
+    expect(mock.callsTo('POST', '/api/ai/product-recommendations')).toHaveLength(0);
     // The hero names the era's hero product and why.
     await expect(page.getByTestId('myproducts-hero')).toContainText('Barrier Repair Cream');
     await expect(page.getByTestId('myproducts-hero')).toContainText('The one product that moves your era the most.');
@@ -203,23 +204,27 @@ test.describe('with the full fixture analysis', () => {
   });
 
   test.describe('other options (market picks)', () => {
-    test('shows the AI market picks (moved here from Profile); the picks are fetched once, authed', async ({ page, t, mock }) => {
+    test('preserves explicitly saved clinic picks without requesting AI market picks', async ({ page, t, mock }) => {
+      mock.set({ analysis: variant((a) => { a.productRecs = PRODUCT_RECS; }) });
       await openMyProducts(page, t);
       const section = page.getByTestId('myproducts-other-options');
       await expect(section).toContainText(t('products:otherOptions.title'));
       await expect(section).toContainText(t('products:otherOptions.hint'));
-      // One pick per replace / add item from PRODUCT_RECS: the price comes from the mock.
+      // Explicit saved picks keep their display data; no generation request is needed.
       for (const price of ['$18', '$24', '$32']) await expect(section.getByText(price, { exact: true })).toBeVisible();
       await expect(section).toContainText('Ceramide Moisturizing Cream');
-      expect(mock.callsTo('POST', '/api/ai/product-recommendations')).toHaveLength(1);
-      expect(mock.lastCall('POST', '/api/ai/product-recommendations').authed).toBe(true);
+      expect(mock.callsTo('POST', '/api/ai/product-recommendations')).toHaveLength(0);
     });
 
-    test('is hidden when there are no market picks', async ({ page, t, mock }) => {
-      mock.override('POST', '/api/ai/product-recommendations', 200, { replace: [], add: [] });
+    test('does not generate outside-brand picks for unmatched needs', async ({ page, t, mock }) => {
+      mock.set({ analysis: variant((a) => {
+        a.srProducts = null;
+        a.productAudit.replace = [];
+      }) });
       await openMyProducts(page, t);
-      await expect(page.getByTestId('myproducts-ritual')).toBeVisible();
+      await expect(page.getByTestId('myproducts-audit')).toBeVisible();
       await expect(page.getByTestId('myproducts-other-options')).toHaveCount(0);
+      expect(mock.callsTo('POST', '/api/ai/product-recommendations')).toHaveLength(0);
     });
   });
 
@@ -286,7 +291,7 @@ test.describe('Hebrew (RTL)', () => {
     await openMyProducts(page, t);
     await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
     await expect(page.locator('html')).toHaveAttribute('lang', 'he');
-    for (const id of ['myproducts-ritual', 'myproducts-replace', 'myproducts-shelf', 'myproducts-other-options', 'myproducts-audit']) {
+    for (const id of ['myproducts-ritual', 'myproducts-replace', 'myproducts-shelf', 'myproducts-audit']) {
       await expect(page.getByTestId(id)).toBeVisible();
     }
     // Hebrew labels (a missing Hebrew key would fall back to English here, so assert they differ).

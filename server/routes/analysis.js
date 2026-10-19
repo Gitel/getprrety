@@ -68,7 +68,7 @@ async function withSkinScan(doc, userId) {
   const scan = await SkinScan.findOne({ _id: analysis.skinScanId, userId, status: 'complete' })
     .select('merged fusion reading readingStatus');
   // Same shape as GET /api/skin-scan/:id, so a reloaded analysis renders the score section too.
-  if (scan) analysis.skinScan = scanView(scan);
+  if (scan) analysis.skinScan = await scanView(scan);
   return analysis;
 }
 

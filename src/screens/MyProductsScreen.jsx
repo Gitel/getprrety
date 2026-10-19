@@ -1,15 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View, Text, Pressable, ScrollView, Linking, StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation, Trans } from 'react-i18next';
-import { C, fetchProductRecs } from '../constants';
+import { C } from '../constants';
 import { useApp } from '../context/AppContext';
 import { MenuButton } from '../components/SideMenu';
 import CatalogueProductCard from '../components/CatalogueProductCard';
 import { useCatalogueProducts } from '../lib/useCatalogueProducts';
-import { buildProductSafetyContext } from '../lib/analyzeWithRailway';
 
 // A catalogue product id is a 24-character hex string. Old analyses hold ids like "sr-clean",
 // which have no catalogue entry, so they are shown as text only.
@@ -29,11 +28,11 @@ function enumLabel(t, prefix, value) {
 
 // "My products": every product the analysis recommends, in one place.
 // Sections (top to bottom): hero, SR ritual (AM/PM), replace suggestions, current shelf,
-// other options (AI market picks), product audit. Opened from the side menu, Home and Profile.
+// saved clinic picks, product audit. Opened from the side menu, Home and Profile.
 // Going back is the edge swipe handled in App.jsx (same as Profile / Messages / Settings).
 export default function MyProductsScreen({ navigation }) {
-  const { t, i18n } = useTranslation();
-  const { analysis, answers, user, productRecsCache, setProductRecsCache } = useApp();
+  const { t } = useTranslation();
+  const { analysis } = useApp();
   const era = analysis?.era;
   const color = era?.color || C.accent;
 
@@ -43,8 +42,6 @@ export default function MyProductsScreen({ navigation }) {
   const audit         = analysis?.productAudit || {};
   const replaceItems  = audit.replace || [];
   const addItems      = audit.add     || [];
-  // The items that get market picks, as a string: a stable dependency for the effect below.
-  const auditPickKey = JSON.stringify([addItems, replaceItems]);
 
   // The audit tabs. Replace items have their own section, so there is no replace tab here.
   const auditTabs = [
@@ -55,8 +52,9 @@ export default function MyProductsScreen({ navigation }) {
 
   const [auditTab, setAuditTab] = useState(auditTabs[0]?.key || 'add');
   const [srTab, setSrTab] = useState('am');
-  const [productRecs, setProductRecs] = useState(null);
-  const [country, setCountry] = useState(null);
+  // Explicit clinic edits remain visible. Automatic market picks would compete with
+  // catalogue-first recommendations, so neither request nor reuse generated cache entries.
+  const productRecs = analysis?.productRecs;
 
   // Catalogue data (photo, price, shop link) for every product id on the screen, loaded ONCE.
   // With no ids (empty state) the hook makes no request at all.
@@ -68,50 +66,9 @@ export default function MyProductsScreen({ navigation }) {
   ].filter(Boolean);
   const { products } = useCatalogueProducts(catalogueIds);
 
-  // Market picks ("Other options"). MOVED unchanged from ProfileScreen.
-  useEffect(() => {
-    if (!user) return;
-    // Picks edited by the clinic in the admin dashboard win: show exactly those and do
-    // not request market picks. Without them, reuse this session's picks for the same audit (cache
-    // below), else ask Claude. Nothing is saved server-side, so a reload asks again.
-    if (analysis?.productRecs) {
-      setProductRecs(analysis.productRecs);
-      return;
-    }
-    if (!addItems.length && !replaceItems.length) return;
-    // Quiz answers are only in memory in the quiz session; a saved analysis (reopened
-    // after a reload) carries its own copy, so use that before the US default.
-    const recAnswers = analysis?.quizAnswers || answers || {};
-    const c   = recAnswers.country || 'United States';
-    const safetyContext = buildProductSafetyContext(recAnswers);
-    const language = i18n.language.startsWith('he') ? 'he' : 'en';
-    const key = JSON.stringify([audit, c, era?.name || '', language, safetyContext]);
-    // Session cache: reopening this screen for the same audit reuses the earlier result
-    // instead of calling the paid, rate-limited recommendations endpoint again.
-    if (productRecsCache?.key === key) {
-      setCountry(productRecsCache.country);
-      setProductRecs(productRecsCache.recs);
-      return;
-    }
-    // Set by the cleanup below when this effect re-runs or the screen closes, so a slow
-    // answer can never overwrite newer picks.
-    let cancelled = false;
-    (async () => {
-      try {
-        setCountry(c);
-        const recs = await fetchProductRecs(audit, c, era?.name || '', { language, safetyContext });
-        // Cached even if this run was cancelled: the picks are still correct for `key`.
-        setProductRecsCache({ key, recs, country: c });
-        if (!cancelled) setProductRecs(recs);
-      } catch (e) { console.warn('Product recs:', e.message); }
-    })();
-    return () => { cancelled = true; };
-    // Re-run when admin-edited picks arrive (productRecs) or the add/replace list changes.
-  }, [user, analysis?.productRecs, auditPickKey, answers, analysis?.quizAnswers, i18n.language]);
-
   if (!analysis) return null;
 
-  // Every pick (one per replace / add item that got one), flattened for the "Other options" list.
+  // Only explicit saved clinic picks appear in the "Other options" list.
   const picks = [...(productRecs?.replace || []), ...(productRecs?.add || [])].filter(p => p?.rec);
   const currentTab = auditTabs.find(tab => tab.key === auditTab);
   const hero = srProducts?.era_hero_product;
@@ -280,16 +237,11 @@ export default function MyProductsScreen({ navigation }) {
           </View>
         )}
 
-        {/* Other options: AI market picks from other brands. Hidden when there are none. */}
+        {/* Other options are explicit clinic edits; automatic AI market picks are disabled. */}
         {picks.length > 0 && (
           <View testID="myproducts-other-options" style={s.section}>
             <View style={s.headerRow}>
               <Text style={s.sectionLabel}>{t('products:otherOptions.title')}</Text>
-              {country ? (
-                <View style={[s.countryBadge, { backgroundColor: color + '15' }]}>
-                  <Text style={[s.countryText, { color }]}>📍 {country}</Text>
-                </View>
-              ) : null}
             </View>
             <Text style={s.note}>{t('products:otherOptions.hint')}</Text>
             <View style={s.list}>
@@ -346,7 +298,7 @@ export default function MyProductsScreen({ navigation }) {
   );
 }
 
-// One AI market pick (another brand). MOVED unchanged from ProfileScreen: tapping opens the retailer link.
+// One explicit saved clinic pick: tapping opens the retailer link.
 function MarketPickCard({ rec, color }) {
   const { t } = useTranslation();
   return (
@@ -411,8 +363,6 @@ const s = StyleSheet.create({
   statusPill:   { marginStart: 'auto', borderRadius: 8, paddingVertical: 2, paddingHorizontal: 8 },
   statusText:   { fontFamily: 'DMSans_500Medium', fontSize: 10, textTransform: 'capitalize' },
 
-  countryBadge:{ borderRadius: 10, paddingVertical: 3, paddingHorizontal: 9 },
-  countryText: { fontFamily: 'DMSans_500Medium', fontSize: 11 },
   pickCard:    { flexDirection: 'row', alignItems: 'center', gap: 11, backgroundColor: C.card, borderRadius: 11, padding: 11, borderWidth: 1 },
   pickInfo:    { flex: 1 },
   pickBrand:   { fontFamily: 'DMSans_400Regular', fontSize: 10, color: C.muted, marginBottom: 1 },

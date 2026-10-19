@@ -34,7 +34,7 @@ async function runTestCase(key, sampleCase, settings, deps = {}) {
   const complete = deps.completeJson || anthropic.completeJson;
   const loadCatalogueImpl = deps.loadCatalogue || loadCatalogue;
   // No provider token: do not call anything (the admin page shows "AI is not configured").
-  if (!isConfigured()) return { ok: false, code: 'ANTHROPIC_NOT_CONFIGURED' };
+  if (!await isConfigured()) return { ok: false, code: 'ANTHROPIC_NOT_CONFIGURED' };
 
   const { guidance, limits } = settings;
   const startedAt = Date.now();

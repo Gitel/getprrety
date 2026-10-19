@@ -2,7 +2,7 @@
   Shared dashboard header: section links + the signed-in admin.
   Include with: include('_nav', { active: 'clients' | 'users' | 'catalogue' | 'bookings' | 'inbox' | 'admins' | 'audit' })
   `locals.active` (not `active`) so a page that passes nothing does not throw.
-  `locals.unreadReplies` (unread user replies) is set by the adminPage middleware.
+  `locals.unreadReplies` (users with unread replies) is set by the adminPage middleware.
 %>
 <header class="top">
   <nav class="sections">
@@ -11,8 +11,9 @@
     <a href="/admin/users" class="<%= locals.active === 'users' ? 'active' : '' %>">Users</a>
     <a href="/admin/catalogue" class="<%= locals.active === 'catalogue' ? 'active' : '' %>">Products</a>
     <a href="/admin/ai" class="<%= locals.active === 'ai' ? 'active' : '' %>">AI settings</a>
+    <a href="/admin/api-keys" class="<%= locals.active === 'api-keys' ? 'active' : '' %>">API keys</a>
     <a href="/admin/bookings" class="<%= locals.active === 'bookings' ? 'active' : '' %>">Bookings</a>
-    <a href="/admin/inbox" class="<%= locals.active === 'inbox' ? 'active' : '' %>">Inbox<% if (locals.unreadReplies) { %><span class="badge" title="Unread replies"><%= locals.unreadReplies %></span><% } %></a>
+    <a href="/admin/inbox" class="<%= locals.active === 'inbox' ? 'active' : '' %>">Inbox<% if (locals.unreadReplies) { %><span class="badge" title="Conversations with unread replies"><%= locals.unreadReplies %></span><% } %></a>
     <a href="/admin/admins" class="<%= locals.active === 'admins' ? 'active' : '' %>">Admins</a>
     <a href="/admin/audit" class="<%= locals.active === 'audit' ? 'active' : '' %>">Audit log</a>
   </nav>

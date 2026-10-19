@@ -5,7 +5,7 @@ const { readingStatusFor } = require('./scoreReading');
 // send it - GET /api/skin-scan/:id (routes/skinScan.js) and a saved analysis
 // (withSkinScan in routes/analysis.js) - so a reloaded Profile renders exactly what the
 // post-quiz Profile did. Everything derived (signals) is computed on read, never stored.
-function scanView(scan) {
+async function scanView(scan) {
   return {
     merged: scan.merged,
     fusion: scan.fusion,
@@ -15,7 +15,7 @@ function scanView(scan) {
     // once it is ready. readingStatus tells the app whether to keep polling for it:
     // 'pending' (asked / about to be asked), 'ready', 'failed', 'unavailable' (feature off).
     reading: scan.readingStatus === 'ready' ? scan.reading : null,
-    readingStatus: readingStatusFor(scan),
+    readingStatus: await readingStatusFor(scan),
   };
 }
 

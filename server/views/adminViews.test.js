@@ -6,6 +6,31 @@ const ejs = require('ejs');
 
 const VIEWS = path.join(__dirname, 'admin');
 
+test('API key page shows expiry and blank password inputs without exposing saved keys', async () => {
+  const html = await render('apiKeys', {
+    rows: [{ provider: 'perfectcorp', name: 'PerfectCorp', configured: true, source: 'Admin settings',
+      health: 'expired', message: 'Expired - replace this API key.', checkedAt: new Date('2026-10-19T12:00:00Z'),
+      updatedBy: 'admin@example.com' }],
+    storageReady: true, canEdit: true, notice: null,
+  });
+  expect(html).toContain('Expired - replace this API key.');
+  expect(html).toContain('type="password"');
+  expect(html).not.toMatch(/name="apiKey"[^>]*value=/);
+  expect(html).toContain('Check current PerfectCorp key');
+  expect(html).toContain('name="_csrf" value="TEST_CSRF_TOKEN"');
+});
+
+test('API key page cannot offer replacement to a read-only admin or without encryption setup', async () => {
+  const rows = [{ provider: 'anthropic', name: 'Anthropic', configured: true, source: 'Server environment',
+    health: 'unknown', message: 'Not checked yet' }];
+  const readOnly = await render('apiKeys', { rows, storageReady: true, canEdit: false, notice: null });
+  expect(readOnly).not.toContain('type="password"');
+  expect(readOnly).not.toContain('Check current Anthropic key');
+  const setup = await render('apiKeys', { rows, storageReady: false, canEdit: true, notice: null });
+  expect(setup).toContain('one-time server setup');
+  expect(setup).not.toContain('type="password"');
+});
+
 function render(name, data) {
   return ejs.renderFile(path.join(VIEWS, `${name}.ejs`), {
     admin: { email: 'admin@example.com' },
@@ -298,8 +323,20 @@ describe('messaging views', () => {
     expect(html).toContain('Deleted user');
   });
 
+  test('inbox keeps read conversations, bolding only the unread ones', async () => {
+    const html = await render('inbox', {
+      rows: [
+        { userId: 'u1', unread: 2, latestAt: new Date(), latestBody: 'new one', user: { firstName: 'Ada', email: 'ada@example.com' } },
+        { userId: 'u2', unread: 0, latestAt: new Date(), latestBody: 'already read', user: { firstName: 'Bo', email: 'bo@example.com' } },
+      ],
+    });
+    expect(html).toContain('already read');
+    expect(html).toMatch(/<tr class="unread">[\s\S]*new one/);
+    expect(html).toMatch(/<tr class="">[\s\S]*>Read<[\s\S]*already read/);
+  });
+
   test('empty inbox', async () => {
-    expect(await render('inbox', { rows: [] })).toContain('No unread replies.');
+    expect(await render('inbox', { rows: [] })).toContain('No replies yet.');
   });
 });
 

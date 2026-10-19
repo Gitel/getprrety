@@ -3,6 +3,8 @@ const mongoose = require('mongoose');
 // Every state-changing action an admin can take from /admin. Kept in one list so the
 // enum, the helper and the enum-guard test (AdminAuditLog.test.js) cannot drift apart.
 const ACTIONS = [
+  'api_key_replaced',          // API keys: provider name only, never a key or encrypted value
+  'api_key_checked',           // API keys: a manual provider verification
   'admin_added',             // Admins page: granted dashboard access
   'admin_removed',           // Admins page: revoked dashboard access
   'clinic_email_resent',     // Customer page: "Resend to clinic"

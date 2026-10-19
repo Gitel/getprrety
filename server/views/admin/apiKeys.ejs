@@ -1,0 +1,39 @@
+<%- include('_head', { title: 'API keys' }) %>
+<%- include('_nav', { active: 'api-keys' }) %>
+<main>
+<h1>API keys</h1>
+<p class="muted">Manage the services used for skin scans and written analyses. Saved keys stay private and apply to new requests immediately.</p>
+<% if (notice) { %><div class="notice<%= notice.error ? ' error' : '' %>" role="status"><%= notice.text %></div><% } %>
+<% if (!canEdit) { %><div class="warn">Only built-in admins can replace or check API keys.</div><% } %>
+<% if (!storageReady) { %><div class="warn">Saving keys needs a one-time server setup. Ask your developer to enable encrypted API key storage.</div><% } %>
+<% rows.forEach(function(row) { %>
+<section class="card" aria-labelledby="<%= row.provider %>-title">
+  <h2 id="<%= row.provider %>-title"><%= row.name %></h2>
+  <p><%= row.provider === 'perfectcorp' ? 'Photo-based skin scans' : 'Written skin analyses, score readings and product picks' %></p>
+  <div class="<%= ['expired', 'rejected', 'unavailable', 'missing'].includes(row.health) ? 'warn' : 'notice' %>" role="status"><%= row.message %></div>
+  <dl class="kv">
+    <dt>Key source</dt><dd><%= row.source %></dd>
+    <dt>Last checked</dt><dd><%= row.checkedAt ? new Date(row.checkedAt).toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, ' UTC') : 'Not checked yet' %></dd>
+    <% if (row.updatedBy) { %><dt>Last replaced by</dt><dd><%= row.updatedBy %></dd><% } %>
+    <% if (row.replacedAt) { %><dt>Last replaced</dt><dd><%= new Date(row.replacedAt).toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, ' UTC') %></dd><% } %>
+  </dl>
+  <% if (canEdit) { %>
+  <form method="post" action="/admin/api-keys/<%= row.provider %>/check">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <p><button type="submit" class="btn secondary" <%= row.configured ? '' : 'disabled' %>>Check current <%= row.name %> key</button></p>
+  </form>
+  <% if (storageReady) { %>
+  <form method="post" action="/admin/api-keys/<%= row.provider %>" autocomplete="off">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <label for="<%= row.provider %>-key">New <%= row.name %> API key</label>
+    <input id="<%= row.provider %>-key" name="apiKey" type="password" autocomplete="new-password" minlength="8" maxlength="512" required spellcheck="false" autocapitalize="none">
+    <p><button type="submit">Verify and save <%= row.name %> key</button></p>
+  </form>
+  <% } %>
+  <% } %>
+</section>
+<% }); %>
+<p class="muted">Checks run without generating an analysis. PerfectCorp checks upload access without uploading a photo. Anthropic checks access to the analysis model; it does not check your credit balance.</p>
+<p class="muted">Status reflects the last check or a credential error received during a live request. Providers may expire or revoke a key after its last successful check. Refresh this page to see newly recorded errors.</p>
+</main>
+<%- include('_foot') %>

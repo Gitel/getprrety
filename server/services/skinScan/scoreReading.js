@@ -24,6 +24,18 @@ const CAPS = {
 const SHELF_STATUSES = ['own', 'missing'];
 const NON_INGREDIENT_IRRITANTS = new Set(['none', 'nothing', 'no', 'no irritants', 'cold', 'hot_water']);
 
+// Generic fallbacks are product TYPES, never arbitrary model-written brand names.
+// The same labels are sent to the model and checked again before saving its answer.
+const GENERIC_PRODUCT_TYPES = {
+  en: ['Gentle cleanser', 'Moisturizer', 'Targeted skincare treatment', 'Broad-spectrum sunscreen'],
+  he: [
+    '\u05ea\u05db\u05e9\u05d9\u05e8 \u05e0\u05d9\u05e7\u05d5\u05d9 \u05e2\u05d3\u05d9\u05df',
+    '\u05e7\u05e8\u05dd \u05dc\u05d7\u05d5\u05ea',
+    '\u05d8\u05d9\u05e4\u05d5\u05dc \u05d8\u05d9\u05e4\u05d5\u05d7 \u05de\u05de\u05d5\u05e7\u05d3',
+    '\u05de\u05e1\u05e0\u05df \u05e7\u05e8\u05d9\u05e0\u05d4 \u05e8\u05d7\u05d1 \u05d8\u05d5\u05d5\u05d7',
+  ],
+};
+
 function hasCompleteSafetyAnswers(quiz) {
   const pregnancy = quiz.pregnant_or_ttc ?? quiz.pregnancy_caution;
   const pregnancyAnswered = typeof pregnancy === 'boolean' || pregnancy === 'yes' || pregnancy === 'no';
@@ -136,9 +148,9 @@ function sanitizeReading(body, signals = []) {
 
 // What the app is told about the copy (see scanView). 'pending' also covers "never asked yet":
 // the next GET /api/skin-scan/:id asks, so the app keeps polling.
-function readingStatusFor(scan) {
+async function readingStatusFor(scan) {
   if (scan.readingStatus === 'ready' || scan.readingStatus === 'failed') return scan.readingStatus;
-  return isConfigured() ? 'pending' : 'unavailable';
+  return await isConfigured() ? 'pending' : 'unavailable';
 }
 
 const readingSchema = {
@@ -190,12 +202,18 @@ async function prepareReadingCall(scan, guidance, loadCatalogueImpl = loadCatalo
   const catalogue = safetyComplete ? eligibleProducts(await loadCatalogueImpl(), safeRequest.quizAnswers) : [];
   safeRequest.eligible_catalogue = catalogue.map(product => ({
     name: product.name,
+    category: product.category,
+    suitableFor: product.suitableFor,
+    strengths: product.strengths,
     keyActives: product.keyActives,
     ingredients: product.ingredients,
     pregnancy: product.pregnancy,
   }));
+  // Generic types must not bypass the existing clearance required for product suggestions.
+  safeRequest.generic_product_types = safetyComplete
+    ? GENERIC_PRODUCT_TYPES[request.language === 'he' ? 'he' : 'en'] : [];
   return {
-    request,
+    request: { ...request, genericProductTypes: safeRequest.generic_product_types },
     catalogue,
     call: {
       schema: readingSchema,
@@ -207,22 +225,24 @@ async function prepareReadingCall(scan, guidance, loadCatalogueImpl = loadCatalo
   };
 }
 
-// Model JSON -> the stored reading. Only catalogue products the request offered survive
-// (matched by exact name); the product link is always dropped. Returns null when nothing is usable.
+// Catalogue names restore verified actives; generic types have no ingredient claims or link.
+// An unrecognized brand/name is still dropped rather than treated as a generic fallback.
 function finishReading(output, request, catalogue) {
   const productsByName = new Map(catalogue.map(product => [product.name.trim().toLowerCase(), product]));
+  const genericByName = new Map((request.genericProductTypes || []).map(name => [name.toLowerCase(), name]));
   const verifiedOutput = {
     ...output,
     signals: (output.signals || []).map(signal => {
       const suggested = signal?.product;
       const product = suggested && productsByName.get(String(suggested.name || '').trim().toLowerCase());
+      const generic = suggested && genericByName.get(String(suggested.name || '').trim().toLowerCase());
       return {
         ...signal,
         product: product ? {
           name: product.name,
           actives: product.keyActives.join(', ').slice(0, CAPS.actives),
           url: null,
-        } : null,
+        } : generic ? { name: generic, actives: null, url: null } : null,
       };
     }),
   };
@@ -249,10 +269,11 @@ async function callAnthropic(scan) {
 // findOneAndUpdate means concurrent polls can never start two paid calls for one scan.
 // Resolves true when this call made the request. Never throws for a provider failure.
 async function maybeRequestReading(scan, now = Date.now()) {
-  if (!isConfigured() || !scan || scan.status !== 'complete') return false;
+  if (!scan || scan.status !== 'complete') return false;
   if (scan.readingStatus === 'ready' || scan.readingStatus === 'failed') return false;
   const staleBefore = new Date(now - STALE_PENDING_MS);
   if (scan.readingStatus === 'pending' && scan.readingRequestedAt > staleBefore) return false;
+  if (!await isConfigured()) return false;
 
   // Claim: never asked (null / missing), or a pending claim that went stale (server restart).
   const claimed = await SkinScan.findOneAndUpdate(

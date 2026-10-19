@@ -24,10 +24,6 @@ export function AppProvider({ children }) {
   const [analysisSaveFailed, setAnalysisSaveFailed] = useState(false);
   // Clinic messages the user has not opened yet (badge on Home's message button).
   const [unreadMessages, setUnreadMessages] = useState(0);
-  // Session cache for Profile's AI product recommendations: { key, recs, country } or null.
-  // Profile can now be reopened from Home, and each open used to call the paid,
-  // rate-limited (10/h) recommendations endpoint again. Memory only: a reload refetches.
-  const [productRecsCache, setProductRecsCache] = useState(null);
 
   // Re-read the unread count. Best-effort: a failure keeps the last known count.
   function refreshUnreadMessages() {
@@ -133,7 +129,6 @@ export function AppProvider({ children }) {
     setAnswers(null);
     setAnalysisSaveFailed(false);
     setUnreadMessages(0);
-    setProductRecsCache(null);
     clearCatalogueCache(); // drop cached catalogue products so the next user starts clean
   }
 
@@ -145,7 +140,6 @@ export function AppProvider({ children }) {
       authReady,
       analysisSaveFailed, setAnalysisSaveFailed,
       unreadMessages, setUnreadMessages, refreshUnreadMessages,
-      productRecsCache, setProductRecsCache,
       afterSignin, clearAfterSignin: () => setAfterSignin(null),
       linkWelcome, clearLinkWelcome: () => setLinkWelcome(null),
       linkPending,

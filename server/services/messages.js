@@ -93,20 +93,33 @@ async function markReadByAdmin(userId, { model = Message, now = new Date() } = {
   await model.updateMany({ userId, from: 'user', readAt: null }, { $set: { readAt: now } });
 }
 
-// Unread user replies across all users (the dashboard nav badge).
-function unreadRepliesCount({ model = Message } = {}) {
-  return model.countDocuments({ from: 'user', readAt: null });
+// The dashboard nav badge: how many USERS have at least one unread reply (conversations,
+// not messages - three unread replies from one user count as 1). Clears once an admin
+// opens that user's page.
+async function unreadRepliesCount({ model = Message } = {}) {
+  const userIds = await model.distinct('userId', { from: 'user', readAt: null });
+  return userIds.length;
 }
 
 /**
- * The Inbox: users with unread replies, most recent reply first, with the user's name and
- * email attached. One aggregate plus one user lookup, not one query per row.
+ * The Inbox: every user who has ever replied, most recent reply first, with the user's name
+ * and email attached. Read conversations STAY listed (unread: 0) so a reply does not vanish
+ * from the Inbox once an admin opens it. One aggregate plus one user lookup, not one query per row.
  */
 async function inbox({ model = Message, userModel = User } = {}) {
   const groups = await model.aggregate([
-    { $match: { from: 'user', readAt: null } },
+    { $match: { from: 'user' } },
     { $sort: { createdAt: -1 } },
-    { $group: { _id: '$userId', unread: { $sum: 1 }, latestAt: { $first: '$createdAt' }, latestBody: { $first: '$body' } } },
+    {
+      $group: {
+        _id: '$userId',
+        // Count only the replies no admin has read yet. $ifNull turns a null/missing readAt
+        // into false, so an unread reply adds 1 and a read one (readAt is a date) adds 0.
+        unread: { $sum: { $cond: [{ $ifNull: ['$readAt', false] }, 0, 1] } },
+        latestAt: { $first: '$createdAt' },
+        latestBody: { $first: '$body' },
+      },
+    },
     { $sort: { latestAt: -1 } },
     { $limit: 200 },
   ]);
