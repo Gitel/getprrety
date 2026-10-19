@@ -325,12 +325,13 @@ function SignalCard({ signal, copy, reduce }) {
                 {copy.product.actives && <Text style={s.productActives}>{copy.product.actives}</Text>}
               </View>
               {/* "+" is always shown, as in the mockup (owner decision M4/D6). With a valid https
-                  link it opens the product page; without one it looks the same but does nothing. */}
+                  link it opens the product page; without one it looks the same but does nothing.
+                  It stays an enabled Pressable either way: it takes the tap, so tapping "+" never
+                  closes the card (mockup). A disabled Pressable would pass the tap to the card. */}
               <Pressable
                 style={s.productAdd}
                 onPress={() => productUrl && Linking.openURL(productUrl).catch(() => {})}
                 accessibilityRole={productUrl ? 'link' : 'button'}
-                aria-disabled={productUrl ? undefined : true}
                 accessibilityLabel={t('score:openProduct', { name: isolate(copy.product.name) })}
               >
                 <Text style={s.productAddText}>+</Text>
