@@ -9,6 +9,8 @@ const User = require('../models/User');
 const SkinAnalysis = require('../models/SkinAnalysis');
 const realCalendar = require('./calendar');
 const realSlots = require('./slots');
+// Consultations bought directly in the Shopify store (listMine shows them).
+const realConsultations = require('./shopifyConsultations');
 const { isDuplicateStartsAt } = require('./duplicateKey');
 
 // Log-safe text of a calendar error: only Google's reason and the HTTP status, e.g.
@@ -27,6 +29,7 @@ const HOLD_MINUTES = 15;
 function withDefaults(deps = {}) {
   return {
     Booking, BookingConfig, User, SkinAnalysis, calendar: realCalendar, slots: realSlots,
+    consultations: realConsultations,
     now: () => new Date(),
     ...deps,
   };
@@ -348,9 +351,27 @@ async function listMine(userId, deps) {
     .sort({ startsAt: 1 }).limit(1).lean();
   const past = await d.Booking.find({ userId, status: 'confirmed', startsAt: { $lte: now } })
     .sort({ startsAt: -1 }).limit(20).lean();
+  // A consultation bought directly in the Shopify store, found by the account email
+  // (plan AI/plans/shopify-consultation-link.md). null when there is none.
+  const order = await d.consultations.activeForEmail(user && user.email, { now: d.now });
+  const appointment = order && order.appointment;
   return {
     upcoming: next ? publicBooking(next, config.timeZone, d.slots, user, now) : null,
     past: past.map(b => publicBooking(b, config.timeZone, d.slots, user, now)),
+    shopifyConsultation: order ? {
+      orderName: order.orderName || '',
+      paidAt: new Date(order.paidAt).toISOString(),
+      // The time the customer picked on the clinic's appointment page, once the sweep found it.
+      appointment: appointment ? {
+        startsAt: new Date(appointment.startsAt).toISOString(),
+        endsAt: new Date(appointment.endsAt).toISOString(),
+        ...d.slots.localParts(new Date(appointment.startsAt), config.timeZone), // { date, time } clinic-local
+      } : null,
+    } : null,
+    // Whether the app offers "Book a consultation" at the end of a skin analysis (Profile screen).
+    // Not when the user already has an in-app hold/upcoming booking, or a Shopify appointment that
+    // has not ended. A Shopify order WITHOUT a found appointment never blocks booking (user decision).
+    canBook: !next && !appointment,
   };
 }
 

@@ -7,7 +7,7 @@ const mongoose = require('mongoose');
 // The Shopify webhook (routes/payments.js) stores one row per order. A background sweep
 // (services/shopifyConsultations.js matchAppointments) then looks in the clinic calendar for an
 // event that has the order's email as an attendee and copies its time into `appointment`.
-// There is no userId: the row is linked to an app account by EMAIL when it is read, so an order
+// There is no user id field: the row is linked to an app account by EMAIL when it is read, so an order
 // paid before the customer signed up is found as soon as they sign up with the same email.
 //
 // Only what the feature needs is stored: no names, addresses, notes or the raw order payload.

@@ -200,7 +200,11 @@ function makeWorld({ users = [], bookings = [], analyses = [], config = DEFAULTS
     deleteEvent: jest.fn(async () => {}),
   };
 
-  world.deps = { Booking, BookingConfig, User, SkinAnalysis, calendar, slots: realSlots, now: () => NOW };
+  // Shopify consultations bought directly in the store: none unless a test sets one.
+  const consultations = { activeForEmail: jest.fn(async () => null) };
+
+  world.deps = { Booking, BookingConfig, User, SkinAnalysis, calendar, slots: realSlots, consultations, now: () => NOW };
+  world.consultations = consultations;
   world.Booking = Booking;
   world.calendar = calendar;
   world.config = () => world.cfg;
@@ -839,7 +843,47 @@ describe('listMine', () => {
 
   test('nothing upcoming -> upcoming is null', async () => {
     const { userId, deps } = userWorld();
-    expect(await listMine(userId, deps)).toEqual({ upcoming: null, past: [] });
+    expect(await listMine(userId, deps)).toEqual({ upcoming: null, past: [], shopifyConsultation: null, canBook: true });
+  });
+
+  // Shopify consultations (plan AI/plans/shopify-consultation-link.md).
+  describe('shopifyConsultation + canBook', () => {
+    const order = (appointment = null) => ({
+      orderId: '5001', orderName: '#1042', email: 'dana@example.com', paidAt: new Date('2026-10-06T09:00:00Z'), appointment,
+    });
+
+    test('looks the order up by the account email', async () => {
+      const { world, userId, deps } = userWorld();
+      await listMine(userId, deps);
+      expect(world.consultations.activeForEmail).toHaveBeenCalledWith('dana@example.com', expect.anything());
+    });
+
+    test('a matched appointment is shown in clinic time and blocks the Profile booking option', async () => {
+      const { world, userId, deps } = userWorld();
+      world.consultations.activeForEmail.mockResolvedValue(order({
+        eventId: 'e1', startsAt: new Date('2026-10-20T07:00:00Z'), endsAt: new Date('2026-10-20T07:30:00Z'), matchedAt: NOW,
+      }));
+      const mine = await listMine(userId, deps);
+      expect(mine.shopifyConsultation).toEqual({
+        orderName: '#1042', paidAt: '2026-10-06T09:00:00.000Z',
+        appointment: { startsAt: '2026-10-20T07:00:00.000Z', endsAt: '2026-10-20T07:30:00.000Z', date: '2026-10-20', time: '10:00' },
+      });
+      expect(mine.canBook).toBe(false);
+    });
+
+    test('an order without a found appointment never blocks booking', async () => {
+      const { world, userId, deps } = userWorld();
+      world.consultations.activeForEmail.mockResolvedValue(order());
+      const mine = await listMine(userId, deps);
+      expect(mine.shopifyConsultation).toEqual({ orderName: '#1042', paidAt: '2026-10-06T09:00:00.000Z', appointment: null });
+      expect(mine.canBook).toBe(true);
+    });
+
+    test('an upcoming in-app booking also turns canBook off', async () => {
+      const { world, userId, deps } = userWorld();
+      world.store.push(booking(userId, '2026-10-20T07:00:00Z'));
+      expect((await listMine(userId, deps)).canBook).toBe(false);
+    });
   });
 
   test('past = confirmed bookings that already started, newest first, at most 20', async () => {
