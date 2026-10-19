@@ -38,6 +38,7 @@ loginLinkSchema.index({ 'invite.email': 1, createdAt: -1 });
 loginLinkSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 30 * 24 * 3600 });
 
 const LoginLink = mongoose.model('LoginLink', loginLinkSchema);
-LoginLink.LIFETIME_HOURS = 72;
+// 7 days (user decision 2026-10-19; was 72 h). Applies to sign-in links AND invites.
+LoginLink.LIFETIME_HOURS = 7 * 24;
 
 module.exports = LoginLink;

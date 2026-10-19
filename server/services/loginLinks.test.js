@@ -29,7 +29,7 @@ function makeFakes() {
   const rows = [];
   const users = [];
   const LoginLink = {
-    LIFETIME_HOURS: 72,
+    LIFETIME_HOURS: 168, // same value as the real model (7 days)
     rows,
     create: jest.fn(async fields => {
       const doc = { _id: `l${++seq}`, usedAt: null, revokedAt: null, sendCount: 0, lastSentAt: null,
@@ -133,7 +133,7 @@ describe('token, hash and encryption', () => {
 // ---- create --------------------------------------------------------------------------------
 
 describe('createForUser / createInvite', () => {
-  test('signin link lives 72h and revokes the older unused links of that user only', async () => {
+  test('signin link lives 7 days and revokes the older unused links of that user only', async () => {
     const { deps, rows } = setup();
     await svc.createForUser('u1', 'a@x.co', deps);
     await svc.createForUser('u2', 'a@x.co', deps);
@@ -141,7 +141,7 @@ describe('createForUser / createInvite', () => {
     expect(rows[0].revokedAt).toEqual(NOW);
     expect(rows[1].revokedAt).toBeNull();
     expect(second.linkDoc.revokedAt).toBeNull();
-    expect(second.linkDoc.expiresAt).toEqual(new Date(NOW.getTime() + 72 * HOUR));
+    expect(second.linkDoc.expiresAt).toEqual(new Date(NOW.getTime() + 168 * HOUR));
     expect(second.linkDoc.createdByAdminEmail).toBe('a@x.co');
   });
 
@@ -205,7 +205,7 @@ describe('linkStatus / revealLink / lists', () => {
     expect(svc.revealLink(linkDoc, NOW)).toBe(link);
     expect(svc.revealLink({ ...linkDoc, usedAt: NOW }, NOW)).toBeNull();
     expect(svc.revealLink({ ...linkDoc, revokedAt: NOW }, NOW)).toBeNull();
-    expect(svc.revealLink(linkDoc, new Date(NOW.getTime() + 100 * HOUR))).toBeNull();
+    expect(svc.revealLink(linkDoc, new Date(NOW.getTime() + 200 * HOUR))).toBeNull();
     expect(svc.revealLink({ ...linkDoc, tokenEnc: 'garbage' }, NOW)).toBeNull();
   });
 
