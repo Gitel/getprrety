@@ -461,6 +461,34 @@ describe('booking pages', () => {
     expect(html).toContain('name="bufferMinutes" min="0" max="60" value="15"');
     expect(html).toContain('<div class="notice error">Please check the settings</div>');
   });
+
+  // The "Allow same-day booking" checkbox: checked follows form.allowSameDay, and it sits
+  // right before the "Minimum notice (hours)" field.
+  describe('same-day checkbox', () => {
+    const days = Array.from({ length: 7 }, () => ({ enabled: false, open: '', close: '' }));
+    const renderWith = allowSameDay => render('bookingSettings', {
+      form: { enabled: true, allowSameDay, slotMinutes: 30, bufferMinutes: 0, leadHours: 12, horizonDays: 30, days },
+      weekdays: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+      slotOptions: [15, 20, 30, 45, 60],
+    });
+
+    test('is checked when allowSameDay is true', async () => {
+      const html = await renderWith(true);
+      expect(html).toMatch(/<input type="checkbox" id="allowSameDay" name="allowSameDay" value="1" checked> Allow same-day booking/);
+    });
+
+    test('is not checked when allowSameDay is false', async () => {
+      const html = await renderWith(false);
+      expect(html).toMatch(/<input type="checkbox" id="allowSameDay" name="allowSameDay" value="1" > Allow same-day booking/);
+      expect(html).not.toMatch(/id="allowSameDay"[^>]*checked/);
+    });
+
+    test('comes before the minimum notice field', async () => {
+      const html = await renderWith(false);
+      expect(html.indexOf('Allow same-day booking')).toBeGreaterThan(-1);
+      expect(html.indexOf('Allow same-day booking')).toBeLessThan(html.indexOf('Minimum notice (hours)'));
+    });
+  });
 });
 
 describe('paid booking statuses and attention tab', () => {
