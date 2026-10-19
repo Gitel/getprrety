@@ -1,14 +1,14 @@
 // Schema-level tests for the BookingConfig singleton. No database.
 const BookingConfig = require('./BookingConfig');
 
-test('DEFAULTS: Sunday-Thursday 10:00-18:00, 30 min slots, no buffer, 12 h notice, 30 day window, Jerusalem', () => {
+test('DEFAULTS: Sunday-Thursday 10:00-18:00, 30 min slots, no buffer, 12 h notice, 90 day window, Jerusalem', () => {
   expect(BookingConfig.DEFAULTS).toEqual({
     enabled: true,
     slotMinutes: 30,
     bufferMinutes: 0,
     leadHours: 12,
     allowSameDay: false,
-    horizonDays: 30,
+    horizonDays: 90,
     timeZone: 'Asia/Jerusalem',
     weekly: [0, 1, 2, 3, 4].map(day => ({ day, open: '10:00', close: '18:00' })),
   });
@@ -23,7 +23,7 @@ test('a new document gets the defaults and the singleton key "main"', () => {
   expect(doc.slotMinutes).toBe(30);
   expect(doc.bufferMinutes).toBe(0);
   expect(doc.leadHours).toBe(12);
-  expect(doc.horizonDays).toBe(30);
+  expect(doc.horizonDays).toBe(90);
   // Same-day booking is off unless the admin ticks the box (a stored document without the field reads as off).
   expect(doc.allowSameDay).toBe(false);
   expect(doc.timeZone).toBe('Asia/Jerusalem');
@@ -45,8 +45,8 @@ describe('numeric limits', () => {
   test.each([0, 168])('leadHours %i is allowed', v => expect(errorsFor({ leadHours: v }).leadHours).toBeUndefined());
   test.each([-1, 169])('leadHours %i is rejected', v => expect(errorsFor({ leadHours: v }).leadHours).toBeDefined());
 
-  test.each([1, 30])('horizonDays %i is allowed', v => expect(errorsFor({ horizonDays: v }).horizonDays).toBeUndefined());
-  test.each([0, 31])('horizonDays %i is rejected', v => expect(errorsFor({ horizonDays: v }).horizonDays).toBeDefined());
+  test.each([1, 90, 180])('horizonDays %i is allowed', v => expect(errorsFor({ horizonDays: v }).horizonDays).toBeUndefined());
+  test.each([0, 181])('horizonDays %i is rejected', v => expect(errorsFor({ horizonDays: v }).horizonDays).toBeDefined());
 });
 
 describe('weekly', () => {

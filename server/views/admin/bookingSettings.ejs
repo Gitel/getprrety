@@ -35,7 +35,7 @@
       <input type="number" id="leadHours" name="leadHours" min="0" max="168" value="<%= form.leadHours %>">
 
       <label for="horizonDays">Booking window (days)</label>
-      <input type="number" id="horizonDays" name="horizonDays" min="1" max="30" value="<%= form.horizonDays %>">
+      <input type="number" id="horizonDays" name="horizonDays" min="1" max="180" value="<%= form.horizonDays %>">
 
       <h2 style="font-size: 15px; margin-top: 18px;">Opening hours</h2>
       <%# One row per weekday, Sunday first. An unticked day is closed (dropped by the service). %>
