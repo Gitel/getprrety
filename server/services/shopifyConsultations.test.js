@@ -243,3 +243,12 @@ describe('activeForEmail / listForEmail / deleteForEmail', () => {
     expect(Order.rows.map(r => r.orderId)).toEqual(['c']);
   });
 });
+
+describe('toAdminRow', () => {
+  test('clinic-local stamps; no appointment -> null', () => {
+    const base = row('1', { paidAt: new Date('2026-10-19T09:30:00Z') });
+    expect(svc.toAdminRow(base)).toEqual({ orderId: '1', orderName: '#1', paidAt: '2026-10-19 12:30', amount: 350, currency: 'ILS', appointment: null });
+    const matched = { ...base, appointment: { eventId: 'e1', startsAt: new Date('2026-10-25T08:00:00Z'), endsAt: new Date('2026-10-25T08:30:00Z'), matchedAt: NOW } };
+    expect(svc.toAdminRow(matched).appointment).toBe('2026-10-25 10:00'); // Oct 25: DST ended, UTC+2
+  });
+});

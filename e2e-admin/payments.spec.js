@@ -108,6 +108,16 @@ test.describe('payments', () => {
     expect((await mineUpcoming(request, s.u1)).status).toBe('pending_payment');
   });
 
+  // 3b. The consultation bought directly in Shopify (case 3) shows on the customer's admin page,
+  // matched by email; the appointment is "not found yet" (the 5-minute calendar sweep is unit-tested).
+  test('3b. the Shopify-only consultation order is listed on the user admin page', async ({ page, context }) => {
+    await signIn(context);
+    await page.goto(`/admin/users/${s.u1.id}`);
+    const card = page.locator('#shopify-consultations');
+    await expect(card.locator('li')).toHaveCount(1);
+    await expect(card).toContainText('appointment not found in the calendar yet');
+  });
+
   // 4. The real payment
   test('4. a correct webhook confirms the booking, shows Paid, and the calendar event follows', async ({ request, page, context }) => {
     const res = await postWebhook(request, s.order);

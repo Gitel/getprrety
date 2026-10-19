@@ -35,6 +35,7 @@ const catalogue = require('../services/catalogueProducts');
 const { deleteUserAndData } = require('../services/deleteUser');
 const bookings = require('../services/bookings');
 const loginLinks = require('../services/loginLinks');
+const consultations = require('../services/shopifyConsultations');
 const LoginLink = require('../models/LoginLink');
 
 // Result banners after a redirect. The URL carries only a short code (?notice=...),
@@ -384,8 +385,10 @@ router.get('/users/:id', adminPage, async (req, res, next) => {
     const userBookings = await bookings.listForUser(detail.user._id);
     // Sign-in link card: the user's newest links (the active one is shown with its URL).
     const signinLinks = await loginLinks.listForUser(detail.user._id);
+    // Consultations bought directly in the Shopify store, matched by the account email.
+    const shopifyOrders = (await consultations.listForEmail(detail.user.email)).map(consultations.toAdminRow);
     res.render('admin/user', {
-      admin: req.admin, ...detail, thread, bookings: userBookings, signinLinks, notice: noticeFrom(req), maxMessage: messages.MAX_BODY,
+      admin: req.admin, ...detail, thread, bookings: userBookings, shopifyOrders, signinLinks, notice: noticeFrom(req), maxMessage: messages.MAX_BODY,
     });
   } catch (err) {
     next(err);

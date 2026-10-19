@@ -790,3 +790,32 @@ describe('AI settings pages', () => {
     expect(html).toContain('Only built-in admins can change AI settings.');
   });
 });
+
+// Plan AI/plans/shopify-consultation-link.md: consultations bought directly in Shopify.
+describe('user page Shopify consultations card', () => {
+  const userData = {
+    user: { _id: 'u1', email: 'ada@example.com' },
+    analyses: [], checkIns: [], products: [], activity: [], thread: [], notice: null,
+  };
+
+  test('no orders -> the empty text', async () => {
+    const html = await render('user', { ...userData, shopifyOrders: [] });
+    expect(html).toContain('id="shopify-consultations"');
+    expect(html).toContain('No consultation bought directly in Shopify with this email.');
+  });
+
+  test('a matched order shows its appointment; an unmatched one says it was not found yet', async () => {
+    const html = await render('user', {
+      ...userData,
+      shopifyOrders: [
+        { orderId: '5001', orderName: '#1042', paidAt: '2026-10-19 12:30', amount: 350, currency: 'ILS', appointment: '2026-10-25 10:00' },
+        { orderId: '5002', orderName: '', paidAt: '2026-10-19 13:00', amount: 350, currency: 'ILS', appointment: null },
+      ],
+    });
+    expect(html).toContain('data-order-id="5001"');
+    expect(html).toContain('Order #1042, paid 2026-10-19 12:30');
+    expect(html).toContain('appointment <strong>2026-10-25 10:00</strong>');
+    expect(html).toContain('Order 5002, paid 2026-10-19 13:00'); // no order name -> the id
+    expect(html).toContain('appointment not found in the calendar yet');
+  });
+});

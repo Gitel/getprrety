@@ -5,12 +5,14 @@
 // pass fakes (model, calendar, clock). Logs carry order ids and codes only - never emails.
 const ShopifyConsultationOrder = require('../models/ShopifyConsultationOrder');
 const realCalendar = require('./calendar');
+const slots = require('./slots'); // clinic-local date/time helpers (pure, no I/O)
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const DAY = 24 * 60 * 60 * 1000;
 const OPEN_DAYS = 60;      // orders paid in the last 60 days are checked by the sweep and shown
 const LOOKAHEAD_DAYS = 60; // the appointment is searched up to 60 days after the payment
 const SWEEP_BATCH = 50;    // most orders one sweep checks (one calendar call each)
+const CLINIC_TZ = 'Asia/Jerusalem'; // the clinic's time zone (also the fixed booking time zone)
 
 // Fills in the real dependencies; a test passes only the ones it wants to fake.
 function withDefaults(deps = {}) {
@@ -138,6 +140,24 @@ async function listForEmail(email, deps) {
   return d.Order.find({ email: String(email).toLowerCase() }).sort({ paidAt: -1 }).limit(10).lean();
 }
 
+// "2026-10-20 10:00" in clinic time (the same clock as the admin Bookings pages).
+function clinicStamp(date) {
+  const { date: day, time } = slots.localParts(new Date(date), CLINIC_TZ);
+  return `${day} ${time}`;
+}
+
+// One line of the admin user page's "Shopify consultations" card (views/admin/user.ejs).
+function toAdminRow(o) {
+  return {
+    orderId: o.orderId,
+    orderName: o.orderName || '',
+    paidAt: clinicStamp(o.paidAt),
+    amount: o.amount,
+    currency: o.currency || '',
+    appointment: o.appointment ? clinicStamp(o.appointment.startsAt) : null, // null = not found yet
+  };
+}
+
 // Deleting a customer's account also deletes their Shopify consultation orders (plan D6).
 async function deleteForEmail(email, deps) {
   const d = withDefaults(deps);
@@ -145,4 +165,4 @@ async function deleteForEmail(email, deps) {
   await d.Order.deleteMany({ email: String(email).toLowerCase() });
 }
 
-module.exports = { recordOrder, matchAppointments, activeForEmail, listForEmail, deleteForEmail, OPEN_DAYS };
+module.exports = { recordOrder, matchAppointments, activeForEmail, listForEmail, toAdminRow, deleteForEmail, OPEN_DAYS };
