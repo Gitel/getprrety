@@ -22,7 +22,7 @@ const { eraById } = require('./eras');
 const { eligibleProducts, sanitizeQuiz } = require('./anthropic/analysisContract');
 const { loadCatalogue } = require('./anthropic/catalogue');
 const { sanitizeReading } = require('./skinScan/scoreReading');
-const { scanView } = require('./skinScan/scanView');
+const { computeSignals } = require('./skinScan/signals');
 
 // Same shape check the app's signup uses (routes/auth.js).
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -313,7 +313,7 @@ async function updateReading(body, current, { scanModel }) {
       return merged;
     }),
   };
-  const signals = (scanView(scan).signals || {}).signals || [];
+  const signals = (computeSignals(scan.merged) || {}).signals || [];
   const clean = sanitizeReading(input, signals);
   if (!clean) return { ok: false, code: 'analysis_invalid_reading' };
 
@@ -363,8 +363,8 @@ async function updateReading(body, current, { scanModel }) {
  * POSITION ({ index: i } -> productAudit[bucket][i]). The pairing is therefore done here,
  * AFTER empty rows are dropped, so every index points at the item it was typed next to.
  *
- * productRecs is null when no pick has any content: that hands picks back to the AI
- * (the Profile screen asks Claude whenever productRecs is null).
+ * productRecs is null when no pick has any content: My products then shows only
+ * the catalogue routine and generic guidance, without generating market picks.
  */
 function buildAuditAndPicks(rawAudit) {
   const src = rawAudit && typeof rawAudit === 'object' ? rawAudit : {};

@@ -1,9 +1,9 @@
 const { mapVendorError, AnalysisError } = require('./errors');
+const credentials = require('../providerCredentials');
 
 function getConfig() {
   return {
     baseUrl: process.env.PERFECTCORP_BASE_URL || 'https://yce-api-01.makeupar.com/s2s/v2.0',
-    apiKey: process.env.PERFECTCORP_API_KEY,
     // firmness + age_spot feed the Resilience and Tone & Radiance signals on Profile
     // (services/skinScan/signals.js). All are SD actions: PerfectCorp rejects a mix of SD and HD.
     dstActions: (process.env.PERFECTCORP_DST_ACTIONS ||
@@ -11,8 +11,8 @@ function getConfig() {
   };
 }
 
-function authHeaders() {
-  const { apiKey } = getConfig();
+async function authHeaders() {
+  const apiKey = await credentials.getKey('perfectcorp');
   if (!apiKey) throw new AnalysisError('VENDOR_UNAVAILABLE', 'PERFECTCORP_API_KEY is not configured');
   return { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' };
 }
@@ -23,7 +23,14 @@ function authHeaders() {
 async function vendorFetch(url, options) {
   const res = await fetch(url, options);
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw mapVendorError(body.error_code || body.error || `http_${res.status}`);
+  if (!res.ok) {
+    if (res.status === 401 || res.status === 403) {
+      const key = options.headers.Authorization.slice('Bearer '.length);
+      // Preserve the public error response; admin gets a separate, sanitized credential status.
+      void credentials.recordHealth('perfectcorp', key, credentials.classifyFailure(res.status, body.error_code));
+    }
+    throw mapVendorError(body.error_code || body.error || `http_${res.status}`);
+  }
   return body.data;
 }
 
@@ -34,7 +41,7 @@ async function requestFileSlots(files) {
   const { baseUrl } = getConfig();
   const data = await vendorFetch(`${baseUrl}/file/skin-analysis`, {
     method: 'POST',
-    headers: authHeaders(),
+    headers: await authHeaders(),
     body: JSON.stringify({
       files: files.map(f => ({ content_type: f.contentType, file_name: f.fileName, file_size: f.fileSize })),
     }),
@@ -55,7 +62,7 @@ async function createTask(srcFileId) {
   const { baseUrl, dstActions } = getConfig();
   const data = await vendorFetch(`${baseUrl}/task/skin-analysis`, {
     method: 'POST',
-    headers: authHeaders(),
+    headers: await authHeaders(),
     body: JSON.stringify({
       src_file_id: srcFileId,
       dst_actions: dstActions,
@@ -70,7 +77,7 @@ async function createTask(srcFileId) {
 // 'success' (see normalizer.js for how that heterogeneous array gets parsed).
 async function getTask(taskId) {
   const { baseUrl } = getConfig();
-  return vendorFetch(`${baseUrl}/task/skin-analysis/${taskId}`, { headers: authHeaders() });
+  return vendorFetch(`${baseUrl}/task/skin-analysis/${taskId}`, { headers: await authHeaders() });
 }
 
 module.exports = { getConfig, requestFileSlots, putToPresignedUrl, createTask, getTask };

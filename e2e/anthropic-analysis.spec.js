@@ -303,19 +303,10 @@ test.describe('successful pre-signup Anthropic analysis', () => {
     await finishSignupOnboarding(page, t);
     await openProfileFromHome(page, t);
     await expect(page.getByText(SAFETY_TEXT.en, { exact: false })).toBeVisible();
-    // The market picks now load on My products, not Profile: open it first.
+    // Catalogue picks remain available without requesting outside-brand alternatives.
     await page.getByTestId('profile-my-products-link').click();
     await expect(page.getByText('Hydrated Calm Cream', { exact: false }).first()).toBeVisible();
-    await expect.poll(() => mock.callsTo('POST', '/api/ai/product-recommendations').length).toBe(1);
-    const recRequest = mock.lastCall('POST', '/api/ai/product-recommendations').body;
-    expect(recRequest.language).toBe('en');
-    expect(recRequest.safetyContext).toMatchObject({
-      pregnant_or_ttc: 'no',
-      allergies: ['none'],
-      irritants: ['sun', 'heat'],
-    });
-    expect(recRequest.safetyContext).not.toHaveProperty('name');
-    expect(recRequest.safetyContext).not.toHaveProperty('birthday');
+    expect(mock.callsTo('POST', '/api/ai/product-recommendations')).toHaveLength(0);
     await openHome(page, t);
     await page.getByText(t('home:tabs.am'), { exact: true }).click();
     // Compact hydration supplies the generic Protect label while retaining actionable SPF guidance.
@@ -355,7 +346,7 @@ test.describe('successful pre-signup Anthropic analysis', () => {
 test.describe('reopened analysis safety context', () => {
   test.use({ signedIn: true });
 
-  test('uses minimized safety fields from the persisted quiz snapshot', async ({ page, mock, t }) => {
+  test('reopening a saved analysis does not request outside-brand recommendations', async ({ page, mock, t }) => {
     mock.set({ analysis: {
       ...ANALYSIS,
       quizAnswers: {
@@ -366,17 +357,10 @@ test.describe('reopened analysis safety context', () => {
     } });
     await openHome(page, t);
     await openProfileFromHome(page, t);
-    // The market picks now load on My products, not Profile: open it first.
+    // Opening products must not trigger a second AI recommendation request.
     await page.getByTestId('profile-my-products-link').click();
-    await expect.poll(() => mock.callsTo('POST', '/api/ai/product-recommendations').length).toBe(1);
-    const body = mock.lastCall('POST', '/api/ai/product-recommendations').body;
-    expect(body.safetyContext).toMatchObject({
-      pregnant_or_ttc: 'yes', allergies: ['fragrance'], allergies_other: 'latex',
-      irritants: ['retinoids'], health_conditions: ['diabetes'], diagnosed_conditions: ['eczema'],
-    });
-    expect(body.safetyContext).not.toHaveProperty('name');
-    expect(body.safetyContext).not.toHaveProperty('birthday');
-    expect(body.safetyContext).not.toHaveProperty('city');
+    // Saved analyses retain their safety facts without sending them to a second product AI.
+    expect(mock.callsTo('POST', '/api/ai/product-recommendations')).toHaveLength(0);
   });
 });
 

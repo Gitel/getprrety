@@ -28,10 +28,13 @@ describe('defaults keep today\'s prompts', () => {
     expect(DEFAULTS.skin_analysis.lockedRules).not.toContain('Keep user-facing prose compact');
   });
 
-  test('score_reading: every original sentence survives (the first is split into guidance + language rule)', () => {
+  test('score_reading: preserves format and safety rules while adding catalogue-first generic fallback', () => {
     const assembled = assembleSystem('score_reading', DEFAULTS.score_reading.defaultGuidance, 'en');
     const [first, ...rest] = sentences(ORIGINAL_SCORE_READING);
-    for (const sentence of rest) expect(assembled).toContain(sentence);
+    // The former catalogue-only sentence now explicitly allows controlled generic fallbacks.
+    for (const sentence of rest.filter(s => !s.startsWith('Only mention a product'))) expect(assembled).toContain(sentence);
+    expect(assembled).toContain('first assess eligible_catalogue');
+    expect(assembled).toContain('use an exact generic product type from generic_product_types');
     expect(first).toBe('Write concise, supportive score-reading copy in English using only supplied quiz and score data.');
     expect(assembled).toContain('Write concise, supportive score-reading copy.');
     expect(assembled).toContain('English using only supplied quiz and score data.');

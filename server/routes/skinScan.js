@@ -228,7 +228,7 @@ router.get('/:id', async (req, res) => {
       // (no-op once asked). Fire-and-forget: this response never waits on Gemini; the app
       // keeps polling while readingStatus is 'pending'.
       maybeRequestReading(scan).catch(err => console.warn(`score-reading claim failed: ${err.message}`));
-      return res.json({ status: 'complete', skinScan: scanView(scan) });
+      return res.json({ status: 'complete', skinScan: await scanView(scan) });
     }
     if (scan.status === 'failed') {
       return res.json({ status: 'failed', reason: scan.failureReason, recoverable: true });
