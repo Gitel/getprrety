@@ -1,6 +1,7 @@
 <%#
-  Inbox: users who replied and whose replies no admin has opened yet, newest first.
-  Opening a user's page marks their replies read (for every admin). Data: messages.inbox().
+  Inbox: every user who has replied, newest reply first. Opening a user's page marks their
+  replies read (for every admin); the row then STAYS here, just no longer highlighted.
+  Rows with unread replies get class "unread" (bold) and a red count badge. Data: messages.inbox().
 %>
 <%
   function stamp(d) { return d ? new Date(d).toISOString().slice(0, 16).replace('T', ' ') : '—'; }
@@ -9,23 +10,23 @@
 <%- include('_head', { title: 'Inbox' }) %>
 <%- include('_nav', { active: 'inbox' }) %>
 <main>
-  <p class="muted">Replies from users that no admin has read yet. Open a conversation to read and answer it.</p>
+  <p class="muted">Replies from users, newest first. Conversations with unread replies are shown in bold. Open a conversation to read and answer it.</p>
   <table>
     <thead><tr><th>User</th><th>Unread</th><th>Latest reply</th><th>When (UTC)</th></tr></thead>
     <tbody>
       <% rows.forEach(function (r) { %>
-        <tr>
+        <tr class="<%= r.unread ? 'unread' : '' %>">
           <td>
             <a href="/admin/users/<%= r.userId %>#messages"><%= (r.user && (r.user.firstName || r.user.email)) || 'Deleted user' %></a>
             <% if (r.user && r.user.firstName) { %><div class="muted"><%= r.user.email %></div><% } %>
           </td>
-          <td><span class="badge"><%= r.unread %></span></td>
+          <td><% if (r.unread) { %><span class="badge"><%= r.unread %></span><% } else { %><span class="muted">Read</span><% } %></td>
           <td><%= snippet(r.latestBody) %></td>
           <td><%= stamp(r.latestAt) %></td>
         </tr>
       <% }); %>
       <% if (!rows.length) { %>
-        <tr><td colspan="4" class="muted">No unread replies.</td></tr>
+        <tr><td colspan="4" class="muted">No replies yet.</td></tr>
       <% } %>
     </tbody>
   </table>

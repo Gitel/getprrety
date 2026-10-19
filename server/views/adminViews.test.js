@@ -298,8 +298,20 @@ describe('messaging views', () => {
     expect(html).toContain('Deleted user');
   });
 
+  test('inbox keeps read conversations, bolding only the unread ones', async () => {
+    const html = await render('inbox', {
+      rows: [
+        { userId: 'u1', unread: 2, latestAt: new Date(), latestBody: 'new one', user: { firstName: 'Ada', email: 'ada@example.com' } },
+        { userId: 'u2', unread: 0, latestAt: new Date(), latestBody: 'already read', user: { firstName: 'Bo', email: 'bo@example.com' } },
+      ],
+    });
+    expect(html).toContain('already read');
+    expect(html).toMatch(/<tr class="unread">[\s\S]*new one/);
+    expect(html).toMatch(/<tr class="">[\s\S]*>Read<[\s\S]*already read/);
+  });
+
   test('empty inbox', async () => {
-    expect(await render('inbox', { rows: [] })).toContain('No unread replies.');
+    expect(await render('inbox', { rows: [] })).toContain('No replies yet.');
   });
 });
 

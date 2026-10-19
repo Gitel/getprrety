@@ -109,11 +109,26 @@ describe('admin side', () => {
     expect(model.updateMany).toHaveBeenCalledWith({ userId: UID, from: 'user', readAt: null }, { $set: { readAt: now } });
   });
 
-  test('inbox groups unread replies per user and attaches the user', async () => {
+  test('inbox groups replies per user and attaches the user', async () => {
     const model = { aggregate: jest.fn(async () => [{ _id: UID, unread: 2, latestAt: 5, latestBody: 'Hello?' }]) };
     const userModel = { find: jest.fn(() => query([{ _id: UID, firstName: 'Ada', email: 'ada@x.co' }])) };
     const rows = await m.inbox({ model, userModel });
     expect(rows).toEqual([{ _id: UID, userId: UID, unread: 2, latestAt: 5, latestBody: 'Hello?', user: { _id: UID, firstName: 'Ada', email: 'ada@x.co' } }]);
+  });
+
+  test('inbox keeps read conversations: it matches every user reply, not only unread ones', async () => {
+    const model = { aggregate: jest.fn(async () => []) };
+    await m.inbox({ model, userModel: { find: jest.fn() } });
+    const pipeline = model.aggregate.mock.calls[0][0];
+    expect(pipeline[0]).toEqual({ $match: { from: 'user' } });
+    // The unread count only adds 1 for replies with no readAt.
+    expect(pipeline[2].$group.unread).toEqual({ $sum: { $cond: [{ $ifNull: ['$readAt', false] }, 0, 1] } });
+  });
+
+  test('the nav badge counts users with unread replies, not messages', async () => {
+    const model = { distinct: jest.fn(async () => [UID, '64b0000000000000000000bb']) };
+    await expect(m.unreadRepliesCount({ model })).resolves.toBe(2);
+    expect(model.distinct).toHaveBeenCalledWith('userId', { from: 'user', readAt: null });
   });
 
   test('an empty inbox skips the user lookup', async () => {

@@ -538,7 +538,7 @@ router.post('/invites/:id/resend', requireAdmin, requireCsrf, async (req, res, n
   }
 });
 
-// Inbox: users with unread replies, most recent first.
+// Inbox: every user who has replied (read conversations stay listed), most recent first.
 router.get('/inbox', adminPage, async (req, res, next) => {
   try {
     res.render('admin/inbox', { admin: req.admin, rows: await messages.inbox() });
