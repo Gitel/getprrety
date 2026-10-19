@@ -20,6 +20,32 @@ and time limits, disables automatic SDK retries, and validates the complete JSON
 returning a result. Existing saved Bedrock and Gemini results remain readable; new results
 are saved with `source: "anthropic"`.
 
+## Admin API keys
+
+Built-in admins (the `ADMIN_ALLOWED_EMAILS` accounts) can replace PerfectCorp and Anthropic
+keys at `/admin/api-keys`. Other admins can see status but cannot check or replace keys.
+Each replacement is verified before saving; failure keeps the current key. Saved keys are
+encrypted in MongoDB and override the matching server environment key for new requests,
+without a restart. Saved values are never displayed or included in audit logs.
+
+One-time deployment setup: generate a random 32-byte value, base64-encode it, and configure
+`API_KEYS_ENCRYPTION_KEY` in the API server environment. Deploy this version and restart the
+API once. Preserve that encryption key across deployments and back it up separately from
+the database; changing or losing it makes saved provider keys unreadable. Do not put it in
+frontend configuration or source control. Existing environment provider keys keep working
+until replaced in admin. No database migration script is needed: the application writes
+an optional `ProviderCredential` document for each provider and new audit action names.
+
+The page shows the last verification time and credential errors reported by live provider
+requests, including PerfectCorp `ExpiredApiKey`. Use **Check current key** to refresh status.
+PerfectCorp verification only requests a disposable upload slot: no photo is uploaded and
+no paid scan is started. Anthropic verification checks access to the configured analysis
+model without generating text; this does not establish available account credits. Status
+is based on checks and observed errors, not a prediction of the provider's expiration date.
+Rollback to older code uses environment keys again and ignores admin replacements, so
+restore working environment credentials before rolling back. No hosted environment changes
+or production verification are performed by the tests.
+
 ## Native apps
 
 The `android/` and `ios/` folders are the checked-in Capacitor projects. After changing web code or Capacitor configuration, run:

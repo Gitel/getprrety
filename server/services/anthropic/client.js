@@ -1,6 +1,7 @@
 'use strict';
 
 const Ajv = require('ajv');
+const credentials = require('../providerCredentials');
 const { makeWireSchema } = require('../anthropic/wireSchema');
 
 const MODEL = 'claude-opus-5-5';
@@ -32,7 +33,9 @@ function emit(onEvent, event) {
   try { onEvent(event); } catch { /* Telemetry must never change provider behavior. */ }
 }
 
-function isConfigured() { return Boolean(process.env.ANTHROPIC_API_KEY); }
+async function isConfigured() {
+  return Boolean(await credentials.getKey('anthropic'));
+}
 
 function normalizeUsage(usage) {
   if (!isSafeTokenCount(usage?.input_tokens) || !isSafeTokenCount(usage?.output_tokens)) return null;
@@ -173,12 +176,14 @@ function countRequest({ system, messages, schema, schemaName = 'skin_analysis', 
 }
 
 async function countTokens({
-  system, messages, schema, schemaName = 'skin_analysis', token = process.env.ANTHROPIC_API_KEY,
+  system, messages, schema, schemaName = 'skin_analysis', token,
   timeoutMs = TIMEOUT_MS, signal, wireSchema, sdkClient, fetchImpl,
 }) {
-  if (!token) throw new AnthropicError('ANTHROPIC_NOT_CONFIGURED', 503);
+  const managedKey = token === undefined;
   const deadline = createDeadline(timeoutMs, signal);
   try {
+    if (managedKey) token = await credentials.getKey('anthropic');
+    if (!token) throw new AnthropicError('ANTHROPIC_NOT_CONFIGURED', 503);
     deadline.check();
     const client = sdkClient || getSdkClient(token, timeoutMs, fetchImpl);
     const result = await client.messages.countTokens(countRequest({ system, messages, schema, schemaName, wireSchema }), { signal: deadline.controller.signal });
@@ -186,6 +191,9 @@ async function countTokens({
     if (!isSafeTokenCount(result?.input_tokens) || result.input_tokens < 1) throw new AnthropicError('ANTHROPIC_COUNT_UNKNOWN');
     return { inputTokens: result.input_tokens };
   } catch (error) {
+    if (managedKey && [401, 403].includes(error?.status)) {
+      void credentials.recordHealth('anthropic', token, credentials.classifyFailure(error.status));
+    }
     throw mapError(error, deadline.controller.signal);
   } finally {
     deadline.cleanup();
@@ -215,15 +223,17 @@ function textFromMessage(message) {
 // Count first to reserve a bounded output allowance; SDK streaming bounds the body regardless of the caller's UI transport mode.
 async function completeJson({
   system, messages, schema, schemaName = 'skin_analysis', maxOutputTokens = MAX_OUTPUT_TOKENS,
-  maxCostUsd = MAX_REPORTED_COST_USD, token = process.env.ANTHROPIC_API_KEY, fetchImpl, timeoutMs = TIMEOUT_MS,
+  maxCostUsd = MAX_REPORTED_COST_USD, token, fetchImpl, timeoutMs = TIMEOUT_MS,
   signal, onEvent, wireSchema, hydrateOutput, sdkClient,
 }) {
-  if (!token) throw new AnthropicError('ANTHROPIC_NOT_CONFIGURED', 503);
+  const managedKey = token === undefined;
   const deadline = createDeadline(timeoutMs, signal);
   const startedAt = Date.now();
   const elapsed = () => Date.now() - startedAt;
   emit(onEvent, { phase: 'request_start', elapsedMs: 0 });
   try {
+    if (managedKey) token = await credentials.getKey('anthropic');
+    if (!token) throw new AnthropicError('ANTHROPIC_NOT_CONFIGURED', 503);
     const client = sdkClient || getSdkClient(token, timeoutMs, fetchImpl);
     deadline.check();
     const fields = countRequest({ system, messages, schema, schemaName, wireSchema });
@@ -306,6 +316,9 @@ async function completeJson({
     // Return only complete, validated JSON; model deltas are never passed to the caller.
     return result;
   } catch (error) {
+    if (managedKey && [401, 403].includes(error?.status)) {
+      void credentials.recordHealth('anthropic', token, credentials.classifyFailure(error.status));
+    }
     const mapped = mapError(error, deadline.controller.signal);
     emit(onEvent, {
       phase: mapped.code === 'ANTHROPIC_TIMEOUT' ? 'timeout' : mapped.code === 'ANTHROPIC_CANCELLED' ? 'cancelled' : 'error',

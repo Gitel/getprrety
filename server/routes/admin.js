@@ -7,7 +7,7 @@ const router = express.Router();
 const SkinAnalysis = require('../models/SkinAnalysis');
 const SkinScan = require('../models/SkinScan');
 const CatalogueProduct = require('../models/CatalogueProduct');
-const { scanView } = require('../services/skinScan/scanView');
+const { computeSignals } = require('../services/skinScan/signals');
 const User = require('../models/User');
 const Upload = require('../models/Upload');
 const { notifyClinic, mailConfigError } = require('../services/clinicNotify');
@@ -157,6 +157,7 @@ router.use(express.urlencoded({ extended: false, limit: '1mb' }));
 
 // AI settings pages (prompts, limits, history, test run) live in their own router.
 router.use('/ai', require('./adminAi'));
+router.use('/api-keys', require('./adminApiKeys'));
 
 function adminGoogleClientId() {
   return process.env.ADMIN_GOOGLE_CLIENT_ID
@@ -265,7 +266,7 @@ router.get('/customer/:id', adminPage, async (req, res, next) => {
       if (scan && scan.reading && String(scan.userId) === String(analysis.userId)) {
         reading = scan.reading;
         // Today's score per signal, shown next to each signal so the admin sees what the copy describes.
-        readingScores = Object.fromEntries((((scanView(scan).signals || {}).signals) || []).map(sg => [sg.key, sg.score]));
+        readingScores = Object.fromEntries(((computeSignals(scan.merged) || {}).signals || []).map(sg => [sg.key, sg.score]));
       }
     }
 

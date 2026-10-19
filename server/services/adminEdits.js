@@ -22,7 +22,7 @@ const { eraById } = require('./eras');
 const { eligibleProducts, sanitizeQuiz } = require('./anthropic/analysisContract');
 const { loadCatalogue } = require('./anthropic/catalogue');
 const { sanitizeReading } = require('./skinScan/scoreReading');
-const { scanView } = require('./skinScan/scanView');
+const { computeSignals } = require('./skinScan/signals');
 
 // Same shape check the app's signup uses (routes/auth.js).
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -313,7 +313,7 @@ async function updateReading(body, current, { scanModel }) {
       return merged;
     }),
   };
-  const signals = (scanView(scan).signals || {}).signals || [];
+  const signals = (computeSignals(scan.merged) || {}).signals || [];
   const clean = sanitizeReading(input, signals);
   if (!clean) return { ok: false, code: 'analysis_invalid_reading' };
 

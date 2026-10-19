@@ -11,6 +11,7 @@
     <a href="/admin/users" class="<%= locals.active === 'users' ? 'active' : '' %>">Users</a>
     <a href="/admin/catalogue" class="<%= locals.active === 'catalogue' ? 'active' : '' %>">Products</a>
     <a href="/admin/ai" class="<%= locals.active === 'ai' ? 'active' : '' %>">AI settings</a>
+    <a href="/admin/api-keys" class="<%= locals.active === 'api-keys' ? 'active' : '' %>">API keys</a>
     <a href="/admin/bookings" class="<%= locals.active === 'bookings' ? 'active' : '' %>">Bookings</a>
     <a href="/admin/inbox" class="<%= locals.active === 'inbox' ? 'active' : '' %>">Inbox<% if (locals.unreadReplies) { %><span class="badge" title="Unread replies"><%= locals.unreadReplies %></span><% } %></a>
     <a href="/admin/admins" class="<%= locals.active === 'admins' ? 'active' : '' %>">Admins</a>

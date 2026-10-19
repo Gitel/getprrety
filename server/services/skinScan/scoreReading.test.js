@@ -155,23 +155,23 @@ describe('buildReadingRequest', () => {
 });
 
 describe('readingStatusFor / scanView', () => {
-  test('final states pass through; otherwise pending, or unavailable when the feature is off', () => {
+  test('final states pass through; otherwise pending, or unavailable when the feature is off', async () => {
     isConfigured.mockReturnValue(true);
-    expect(readingStatusFor({ readingStatus: 'ready' })).toBe('ready');
-    expect(readingStatusFor({ readingStatus: 'failed' })).toBe('failed');
-    expect(readingStatusFor({ readingStatus: null })).toBe('pending');
-    expect(readingStatusFor({ readingStatus: 'pending' })).toBe('pending');
+    expect(await readingStatusFor({ readingStatus: 'ready' })).toBe('ready');
+    expect(await readingStatusFor({ readingStatus: 'failed' })).toBe('failed');
+    expect(await readingStatusFor({ readingStatus: null })).toBe('pending');
+    expect(await readingStatusFor({ readingStatus: 'pending' })).toBe('pending');
     isConfigured.mockReturnValue(false);
-    expect(readingStatusFor({ readingStatus: null })).toBe('unavailable');
-    expect(readingStatusFor({ readingStatus: 'ready' })).toBe('ready');
+    expect(await readingStatusFor({ readingStatus: null })).toBe('unavailable');
+    expect(await readingStatusFor({ readingStatus: 'ready' })).toBe('ready');
   });
 
-  test('scanView only exposes the reading once it is ready', () => {
+  test('scanView only exposes the reading once it is ready', async () => {
     isConfigured.mockReturnValue(true);
     const reading = { startHere: null, signals: [] };
-    expect(scanView({ merged, readingStatus: 'ready', reading })).toMatchObject({ reading, readingStatus: 'ready' });
-    expect(scanView({ merged, readingStatus: 'pending', reading })).toMatchObject({ reading: null, readingStatus: 'pending' });
-    expect(scanView({ merged }).signals.overall).toBe(76);
+    expect(await scanView({ merged, readingStatus: 'ready', reading })).toMatchObject({ reading, readingStatus: 'ready' });
+    expect(await scanView({ merged, readingStatus: 'pending', reading })).toMatchObject({ reading: null, readingStatus: 'pending' });
+    expect((await scanView({ merged })).signals.overall).toBe(76);
   });
 });
 

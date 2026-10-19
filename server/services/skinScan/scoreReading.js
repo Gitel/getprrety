@@ -136,9 +136,9 @@ function sanitizeReading(body, signals = []) {
 
 // What the app is told about the copy (see scanView). 'pending' also covers "never asked yet":
 // the next GET /api/skin-scan/:id asks, so the app keeps polling.
-function readingStatusFor(scan) {
+async function readingStatusFor(scan) {
   if (scan.readingStatus === 'ready' || scan.readingStatus === 'failed') return scan.readingStatus;
-  return isConfigured() ? 'pending' : 'unavailable';
+  return await isConfigured() ? 'pending' : 'unavailable';
 }
 
 const readingSchema = {
@@ -249,10 +249,11 @@ async function callAnthropic(scan) {
 // findOneAndUpdate means concurrent polls can never start two paid calls for one scan.
 // Resolves true when this call made the request. Never throws for a provider failure.
 async function maybeRequestReading(scan, now = Date.now()) {
-  if (!isConfigured() || !scan || scan.status !== 'complete') return false;
+  if (!scan || scan.status !== 'complete') return false;
   if (scan.readingStatus === 'ready' || scan.readingStatus === 'failed') return false;
   const staleBefore = new Date(now - STALE_PENDING_MS);
   if (scan.readingStatus === 'pending' && scan.readingRequestedAt > staleBefore) return false;
+  if (!await isConfigured()) return false;
 
   // Claim: never asked (null / missing), or a pending claim that went stale (server restart).
   const claimed = await SkinScan.findOneAndUpdate(
