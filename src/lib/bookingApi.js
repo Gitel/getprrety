@@ -27,17 +27,6 @@ export const fetchMine = () => api.get('/api/bookings/mine');
 export const createBooking = ({ startsAt, note }) =>
   api.post('/api/bookings', { startsAt, note });
 
-// [slot, slot, ...] -> [{ date, slots: [...] }], keeping the input order (the server sorts them).
-export function groupSlotsByDate(slots) {
-  const groups = [];
-  for (const slot of slots) {
-    const last = groups[groups.length - 1];
-    if (last && last.date === slot.date) last.slots.push(slot);
-    else groups.push({ date: slot.date, slots: [slot] });
-  }
-  return groups;
-}
-
 // '2026-10-01' -> 'Thu, 1 October' (he: Hebrew weekday + month names).
 // The weekday is computed in UTC from the date string, so no time zone can shift it.
 export function formatSlotDay(date, lang) {

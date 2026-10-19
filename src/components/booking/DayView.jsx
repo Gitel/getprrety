@@ -27,7 +27,7 @@ export default function DayView({
       <NavHeader
         lang={lang}
         // Isolate marks keep digits and punctuation of the date in order inside Hebrew text.
-        title={isRTL(lang) ? `⁨${title}⁩` : title}
+        title={isRTL(lang) ? `\u2068${title}\u2069` : title}
         titleTestID="booking-dayview-label"
         prevTestID="booking-dayview-prev"
         nextTestID="booking-dayview-next"

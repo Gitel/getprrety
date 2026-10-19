@@ -57,7 +57,7 @@ export default function MonthView({
         <NavHeader
           lang={lang}
           // Isolate marks keep the year next to the Hebrew month name in the right order.
-          title={rtl ? `⁨${title}⁩` : title}
+          title={rtl ? `\u2068${title}\u2069` : title}
           titleTestID="booking-month-label"
           prevTestID="booking-month-prev"
           nextTestID="booking-month-next"
@@ -75,6 +75,8 @@ export default function MonthView({
           ))}
         </View>
 
+        {/* radiogroup + label: a screen reader treats the date cells as one group */}
+        <View role="radiogroup" aria-label={t('booking:pickDay')}>
         {monthGrid(year, month).map((week, wi) => (
           <View key={wi} style={s.weekRow}>
             {week.map((date, di) => {
@@ -106,7 +108,7 @@ export default function MonthView({
                     // Radio role + aria-checked: screen readers announce the chosen day as selected.
                     role="radio"
                     aria-checked={on}
-                    aria-label={formatSlotDay(date, lang)}
+                    aria-label={isFull ? `${formatSlotDay(date, lang)}, ${t('booking:legendFull')}` : formatSlotDay(date, lang)}
                     onPress={() => onFocusDate(date)}
                     style={[
                       s.circle,
@@ -122,6 +124,7 @@ export default function MonthView({
             })}
           </View>
         ))}
+        </View>
 
         <View testID="booking-legend" style={s.legend}>
           <View style={s.legendItem}>

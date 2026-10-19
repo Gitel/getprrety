@@ -83,6 +83,8 @@ describe('index helpers', () => {
     const r = navRange(index, '2026-09-29');
     expect(r).toEqual({ min: '2026-09-29', max: '2026-10-05' });
     expect(navRange(new Map(), '2026-09-29')).toEqual({ min: '2026-09-29', max: '2026-09-29' });
+    // A phone clock that is ahead of the server: the first offered day still counts.
+    expect(navRange(index, '2026-10-03')).toEqual({ min: '2026-10-01', max: '2026-10-05' });
     expect(clampDate('2026-09-01', r)).toBe('2026-09-29');
     expect(clampDate('2026-12-01', r)).toBe('2026-10-05');
     expect(clampDate('2026-10-02', r)).toBe('2026-10-02');

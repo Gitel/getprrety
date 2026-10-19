@@ -89,11 +89,17 @@ export function weekTimes(index, dates) {
   return [...times].sort();
 }
 
-// Range the user may browse: from today to the last date that has any entry (or today if none).
+// Range the user may browse: from the earlier of today and the first date that has any entry,
+// to the last date that has any entry (or today if none). Using the earliest entry as a lower
+// bound means a wrong phone clock can never make a server-offered day untappable.
 export function navRange(index, today) {
+  let min = today;
   let max = today;
-  for (const d of index.keys()) if (d > max) max = d;
-  return { min: today, max };
+  for (const d of index.keys()) {
+    if (d < min) min = d;
+    if (d > max) max = d;
+  }
+  return { min, max };
 }
 
 // Earliest date with a free time; else the earliest date with any entry; else null.
