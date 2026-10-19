@@ -6,7 +6,9 @@ const { detectImageType } = require('../services/imageType');
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits:  { fileSize: 8 * 1024 * 1024, files: 1, fields: 0, parts: 1 }, // 8 MB per image
+  // Busboy 1.6 emits partsLimit when the count reaches the limit, even for one
+  // valid image. Leave headroom; files: 1 and fields: 0 still reject extra parts.
+  limits:  { fileSize: 8 * 1024 * 1024, files: 1, fields: 0, parts: 2 }, // 8 MB per image
 });
 
 // POST /api/uploads  — multipart form-data, field name: "image"
