@@ -27,8 +27,9 @@
     "possible": "Possible · ~{{potential}}"
   },
   "horizon": "typically {{weeks}} with consistency",
+  "shelfMissing": "Missing:",
   "blocks": {
-    "driver": "◔ What's dragging it",
+    "driver": "◔ What’s dragging it",
     "why": "✦ Why (from your quiz)",
     "lever": "↗ What moves it"
   },

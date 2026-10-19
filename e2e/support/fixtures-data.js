@@ -102,6 +102,49 @@ export const SKIN_SCAN = {
   readingStatus: 'ready',
 };
 
+// Daniel's mockup (https://claude.ai/artifact/CuijSy9HdXJTCN7HTg9Vr3) as score-section data: its own
+// numbers and copy, in the shape of SKIN_SCAN above. The shelf text is what the AI would send (plain
+// text); the app adds the bold "Missing:" itself. Used by e2e/score-mockup.spec.js.
+export const MOCKUP_SKIN_SCAN = {
+  merged: null, fusion: null,
+  signals: { overall: 76, skinAge: 37, skinType: 'combination', signals: [
+    { key: 'barrier', name: 'Barrier & Moisture', score: 72, concerns: {} },
+    { key: 'clarity', name: 'Clarity & Texture', score: 72, concerns: {} },
+    { key: 'tone', name: 'Tone & Radiance', score: 77, concerns: {} },
+    { key: 'resilience', name: 'Resilience', score: 76, concerns: {} },
+  ] },
+  reading: {
+    startHere: { title: 'Wear SPF every morning',
+      body: "One habit moves the most at once: it lifts your Tone & Radiance, protects your Resilience, and slows skin-age gain. It's also the one thing missing from your shelf." },
+    signals: [
+      { key: 'barrier', potential: 82, weeks: '6\u20138 weeks',
+        driver: 'Your hydration reads low beneath a shiny surface \u2014 the barrier is doing the work but running dry.',
+        why: 'You mentioned a cleanser but no moisturiser, and light water intake \u2014 both show up here.',
+        lever: 'A ceramide + hyaluronic moisturiser, morning and night. Barrier first, always.',
+        shelf: { status: 'missing', text: 'no moisturiser on your shelf \u2014 this is a core gap.' },
+        product: { name: 'SR Barrier Repair Cream', actives: 'Ceramides \u00b7 Hyaluronic acid \u00b7 Squalane', url: 'https://example.test/p/barrier' } },
+      { key: 'clarity', potential: 80, weeks: '8\u201312 weeks',
+        driver: 'Pores read enlarged on the nose (58) while forehead and cheeks are clear \u2014 texture is uneven there.',
+        why: 'Processed sugar and dairy can nudge oil and congestion upward over time.',
+        lever: 'A niacinamide serum nightly, with gentle enzyme exfoliation weekly. Never a physical scrub.',
+        shelf: { status: 'own', text: 'You already own a niacinamide serum \u2014 use it every night, this is your lever.' },
+        product: { name: 'SR Pore Refining Serum', actives: 'Niacinamide 5% \u00b7 Zinc PCA', url: 'https://example.test/p/pore' } },
+      { key: 'tone', potential: 85, weeks: '10\u201312 weeks',
+        driver: 'Warm sun spots across the scalp and temples are what\u2019s holding radiance back \u2014 everything else is bright.',
+        why: 'You said you rarely wear SPF. Sun exposure is cumulative \u2014 this is the main driver here.',
+        lever: 'Daily SPF 30+ to prevent, vitamin C in the morning to gradually even what\u2019s there.',
+        shelf: { status: 'missing', text: 'no SPF or vitamin C \u2014 the highest-impact additions you can make.' },
+        product: { name: 'SR Vitamin C Brightening Fluid', actives: '15% Vitamin C \u00b7 Ferulic acid', url: 'https://example.test/p/vitc' } },
+      { key: 'resilience', potential: 82, weeks: '12+ weeks',
+        driver: 'Firmness is strong (85). Early expression lines on the forehead and between the brows are the only softening.',
+        why: 'Expression lines deepen with sun and time \u2014 the good news is firmness gives you a strong base.',
+        lever: 'A low-strength retinoid in the evening, introduced gradually. Rebuilds over months, not days.',
+        shelf: { status: 'missing', text: 'no retinoid \u2014 add last, once your barrier is steady.' },
+        product: { name: 'SR Gentle Retinal 0.05%', actives: 'Retinaldehyde \u00b7 Peptides', url: 'https://example.test/p/retinal' } },
+    ] },
+  readingStatus: 'ready',
+};
+
 // Catalogue ids used by the fixture analysis. 24-hex like real Mongo ids: the app only asks the
 // catalogue for ids that match /^[a-f0-9]{24}$/ (old ids such as "sr-clean" are ignored).
 export const PID = {

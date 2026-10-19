@@ -1,0 +1,59 @@
+/*
+  App fonts: DM Sans (text) and Cormorant Garamond (headings / numbers).
+
+  Why this file exists: every screen styles text with React Native font names such as
+  fontFamily: 'DMSans_400Regular' or 'CormorantGaramond_500Medium' (the names expo-google-fonts
+  uses). On the web (the app runs as a web page inside Capacitor) no font had those names, so the
+  browser silently fell back to its default serif font. The @font-face rules below give those exact
+  names to the real font files, which are bundled from npm (@fontsource/*), so they also work
+  offline and need no Google Fonts request.
+
+  How weights work: a style can combine a name with a fontWeight, e.g.
+  { fontFamily: 'DMSans_500Medium', fontWeight: '600' }. Each name therefore gets one face per
+  weight the app uses. `font-weight: 400 500` means "use this file for any weight from 400 to 500",
+  so a name like DMSans_500Medium still looks Medium when the style sets no fontWeight (= 400).
+  Each weight has a normal and an italic face (styles with fontStyle: 'italic').
+
+  Only the Latin files are bundled. Characters these fonts do not have (Hebrew, arrows such as
+  U+2192) fall back to the browser's default font, the same as before.
+*/
+
+/* ---- DMSans_400Regular: 400 Regular, heavier when the style asks for it ---- */
+@font-face { font-family: 'DMSans_400Regular'; font-style: normal; font-weight: 100 400; font-display: swap; src: url('@fontsource/dm-sans/files/dm-sans-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family: 'DMSans_400Regular'; font-style: italic; font-weight: 100 400; font-display: swap; src: url('@fontsource/dm-sans/files/dm-sans-latin-400-italic.woff2') format('woff2'); }
+@font-face { font-family: 'DMSans_400Regular'; font-style: normal; font-weight: 500; font-display: swap; src: url('@fontsource/dm-sans/files/dm-sans-latin-500-normal.woff2') format('woff2'); }
+@font-face { font-family: 'DMSans_400Regular'; font-style: italic; font-weight: 500; font-display: swap; src: url('@fontsource/dm-sans/files/dm-sans-latin-500-italic.woff2') format('woff2'); }
+@font-face { font-family: 'DMSans_400Regular'; font-style: normal; font-weight: 600; font-display: swap; src: url('@fontsource/dm-sans/files/dm-sans-latin-600-normal.woff2') format('woff2'); }
+@font-face { font-family: 'DMSans_400Regular'; font-style: italic; font-weight: 600; font-display: swap; src: url('@fontsource/dm-sans/files/dm-sans-latin-600-italic.woff2') format('woff2'); }
+@font-face { font-family: 'DMSans_400Regular'; font-style: normal; font-weight: 700 900; font-display: swap; src: url('@fontsource/dm-sans/files/dm-sans-latin-700-normal.woff2') format('woff2'); }
+@font-face { font-family: 'DMSans_400Regular'; font-style: italic; font-weight: 700 900; font-display: swap; src: url('@fontsource/dm-sans/files/dm-sans-latin-700-italic.woff2') format('woff2'); }
+
+/* ---- DMSans_500Medium: 500 Medium by default (also for fontWeight 400), heavier on request ---- */
+@font-face { font-family: 'DMSans_500Medium'; font-style: normal; font-weight: 100 500; font-display: swap; src: url('@fontsource/dm-sans/files/dm-sans-latin-500-normal.woff2') format('woff2'); }
+@font-face { font-family: 'DMSans_500Medium'; font-style: italic; font-weight: 100 500; font-display: swap; src: url('@fontsource/dm-sans/files/dm-sans-latin-500-italic.woff2') format('woff2'); }
+@font-face { font-family: 'DMSans_500Medium'; font-style: normal; font-weight: 600; font-display: swap; src: url('@fontsource/dm-sans/files/dm-sans-latin-600-normal.woff2') format('woff2'); }
+@font-face { font-family: 'DMSans_500Medium'; font-style: italic; font-weight: 600; font-display: swap; src: url('@fontsource/dm-sans/files/dm-sans-latin-600-italic.woff2') format('woff2'); }
+@font-face { font-family: 'DMSans_500Medium'; font-style: normal; font-weight: 700 900; font-display: swap; src: url('@fontsource/dm-sans/files/dm-sans-latin-700-normal.woff2') format('woff2'); }
+@font-face { font-family: 'DMSans_500Medium'; font-style: italic; font-weight: 700 900; font-display: swap; src: url('@fontsource/dm-sans/files/dm-sans-latin-700-italic.woff2') format('woff2'); }
+
+/* ---- DMSans_700Bold: always 700 Bold ---- */
+@font-face { font-family: 'DMSans_700Bold'; font-style: normal; font-weight: 100 900; font-display: swap; src: url('@fontsource/dm-sans/files/dm-sans-latin-700-normal.woff2') format('woff2'); }
+@font-face { font-family: 'DMSans_700Bold'; font-style: italic; font-weight: 100 900; font-display: swap; src: url('@fontsource/dm-sans/files/dm-sans-latin-700-italic.woff2') format('woff2'); }
+
+/* ---- CormorantGaramond_400Regular: 400 Regular, heavier when the style asks for it ---- */
+@font-face { font-family: 'CormorantGaramond_400Regular'; font-style: normal; font-weight: 100 400; font-display: swap; src: url('@fontsource/cormorant-garamond/files/cormorant-garamond-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family: 'CormorantGaramond_400Regular'; font-style: italic; font-weight: 100 400; font-display: swap; src: url('@fontsource/cormorant-garamond/files/cormorant-garamond-latin-400-italic.woff2') format('woff2'); }
+@font-face { font-family: 'CormorantGaramond_400Regular'; font-style: normal; font-weight: 500; font-display: swap; src: url('@fontsource/cormorant-garamond/files/cormorant-garamond-latin-500-normal.woff2') format('woff2'); }
+@font-face { font-family: 'CormorantGaramond_400Regular'; font-style: italic; font-weight: 500; font-display: swap; src: url('@fontsource/cormorant-garamond/files/cormorant-garamond-latin-500-italic.woff2') format('woff2'); }
+@font-face { font-family: 'CormorantGaramond_400Regular'; font-style: normal; font-weight: 600; font-display: swap; src: url('@fontsource/cormorant-garamond/files/cormorant-garamond-latin-600-normal.woff2') format('woff2'); }
+@font-face { font-family: 'CormorantGaramond_400Regular'; font-style: italic; font-weight: 600; font-display: swap; src: url('@fontsource/cormorant-garamond/files/cormorant-garamond-latin-600-italic.woff2') format('woff2'); }
+@font-face { font-family: 'CormorantGaramond_400Regular'; font-style: normal; font-weight: 700 900; font-display: swap; src: url('@fontsource/cormorant-garamond/files/cormorant-garamond-latin-700-normal.woff2') format('woff2'); }
+@font-face { font-family: 'CormorantGaramond_400Regular'; font-style: italic; font-weight: 700 900; font-display: swap; src: url('@fontsource/cormorant-garamond/files/cormorant-garamond-latin-700-italic.woff2') format('woff2'); }
+
+/* ---- CormorantGaramond_500Medium: 500 Medium by default (also for fontWeight 400), heavier on request ---- */
+@font-face { font-family: 'CormorantGaramond_500Medium'; font-style: normal; font-weight: 100 500; font-display: swap; src: url('@fontsource/cormorant-garamond/files/cormorant-garamond-latin-500-normal.woff2') format('woff2'); }
+@font-face { font-family: 'CormorantGaramond_500Medium'; font-style: italic; font-weight: 100 500; font-display: swap; src: url('@fontsource/cormorant-garamond/files/cormorant-garamond-latin-500-italic.woff2') format('woff2'); }
+@font-face { font-family: 'CormorantGaramond_500Medium'; font-style: normal; font-weight: 600; font-display: swap; src: url('@fontsource/cormorant-garamond/files/cormorant-garamond-latin-600-normal.woff2') format('woff2'); }
+@font-face { font-family: 'CormorantGaramond_500Medium'; font-style: italic; font-weight: 600; font-display: swap; src: url('@fontsource/cormorant-garamond/files/cormorant-garamond-latin-600-italic.woff2') format('woff2'); }
+@font-face { font-family: 'CormorantGaramond_500Medium'; font-style: normal; font-weight: 700 900; font-display: swap; src: url('@fontsource/cormorant-garamond/files/cormorant-garamond-latin-700-normal.woff2') format('woff2'); }
+@font-face { font-family: 'CormorantGaramond_500Medium'; font-style: italic; font-weight: 700 900; font-display: swap; src: url('@fontsource/cormorant-garamond/files/cormorant-garamond-latin-700-italic.woff2') format('woff2'); }

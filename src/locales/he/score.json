@@ -27,6 +27,7 @@
     "possible": "אפשרי · \u2066~{{potential}}\u2069"
   },
   "horizon": "בדרך כלל {{weeks}} בשימוש עקבי",
+  "shelfMissing": "חסר:",
   "blocks": {
     "driver": "◔ מה מעכב את זה",
     "why": "✦ למה (לפי השאלון שלכם)",
