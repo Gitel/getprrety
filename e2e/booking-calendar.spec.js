@@ -7,6 +7,11 @@
 //   - TAKEN (BOOKING_TAKEN): Thu 2026-10-01 11:30 / 12:00, Sun 2026-10-04 11:00,
 //                            Mon 2026-10-05 10:00 / 10:30 (no free time -> a "fully booked" day).
 // The screen opens in Month view with the first available day (2026-10-01) as the focus.
+//
+// ROUND 2 (2026-10-19, AI/plans/booking-calendar-contract.md 8.2): clicking a Month day cell opens a
+// POP-UP (booking-popup) with that day's times; the times are NOT listed under the month grid any
+// more. Picking a free time closes the pop-up and shows booking-selected. Week / Day keep their ids.
+// A desktop block (1280 x 900) checks the 760 px column and the compact view toggle.
 // English texts below are copied literally from contract section 7 (so a typo in a locale file is
 // caught); the Hebrew table is also literal, and a few keys are cross-checked via makeT('he').
 import { test, expect } from './support/test.js';
@@ -47,6 +52,11 @@ const tid = (page, id) => page.getByTestId(id);
 const confirmBtn = page => tid(page, 'booking-confirm');
 // Rows of the day schedule: free rows and taken rows have different test id prefixes.
 const freeRows = page => page.locator('[data-testid^="booking-slot-"]');
+// Month view: opens the pop-up of a day (works for available days and fully booked days).
+const openDay = async (page, date, full = false) => {
+  await tid(page, full ? `booking-day-full-${date}` : `booking-day-${date}`).click();
+  await expect(tid(page, 'booking-popup')).toBeVisible();
+};
 const takenRows = page => page.locator('[data-testid^="booking-taken-"]');
 
 test.describe('Month view (English)', () => {
@@ -61,46 +71,82 @@ test.describe('Month view (English)', () => {
     await expect(tid(page, 'booking-day-2026-10-04')).toHaveAttribute('aria-checked', 'false');
   });
 
-  test('the focus day schedule lists free rows and taken rows with the "Taken" text', async ({ page, t }) => {
+  test('no time list under the grid: times only show once a day is opened in the pop-up', async ({ page, t }) => {
     await openBooking(page, t);
-    await expect(freeRows(page)).toHaveCount(3);
-    for (const time of ['10:00', '10:30', '11:00']) {
-      await expect(tid(page, `booking-slot-${time}`)).toContainText(EN.available);
-    }
-    await expect(takenRows(page)).toHaveCount(2);
-    for (const time of ['11:30', '12:00']) {
-      const row = tid(page, `booking-taken-${time}`);
-      await expect(row).toContainText(EN.taken);
-      await expect(row).toHaveAttribute('aria-disabled', 'true');
-    }
-  });
-
-  test('a taken row cannot be selected: nothing is picked and confirm stays disabled', async ({ page, t }) => {
-    await openBooking(page, t);
-    await tid(page, 'booking-taken-11:30').click();
-    await expect(tid(page, 'booking-selected')).toHaveCount(0);
-    await expect(confirmBtn(page)).toHaveAttribute('aria-disabled', 'true');
-    // No free row became checked either.
-    await expect(page.locator('[data-testid^="booking-slot-"][aria-checked="true"]')).toHaveCount(0);
-  });
-
-  test('a free row is selected on tap and its text becomes "Your time"', async ({ page, t }) => {
-    await openBooking(page, t);
-    await tid(page, 'booking-slot-10:30').click();
-    await expect(tid(page, 'booking-slot-10:30')).toHaveAttribute('aria-checked', 'true');
-    await expect(tid(page, 'booking-slot-10:30')).toContainText(EN.yourTime);
-    await expect(confirmBtn(page)).not.toHaveAttribute('aria-disabled', 'true');
-  });
-
-  test('2026-10-05 is a fully booked cell: tapping it shows only taken rows', async ({ page, t }) => {
-    await openBooking(page, t);
-    const cell = tid(page, 'booking-day-full-2026-10-05');
-    await expect(cell).toBeVisible();
-    await cell.click();
-    await expect(takenRows(page)).toHaveCount(2);
-    await expect(tid(page, 'booking-taken-10:00')).toContainText(EN.taken);
-    await expect(tid(page, 'booking-taken-10:30')).toContainText(EN.taken);
+    await expect(tid(page, 'booking-popup')).toHaveCount(0);
     await expect(freeRows(page)).toHaveCount(0);
+    await expect(tid(page, 'booking-day-2026-10-01')).toBeVisible();
+  });
+
+  test('clicking a day opens the pop-up with free buttons and taken buttons (time only)', async ({ page, t }) => {
+    await openBooking(page, t);
+    await openDay(page, '2026-10-01');
+    await expect(tid(page, 'booking-popup')).toHaveAttribute('role', 'dialog');
+    await expect(tid(page, 'booking-popup')).toContainText('Thu, 1 October');
+    await expect(freeRows(page)).toHaveCount(3);
+    await expect(takenRows(page)).toHaveCount(2);
+    for (const time of ['10:00', '10:30', '11:00']) {
+      await expect(tid(page, `booking-slot-${time}`)).toHaveAttribute('aria-checked', 'false');
+    }
+    await expect(tid(page, 'booking-slot-10:00')).toContainText('10:00 AM');
+    await expect(tid(page, 'booking-slot-10:00')).not.toContainText(EN.available);
+    for (const time of ['11:30', '12:00']) {
+      await expect(tid(page, `booking-taken-${time}`)).toHaveAttribute('aria-disabled', 'true');
+      await expect(tid(page, `booking-taken-${time}`)).toHaveAttribute('aria-label', /Taken$/);
+    }
+    // Small legend at the bottom of the pop-up.
+    await expect(tid(page, 'booking-popup')).toContainText(EN.available);
+    await expect(tid(page, 'booking-popup')).toContainText(EN.taken);
+  });
+
+  test('a taken button cannot be selected: nothing is picked, the pop-up stays, confirm stays disabled', async ({ page, t }) => {
+    await openBooking(page, t);
+    await openDay(page, '2026-10-01');
+    await tid(page, 'booking-taken-11:30').click();
+    await expect(tid(page, 'booking-popup')).toBeVisible();
+    await expect(tid(page, 'booking-selected')).toHaveCount(0);
+    await expect(page.locator('[data-testid^="booking-slot-"][aria-checked="true"]')).toHaveCount(0);
+    await tid(page, 'booking-popup-close').click();
+    await expect(confirmBtn(page)).toHaveAttribute('aria-disabled', 'true');
+  });
+
+  test('picking a free time closes the pop-up, shows the summary and enables confirm; reopening shows it selected', async ({ page, t }) => {
+    await openBooking(page, t);
+    await openDay(page, '2026-10-01');
+    await tid(page, 'booking-slot-10:30').click();
+    await expect(tid(page, 'booking-popup')).toHaveCount(0);
+    await expect(tid(page, 'booking-selected')).toContainText('10:30');
+    await expect(confirmBtn(page)).not.toHaveAttribute('aria-disabled', 'true');
+    await openDay(page, '2026-10-01');
+    await expect(tid(page, 'booking-slot-10:30')).toHaveAttribute('aria-checked', 'true');
+    await expect(tid(page, 'booking-slot-10:00')).toHaveAttribute('aria-checked', 'false');
+  });
+
+  test('the pop-up closes with the close button, the overlay and Escape; closing picks nothing', async ({ page, t }) => {
+    await openBooking(page, t);
+    await openDay(page, '2026-10-01');
+    await expect(tid(page, 'booking-popup-close')).toHaveAttribute('aria-label', 'Close');
+    await tid(page, 'booking-popup-close').click();
+    await expect(tid(page, 'booking-popup')).toHaveCount(0);
+
+    await openDay(page, '2026-10-01');
+    await page.mouse.click(4, 4); // far from the centered card = the dark overlay
+    await expect(tid(page, 'booking-popup')).toHaveCount(0);
+
+    await openDay(page, '2026-10-01');
+    await page.keyboard.press('Escape');
+    await expect(tid(page, 'booking-popup')).toHaveCount(0);
+    await expect(tid(page, 'booking-selected')).toHaveCount(0);
+  });
+
+  test('2026-10-05 is a fully booked cell: its pop-up shows only taken buttons and the full-day text', async ({ page, t }) => {
+    await openBooking(page, t);
+    await expect(tid(page, 'booking-day-full-2026-10-05')).toBeVisible();
+    await openDay(page, '2026-10-05', true);
+    await expect(takenRows(page)).toHaveCount(2);
+    await expect(freeRows(page)).toHaveCount(0);
+    await expect(tid(page, 'booking-popup')).toContainText('This day is fully booked.');
+    await tid(page, 'booking-popup-close').click();
     await expect(confirmBtn(page)).toHaveAttribute('aria-disabled', 'true');
   });
 
@@ -231,6 +277,7 @@ test.describe('Day view (English)', () => {
 test.describe('switching views keeps the selected slot', () => {
   test('Month -> Week -> Day -> Month: the same slot stays picked and the summary stays', async ({ page, t }) => {
     await openBooking(page, t);
+    await openDay(page, '2026-10-01');
     await tid(page, 'booking-slot-10:30').click();
     await expect(tid(page, 'booking-selected')).toContainText('10:30');
 
@@ -244,7 +291,9 @@ test.describe('switching views keeps the selected slot', () => {
 
     await tid(page, 'booking-view-month').click();
     await expect(tid(page, 'booking-day-2026-10-01')).toHaveAttribute('aria-checked', 'true');
+    await openDay(page, '2026-10-01');
     await expect(tid(page, 'booking-slot-10:30')).toHaveAttribute('aria-checked', 'true');
+    await tid(page, 'booking-popup-close').click();
     await expect(confirmBtn(page)).not.toHaveAttribute('aria-disabled', 'true');
   });
 });
@@ -278,15 +327,24 @@ test.describe('Hebrew (RTL)', () => {
     const next = await box('booking-month-next');
     expect(prev.x).toBeGreaterThan(next.x);
 
-    // Rows: free = "פנוי", taken = "תפוס", 24 h times without AM/PM.
-    await expect(tid(page, 'booking-slot-10:00')).toContainText(HE.available);
+    // Pop-up buttons: 24 h times without AM/PM; taken ones have the Hebrew "תפוס" in their spoken label.
+    await openDay(page, '2026-10-01');
     await expect(tid(page, 'booking-slot-10:00')).toContainText('10:00');
     await expect(tid(page, 'booking-slot-10:00')).not.toContainText(/AM|PM/);
-    await expect(tid(page, 'booking-taken-11:30')).toContainText(HE.taken);
-    await expect(tid(page, 'booking-taken-11:30')).not.toContainText(/AM|PM/);
+    await expect(tid(page, 'booking-taken-11:30')).toContainText('11:30');
+    await expect(tid(page, 'booking-taken-11:30')).toHaveAttribute('aria-label', new RegExp(HE.taken + '$'));
+    // RTL: the first time (10:00) is the right-most button of the grid.
+    const b1 = await tid(page, 'booking-slot-10:00').boundingBox();
+    const b2 = await tid(page, 'booking-slot-10:30').boundingBox();
+    expect(b1.x).toBeGreaterThan(b2.x);
 
     await tid(page, 'booking-slot-10:00').click();
+    await expect(tid(page, 'booking-popup')).toHaveCount(0);
+    await expect(tid(page, 'booking-selected')).toContainText('10:00');
+    // Day view: the picked row says "המועד שלכם".
+    await tid(page, 'booking-view-day').click();
     await expect(tid(page, 'booking-slot-10:00')).toContainText(HE.yourTime);
+    await expect(tid(page, 'booking-slot-10:30')).toContainText(HE.available);
   });
 
   test('Week and Day views work in Hebrew: 24 h cells, closed-day text, next-day label', async ({ page }) => {
@@ -303,5 +361,68 @@ test.describe('Hebrew (RTL)', () => {
     await expect(tid(page, 'booking-dayview-next')).toHaveAttribute('aria-label', HE.nextDay);
     await tid(page, 'booking-dayview-next').click(); // Friday: closed
     await expect(tid(page, 'booking-day-closed')).toHaveText(HE.closedDay);
+  });
+});
+
+// ---- Round 2: wide screens --------------------------------------------------------------------
+// The default project viewport is a phone, so the desktop checks set their own size.
+test.describe('desktop layout (1280 x 900)', () => {
+  test.use({ viewport: { width: 1280, height: 900 } });
+
+  test('the calendar card is a centered column of at most 760 px in every view', async ({ page, t }) => {
+    await openBooking(page, t);
+    for (const view of ['month', 'week', 'day']) {
+      await tid(page, `booking-view-${view}`).click();
+      const box = await tid(page, 'booking-calendar-card').boundingBox();
+      expect(box.width).toBeLessThanOrEqual(760);
+      expect(box.width).toBeGreaterThan(500); // it does use the column (not a tiny box)
+      // Centered: about equal space left and right.
+      expect(Math.abs(box.x - (1280 - box.x - box.width))).toBeLessThanOrEqual(24);
+    }
+  });
+
+  test('the Month / Week / Day toggle is compact (not full width) and sits at the right end', async ({ page, t }) => {
+    await openBooking(page, t);
+    const sw = await tid(page, 'booking-view-switcher').boundingBox();
+    expect(sw.width).toBeLessThan(300);
+    const card = await tid(page, 'booking-calendar-card').boundingBox();
+    // English: the toggle ends at the card's right edge.
+    expect(sw.x + sw.width).toBeGreaterThan(card.x + card.width - 40);
+  });
+
+  test('Week view: hovering a free cell shows its time; a taken cell shows "Taken"; a pick fills the cell', async ({ page, t }) => {
+    await openBooking(page, t);
+    await tid(page, 'booking-view-week').click();
+    const cell = tid(page, 'booking-week-cell-2026-10-01-10:00');
+    await expect(cell).not.toContainText('10:00');
+    await cell.hover();
+    await expect(cell).toContainText('10:00 AM');
+    await expect(tid(page, 'booking-week-taken-2026-10-01-11:30')).toContainText(EN.taken);
+    await cell.click();
+    await expect(cell).toHaveAttribute('aria-checked', 'true');
+    await expect(cell).toContainText('10:00 AM'); // a selected cell always shows its time
+  });
+
+  test('Month view pop-up works on desktop and its card is at most 420 px wide', async ({ page, t }) => {
+    await openBooking(page, t);
+    await openDay(page, '2026-10-01');
+    const box = await tid(page, 'booking-popup').boundingBox();
+    expect(box.width).toBeLessThanOrEqual(420);
+    await tid(page, 'booking-slot-11:00').click();
+    await expect(tid(page, 'booking-selected')).toContainText('11:00');
+  });
+
+  test.describe('Hebrew', () => {
+    test.use({ lang: 'he' });
+    test('the toggle sits at the LEFT end and the week time column is on the right', async ({ page }) => {
+      await openBooking(page, tHe);
+      const sw = await tid(page, 'booking-view-switcher').boundingBox();
+      const card = await tid(page, 'booking-calendar-card').boundingBox();
+      expect(sw.x).toBeLessThan(card.x + 40);
+      await tid(page, 'booking-view-week').click();
+      const timeCell = await tid(page, 'booking-week-time-10:00').boundingBox();
+      const sunCell = await tid(page, 'booking-week-cell-2026-10-04-10:00').boundingBox();
+      expect(timeCell.x).toBeGreaterThan(sunCell.x);
+    });
   });
 });
