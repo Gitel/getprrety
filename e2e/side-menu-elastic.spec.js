@@ -4,8 +4,8 @@
 // DOM contract (data-testid values the implementation must provide):
 //   side-menu        overlay root, always on the page while signed in, display:none while closed,
 //                    pointer-events none while closing
-//   side-menu-dim    full-screen layer, background rgba(0,0,0,0.2). Its opacity is the VISIBLE
-//                    FRACTION of the panel, so the page is never darker than the menu is open.
+//   (no dim layer)   the page behind the menu is NEVER darkened: nothing in the overlay outside
+//                    the slide wrapper may have a visible background (dim removed on purpose).
 //   side-menu-slide  the moving wrapper; holds the inline transform (translateX). Computed
 //                    transform is 'none' when fully open. It contains the panel (aria-label
 //                    t('menu:panel')) and the edge svg.
@@ -17,7 +17,8 @@
 //
 // What the per-frame sampler (__snap) measures:
 //   visibleFraction  on-screen width of the panel / panel width (0 when not displayed)
-//   darkness         dim background alpha x effective opacity
+//   darkness         highest background alpha x effective opacity of any overlay element OUTSIDE
+//                    the slide wrapper (0 = the page is not darkened at all)
 //   slideTransform   computed transform of the slide wrapper
 //   bulgeOut         how far the fill path sticks out past the panel's straight edge
 //                    (EN: fill.right - panel.right, HE: panel.left - fill.left). Flat edge = about 0.
@@ -40,15 +41,19 @@ async function installSampler(page, t, rtl, arm = true) {
     window.__snap = () => {
       const overlay = document.querySelector('[data-testid="side-menu"]');
       const slide = document.querySelector('[data-testid="side-menu-slide"]');
-      const dim = document.querySelector('[data-testid="side-menu-dim"]');
       const rows = document.querySelector('[data-testid="side-menu-rows"]');
       const fill = document.querySelector('[data-testid="side-menu-edge"] path[data-edge="fill"]');
       const displayed = !!overlay && getComputedStyle(overlay).display !== 'none';
-      // Darkness = background alpha x effective opacity (0 when the overlay is not displayed).
+      // Darkness = the strongest background (alpha x effective opacity) of any overlay element that
+      // is NOT part of the panel (0 when the overlay is not displayed). The panel is opaque by design.
       let darkness = 0;
-      if (displayed && dim) {
-        const m = getComputedStyle(dim).backgroundColor.match(/rgba?\(([^)]+)\)/);
-        darkness = (m ? Number((m[1].split(',')[3] ?? '1').trim()) : 0) * effOpacity(dim);
+      if (displayed) {
+        for (const el of [overlay, ...overlay.querySelectorAll('*')]) {
+          if (slide && slide.contains(el)) continue;
+          const m = getComputedStyle(el).backgroundColor.match(/rgba?\(([^)]+)\)/);
+          const alpha = m ? Number((m[1].split(',')[3] ?? '1').trim()) : 0;
+          darkness = Math.max(darkness, alpha * effOpacity(el));
+        }
       }
       // Panel rect and how much of it is on screen.
       const panel = slide ? slide.querySelector(`[aria-label="${panelLabel}"]`) : null;
@@ -108,7 +113,7 @@ const closeButtons = (page, t) => page.getByRole('button', { name: t('menu:close
 const waitFullyOpen = (page) => expect.poll(async () => { const s = await snap(page); return s.displayed && s.slideTransform === 'none' && s.visibleFraction > 0.99; }).toBe(true);
 
 // Records, after EVERY animation frame, the state of a CLOSING overlay and logs a "flash" when the
-// close ever looks MORE open than the frame before it (panel or dim growing), or when the slide
+// close ever looks MORE open than the frame before it (panel growing), or when the slide
 // wrapper goes back to transform 'none' (the fully open look) after it already moved.
 // The sampler above runs BEFORE the menu's own rAF callback, so it can never see the last frame.
 // Here requestAnimationFrame is wrapped: our check is queued after the app's callback and after the
@@ -116,7 +121,7 @@ const waitFullyOpen = (page) => expect.poll(async () => { const s = await snap(p
 async function installFlashLog(page) {
   await page.evaluate(() => {
     window.__flashFrames = 0; // number of CLOSING frames the recorder saw
-    window.__prev = null;     // previous closing frame: { vf, dim, moved }
+    window.__prev = null;     // previous closing frame: { vf, moved }
     window.__flashes = [];
     const orig = window.requestAnimationFrame.bind(window);
     window.requestAnimationFrame = (cb) => orig((ts) => {
@@ -125,30 +130,28 @@ async function installFlashLog(page) {
         if (depth < 5) { check(depth + 1); return; }
         const o = document.querySelector('[data-testid="side-menu"]');
         const sl = document.querySelector('[data-testid="side-menu-slide"]');
-        const d = document.querySelector('[data-testid="side-menu-dim"]');
-        if (!o || !sl || !d) return;
+        if (!o || !sl) return;
         const cs = getComputedStyle(o);
         // "Closing" = overlay displayed but not tappable (pointer-events none).
         if (cs.display === 'none' || cs.pointerEvents !== 'none') { window.__prev = null; return; }
         window.__flashFrames += 1; // frames watched while closing
-        const dim = Number(getComputedStyle(d).opacity);
         const tf = getComputedStyle(sl).transform;
         // Visible fraction of the slide wrapper (the panel fills it except for the edge strip).
         const b = sl.getBoundingClientRect();
         const vf = b.width > 0 ? Math.max(0, Math.min(b.right, window.innerWidth) - Math.max(b.left, 0)) / b.width : 0;
         const p = window.__prev;
-        const grew = p && (vf > p.vf + 0.01 || dim > p.dim + 0.01);
+        const grew = p && vf > p.vf + 0.01;
         const backToOpen = p && p.moved && tf === 'none';
         if (grew || backToOpen) window.__flashes.push(Math.round(ts));
-        window.__prev = { vf, dim, moved: p ? (p.moved || tf !== 'none') : tf !== 'none' };
+        window.__prev = { vf, moved: p ? (p.moved || tf !== 'none') : tf !== 'none' };
       });
       check(0);
     });
   });
 }
-// Overlay is fully open: no slide offset, dim at 20%, focus inside the overlay.
+// Overlay is fully open: no slide offset, page not darkened, focus inside the overlay.
 const expectFullyOpen = async (page) => {
-  await expect.poll(async () => { const x = await snap(page); return x.displayed && x.slideTransform === 'none' && Math.abs(x.darkness - 0.2) < 0.01; }).toBe(true);
+  await expect.poll(async () => { const x = await snap(page); return x.displayed && x.slideTransform === 'none' && x.darkness === 0; }).toBe(true);
   await expect.poll(() => page.evaluate(() => !!document.activeElement?.closest('[data-testid="side-menu"]'))).toBe(true);
 };
 // The transparent strip beside the panel (the last button inside the overlay, after the panel's X).
@@ -207,15 +210,12 @@ test.describe('elastic menu animation', () => {
     }
     // At least one frame in the middle of the slide.
     expect(shown.some((f) => f.visibleFraction > 0.05 && f.visibleFraction < 0.95)).toBe(true);
-    // The page is never darker than the menu is open.
-    for (const f of frames) {
-      expect(f.darkness).toBeLessThanOrEqual(0.205);
-      expect(f.darkness).toBeLessThanOrEqual(0.2 * f.visibleFraction + 0.02);
-    }
+    // The page behind the menu is never darkened, in any frame.
+    for (const f of frames) expect(f.darkness).toBe(0);
     // End state.
     await expect.poll(async () => (await snap(page)).slideTransform).toBe('none');
     const end = await snap(page);
-    expect(end.darkness).toBeCloseTo(0.2, 2);
+    expect(end.darkness).toBe(0);
     expect(end.bulgeOut).not.toBeNull();
     expect(Math.abs(end.bulgeOut)).toBeLessThan(1);
     // Hebrew panel sits on the right edge; English on the left.
@@ -254,11 +254,11 @@ test.describe('elastic menu animation', () => {
     const shown = frames.filter((f) => f.displayed);
     // At least one frame in the middle of the slide out.
     expect(shown.some((f) => f.visibleFraction > 0.05 && f.visibleFraction < 0.95)).toBe(true);
-    // The panel and the dim only shrink while closing (0.01 / 0.005 tolerance for rounding).
+    // The panel only shrinks while closing (0.01 tolerance for rounding); the page is never darkened.
     for (let i = 1; i < shown.length; i++) {
       expect(shown[i].visibleFraction).toBeLessThanOrEqual(shown[i - 1].visibleFraction + 0.01);
-      expect(shown[i].darkness).toBeLessThanOrEqual(shown[i - 1].darkness + 0.005);
     }
+    for (const f of shown) expect(f.darkness).toBe(0);
     // No stagger on close: rows stay at opacity 1 while the panel leaves.
     for (const f of shown) {
       expect(f.rowMin).not.toBeNull();
@@ -281,7 +281,7 @@ test.describe('elastic menu animation', () => {
     await expect(page.getByText(t('settings:title'), { exact: true }).filter({ visible: true })).toBeVisible();
   });
 
-  // Regression: the last frame of a close used to paint the fully open panel (inline style and dim
+  // Regression: the last frame of a close used to paint the fully open panel (inline style
   // cleared before display:none arrived one frame later).
   for (const how of ['the strip', 'picking Settings']) {
     test(`the end of the close never shows the open look (close via ${how})`, async ({ page, t }) => {
@@ -353,9 +353,9 @@ test.describe('elastic menu with reduced motion', () => {
     await installSampler(page, t, false, false);
     await openMenu(page, t);
     const s = await snap(page);
-    // Everything is in its final state right away: no slide, full dim, rows visible, flat edge.
+    // Everything is in its final state right away: no slide, page not darkened, rows visible, flat edge.
     expect(s.slideTransform).toBe('none');
-    expect(s.darkness).toBeCloseTo(0.2, 2);
+    expect(s.darkness).toBe(0);
     expect(s.rowMin).toBeGreaterThanOrEqual(0.99);
     expect(s.bulgeOut).not.toBeNull();
     expect(Math.abs(s.bulgeOut)).toBeLessThan(1);

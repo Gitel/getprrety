@@ -400,7 +400,8 @@ const s = StyleSheet.create({
   productCta:  { backgroundColor: C.card, borderWidth: 1.5, borderRadius: 14, padding: 16, flexDirection: 'row', alignItems: 'center' },
   productCtaTitle:{ fontFamily: 'DMSans_500Medium', fontSize: 14, color: C.text, marginBottom: 2 },
   productCtaSub:{ fontFamily: 'DMSans_400Regular', fontSize: 12, color: C.muted },
-  modalOverlay:{ flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'flex-end' },
+  // No dark backdrop on purpose: the page behind the check-in sheet stays undimmed.
+  modalOverlay:{ flex: 1, justifyContent: 'flex-end' },
   modalSheet:  { backgroundColor: C.bg, borderRadius: 24, padding: 24, paddingBottom: 40 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   modalTitle:  { fontFamily: 'CormorantGaramond_500Medium', fontSize: 19, color: C.text },

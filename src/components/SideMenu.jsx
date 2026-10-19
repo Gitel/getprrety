@@ -286,7 +286,8 @@ const FOCUSABLE = 'a[href], button, input, select, textarea, [tabindex]:not([tab
 //   closed   display:none. Unfocusable, hidden from screen readers, untappable.
 //   opening  displayed; the panel slides in from the screen edge (CSS transform) with an elastic
 //            bulge on its trailing edge, and the rows fade in one after another.
-//   open     fully slid in, page dimmed 20%, focus trapped in the panel.
+//   open     fully slid in, focus trapped in the panel. The page behind is NOT dimmed (removed
+//            on purpose: the dark layer did not look good).
 //   closing  displayed but pointerEvents none, so the screen underneath is usable at once; the
 //            panel slides back out. When it ends the overlay goes back to `closed`.
 export default function SideMenu({ visible, onClose, navigation, currentScreen }) {
@@ -305,7 +306,6 @@ export default function SideMenu({ visible, onClose, navigation, currentScreen }
   if (visible && !shown) setShown(true);
 
   const overlayRef = useRef(null);
-  const dimRef = useRef(null);
   // The moving wrapper: its transform (the slide) is written to the DOM each frame.
   const slideRef = useRef(null);
   // The elastic edge paths (one fill, several shadow strokes); their `d` is written each frame.
@@ -344,8 +344,7 @@ export default function SideMenu({ visible, onClose, navigation, currentScreen }
   useLayoutEffect(() => {
     const overlay = overlayRef.current;
     const slide = slideRef.current;
-    const dim = dimRef.current;
-    if (!overlay || !slide || !dim) return undefined;
+    if (!overlay || !slide) return undefined;
     if (!visible && !activeRef.current) return undefined; // first mount, still closed
     activeRef.current = visible;
 
@@ -379,21 +378,18 @@ export default function SideMenu({ visible, onClose, navigation, currentScreen }
       fillPathRef.current?.setAttribute('d', FLAT_FILL);
       shadowPathRefs.current.forEach((el, i) => el?.setAttribute('d', FLAT_SHADOWS[i]));
     };
-    // Moves the slide to progress p; dim = the visible fraction of the panel (never darker than
-    // the menu is open).
+    // Moves the slide to progress p.
     const writeSlide = p => {
       const offset = offsetAt(p);
       slide.style.transform = `translateX(${rtl ? offset : -offset}px)`;
-      dim.style.opacity = String(Math.min(1, Math.max(0, (width - offset) / width)));
     };
 
-    // Removes the inline values: slide in place, dim at its full CSS value (darkness 0.2), flat edge.
+    // Removes the inline values: slide in place, flat edge.
     const clearInline = () => {
       slide.style.transform = '';
-      dim.style.opacity = '';
       writeFlatEdge();
     };
-    // Writes the CLOSED look: slide fully off-screen (strip included), no dim, flat edge.
+    // Writes the CLOSED look: slide fully off-screen (strip included), flat edge.
     const writeClosedLook = () => {
       writeSlide(0);
       writeFlatEdge();
@@ -401,7 +397,7 @@ export default function SideMenu({ visible, onClose, navigation, currentScreen }
     // End of a close: hide the overlay and tell MenuBody it can reset.
     // Called from an animation frame, a state update (setShown) is applied by React in a LATER
     // task, so the browser paints this frame first. If we cleared the inline values here the
-    // overlay would flash fully open (slide in place, full dim) for one frame. So the animated
+    // overlay would flash fully open (slide in place) for one frame. So the animated
     // close writes the closed look and the overlay stays invisible until display:none arrives.
     // Reduced motion runs in the layout effect (before paint, React re-renders synchronously),
     // so clearing is safe there. Every open path starts from or ends at a state it writes itself.
@@ -478,7 +474,6 @@ export default function SideMenu({ visible, onClose, navigation, currentScreen }
       if (target && p === 1) {
         // Landed, still wobbling: the slide is in place, so clear its inline values.
         slide.style.transform = '';
-        dim.style.opacity = '';
       } else {
         writeSlide(p);
       }
@@ -608,9 +603,6 @@ export default function SideMenu({ visible, onClose, navigation, currentScreen }
       aria-modal={!closing}
       style={[s.overlay, !shown && s.overlayClosed, closing && s.overlayClosing]}
     >
-      {/* Dim layer. Its opacity is written to the DOM every frame (never a React style key). */}
-      <View ref={dimRef} testID="side-menu-dim" style={s.dim} />
-
       {/* A row mirrors in RTL by itself: the panel is first, so it sits on the start side. */}
       <View style={s.row}>
         {/* The slide: the whole panel moves with one CSS transform, written to the DOM every
@@ -671,8 +663,6 @@ const s = StyleSheet.create({
   overlay: { position: 'fixed', top: 0, right: 0, bottom: 0, left: 0, zIndex: 1000 },
   overlayClosed: { display: 'none' },
   overlayClosing: { pointerEvents: 'none' },
-  // 20% black; its opacity (0..1) is animated through the DOM (the visible fraction of the panel).
-  dim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.2)', pointerEvents: 'none' },
   row: { flex: 1, flexDirection: 'row' },
   panelWrap: { width: '82%', maxWidth: 320 },
   // Panel colour layer (see the slide in the render): stops 1 px short of the edge strip.
@@ -682,7 +672,7 @@ const s = StyleSheet.create({
   // Fills the whole slide width; its colour comes from panelBg and the edge svg.
   panel: { flex: 1 },
   panelContent: { paddingHorizontal: 20, paddingVertical: 16 },
-  // Transparent: the dim layer provides the colour.
+  // Transparent on purpose: the page behind the menu is not dimmed.
   backdrop: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 16 },
   headerText: { flex: 1, marginEnd: 12 },
