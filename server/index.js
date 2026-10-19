@@ -28,6 +28,7 @@ const messageRoutes  = require('./routes/messages');
 const bookingRoutes  = require('./routes/bookings');
 const paymentRoutes  = require('./routes/payments');
 const { syncCalendarEvents } = require('./services/bookingPayments');
+const { matchAppointments } = require('./services/shopifyConsultations');
 const routineProgressRoutes = require('./routes/routineProgress');
 const adminRoutes    = require('./routes/admin');
 const skinScanPoller = require('./jobs/skinScanPoller');
@@ -137,6 +138,15 @@ mongoose
         console.error(`Booking sweep error: calendar sync (${err && err.name})`);
       }
     }, 60000).unref();
+    // Every 5 minutes: find the appointment time of consultations bought directly in Shopify
+    // (the customer picks it on the clinic's Google appointment page). Read-only on the calendar.
+    setInterval(async () => {
+      try {
+        if (require('./services/calendar').isConfigured()) await matchAppointments();
+      } catch (err) {
+        console.error(`Shopify consultation sweep error (${err && err.name})`);
+      }
+    }, 5 * 60 * 1000).unref();
     app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
   })
   .catch(err => {
