@@ -2,9 +2,11 @@
 // pulled out of the express router and called with a fake req/res. The body is a Buffer, exactly
 // as express.raw() delivers it in index.js.
 jest.mock('../services/bookingPayments');
+jest.mock('../services/shopifyConsultations');
 
 const crypto = require('crypto');
 const payments = require('../services/bookingPayments');
+const consultations = require('../services/shopifyConsultations');
 const router = require('./payments');
 
 const SECRET = 'whsec-test';
@@ -43,6 +45,7 @@ beforeEach(() => {
   immediateSpy = jest.spyOn(global, 'setImmediate').mockImplementation(() => {}); // capture, do not run
   payments.recordPayment.mockResolvedValue({ ok: true, result: 'confirmed' });
   payments.syncCalendarEvents.mockResolvedValue();
+  consultations.recordOrder.mockResolvedValue({ ok: true, result: 'shopify_consultation_recorded' });
 });
 afterEach(() => { errorSpy.mockRestore(); immediateSpy.mockRestore(); });
 
@@ -82,10 +85,45 @@ describe('POST /shopify/orders-paid', () => {
     expect(res).toMatchObject({ statusCode: 400, body: { code: 'invalid_body' } });
   });
 
-  test('no booking attribute -> 200 no_booking_attribute', async () => {
-    const res = await call({ body: order({ note_attributes: [{ name: 'other', value: 'x' }] }) });
+  test('no booking attribute and no consultation -> 200 no_booking_attribute, nothing stored', async () => {
+    const res = await call({ body: order({ note_attributes: [{ name: 'other', value: 'x' }], line_items: [{ variant_id: 999 }] }) });
     expect(res).toMatchObject({ statusCode: 200, body: { ok: true, result: 'no_booking_attribute' } });
     expect(payments.recordPayment).not.toHaveBeenCalled();
+    expect(consultations.recordOrder).not.toHaveBeenCalled();
+  });
+
+  // Consultation bought directly in the Shopify store (plan AI/plans/shopify-consultation-link.md).
+  test('consultation WITHOUT booking attribute -> the order is stored, no booking payment', async () => {
+    const body = order({ note_attributes: [], email: 'a@b.co' });
+    const res = await call({ body });
+    expect(res).toMatchObject({ statusCode: 200, body: { ok: true, result: 'shopify_consultation_recorded' } });
+    expect(consultations.recordOrder).toHaveBeenCalledWith(body);
+    expect(payments.recordPayment).not.toHaveBeenCalled();
+    expect(immediateSpy).not.toHaveBeenCalled(); // no booking calendar sync for these
+  });
+
+  test('a missing note_attributes field counts as no attribute', async () => {
+    const res = await call({ body: order({ note_attributes: undefined }) });
+    expect(res.body.result).toBe('shopify_consultation_recorded');
+  });
+
+  test('recordOrder result is passed through (already_recorded / no_email)', async () => {
+    consultations.recordOrder.mockResolvedValue({ ok: true, result: 'already_recorded' });
+    expect((await call({ body: order({ note_attributes: [] }) })).body.result).toBe('already_recorded');
+    consultations.recordOrder.mockResolvedValue({ ok: true, result: 'no_email' });
+    expect((await call({ body: order({ note_attributes: [] }) })).body.result).toBe('no_email');
+  });
+
+  test('recordOrder throws -> 500 (Shopify retries), no email in the log', async () => {
+    consultations.recordOrder.mockRejectedValue(new Error('db down for a@b.c'));
+    const res = await call({ body: order({ note_attributes: [], email: 'a@b.c' }) });
+    expect(res).toMatchObject({ statusCode: 500, body: { code: 'order_record_failed' } });
+    expect(errorSpy.mock.calls.flat().join(' ')).not.toContain('a@b.c');
+  });
+
+  test('an app booking order never reaches recordOrder', async () => {
+    await call();
+    expect(consultations.recordOrder).not.toHaveBeenCalled();
   });
 
   test('consultation variant missing -> 200 wrong_product', async () => {

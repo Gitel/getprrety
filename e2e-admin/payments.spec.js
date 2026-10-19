@@ -87,10 +87,14 @@ test.describe('payments', () => {
   });
 
   // 3. Signed but not a payment we act on
-  test('3. wrong topic, no attribute, other product and unknown booking are 200 and ignored', async ({ request }) => {
+  test('3. wrong topic, no attribute, other product and unknown booking are 200 and confirm nothing', async ({ request }) => {
     const cases = [
       [buildOrder({ bookingId: s.hold.id, email: s.u1.email }), { topic: 'orders/create' }, 'ignored_topic'],
-      [buildOrder({ bookingId: s.hold.id, email: s.u1.email, noAttribute: true }), {}, 'no_booking_attribute'],
+      // No attribute + another product: not ours.
+      [buildOrder({ bookingId: s.hold.id, email: s.u1.email, noAttribute: true, variantId: 99999 }), {}, 'no_booking_attribute'],
+      // No attribute + the consultation = bought directly in the Shopify store: stored as a Shopify
+      // consultation order (plan AI/plans/shopify-consultation-link.md), never confirms a booking.
+      [buildOrder({ bookingId: s.hold.id, email: s.u1.email, noAttribute: true }), {}, 'shopify_consultation_recorded'],
       [buildOrder({ bookingId: s.hold.id, email: s.u1.email, variantId: 99999 }), {}, 'wrong_product'],
       // A well-formed ObjectId that matches no booking.
       [buildOrder({ bookingId: '64b7f0f0f0f0f0f0f0f0f0f0', email: s.u1.email }), {}, 'booking_not_found'],
