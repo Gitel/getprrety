@@ -827,6 +827,7 @@ function settingsFormFromConfig(config) {
     enabled: Boolean(config.enabled),
     slotMinutes: config.slotMinutes,
     bufferMinutes: config.bufferMinutes,
+    allowSameDay: Boolean(config.allowSameDay), // missing in old documents = off
     leadHours: config.leadHours,
     horizonDays: config.horizonDays,
     days,
@@ -839,6 +840,7 @@ function settingsFormFromBody(body) {
     enabled: Boolean(body.enabled),
     slotMinutes: body.slotMinutes,
     bufferMinutes: body.bufferMinutes,
+    allowSameDay: Boolean(body.allowSameDay),
     leadHours: body.leadHours,
     horizonDays: body.horizonDays,
     days: WEEKDAYS.map((_, d) => ({

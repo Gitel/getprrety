@@ -11,9 +11,15 @@ import { onAppResume } from '../lib/resumeRefresh';
 import { openCheckout } from '../lib/openCheckout';
 import { isRTL } from '../lib/language';
 import {
-  fetchSlots, fetchMine, createBooking, groupSlotsByDate, formatSlotDay, formatBookingWhen,
-  clinicHHMM, MAX_NOTE_LENGTH,
+  fetchSlots, fetchMine, createBooking, formatBookingWhen, clinicHHMM, MAX_NOTE_LENGTH,
 } from '../lib/bookingApi';
+import {
+  buildDayIndex, clinicToday, navRange, firstAvailableDate,
+} from '../lib/bookingCalendar';
+import ViewSwitcher from '../components/booking/ViewSwitcher';
+import MonthView from '../components/booking/MonthView';
+import WeekView from '../components/booking/WeekView';
+import DayView from '../components/booking/DayView';
 
 // How often the waiting-for-payment panel re-checks the server (ms).
 const PAYMENT_POLL_MS = 5000;
@@ -22,7 +28,8 @@ const PAYMENT_POLL_MS = 5000;
 // AI/plans/paid-booking-and-signin-link-contract.md section 6):
 //  - load the user's bookings and the free times;
 //  - if the user already has an upcoming booking, show it (one at a time) instead of the picker;
-//  - otherwise pick a day, a time, optionally write a note, and continue to payment:
+//  - otherwise pick a day and a time in a calendar (Month / Week / Day view, Month first; taken
+//    times are shown greyed out and cannot be chosen), optionally write a note, and continue to payment:
 //    the server holds the time for a few minutes (status pending_payment) and we show a
 //    waiting panel with a Pay now button; while it is shown we poll until the booking is
 //    confirmed (paid) or the hold runs out.
@@ -36,8 +43,9 @@ export default function BookingScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);   // text to show with the retry button
   const [upcoming, setUpcoming] = useState(null);     // the user's upcoming booking, if any
-  const [groups, setGroups] = useState([]);           // [{ date, slots }]
-  const [day, setDay] = useState(null);               // selected 'YYYY-MM-DD'
+  const [index, setIndex] = useState(() => new Map()); // Map<date, [{ ...slot, taken }]> (free + taken times)
+  const [view, setView] = useState('month');          // 'month' | 'week' | 'day' (not saved between visits)
+  const [focusDate, setFocusDate] = useState(null);   // the date the calendar shows / selected day
   const [slot, setSlot] = useState(null);             // selected slot object
   const [note, setNote] = useState('');
   const [sending, setSending] = useState(false);
@@ -64,6 +72,16 @@ export default function BookingScreen({ navigation }) {
     }
   }
 
+  // Store the server's free + taken times. An older server may not send `taken`, so default to [].
+  // The focused date is kept when it is still inside the bookable range, otherwise it jumps to the
+  // first day that has a free time.
+  function applySlots(free) {
+    const next = buildDayIndex(free.slots || [], free.taken || []);
+    const range = navRange(next, clinicToday());
+    setIndex(next);
+    setFocusDate(prev => (prev && prev >= range.min && prev <= range.max ? prev : firstAvailableDate(next)));
+  }
+
   // Fetch the bookings and the free times together; any failure shows the retry state.
   const load = useCallback(async () => {
     setLoading(true);
@@ -71,7 +89,7 @@ export default function BookingScreen({ navigation }) {
     try {
       const [mine, free] = await Promise.all([fetchMine(), fetchSlots()]);
       applyMine(mine);
-      setGroups(groupSlotsByDate(free.slots || []));
+      applySlots(free);
     } catch (err) {
       setLoadError(errorText(err, t, 'booking:loadFailed'));
     } finally {
@@ -85,7 +103,7 @@ export default function BookingScreen({ navigation }) {
   async function reloadSlots() {
     try {
       const free = await fetchSlots();
-      setGroups(groupSlotsByDate(free.slots || []));
+      applySlots(free);
     } catch (err) {
       setLoadError(errorText(err, t, 'booking:loadFailed'));
     }
@@ -146,8 +164,27 @@ export default function BookingScreen({ navigation }) {
     return () => { stopped = true; clearInterval(timer); stopResume(); };
   }, [pendingId]);
 
-  // The selected day falls back to the first day if it has disappeared after a refetch.
-  const activeGroup = groups.find(g => g.date === day) || groups[0] || null;
+  // Calendar inputs shared by the three views. `today` is the CLINIC date (not the phone's).
+  const today = clinicToday();
+  const range = navRange(index, today);
+  // The "empty" message is only for "nothing is free at all"; taken times alone still show the calendar.
+  const hasFreeSlot = [...index.values()].some(rows => rows.some(r => !r.taken));
+
+  // Choosing a day (cell or arrow): show it, and forget the chosen time and any old error.
+  function pickDay(date) {
+    setFocusDate(date);
+    setSlot(null);
+    setSubmitError(null);
+  }
+  // Choosing a time in ANY view: remember it and focus its day so every view agrees.
+  function pickSlot(sl) {
+    setSlot(sl);
+    setFocusDate(sl.date);
+    setSubmitError(null);
+  }
+  const viewProps = {
+    index, today, range, focusDate, onFocusDate: pickDay, selectedSlot: slot, onSelectSlot: pickSlot, accent, lang,
+  };
   const canConfirm = Boolean(slot) && !sending;
 
   // In Hebrew, isolate marks keep digits/punctuation of a date from reordering the sentence.
@@ -236,7 +273,7 @@ export default function BookingScreen({ navigation }) {
         </View>
       );
     }
-    if (groups.length === 0) {
+    if (!hasFreeSlot) {
       return <Text testID="booking-empty" style={s.muted}>{t('booking:empty')}</Text>;
     }
     return (
@@ -250,48 +287,13 @@ export default function BookingScreen({ navigation }) {
           </Text>
         )}
 
-        <Text style={[s.label, align]}>{t('booking:pickDay')}</Text>
-        {/* radiogroup + label: a screen reader treats the day chips as one group, separate from the times */}
-        <View role="radiogroup" aria-label={t('booking:pickDay')}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.chips}>
-          {groups.map(g => {
-            const on = g.date === activeGroup.date;
-            return (
-              <Pressable
-                key={g.date}
-                testID={`booking-day-${g.date}`}
-                // Radio role + aria-checked: screen readers announce the chosen day/time as selected.
-                role="radio"
-                aria-checked={on}
-                onPress={() => { setDay(g.date); setSlot(null); setSubmitError(null); }}
-                style={[s.chip, on && { backgroundColor: accent, borderColor: accent }]}
-              >
-                <Text style={[s.chipText, on && s.chipTextOn]}>{formatSlotDay(g.date, lang)}</Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
+        {/* View switcher + the active view; switching keeps the focused date and the chosen time. */}
+        <View style={s.calendar}>
+          <ViewSwitcher view={view} onChange={setView} accent={accent} />
         </View>
-
-        <Text style={[s.label, align]}>{t('booking:pickTime')}</Text>
-        <View style={s.times} role="radiogroup" aria-label={t('booking:pickTime')}>
-          {activeGroup.slots.map(sl => {
-            const on = slot?.startsAt === sl.startsAt;
-            return (
-              <Pressable
-                key={sl.startsAt}
-                testID={`booking-slot-${sl.time}`}
-                // Radio role + aria-checked: screen readers announce the chosen day/time as selected.
-                role="radio"
-                aria-checked={on}
-                onPress={() => { setSlot(sl); setSubmitError(null); }}
-                style={[s.chip, on && { backgroundColor: accent, borderColor: accent }]}
-              >
-                <Text style={[s.chipText, on && s.chipTextOn]}>{formatTime(sl.time, lang)}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
+        {view === 'month' && <MonthView {...viewProps} />}
+        {view === 'week' && <WeekView {...viewProps} />}
+        {view === 'day' && <DayView {...viewProps} />}
 
         {slot && (
           <Text testID="booking-selected" style={[s.selected, align]}>
@@ -353,11 +355,7 @@ const s = StyleSheet.create({
   center:      { alignItems: 'center', gap: 14, marginTop: 24 },
   muted:       { fontFamily: 'DMSans_400Regular', fontSize: 13, color: C.muted, textAlign: 'center', marginTop: 24 },
   label:       { fontFamily: 'DMSans_500Medium', fontSize: 13, color: C.text, marginTop: 16, marginBottom: 8 },
-  chips:       { gap: 8 },
-  times:       { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip:        { borderWidth: 1, borderColor: C.border, backgroundColor: C.card, borderRadius: 12, paddingVertical: 9, paddingHorizontal: 14 },
-  chipText:    { fontFamily: 'DMSans_400Regular', fontSize: 14, color: C.text },
-  chipTextOn:  { color: '#FFFFFF' },
+  calendar:    { marginTop: 16, marginBottom: 12 },
   selected:    { fontFamily: 'DMSans_500Medium', fontSize: 14, color: C.text, marginTop: 16 },
   input:       { minHeight: 70, backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: '#E8DDD8', borderRadius: 12, paddingVertical: 10, paddingHorizontal: 12, fontFamily: 'DMSans_400Regular', fontSize: 14, color: '#2C2C2C' },
   error:       { fontFamily: 'DMSans_400Regular', fontSize: 12, color: '#C44B4B', marginTop: 10 },

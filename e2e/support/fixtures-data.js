@@ -279,6 +279,19 @@ export const BOOKING_SLOTS = [
   slot('2026-10-04T07:30:00.000Z', '2026-10-04T08:00:00.000Z', '2026-10-04', '10:30'),
 ];
 
+// Times the clinic OFFERS but that cannot be booked (busy calendar, a confirmed booking or a hold).
+// GET /api/bookings/slots returns them in `taken` (same shape as BOOKING_SLOTS, UTC = clinic - 3h):
+//   - Thu 2026-10-01 11:30 and 12:00 (that day also has free 10:00 / 10:30 / 11:00),
+//   - Sun 2026-10-04 11:00 (free 10:00 / 10:30),
+//   - Mon 2026-10-05 10:00 and 10:30: NO free time that day, so it is a "fully booked" day.
+export const BOOKING_TAKEN = [
+  slot('2026-10-01T08:30:00.000Z', '2026-10-01T09:00:00.000Z', '2026-10-01', '11:30'),
+  slot('2026-10-01T09:00:00.000Z', '2026-10-01T09:30:00.000Z', '2026-10-01', '12:00'),
+  slot('2026-10-04T08:00:00.000Z', '2026-10-04T08:30:00.000Z', '2026-10-04', '11:00'),
+  slot('2026-10-05T07:00:00.000Z', '2026-10-05T07:30:00.000Z', '2026-10-05', '10:00'),
+  slot('2026-10-05T07:30:00.000Z', '2026-10-05T08:00:00.000Z', '2026-10-05', '10:30'),
+];
+
 // An already confirmed upcoming consultation (GET /api/bookings/mine -> upcoming).
 export const BOOKING_UPCOMING = {
   id: 'booking-1', startsAt: '2026-10-04T07:00:00.000Z', endsAt: '2026-10-04T07:30:00.000Z',

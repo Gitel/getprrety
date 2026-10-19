@@ -100,12 +100,13 @@ describe('GET /api/bookings/config', () => {
 });
 
 describe('GET /api/bookings/slots', () => {
-  test('200 passes from/to to the service and returns { timeZone, slots }', async () => {
+  test('200 passes from/to to the service and returns { timeZone, slots, taken }', async () => {
     const slots = [{ startsAt: '2026-10-08T07:00:00.000Z', endsAt: '2026-10-08T07:30:00.000Z', date: '2026-10-08', time: '10:00' }];
-    bookings.listSlots.mockResolvedValue({ ok: true, timeZone: 'Asia/Jerusalem', slots });
+    const taken = [{ startsAt: '2026-10-08T07:30:00.000Z', endsAt: '2026-10-08T08:00:00.000Z', date: '2026-10-08', time: '10:30' }];
+    bookings.listSlots.mockResolvedValue({ ok: true, timeZone: 'Asia/Jerusalem', slots, taken });
     const res = await call('get', '/slots', { query: { from: '2026-10-08', to: '2026-10-09' } });
     expect(res.statusCode).toBe(200);
-    expect(res.body).toEqual({ timeZone: 'Asia/Jerusalem', slots });
+    expect(res.body).toEqual({ timeZone: 'Asia/Jerusalem', slots, taken });
     expect(bookings.listSlots.mock.calls[0][0]).toEqual({ from: '2026-10-08', to: '2026-10-09' });
   });
 

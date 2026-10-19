@@ -24,5 +24,20 @@
   "awaitingBody": "Your time is held until {{time}}. Pay before then to confirm your consultation.",
   "payNow": "Pay now",
   "chooseOther": "Choose a different time",
-  "holdExpired": "Your held time ran out before payment. Please choose a time again."
+  "holdExpired": "Your held time ran out before payment. Please choose a time again.",
+  "viewMonth": "Month",
+  "viewWeek": "Week",
+  "viewDay": "Day",
+  "available": "Available",
+  "taken": "Taken",
+  "yourTime": "Your time",
+  "legendAvailable": "Available",
+  "legendFull": "Fully booked",
+  "closedDay": "There are no times on this day.",
+  "prevMonth": "Previous month",
+  "nextMonth": "Next month",
+  "prevWeek": "Previous week",
+  "nextWeek": "Next week",
+  "prevDay": "Previous day",
+  "nextDay": "Next day"
 }

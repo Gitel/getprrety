@@ -57,7 +57,7 @@ router.get('/slots', requireAuth, async (req, res) => {
     const { from, to } = req.query || {};
     const result = await bookings.listSlots({ from, to });
     if (!result.ok) return sendError(res, result.code);
-    res.json({ timeZone: result.timeZone, slots: result.slots });
+    res.json({ timeZone: result.timeZone, slots: result.slots, taken: result.taken });
   } catch (err) {
     logUnexpected('GET /api/bookings/slots', err);
     sendError(res, 'booking_load_failed');

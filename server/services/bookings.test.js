@@ -23,6 +23,7 @@ const DEFAULTS = {
   slotMinutes: 30,
   bufferMinutes: 0,
   leadHours: 12,
+  allowSameDay: false,
   horizonDays: 30,
   timeZone: 'Asia/Jerusalem',
   weekly: [0, 1, 2, 3, 4].map(day => ({ day, open: '10:00', close: '18:00' })),
@@ -555,6 +556,38 @@ describe('createBooking: step 3 grid check -> slot_invalid (calendar not asked)'
   });
 });
 
+describe('createBooking: same-day rule', () => {
+  // Wed 2026-10-07 15:00 local (12:00Z) is 6 h after NOW. With a 0 h lead time only the same-day
+  // rule decides whether it can be booked.
+  const SAME_DAY = '2026-10-07T12:00:00.000Z';
+  const worldWith = allowSameDay => userWorld({ config: { ...DEFAULTS, leadHours: 0, allowSameDay } });
+
+  test('off: a start on today\'s clinic date -> slot_invalid, calendar not asked, nothing written', async () => {
+    const { world, userId, deps } = worldWith(false);
+    expect(await createBooking(userId, { startsAt: SAME_DAY }, deps)).toEqual({ ok: false, code: 'slot_invalid' });
+    expect(world.calendar.getBusy).not.toHaveBeenCalled();
+    expect(world.Booking.create).not.toHaveBeenCalled();
+  });
+
+  test('off: tomorrow\'s first slot is still accepted even with a 0 h lead time', async () => {
+    const { userId, deps } = worldWith(false);
+    const result = await createBooking(userId, { startsAt: '2026-10-08T07:00:00.000Z' }, deps);
+    expect(result.ok).toBe(true);
+  });
+
+  test('on: the same start is accepted (only the lead time applies)', async () => {
+    const { userId, deps } = worldWith(true);
+    const result = await createBooking(userId, { startsAt: SAME_DAY }, deps);
+    expect(result.ok).toBe(true);
+    expect(result.booking).toMatchObject({ date: '2026-10-07', time: '15:00' });
+  });
+
+  test('on: the lead time still blocks a start that is too soon', async () => {
+    const { userId, deps } = userWorld({ config: { ...DEFAULTS, leadHours: 12, allowSameDay: true } });
+    expect(await createBooking(userId, { startsAt: SAME_DAY }, deps)).toEqual({ ok: false, code: 'slot_invalid' });
+  });
+});
+
 describe('createBooking: step 4 fresh availability', () => {
   test('a busy clinic calendar at that time -> slot_taken, nothing written', async () => {
     const { world, userId, deps } = userWorld();
@@ -696,6 +729,63 @@ describe('listSlots', () => {
     const { world, deps } = userWorld();
     world.calendar.getBusy.mockRejectedValue(new FakeCalendarError());
     expect(await listSlots({ from: '2026-10-11', to: '2026-10-11' }, deps)).toEqual({ ok: false, code: 'calendar_unavailable' });
+  });
+
+  describe('taken list (blocked grid times for the calendar view)', () => {
+    const day = { from: '2026-10-11', to: '2026-10-11' };
+
+    test('busy calendar times and confirmed bookings are in taken, not in slots; only the 4 public fields', async () => {
+      const { world, deps } = userWorld();
+      world.calendar.getBusy.mockResolvedValue([{ start: new Date('2026-10-11T07:30:00Z'), end: new Date('2026-10-11T08:15:00Z') }]); // 10:30, 11:00
+      world.store.push(
+        makeDoc({ _id: oid(), userId: oid(), status: 'confirmed', startsAt: new Date('2026-10-11T09:00:00Z'), endsAt: new Date('2026-10-11T09:30:00Z') }), // 12:00
+      );
+      const result = await listSlots(day, deps);
+      expect(result.taken.map(s => s.time)).toEqual(['10:30', '11:00', '12:00']);
+      expect(result.slots).toHaveLength(13);
+      // A time is in at most one list.
+      const freeStarts = new Set(result.slots.map(s => s.startsAt));
+      expect(result.taken.every(s => !freeStarts.has(s.startsAt))).toBe(true);
+      for (const t of result.taken) expect(Object.keys(t).sort()).toEqual(['date', 'endsAt', 'startsAt', 'time']);
+    });
+
+    test('a live hold (any user) is taken; an expired hold is NOT taken and its slot is free', async () => {
+      const { world, deps } = userWorld();
+      world.store.push(
+        makeDoc({ _id: oid(), userId: oid(), status: 'pending_payment', holdExpiresAt: new Date(NOW.getTime() + 600000), startsAt: new Date('2026-10-11T09:00:00Z'), endsAt: new Date('2026-10-11T09:30:00Z') }), // 12:00 live
+        makeDoc({ _id: oid(), userId: oid(), status: 'pending_payment', holdExpiresAt: new Date(NOW.getTime() - 1000), startsAt: new Date('2026-10-11T09:30:00Z'), endsAt: new Date('2026-10-11T10:00:00Z') }), // 12:30 expired
+      );
+      const result = await listSlots(day, deps);
+      expect(result.taken.map(s => s.time)).toEqual(['12:00']);
+      expect(result.slots.map(s => s.time)).toContain('12:30');
+    });
+
+    test('a cancelled booking is not taken', async () => {
+      const { world, deps } = userWorld();
+      world.store.push(makeDoc({ _id: oid(), userId: oid(), status: 'cancelled', startsAt: new Date('2026-10-11T09:30:00Z'), endsAt: new Date('2026-10-11T10:00:00Z') }));
+      expect((await listSlots(day, deps)).taken).toEqual([]);
+    });
+
+    test('the buffer widens the taken list', async () => {
+      const { world, deps } = userWorld({ config: { ...DEFAULTS, bufferMinutes: 15 } });
+      world.calendar.getBusy.mockResolvedValue([{ start: new Date('2026-10-11T08:00:00Z'), end: new Date('2026-10-11T08:30:00Z') }]); // 11:00-11:30
+      expect((await listSlots(day, deps)).taken.map(s => s.time)).toEqual(['10:30', '11:00', '11:30']);
+    });
+
+    test('no blocked times -> an empty taken array (never missing)', async () => {
+      const { deps } = userWorld();
+      expect((await listSlots(day, deps)).taken).toEqual([]);
+    });
+
+    test('same-day off hides today in BOTH lists; on shows today (lead 0)', async () => {
+      const today = { from: '2026-10-07', to: '2026-10-07' };
+      const off = userWorld({ config: { ...DEFAULTS, leadHours: 0, allowSameDay: false } });
+      const offResult = await listSlots(today, off.deps);
+      expect(offResult.slots).toEqual([]);
+      expect(offResult.taken).toEqual([]);
+      const on = userWorld({ config: { ...DEFAULTS, leadHours: 0, allowSameDay: true } });
+      expect((await listSlots(today, on.deps)).slots.length).toBeGreaterThan(0);
+    });
   });
 });
 
@@ -1042,6 +1132,24 @@ describe('updateConfig (form body -> validated settings)', () => {
     expect(await updateConfig(baseForm({ leadHours: '24', slotMinutes: '45', horizonDays: '14', bufferMinutes: '15' }), world.deps))
       .toEqual({ ok: true, changed: expect.arrayContaining(['leadHours', 'slotMinutes', 'horizonDays', 'bufferMinutes']) });
     expect(world.config()).toMatchObject({ leadHours: 24, slotMinutes: 45, horizonDays: 14, bufferMinutes: 15 });
+  });
+
+  test('ticking allowSameDay is saved and listed as changed; unticking it (absent) turns it off again', async () => {
+    const world = fresh();
+    expect(await updateConfig(baseForm({ allowSameDay: '1' }), world.deps)).toEqual({ ok: true, changed: ['allowSameDay'] });
+    expect(world.config().allowSameDay).toBe(true);
+    // Same body again: nothing changed.
+    expect(await updateConfig(baseForm({ allowSameDay: '1' }), world.deps)).toEqual({ ok: true, changed: [] });
+    // The checkbox is absent from the body when unticked.
+    expect(await updateConfig(baseForm(), world.deps)).toEqual({ ok: true, changed: ['allowSameDay'] });
+    expect(world.config().allowSameDay).toBe(false);
+  });
+
+  test('a stored config WITHOUT allowSameDay counts as off: an unticked box is "unchanged"', async () => {
+    const { allowSameDay, ...legacy } = DEFAULTS;
+    expect(allowSameDay).toBe(false);
+    const world = makeWorld({ config: legacy });
+    expect(await updateConfig(baseForm(), world.deps)).toEqual({ ok: true, changed: [] });
   });
 
   test('an unticked "enabled" checkbox switches booking off', async () => {
