@@ -206,6 +206,43 @@ test.describe('other states', () => {
     await expect(page.getByTestId('booking-screen')).toHaveCount(0);
   });
 
+  // A consultation bought directly in the Shopify store (plan AI/plans/shopify-consultation-link.md,
+  // D2/D7): shown above the picker, never instead of it, with a "Something wrong?" link to Messages.
+  test('a Shopify appointment shows above the picker; the picker stays for another consultation', async ({ page, mock, t }) => {
+    mock.booking({ shopifyConsultation: {
+      orderName: '#1042', paidAt: '2026-09-28T09:00:00.000Z',
+      appointment: { startsAt: '2026-10-04T07:00:00.000Z', endsAt: '2026-10-04T07:30:00.000Z', date: '2026-10-04', time: '10:00' },
+    } });
+    await openBooking(page, t);
+    const card = page.getByTestId('booking-shopify');
+    await expect(card).toContainText(t('booking:shopifyTitle'));
+    await expect(page.getByTestId('booking-shopify-when')).toContainText('Sun, 4 October');
+    await expect(card).toContainText(t('booking:shopifyBooked'));
+    await expect(page.getByTestId('booking-shopify-help')).toContainText(t('booking:shopifyHelpTitle'));
+    // Never blocks booking more: the picker is still there, labelled as "another" consultation.
+    await expect(page.getByTestId('booking-book-another')).toHaveText(t('booking:bookAnother'));
+    await expect(confirmBtn(page)).toBeVisible();
+
+    await page.getByTestId('booking-shopify-message').click();
+    await expect(page.getByText(t('messages:title'), { exact: true })).toBeVisible();
+  });
+
+  test('a Shopify order without a found time says the payment arrived, and keeps the picker', async ({ page, mock, t }) => {
+    mock.booking({ shopifyConsultation: { orderName: '#1042', paidAt: '2026-09-28T09:00:00.000Z', appointment: null } });
+    await openBooking(page, t);
+    await expect(page.getByTestId('booking-shopify')).toContainText(t('booking:shopifyNoTime'));
+    await expect(page.getByTestId('booking-shopify-when')).toHaveCount(0);
+    await expect(page.getByTestId('booking-shopify-help')).toBeVisible();
+    await expect(confirmBtn(page)).toBeVisible();
+  });
+
+  test('no Shopify order: no Shopify card and no "another" label', async ({ page, t }) => {
+    await openBooking(page, t);
+    await expect(confirmBtn(page)).toBeVisible();
+    await expect(page.getByTestId('booking-shopify')).toHaveCount(0);
+    await expect(page.getByTestId('booking-book-another')).toHaveCount(0);
+  });
+
   test('a calendar outage (503) shows the error with a retry; retrying loads the slots', async ({ page, mock, t }) => {
     mock.override('GET', '/api/bookings/slots', 503, { error: 'x', code: 'calendar_unavailable' });
     await openBooking(page, t);
