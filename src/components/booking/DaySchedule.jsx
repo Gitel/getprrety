@@ -24,7 +24,7 @@ export default function DaySchedule({ rows, selectedSlot, onSelectSlot, accent, 
         if (row.taken) {
           // A plain View has no onPress, so a tap does nothing. aria-disabled tells screen readers.
           return (
-            <View key={row.startsAt} testID={`booking-taken-${row.time}`} aria-disabled="true" style={[rowStyle, s.rowTaken]}>
+            <View key={row.startsAt} testID={`booking-taken-${row.time}`} aria-disabled={true} style={[rowStyle, s.rowTaken]}>
               <Text style={[timeStyle, s.timeTaken]}>{formatTime(row.time, lang)}</Text>
               <View style={[s.block, s.blockTaken]}>
                 <Text style={[s.blockText, s.blockTextTaken]}>{t('booking:taken')}</Text>

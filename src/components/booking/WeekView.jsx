@@ -32,13 +32,10 @@ export default function WeekView({
   const dates = weekDates(shown);
   const times = weekTimes(index, dates);
 
-  // Title: "18 - 24 Oct" inside one month, "27 Sep - 3 Oct" across two months.
+  // Title: always "<day> <month> - <day> <month>", e.g. "27 Sep - 3 Oct" or "4 Oct - 10 Oct".
   const first = dates[0];
   const last = dates[6];
-  const sameMonth = first.slice(0, 7) === last.slice(0, 7);
-  const title = sameMonth
-    ? `${Number(first.slice(8))} - ${shortDay(last, lang)}`
-    : `${shortDay(first, lang)} - ${shortDay(last, lang)}`;
+  const title = `${shortDay(first, lang)} - ${shortDay(last, lang)}`;
 
   // Arrows move focus by 7 days, never outside the range; disabled when the week already touches the edge.
   const prevDisabled = first <= range.min;
@@ -95,7 +92,7 @@ export default function WeekView({
                   // Plain View = no onPress = cannot be tapped.
                   return (
                     <View key={date} style={s.col}>
-                      <View testID={`booking-week-taken-${date}-${time}`} aria-disabled="true" style={[s.cell, s.cellTaken]} />
+                      <View testID={`booking-week-taken-${date}-${time}`} aria-disabled={true} style={[s.cell, s.cellTaken]} />
                     </View>
                   );
                 }

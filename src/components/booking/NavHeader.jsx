@@ -14,8 +14,8 @@ function Arrow({ glyph, testID, label, disabled, onPress }) {
       testID={testID}
       role="button"
       aria-label={label}
-      // aria-disabled (not the native `disabled`) keeps the element visible to tests and screen readers.
-      aria-disabled={disabled ? 'true' : undefined}
+      // Pressable's disabled prop makes react-native-web render aria-disabled="true" (and the native disabled flag), so it cannot be tapped.
+      disabled={disabled}
       onPress={disabled ? undefined : onPress}
       style={[s.arrow, disabled && s.arrowOff]}
     >
