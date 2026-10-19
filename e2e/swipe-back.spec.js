@@ -70,7 +70,7 @@ for (const lang of ['en', 'he']) {
       await openProfileFromHome(page, t);
       await edgeSwipe(page, { lang, dx: LONG });
       await homeShows(page, t);
-      await expect(text(page, t('profile:audit.title'))).toHaveCount(0);
+      await expect(text(page, t('profile:analysisTitle'))).toHaveCount(0);
     });
 
     test('the opposite edge does nothing', async ({ page, t }) => {

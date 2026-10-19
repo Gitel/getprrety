@@ -47,7 +47,11 @@
   },
   "viewAnalysis": {
     "title": "View my full analysis",
-    "subtitle": "Your skin analysis, product audit and product routine"
+    "subtitle": "Your skin analysis and score"
+  },
+  "myProducts": {
+    "title": "My products",
+    "subtitle": "Your SR Cosmetics picks, with photos"
   },
   "logProducts": {
     "title": "Log your products",

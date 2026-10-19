@@ -6,6 +6,7 @@
   "greetingNoName": "Hi there",
   "myRoutine": "My routine",
   "mySkinProfile": "My skin profile",
+  "myProducts": "My products",
   "messages": "Messages",
   "messagesUnread_one": "Messages, {{count}} unread",
   "messagesUnread_other": "Messages, {{count}} unread",

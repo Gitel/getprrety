@@ -37,6 +37,11 @@ test('persists the Bedrock source alongside the analysis', async () => {
   expect(api.post.mock.calls[0][1].source).toBe('bedrock');
 });
 
+test('persists Anthropic provenance alongside the analysis', async () => {
+  await persistAnalysis({ analysis: { ...analysis, source: 'anthropic' }, answers: {} });
+  expect(api.post.mock.calls[0][1].source).toBe('anthropic');
+});
+
 test('sends null for both when the analysis service returned none', async () => {
   await persistAnalysis({ analysis, answers: {} });
   const [, body] = api.post.mock.calls[0];

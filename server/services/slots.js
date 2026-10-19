@@ -90,17 +90,37 @@ function zonedToUtc(dateStr, timeStr, timeZone) {
 // Accepts Date or ISO string, returns epoch ms.
 const toMs = v => (v instanceof Date ? v.getTime() : Date.parse(v));
 
-// Returns [{ startsAt, endsAt, date, time }] sorted by startsAt. See contract section 3.
-function computeSlots({ now, fromDate, toDate, config, busy = [], booked = [] }) {
+// Earliest instant a booking may start.
+//  - Always at least `now + leadHours` (minimum notice).
+//  - Unless config.allowSameDay === true, also not before 00:00 of the NEXT clinic-local day, so
+//    nothing on the clinic's current calendar date is offered. We take the LATER of the two rules.
+// "Tomorrow 00:00" is found with zonedToUtc (not "now + 24h"), so it stays correct on the
+// 23-hour and 25-hour days around daylight saving changes.
+function earliestStart(now, config) {
+  const byLeadTime = now.getTime() + config.leadHours * HOUR;
+  if (config.allowSameDay === true) return byLeadTime;
+  const today = localParts(now, config.timeZone).date;
+  const [y, m, d] = today.split('-').map(Number);
+  // Pure calendar maths in UTC to get tomorrow's date string (no zone involved).
+  const tomorrow = new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10);
+  const tomorrowMs = zonedToUtc(tomorrow, '00:00', config.timeZone).getTime();
+  return Math.max(byLeadTime, tomorrowMs);
+}
+
+// Returns EVERY grid slot that could be offered (inside opening hours, not before the earliest
+// bookable moment, before the horizon) as [{ startsAt, endsAt, date, time, taken }] sorted by
+// startsAt. `taken` is true when a calendar busy time or a booking/hold blocks the slot (buffer
+// included). Used by the calendar view, which shows taken times greyed out.
+function computeGrid({ now, fromDate, toDate, config, busy = [], booked = [] }) {
   if (!isDateString(fromDate) || !isDateString(toDate)) {
     throw new RangeError('fromDate and toDate must be valid YYYY-MM-DD dates');
   }
   if (fromDate > toDate) return []; // zero-padded ISO dates compare correctly as strings
 
-  const { weekly, slotMinutes, bufferMinutes, leadHours, horizonDays, timeZone } = config;
+  const { weekly, slotMinutes, bufferMinutes, horizonDays, timeZone } = config;
   const stepMs = slotMinutes * MINUTE;
   const bufferMs = bufferMinutes * MINUTE;
-  const earliest = now.getTime() + leadHours * HOUR;          // inclusive
+  const earliest = earliestStart(now, config);                // inclusive
   const horizon = now.getTime() + horizonDays * DAY;          // exclusive
 
   // Busy calendar times and confirmed bookings are treated the same way: [start, end) in ms.
@@ -129,8 +149,7 @@ function computeSlots({ now, fromDate, toDate, config, busy = [], booked = [] })
         const end = start + stepMs;
         if (start < earliest || start >= horizon) continue;
         // Overlap test on the buffered interval; touching edges do not overlap.
-        const conflict = blocked.some(([bs, be]) => start - bufferMs < be && bs < end + bufferMs);
-        if (conflict) continue;
+        const taken = blocked.some(([bs, be]) => start - bufferMs < be && bs < end + bufferMs);
         const startDate = new Date(start);
         const local = localParts(startDate, timeZone);
         slots.push({
@@ -138,6 +157,7 @@ function computeSlots({ now, fromDate, toDate, config, busy = [], booked = [] })
           endsAt: new Date(end).toISOString(),
           date: local.date,
           time: local.time,
+          taken,
         });
       }
     });
@@ -146,4 +166,12 @@ function computeSlots({ now, fromDate, toDate, config, busy = [], booked = [] })
   return slots.sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt));
 }
 
-module.exports = { computeSlots, zonedToUtc, localParts, isDateString };
+// Returns the FREE grid slots [{ startsAt, endsAt, date, time }] sorted by startsAt (no `taken`
+// field). Same signature and output as before computeGrid existed; createBooking relies on it.
+function computeSlots(args) {
+  return computeGrid(args)
+    .filter(s => !s.taken)
+    .map(({ startsAt, endsAt, date, time }) => ({ startsAt, endsAt, date, time }));
+}
+
+module.exports = { computeSlots, computeGrid, zonedToUtc, localParts, isDateString };

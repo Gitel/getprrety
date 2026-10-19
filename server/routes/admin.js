@@ -5,6 +5,9 @@ const express = require('express');
 const router = express.Router();
 
 const SkinAnalysis = require('../models/SkinAnalysis');
+const SkinScan = require('../models/SkinScan');
+const CatalogueProduct = require('../models/CatalogueProduct');
+const { scanView } = require('../services/skinScan/scanView');
 const User = require('../models/User');
 const Upload = require('../models/Upload');
 const { notifyClinic, mailConfigError } = require('../services/clinicNotify');
@@ -89,6 +92,15 @@ const NOTICES = {
   invite_existing_user:      { text: 'That email already has an account. A sign-in link was created for it instead.' },
   invite_invalid:            { text: 'Enter a valid email address.', error: true },
   delete_confirm_mismatch: { text: 'Nothing was deleted: the email you typed does not match this account.', error: true },
+  // Item 5 (catalogue price / shop link on the product form).
+  catalogue_invalid_price:    { text: 'Price must be a number of 0 or more (up to 2 decimals).', error: true },
+  catalogue_invalid_shop_url: { text: 'The shop link must start with https://', error: true },
+  // Item 12 (customer result editing). These codes come back from services/adminEdits.js and
+  // are shown inline in the editor (the edit route answers { error: <text> }).
+  analysis_product_unknown:    { text: 'That product is not in the catalogue (or it was archived). Pick another one.', error: true },
+  analysis_product_ineligible: { text: 'That product is not suitable for this customer (allergy, pregnancy or not a home-use product). Pick another one.', error: true },
+  analysis_invalid_reading:    { text: 'The skin reading text is missing a required field or is too long.', error: true },
+  analysis_no_reading:         { text: 'This reading has no score-section text to edit.', error: true },
 };
 
 function noticeFrom(req) {
@@ -141,6 +153,9 @@ router.use(helmet({
 // handles JSON, so without this every dashboard form field would be silently missing
 // from req.body. Scoped to /admin: the public API has no reason to accept form posts.
 router.use(express.urlencoded({ extended: false, limit: '1mb' }));
+
+// AI settings pages (prompts, limits, history, test run) live in their own router.
+router.use('/ai', require('./adminAi'));
 
 function adminGoogleClientId() {
   return process.env.ADMIN_GOOGLE_CLIENT_ID
@@ -236,9 +251,29 @@ router.get('/customer/:id', adminPage, async (req, res, next) => {
       ? await SkinAnalysis.findOne({ userId: analysis.userId }).sort({ createdAt: -1 }).select('_id').lean()
       : null;
 
+    // Product picker options: active home-use catalogue products (the same set the AI may pick from).
+    const pickerProducts = await CatalogueProduct.find({ use: 'home', archived: { $ne: true } })
+      .select('name category').sort('name').lean();
+
+    // The linked scan's written score reading, for the "Score reading" editor. A scan that
+    // belongs to another user is ignored, mirroring the check in services/adminEdits.js.
+    let reading = null;
+    let readingScores = {};
+    if (analysis.skinScanId) {
+      const scan = await SkinScan.findById(analysis.skinScanId).select('userId merged reading').lean();
+      if (scan && scan.reading && String(scan.userId) === String(analysis.userId)) {
+        reading = scan.reading;
+        // Today's score per signal, shown next to each signal so the admin sees what the copy describes.
+        readingScores = Object.fromEntries((((scanView(scan).signals || {}).signals) || []).map(sg => [sg.key, sg.score]));
+      }
+    }
+
     res.render('admin/customer', {
       analysis,
       user,
+      pickerProducts,
+      reading,
+      readingScores,
       imageIds,
       resent: req.query.resent === '1',
       dashboardUrl: `${publicBaseUrl(req)}/admin/customer/${analysis._id}`,
@@ -565,6 +600,10 @@ function formValues(source) {
     name: str(s.name), category: str(s.category), use: str(s.use), pregnancy: str(s.pregnancy),
     keyActives: list(s.keyActives), ingredients: str(s.ingredients),
     strengths: list(s.strengths), suitableFor: list(s.suitableFor),
+    // Item 5: optional shop price (ILS) and https link. A stored product has price as a Number
+    // (or null), a submitted form has it as a string, so both are turned into display text.
+    price: s.price === null || s.price === undefined ? '' : String(s.price),
+    shopUrl: str(s.shopUrl),
   };
 }
 
@@ -788,6 +827,7 @@ function settingsFormFromConfig(config) {
     enabled: Boolean(config.enabled),
     slotMinutes: config.slotMinutes,
     bufferMinutes: config.bufferMinutes,
+    allowSameDay: Boolean(config.allowSameDay), // missing in old documents = off
     leadHours: config.leadHours,
     horizonDays: config.horizonDays,
     days,
@@ -800,6 +840,7 @@ function settingsFormFromBody(body) {
     enabled: Boolean(body.enabled),
     slotMinutes: body.slotMinutes,
     bufferMinutes: body.bufferMinutes,
+    allowSameDay: Boolean(body.allowSameDay),
     leadHours: body.leadHours,
     horizonDays: body.horizonDays,
     days: WEEKDAYS.map((_, d) => ({

@@ -215,8 +215,14 @@ async function listSlots({ from, to } = {}, deps) {
     ...takenFilter(now), startsAt: { $gte: new Date(rangeStart.getTime() - DAY), $lt: rangeEnd },
   }).lean();
 
-  const slots = d.slots.computeSlots({ now, fromDate, toDate, config, busy, booked });
-  return { ok: true, timeZone: config.timeZone, slots };
+  // One pass over the grid: free times go to `slots` (unchanged meaning, so old app builds keep
+  // working) and blocked ones to `taken` (busy calendar time, confirmed booking or live hold) so
+  // the calendar view can grey them out. Only the 4 public fields are sent, never why it is taken.
+  const grid = d.slots.computeGrid({ now, fromDate, toDate, config, busy, booked });
+  const publicFields = ({ startsAt, endsAt, date, time }) => ({ startsAt, endsAt, date, time });
+  const slots = grid.filter(s => !s.taken).map(publicFields);
+  const taken = grid.filter(s => s.taken).map(publicFields);
+  return { ok: true, timeZone: config.timeZone, slots, taken };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -510,6 +516,7 @@ async function updateConfig(input = {}, deps) {
   const next = {};
 
   next.enabled = Boolean(input.enabled); // an unticked checkbox is simply absent from the body
+  next.allowSameDay = Boolean(input.allowSameDay); // same: unticked = absent = same-day booking off
   next.slotMinutes = wholeNumber(input.slotMinutes);
   if (!d.BookingConfig.SLOT_MINUTES.includes(next.slotMinutes)) return { ok: false, code: 'invalid' };
   for (const [name, min, max] of NUMBER_FIELDS) {
@@ -530,9 +537,12 @@ async function updateConfig(input = {}, deps) {
 
   const current = await getConfig(d);
   const weeklyKey = w => JSON.stringify([...(w || [])].sort((a, b) => a.day - b.day).map(x => [x.day, x.open, x.close]));
-  const changed = ['enabled', 'slotMinutes', 'bufferMinutes', 'leadHours', 'horizonDays', 'weekly'].filter(name => (
-    name === 'weekly' ? weeklyKey(current.weekly) !== weeklyKey(next.weekly) : current[name] !== next[name]
-  ));
+  const changed = ['enabled', 'allowSameDay', 'slotMinutes', 'bufferMinutes', 'leadHours', 'horizonDays', 'weekly'].filter(name => {
+    if (name === 'weekly') return weeklyKey(current.weekly) !== weeklyKey(next.weekly);
+    // A stored document without allowSameDay counts as false (no DB migration needed).
+    if (name === 'allowSameDay') return Boolean(current.allowSameDay) !== next.allowSameDay;
+    return current[name] !== next[name];
+  });
   if (changed.length) {
     await d.BookingConfig.updateOne({ key: 'main' }, { $set: next }, { upsert: true });
   }

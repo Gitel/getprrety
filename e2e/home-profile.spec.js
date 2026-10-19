@@ -1,7 +1,11 @@
 // Baseline tests for Home, Profile (opened from Home) and the product camera, signed in with the
 // fixture analysis (Dana, "Barrier Healing Era", SR product routine, one AM step already ticked).
 //
-// These lock in what the app does TODAY. Notes for a junior developer:
+// These lock in what the app does TODAY, plus (TEST-FIRST: written before the feature exists, against
+// AI/plans/catalogue-recs-and-ai-admin-contract.md sections 3 and 6) the Home routine step photos, the
+// Home "My products" card and the Profile link to the new My products screen. The product audit / SR
+// ritual / shelf / market picks that used to live on Profile now live on My products: their tests moved
+// to e2e/my-products.spec.js and here Profile is asserted to NO LONGER contain them. Notes for a junior developer:
 //   - The app has no URLs: "navigation" is an in-memory stack, so we click through the UI.
 //   - The browser clock starts at 2026-09-29 09:00 UTC (morning) and keeps running, so Home says "Good morning",
 //     and the user's skincareTiming is 'morning', so Home opens on the Morning (AM) tab.
@@ -9,8 +13,8 @@
 //     ambiguous. Inside one screen, fixture strings are matched with exact: true, because
 //     Playwright's default text match is a case-insensitive substring.
 import { test, expect } from './support/test.js';
-import { TODAY, ANALYSIS } from './support/fixtures-data.js';
-import { openMenu, tapMenuItem, backButton, openHome, openProfileFromHome } from './support/nav.js';
+import { TODAY, ANALYSIS, PID } from './support/fixtures-data.js';
+import { openMenu, tapMenuItem, backButton, openHome } from './support/nav.js';
 
 test.use({ signedIn: true });
 
@@ -26,6 +30,15 @@ const NO_MATCH_NOTE = ANALYSIS.srProducts.am.find((s) => s.no_match_note).no_mat
 const messagesButton = (page, t, count) =>
   // exact: true, because the plain label "Messages" is a substring of "Messages, 1 unread".
   page.getByLabel(count ? t('home:messages.unread', { count }) : t('home:messages.label'), { exact: true });
+
+// Home -> "View my full analysis" -> Profile. nav.js's openProfileFromHome waits for the old Product
+// Audit title, which is leaving Profile, so this local helper waits for the Profile title instead
+// (that title exists before and after the change).
+async function openProfile(page, t) {
+  await openHome(page, t);
+  await page.getByText(t('home:viewAnalysis.title')).click();
+  await expect(page.getByText(t('profile:analysisTitle'))).toBeVisible();
+}
 
 // "1/3 steps complete" style progress line on Home.
 const progress = (t, done) => t('home:progress.steps', { count: 3, done, total: 3 });
@@ -173,6 +186,72 @@ test.describe('Home', () => {
   });
 });
 
+// Routine step photos (contract section 3, "Home steps"). A matched step (its sr_product_id is a
+// 24-hex catalogue id) shows a thumbnail `routine-step-photo-<productId>`; an unmatched step shows
+// `routine-step-photo-placeholder`. The catalogue answer comes from the mock (fixtures CATALOGUE).
+test.describe('Home routine step photos', () => {
+  test('AM: matched steps show their product thumbnail, the unmatched step a placeholder', async ({ page, t, mock }) => {
+    await openHome(page, t);
+    await expect(page.getByTestId(`routine-step-photo-${PID.cleanser}`)).toBeVisible();
+    await expect(page.getByTestId(`routine-step-photo-${PID.moisturizer}`)).toBeVisible();
+    // Step 3 (Sunscreen) has no product: exactly one placeholder on the AM list.
+    await expect(page.getByTestId('routine-step-photo-placeholder')).toHaveCount(1);
+    // The thumbnails come from an authed catalogue request carrying the matched ids.
+    await expect.poll(() => mock.callsTo('GET', '/api/catalogue/products').length).toBeGreaterThan(0);
+    const call = mock.callsTo('GET', '/api/catalogue/products')[0];
+    expect(call.authed).toBe(true);
+    expect(call.query.ids.split(',')).toEqual(expect.arrayContaining([PID.cleanser, PID.moisturizer]));
+  });
+
+  test('PM tab: the matched steps keep their thumbnails', async ({ page, t }) => {
+    await openHome(page, t);
+    await page.getByText(t('home:tabs.pm'), { exact: true }).click();
+    await expect(page.getByTestId(`routine-step-photo-${PID.cleanser}`)).toBeVisible();
+    await expect(page.getByTestId(`routine-step-photo-${PID.moisturizer}`)).toBeVisible();
+    // The PM serum step has a catalogue product but hasPhoto=false (fixtures), and the contract says
+    // a thumbnail needs hasPhoto, so exactly that one step shows the placeholder.
+    await expect(page.getByTestId(`routine-step-photo-${PID.serum}`)).toHaveCount(0);
+    await expect(page.getByTestId('routine-step-photo-placeholder')).toHaveCount(1);
+  });
+
+  test('a step with an old non-catalogue id (sr-clean) shows the placeholder and asks for no photo', async ({ page, t, mock }) => {
+    // An analysis saved before catalogue ids: ids that are not 24-hex must never reach the API.
+    const old = structuredClone(ANALYSIS);
+    old.srProducts.am[0].sr_product_id = 'sr-clean';
+    mock.set({ analysis: old });
+    await openHome(page, t);
+    await expect(page.getByText('Gentle Gel Cleanser', { exact: true })).toBeVisible();
+    await expect(page.getByTestId(`routine-step-photo-${PID.cleanser}`)).toHaveCount(0);
+    // Old step + unmatched sunscreen = 2 placeholders (the moisturizer step keeps its photo).
+    await expect(page.getByTestId('routine-step-photo-placeholder')).toHaveCount(2);
+    for (const c of mock.callsTo('GET', '/api/catalogue/products')) {
+      expect(c.query.ids.split(',')).not.toContain('sr-clean');
+    }
+  });
+});
+
+test.describe('Home "My products" card', () => {
+  test('shows the title and subtitle and opens the My products screen', async ({ page, t }) => {
+    await openHome(page, t);
+    const card = page.getByTestId('home-my-products-card');
+    await expect(card).toBeVisible();
+    await expect(card).toContainText(t('home:myProducts.title'));
+    await expect(card).toContainText(t('home:myProducts.subtitle'));
+    await card.click();
+    await expect(page.getByTestId('myproducts-hero')).toBeVisible();
+    // Home is gone (only the top screen is mounted).
+    await expect(page.getByText(t('home:greeting.morning'))).toHaveCount(0);
+  });
+
+  test('"View my full analysis" has the new subtitle (the product audit moved out of Profile)', async ({ page, t }) => {
+    await openHome(page, t);
+    // Literal on purpose: this is the contract text, and the locale file still holds the old one
+    // until the feature lands (t() would just echo the old text and the test would pass too early).
+    await expect(page.getByText('Your skin analysis and score', { exact: true })).toBeVisible();
+    await expect(page.getByText('Your skin analysis, product audit and product routine')).toHaveCount(0);
+  });
+});
+
 test.describe('Home entry points', () => {
   test('Messages button opens the Messages screen; returning Home refreshes the unread badge', async ({ page, t, mock }) => {
     await openHome(page, t);
@@ -197,7 +276,7 @@ test.describe('Home entry points', () => {
   });
 
   test('"View my full analysis" opens Profile', async ({ page, t }) => {
-    await openProfileFromHome(page, t);
+    await openProfile(page, t);
     await expect(page.getByText(t('profile:analysisTitle'))).toBeVisible();
     // Opened from Home: Profile has no Back control (its CTA / menu lead back).
     await expect(backButton(page, t)).toHaveCount(0);
@@ -210,7 +289,7 @@ test.describe('Home entry points', () => {
     // "My skin profile" lives in the side menu, not as a button on Home.
     await openMenu(page, t);
     await page.getByRole('button', { name: t('menu:mySkinProfile') }).click();
-    await expect(page.getByText(t('profile:audit.title'))).toBeVisible();
+    await expect(page.getByText(t('profile:analysisTitle'))).toBeVisible();
     await expect(page.getByRole('button', { name: t('menu:open') })).toBeVisible();
     await expect(backButton(page, t)).toHaveCount(0);
   });
@@ -238,7 +317,7 @@ test.describe('Home entry points', () => {
 
 test.describe('Profile (opened from Home)', () => {
   test('score section: eyebrow with the day number, title, "Start here" and the four signals', async ({ page, t }) => {
-    await openProfileFromHome(page, t);
+    await openProfile(page, t);
     // First reading 2026-09-15, "now" 2026-09-29 -> Day 15.
     await expect(page.getByText(t('score:eyebrow', { day: 15 }))).toBeVisible();
     await expect(page.getByText(t('score:title'))).toBeVisible();
@@ -250,7 +329,7 @@ test.describe('Profile (opened from Home)', () => {
   });
 
   test('a signal card expands when tapped (reading is ready)', async ({ page, t }) => {
-    await openProfileFromHome(page, t);
+    await openProfile(page, t);
     const card = page.getByRole('button', { name: new RegExp(t('score:signals.barrier')) });
     await expect(card).toHaveAttribute('aria-expanded', 'false');
     await card.click();
@@ -259,74 +338,41 @@ test.describe('Profile (opened from Home)', () => {
   });
 
   test('era, analysis text and key insights are shown', async ({ page, t }) => {
-    await openProfileFromHome(page, t);
+    await openProfile(page, t);
     await expect(page.getByText(t('profile:eraEyebrow'))).toBeVisible();
     await expect(page.getByText('Barrier Healing Era')).toBeVisible();
     await expect(page.getByText(t('profile:insightsTitle'))).toBeVisible();
     await expect(page.getByText('Barrier first: Calm the barrier before adding any strong actives.')).toBeVisible();
   });
 
-  test('product audit: horizontal tabs switch the items; picks are fetched once', async ({ page, t, mock }) => {
-    await openProfileFromHome(page, t);
-    // The four tabs, with the item counts from the fixture. First tab with items is "Remove".
-    const tabs = {
-      remove: t('profile:audit.remove', { count: 1 }),
-      replace: t('profile:audit.replace', { count: 1 }),
-      add: t('profile:audit.add', { count: 2 }),
-      keep: t('profile:audit.keep', { count: 1 }),
-    };
-    for (const label of Object.values(tabs)) await expect(page.getByText(label, { exact: true })).toBeVisible();
-
-    // Remove (default tab).
-    await expect(page.getByText('Physical scrubs damage a stressed barrier.')).toBeVisible();
-    // Replace: the reason and the recommended product card (price comes from the mock).
-    await page.getByText(tabs.replace, { exact: true }).click();
-    await expect(page.getByText('The current one leaves skin tight.')).toBeVisible();
-    await expect(page.getByText('$18', { exact: true })).toBeVisible();
-    await expect(page.getByText('Physical scrubs damage a stressed barrier.')).toHaveCount(0);
-    // Add: two items, with priorities and picks.
-    await page.getByText(tabs.add, { exact: true }).click();
-    await expect(page.getByText('Ceramide moisturizer', { exact: true })).toBeVisible();
-    await expect(page.getByText(t('profile:audit.priority.essential'), { exact: true })).toBeVisible();
-    await expect(page.getByText('$24', { exact: true })).toBeVisible();
-    // Keep.
-    await page.getByText(tabs.keep, { exact: true }).click();
-    await expect(page.getByText('Gentle and effective, keep using it every morning.')).toBeVisible();
-
-    // Product picks: one POST for the whole audit (not one per tab).
-    expect(mock.callsTo('POST', '/api/ai/product-recommendations')).toHaveLength(1);
-    expect(mock.lastCall('POST', '/api/ai/product-recommendations').authed).toBe(true);
-  });
-
-  test('SR routine tabs (Morning / Evening) switch the product steps', async ({ page, t }) => {
-    await openProfileFromHome(page, t);
-    await expect(page.getByText(t('profile:sr.title'))).toBeVisible();
-    await expect(page.getByText(t('profile:sr.heroBadge'))).toBeVisible();
-    // Morning is the default: the unmatched sunscreen slot shows Railway's note.
-    await expect(page.getByText(NO_MATCH_NOTE)).toBeVisible();
-    await expect(page.getByText('Hydra Calm Serum', { exact: true })).toHaveCount(0);
-
-    await page.getByText(t('profile:sr.evening'), { exact: true }).click();
-    await expect(page.getByText('Hydra Calm Serum', { exact: true })).toBeVisible();
+  test('product sections moved out: no audit, SR ritual, shelf or market picks, but a link to My products', async ({ page, t, mock }) => {
+    await openProfile(page, t);
+    // Those sections live on My products now (see e2e/my-products.spec.js).
+    await expect(page.getByText(t('profile:audit.title'))).toHaveCount(0);
+    await expect(page.getByText(t('profile:sr.title'))).toHaveCount(0);
+    await expect(page.getByText(t('profile:shelf.title'))).toHaveCount(0);
     await expect(page.getByText(NO_MATCH_NOTE)).toHaveCount(0);
-
-    await page.getByText(t('profile:sr.morning'), { exact: true }).click();
-    await expect(page.getByText(NO_MATCH_NOTE)).toBeVisible();
+    // Market picks are no longer requested by Profile either.
+    expect(mock.callsTo('POST', '/api/ai/product-recommendations')).toHaveLength(0);
+    // The link replaces them.
+    await expect(page.getByTestId('profile-my-products-link')).toBeVisible();
+    await expect(page.getByTestId('profile-my-products-link')).toContainText(t('profile:myProductsLink'));
   });
 
-  test('the shelf section lists the identified products', async ({ page, t }) => {
-    await openProfileFromHome(page, t);
-    await expect(page.getByText(t('profile:shelf.title'))).toBeVisible();
-    await expect(page.getByText(`Acme ${String.fromCharCode(0xb7)} Foaming Cleanser`)).toBeVisible();
-    await expect(page.getByText('Sulfates are too harsh for your barrier.')).toBeVisible();
+  test('the "My products" link opens the My products screen', async ({ page, t }) => {
+    await openProfile(page, t);
+    await page.getByTestId('profile-my-products-link').click();
+    await expect(page.getByTestId('myproducts-hero')).toBeVisible();
+    // Profile is gone (only the top screen is mounted).
+    await expect(page.getByText(t('profile:analysisTitle'))).toHaveCount(0);
   });
 
   test('the CTA goes back to Home (goBack) and Home is fully usable again', async ({ page, t }) => {
-    await openProfileFromHome(page, t);
+    await openProfile(page, t);
     await page.getByText(t('profile:cta')).click();
     // Back on Home; Profile is no longer mounted.
     await expect(page.getByText(t('home:greeting.morning'))).toBeVisible();
-    await expect(page.getByText(t('profile:audit.title'))).toHaveCount(0);
+    await expect(page.getByText(t('profile:analysisTitle'))).toHaveCount(0);
     // One Home only: a single greeting, and Home works (tabs still switch).
     await expect(page.getByText(t('home:greeting.morning'))).toHaveCount(1);
     await expect(backButton(page, t)).toHaveCount(0);

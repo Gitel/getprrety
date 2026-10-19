@@ -125,13 +125,13 @@ test('a fetch TypeError (network down) carries code "network"', async () => {
 
 test('stream mode parses split UTF-8 and CRLF events and emits only safe phases', async () => {
   const requestId = '59d9b74b-d8ba-4a22-93d9-f459439d7c30';
-  const text = `: heartbeat\r\nevent: progress\r\ndata: {"phase":"waiting","requestId":"${requestId}"}\r\n\r\nevent: progress\r\ndata: {"phase":"generating","requestId":"${requestId}"}\r\n\r\nevent: complete\r\ndata: {"requestId":"${requestId}","analysis":{"source":"bedrock","label":"é😀"}}\r\n\r\n`;
+  const text = `: heartbeat\r\nevent: progress\r\ndata: {"phase":"waiting","requestId":"${requestId}"}\r\n\r\nevent: progress\r\ndata: {"phase":"generating","requestId":"${requestId}"}\r\n\r\nevent: complete\r\ndata: {"requestId":"${requestId}","analysis":{"source":"anthropic","label":"é😀"}}\r\n\r\n`;
   const bytes = new TextEncoder().encode(text);
   global.fetch = jest.fn().mockResolvedValue(streamResponse([bytes.slice(0, 62), bytes.slice(62, 63), bytes.slice(63)]));
   const onProgress = jest.fn();
 
   await expect(api.post('/api/ai/analyze-skin', {}, { stream: true, onProgress }))
-    .resolves.toEqual({ source: 'bedrock', label: 'é😀' });
+    .resolves.toEqual({ source: 'anthropic', label: 'é😀' });
   expect(onProgress.mock.calls).toEqual([[{ phase: 'waiting', requestId }], [{ phase: 'generating', requestId }]]);
   expect(global.fetch.mock.calls[0][1].headers.Accept).toBe('text/event-stream, application/json');
 });
@@ -151,26 +151,26 @@ test('stream ending without a complete event rejects', async () => {
 });
 
 test('a complete event followed by an error rejects the whole stream', async () => {
-  const text = 'event: complete\ndata: {"analysis":{"source":"bedrock"}}\n\nevent: error\ndata: {"error":"Analysis failed","status":503}\n\n';
+  const text = 'event: complete\ndata: {"analysis":{"source":"anthropic"}}\n\nevent: error\ndata: {"error":"Analysis failed","status":503}\n\n';
   global.fetch = jest.fn().mockResolvedValue(streamResponse([new TextEncoder().encode(text)]));
   await expect(api.post('/api/ai/analyze-skin', {}, { stream: true })).rejects.toMatchObject({ message: 'Analysis failed', status: 503 });
 });
 
 test('duplicate complete events reject the whole stream', async () => {
-  const complete = 'event: complete\ndata: {"analysis":{"source":"bedrock"}}\n\n';
+  const complete = 'event: complete\ndata: {"analysis":{"source":"anthropic"}}\n\n';
   global.fetch = jest.fn().mockResolvedValue(streamResponse([new TextEncoder().encode(complete + complete)]));
   await expect(api.post('/api/ai/analyze-skin', {}, { stream: true })).rejects.toThrow('Duplicate analysis completion');
 });
 
 test('a complete event followed by an unterminated error frame rejects the stream', async () => {
-  const complete = 'event: complete\ndata: {"analysis":{"source":"bedrock"}}\n\n';
+  const complete = 'event: complete\ndata: {"analysis":{"source":"anthropic"}}\n\n';
   const truncatedError = 'event: error\ndata: {"error":"late failure"';
   global.fetch = jest.fn().mockResolvedValue(streamResponse([new TextEncoder().encode(complete + truncatedError)]));
   await expect(api.post('/api/ai/analyze-skin', {}, { stream: true })).rejects.toThrow('incomplete event');
 });
 
 test('an unterminated complete event is rejected', async () => {
-  const truncated = 'event: complete\ndata: {"analysis":{"source":"bedrock"}}';
+  const truncated = 'event: complete\ndata: {"analysis":{"source":"anthropic"}}';
   global.fetch = jest.fn().mockResolvedValue(streamResponse([new TextEncoder().encode(truncated)]));
   await expect(api.post('/api/ai/analyze-skin', {}, { stream: true })).rejects.toThrow('incomplete event');
 });
@@ -223,7 +223,7 @@ test('SSE heartbeats do not extend the fixed body deadline', async () => {
 test('the deadline remains active after complete until the stream reaches EOF', async () => {
   jest.useFakeTimers();
   const requestId = '59d9b74b-d8ba-4a22-93d9-f459439d7c30';
-  const complete = new TextEncoder().encode(`event: progress\ndata: {"phase":"validating","requestId":"${requestId}"}\n\nevent: complete\ndata: {"requestId":"${requestId}","analysis":{"source":"bedrock"}}\n\n`);
+  const complete = new TextEncoder().encode(`event: progress\ndata: {"phase":"validating","requestId":"${requestId}"}\n\nevent: complete\ndata: {"requestId":"${requestId}","analysis":{"source":"anthropic"}}\n\n`);
   global.fetch = jest.fn().mockResolvedValue({
     ok: true,
     status: 200,

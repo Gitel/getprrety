@@ -7,6 +7,7 @@ test('DEFAULTS: Sunday-Thursday 10:00-18:00, 30 min slots, no buffer, 12 h notic
     slotMinutes: 30,
     bufferMinutes: 0,
     leadHours: 12,
+    allowSameDay: false,
     horizonDays: 30,
     timeZone: 'Asia/Jerusalem',
     weekly: [0, 1, 2, 3, 4].map(day => ({ day, open: '10:00', close: '18:00' })),
@@ -23,6 +24,8 @@ test('a new document gets the defaults and the singleton key "main"', () => {
   expect(doc.bufferMinutes).toBe(0);
   expect(doc.leadHours).toBe(12);
   expect(doc.horizonDays).toBe(30);
+  // Same-day booking is off unless the admin ticks the box (a stored document without the field reads as off).
+  expect(doc.allowSameDay).toBe(false);
   expect(doc.timeZone).toBe('Asia/Jerusalem');
 });
 

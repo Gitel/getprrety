@@ -4,6 +4,7 @@ const {
   sanitizeProductAudit,
   sanitizeProductRecs,
   sanitizeKeyInsights,
+  sanitizeTextList,
   sanitizeSrProducts,
   sanitizeShelfAnalysis,
   LIMITS,
@@ -65,7 +66,7 @@ describe('sanitizeProductAudit', () => {
     });
     expect(out.keep).toEqual([{ product: 'Cleanser', reason: 'Gentle' }]);
     expect(out.remove).toEqual([{ product: 'Scrub', reason: 'Too harsh' }]);
-    expect(out.replace).toEqual([{ from: 'Toner', to: 'Essence', reason: 'Hydration' }]);
+    expect(out.replace).toEqual([{ from: 'Toner', to: 'Essence', reason: 'Hydration', to_product_id: null }]);
     expect(out.add).toEqual([
       { product: 'SPF', reason: 'Daily', priority: 'essential' },
       { product: 'Serum', reason: '', priority: 'recommended' },
@@ -214,4 +215,25 @@ describe('sanitizeShelfAnalysis', () => {
 test('SR step: clearing the product name also clears the id, so the app shows no_match_note', () => {
   const out = sanitizeSrProducts({ am: [{ routine_category: 'SPF', sr_product_id: 'sr-9', sr_product_name: '', no_match_note: 'Any SPF 50' }] });
   expect(out.am[0].sr_product_id).toBeNull();
+});
+
+describe('T5: replace.to_product_id and bounded text lists', () => {
+  const ID = 'a'.repeat(24);
+
+  test('to_product_id is kept next to its name, dropped without a name', () => {
+    const out = sanitizeProductAudit({ replace: [
+      { from: 'Toner', to: 'Peel', to_product_id: ID },
+      { from: 'Soap', to: '', to_product_id: ID }, // no name -> no id
+      { from: 'Gel', to: 'Cream', to_product_id: 42 }, // not a string -> null
+    ] });
+    expect(out.replace.map(r => r.to_product_id)).toEqual([ID, null, null]);
+  });
+
+  test('sanitizeTextList trims, drops blanks, caps item count and length, ignores non-arrays', () => {
+    expect(sanitizeTextList([' a ', '', '  ', 'b', 5, null, {}])).toEqual(['a', 'b', '5']);
+    const many = Array.from({ length: 50 }, (_, i) => `line ${i}`);
+    expect(sanitizeTextList(many)).toHaveLength(LIMITS.MAX_SAFETY_ITEMS);
+    expect(sanitizeTextList(['x'.repeat(900)])[0]).toHaveLength(LIMITS.MAX_SAFETY_TEXT);
+    ['x', null, {}, undefined].forEach(v => expect(sanitizeTextList(v)).toEqual([]));
+  });
 });

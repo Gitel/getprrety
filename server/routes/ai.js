@@ -2,15 +2,17 @@ const router = require('express').Router();
 const { randomUUID } = require('node:crypto');
 const requireAuth = require('../middleware/auth');
 const { consumeRateLimit } = require('../services/rateLimit');
-const { completeJson, BedrockError, TIMEOUT_MS } = require('../services/bedrock/client');
-const { loadCatalogue } = require('../services/bedrock/catalogue');
-const { prepareSkinRequest } = require('../services/bedrock/skinRequest');
+const { completeJson, AnthropicError } = require('../services/anthropic/client');
+const { loadCatalogue } = require('../services/anthropic/catalogue');
+const { prepareSkinRequest } = require('../services/anthropic/skinRequest');
+const { getActiveConfig } = require('../services/aiConfig/aiConfig');
+const { buildMarketPicksRequest } = require('../services/aiConfig/marketPicksRequest');
 const {
   validateOutput, sanitizeQuiz,
   allergiesFromQuiz, activeIrritantClasses, eligibilityLimitations, isPregnancyCaution,
-} = require('../services/bedrock/analysisContract');
-const { enforceAnalysisBudget } = require('../services/bedrock/analysisBudget');
-const { ANALYSIS_SERVER_TIMEOUT_MS, RESPONSE_RESERVE_MS, logAnalysisPhase } = require('../services/bedrock/analysisDeadline');
+} = require('../services/anthropic/analysisContract');
+const { enforceAnalysisBudget } = require('../services/anthropic/analysisBudget');
+const { ANALYSIS_SERVER_TIMEOUT_MS, RESPONSE_RESERVE_MS, logAnalysisPhase } = require('../services/anthropic/analysisDeadline');
 
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 const MAX_TOTAL_IMAGE_BYTES = 24 * 1024 * 1024;
@@ -45,7 +47,7 @@ function safeTelemetry(requestId, event) {
     if (Number.isSafeInteger(event[key]) && event[key] >= 0) record[key] = event[key];
   }
   if (Number.isFinite(event.estimatedCostUsd) && event.estimatedCostUsd >= 0) record.estimatedCostUsd = event.estimatedCostUsd;
-  if (typeof event.code === 'string' && /^(BEDROCK_[A-Z0-9_]+|ANALYSIS_[A-Z0-9_]+)$/.test(event.code)) record.code = event.code;
+  if (typeof event.code === 'string' && /^(ANTHROPIC_[A-Z0-9_]+|ANALYSIS_[A-Z0-9_]+)$/.test(event.code)) record.code = event.code;
   if (event.phase === 'usage' && event.usage) {
     const usage = event.usage;
     if ([usage.prompt_tokens, usage.completion_tokens, usage.prompt_tokens_details?.cached_tokens].every(value => Number.isSafeInteger(value) && value >= 0)) {
@@ -129,7 +131,7 @@ function decodeAnalysisImages(value) {
   });
 }
 
-// Pre-signup analysis spends provider tokens, so validate the minimized input and budget it before calling Bedrock.
+// Pre-signup analysis spends provider tokens, so validate the minimized input and budget it before the Anthropic call.
 router.post('/analyze-skin', async (req, res) => {
   if (res.writableEnded || res.destroyed || req.analysisDeadline?.disconnected) return;
   const wantsSse = isSseRequest(req);
@@ -186,18 +188,23 @@ router.post('/analyze-skin', async (req, res) => {
 
     const catalogue = await withSignal(loadCatalogue(), deadline.controller.signal);
     logAnalysisPhase(deadline, 'catalogue_loaded', { catalogueCount: Array.isArray(catalogue) ? catalogue.length : 0 });
-    const prompt = prepareSkinRequest({ quiz, language, images, catalogue });
+    // Admin-tunable guidance and limits (built-in defaults when none saved or the DB read fails).
+    const aiConfig = await withSignal(getActiveConfig('skin_analysis'), deadline.controller.signal);
+    const prompt = prepareSkinRequest({ quiz, language, images, catalogue, guidance: aiConfig.guidance });
     logAnalysisPhase(deadline, 'prompt_ready', {
       messageCount: Array.isArray(prompt.messages) ? prompt.messages.length : 0,
     });
-    const remainingMs = Math.min(TIMEOUT_MS, deadline.expiresAt - Date.now() - RESPONSE_RESERVE_MS);
-    if (remainingMs <= 0 || deadline.controller.signal.aborted) throw new BedrockError('BEDROCK_TIMEOUT', 504);
+    // The 85 s server deadline (analysisDeadline.js) still applies on top of the admin timeout.
+    const remainingMs = Math.min(aiConfig.limits.timeoutSec * 1000, deadline.expiresAt - Date.now() - RESPONSE_RESERVE_MS);
+    if (remainingMs <= 0 || deadline.controller.signal.aborted) throw new AnthropicError('ANTHROPIC_TIMEOUT', 504);
     logAnalysisPhase(deadline, 'provider_start');
     const output = await completeJson({
       ...prompt,
       stream: wantsSse,
       signal: deadline.controller.signal,
       timeoutMs: remainingMs,
+      maxOutputTokens: aiConfig.limits.maxOutputTokens,
+      maxCostUsd: aiConfig.limits.maxCostUsd,
       onEvent: providerEvent => {
         safeTelemetry(requestId, providerEvent);
         if (providerEvent.phase === 'first_content') event('progress', { phase: 'generating' });
@@ -206,21 +213,22 @@ router.post('/analyze-skin', async (req, res) => {
     if (wantsSse) event('progress', { phase: 'validating' });
     const validation = validateOutput(output, { quiz, language, images }, catalogue);
     // Synchronous schema/contract checks cannot be interrupted by AbortController timers.
-    if (deadline.controller.signal.aborted || Date.now() >= deadline.expiresAt) throw new BedrockError('BEDROCK_TIMEOUT', 504);
+    if (deadline.controller.signal.aborted || Date.now() >= deadline.expiresAt) throw new AnthropicError('ANTHROPIC_TIMEOUT', 504);
     if (validation.errors.length) {
-      logAnalysisPhase(deadline, 'semantic_invalid', { status: 502, code: 'BEDROCK_CONTRACT_INVALID' });
-      throw new BedrockError('BEDROCK_CONTRACT_INVALID');
+      logAnalysisPhase(deadline, 'semantic_invalid', { status: 502, code: 'ANTHROPIC_CONTRACT_INVALID' });
+      throw new AnthropicError('ANTHROPIC_CONTRACT_INVALID');
     }
     logAnalysisPhase(deadline, 'semantic_validated', { status: 200 });
     if (deadline.disconnected || res.destroyed) return;
-    if (wantsSse) { event('complete', { analysis: { ...output, source: 'bedrock' } }); return endSse(); }
-    return res.json({ ...output, source: 'bedrock' });
+    // Mark only validated provider output as Anthropic so persistence and support views can trace it.
+    if (wantsSse) { event('complete', { analysis: { ...output, source: 'anthropic' } }); return endSse(); }
+    return res.json({ ...output, source: 'anthropic' });
   } catch (error) {
     finishEvents();
     if (deadline.disconnected || res.destroyed) return;
     const errorCode = error?.message === 'INVALID_INPUT' ? 'INVALID_INPUT'
       : error?.message === 'Analysis budget is unavailable' ? 'ANALYSIS_UNAVAILABLE'
-        : (typeof error?.code === 'string' && /^(BEDROCK_[A-Z0-9_]+|ANALYSIS_[A-Z0-9_]+)$/.test(error.code) ? error.code : 'ANALYSIS_FAILED');
+        : (typeof error?.code === 'string' && /^(ANTHROPIC_[A-Z0-9_]+|ANALYSIS_[A-Z0-9_]+)$/.test(error.code) ? error.code : 'ANALYSIS_FAILED');
     const fallbackStatus = error?.message === 'INVALID_INPUT' ? 400
       : error?.message === 'Analysis budget is unavailable' ? 503
         : error?.name === 'AbortError' ? (deadline.controller.signal.reason === 'CANCELLED' ? 499 : 504) : 500;
@@ -232,9 +240,9 @@ router.post('/analyze-skin', async (req, res) => {
       if (wantsSse) { event('error', { error: 'Invalid analysis request', status: 400, code: 'INVALID_INPUT' }); return endSse(); }
       return res.status(400).json({ error: 'Invalid analysis request' });
     }
-    if (error instanceof BedrockError || error?.name === 'AbortError') {
-      const code = error.code || (deadline.controller.signal.reason === 'CANCELLED' ? 'BEDROCK_CANCELLED' : 'BEDROCK_TIMEOUT');
-      const status = error.status || (code === 'BEDROCK_CANCELLED' ? 499 : 504);
+    if (error instanceof AnthropicError || error?.name === 'AbortError') {
+      const code = error.code || (deadline.controller.signal.reason === 'CANCELLED' ? 'ANTHROPIC_CANCELLED' : 'ANTHROPIC_TIMEOUT');
+      const status = error.status || (code === 'ANTHROPIC_CANCELLED' ? 499 : 504);
       const message = status === 503 ? 'Analysis is unavailable' : 'Analysis provider failed';
       if (wantsSse) { event('error', { error: message, status, code }); return endSse(); }
       return res.status(status).json({ error: message });
@@ -285,14 +293,6 @@ router.post('/product-recommendations', requireAuth, async (req, res) => {
     const replace = Array.isArray(productAudit.replace) ? productAudit.replace.slice(0, 10) : [];
     if (!add.length && !replace.length) return res.json({ add: [], replace: [] });
 
-    const safeCountry = String(country).slice(0, 100);
-    const safeEra = String(eraName).slice(0, 100);
-    const needs = [
-      ...add.map((item, index) => `[add_${index}] [ADD] ${String(item.product || '').slice(0, 200)}`),
-      ...replace.map((item, index) =>
-        `[replace_${index}] [REPLACE] ${String(item.from || '').slice(0, 120)} with ${String(item.to || '').slice(0, 200)}`
-      ),
-    ].join('\n');
     const quiz = minimizedQuiz(req.body?.quizAnswers || req.body?.safetyContext || {});
     const safetyContext = {
       allergies: allergiesFromQuiz(quiz),
@@ -305,44 +305,25 @@ router.post('/product-recommendations', requireAuth, async (req, res) => {
       || hasReportedIngredientIrritant(quiz) || safetyContext.pregnancyCaution) {
       return res.json({ add: [], replace: [] });
     }
-    const recommendationSchema = {
-      type: 'object', additionalProperties: false, required: ['add', 'replace'],
-      properties: {
-        add: { type: 'array', maxItems: add.length, items: recommendationItemSchema(add.length) },
-        replace: { type: 'array', maxItems: replace.length, items: recommendationItemSchema(replace.length) },
-      },
-    };
-    const system = 'Recommend reputable skincare products sold in the requested country. Avoid products whose ingredients conflict with the supplied allergies, irritants, or pregnancy caution. Product ingredient lists are not supplied, so never claim a recommendation is allergy-safe or pregnancy-safe; if safety cannot be assessed, return an empty list for that item. Use only HTTPS URLs and return the requested strict JSON object.';
-    const messages = [{ role: 'user', content: `Country: ${safeCountry}\nSkin Era: ${safeEra}\nSafety context: ${JSON.stringify(safetyContext)}\nNeeds:\n${needs}` }];
+    // Admin-tunable guidance and limits (built-in defaults when none saved or the DB read fails).
+    const aiConfig = await getActiveConfig('market_picks');
+    const request = buildMarketPicksRequest({ add, replace, country, eraName, safetyContext, guidance: aiConfig.guidance });
     const parsed = await completeJson({
-      system,
-      messages,
-      schema: recommendationSchema,
-      schemaName: 'product_recommendations',
-      maxOutputTokens: 1_000,
+      ...request,
+      maxOutputTokens: aiConfig.limits.maxOutputTokens,
+      timeoutMs: aiConfig.limits.timeoutSec * 1000,
+      maxCostUsd: aiConfig.limits.maxCostUsd,
     });
     res.json({
       add: cleanRecommendationList(parsed?.add, add.length),
       replace: cleanRecommendationList(parsed?.replace, replace.length),
     });
   } catch (error) {
-    if (error instanceof BedrockError && error.status === 503) return res.status(503).json({ error: 'Recommendations are unavailable' });
+    if (error instanceof AnthropicError && error.status === 503) return res.status(503).json({ error: 'Recommendations are unavailable' });
     if (error?.message === 'INVALID_INPUT') return res.status(400).json({ error: 'Invalid recommendation request' });
     res.status(502).json({ error: 'Recommendation service failed' });
   }
 });
-
-function recommendationItemSchema(maxLength) {
-  return {
-    type: 'object', additionalProperties: false, required: ['index', 'rec'],
-    properties: {
-      index: { type: 'integer', minimum: 0, maximum: Math.max(0, maxLength - 1) },
-      rec: { type: 'object', additionalProperties: false, required: ['brand', 'name', 'price', 'url', 'retailer'], properties: {
-        brand: { type: 'string' }, name: { type: 'string' }, price: { type: 'string' }, url: { type: 'string' }, retailer: { type: 'string' },
-      } },
-    },
-  };
-}
 
 module.exports = router;
 // Also used by services/analysisFields.js to sanitize admin-edited product picks with

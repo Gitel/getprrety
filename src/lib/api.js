@@ -1,6 +1,7 @@
 import { getToken } from './auth';
 
-const BASE = process.env.VITE_API_URL || 'http://localhost:3001';
+// Exported so other modules (e.g. catalogueApi photo URLs) build URLs from the same base.
+export const BASE = process.env.VITE_API_URL || 'http://localhost:3001';
 
 // A stalled socket must never settle "never". Callers await this on paths the user
 // is watching — the app bootstrap behind the Splash spinner, the assessment save
@@ -175,4 +176,6 @@ export const api = {
   patch:  (path, body, opts) => request('PATCH',  path, body,      opts),
   put:    (path, body, opts) => request('PUT',    path, body,      opts),
   delete: (path, opts)       => request('DELETE', path, undefined, opts),
+  // Catalogue products for a list of ids (max 20 per call, see catalogueApi.js). -> { products: [...] }
+  catalogueProducts: ids => request('GET', `/api/catalogue/products?ids=${ids.join(',')}`),
 };

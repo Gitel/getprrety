@@ -30,11 +30,11 @@ function locationFromQuizAnswers(answers) {
   return { city, country, lat, lng, timezone };
 }
 
-// Reads the client's allowlisted provider claim so Bedrock provenance survives persistence.
+// Reads the client's allowlisted provider claim so provider provenance survives persistence.
 // Anything unexpected is stored as null ("unknown") rather than rejected: this is
 // diagnostic metadata, and it must never be the reason an assessment fails to save.
 function analysisSourceFromBody(body) {
-  const source = ['gemini', 'bedrock', 'fallback'].includes(body?.source) ? body.source : null;
+  const source = ['gemini', 'bedrock', 'anthropic', 'fallback'].includes(body?.source) ? body.source : null;
   // A reason only makes sense for a fallback; cap it so a long error cannot bloat the doc.
   const fallbackReason = source === 'fallback' && typeof body.fallbackReason === 'string' && body.fallbackReason.trim()
     ? body.fallbackReason.trim().slice(0, 200)

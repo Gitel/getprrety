@@ -16,6 +16,7 @@ import enSettings from './en/settings.json';
 import enCamera from './en/camera.json';
 import enNotifications from './en/notifications.json';
 import enBooking from './en/booking.json';
+import enProducts from './en/products.json';
 
 import heCommon from './he/common.json';
 import heMenu from './he/menu.json';
@@ -33,12 +34,13 @@ import heSettings from './he/settings.json';
 import heCamera from './he/camera.json';
 import heNotifications from './he/notifications.json';
 import heBooking from './he/booking.json';
+import heProducts from './he/products.json';
 
 // Every namespace i18next should know about. `eras` is Hebrew-only: the English era text stays
 // in the ERAS constant (src/constants.js), so it has no en file.
 export const NAMESPACES = [
   'common', 'menu', 'errors', 'auth', 'onboarding', 'quiz', 'home', 'content',
-  'eras', 'profile', 'score', 'messages', 'settings', 'camera', 'notifications', 'booking',
+  'eras', 'profile', 'score', 'messages', 'settings', 'camera', 'notifications', 'booking', 'products',
 ];
 
 // Shape i18next expects: { language: { namespace: { key: value } } }
@@ -59,6 +61,7 @@ export const resources = {
     camera: enCamera,
     notifications: enNotifications,
     booking: enBooking,
+    products: enProducts,
   },
   he: {
     common: heCommon,
@@ -77,5 +80,6 @@ export const resources = {
     camera: heCamera,
     notifications: heNotifications,
     booking: heBooking,
+    products: heProducts,
   },
 };

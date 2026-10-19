@@ -27,7 +27,7 @@
       <label>How to use it</label>
       <textarea data-path="use_instruction" maxlength="1000" rows="2"><%= p.use_instruction || '' %></textarea>
       <label>Swap with (SR product, optional)</label>
-      <input type="text" data-path="sr_substitute_name" maxlength="200" value="<%= p.sr_substitute_name || '' %>">
+      <%- include('_productPicker', { idPath: 'sr_substitute_product_id', namePath: 'sr_substitute_name', id: p.sr_substitute_product_id, name: p.sr_substitute_name }) %>
     </div>
 <% } %>
 <div class="card" id="shelf">
@@ -53,8 +53,8 @@
     </fieldset>
 
     <label>"Start here" (first SR purchase)</label>
-    <input type="text" data-path="shelfAnalysis.transition_plan.first_sr_purchase" maxlength="200"
-           value="<%= (shelf.transition_plan && shelf.transition_plan.first_sr_purchase) || '' %>">
+    <% var plan = shelf.transition_plan || {}; %>
+    <%- include('_productPicker', { idPath: 'shelfAnalysis.transition_plan.first_sr_purchase_product_id', namePath: 'shelfAnalysis.transition_plan.first_sr_purchase', id: plan.first_sr_purchase_product_id, name: plan.first_sr_purchase }) %>
 
     <p><button type="submit">Save shelf</button></p>
     <p class="editor-status muted"></p>

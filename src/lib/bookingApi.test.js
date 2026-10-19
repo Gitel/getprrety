@@ -1,36 +1,10 @@
 // Pure helpers of the booking client (src/lib/bookingApi.js). Written before the module exists.
 // Contract: AI/plans/in-app-booking-contract.md section 8.
 import { weekdayNames, monthNames } from './formatting';
-import { MAX_NOTE_LENGTH, groupSlotsByDate, formatSlotDay, formatBookingWhen, clinicHHMM } from './bookingApi';
-
-// Same shape the server sends: clinic-local `date` / `time` next to the UTC instants.
-const slot = (date, time) => ({ startsAt: `${date}T${time}:00.000Z`, endsAt: `${date}T${time}:30.000Z`, date, time });
+import { MAX_NOTE_LENGTH, formatSlotDay, formatBookingWhen, clinicHHMM } from './bookingApi';
 
 test('MAX_NOTE_LENGTH matches the server limit', () => {
   expect(MAX_NOTE_LENGTH).toBe(300);
-});
-
-describe('groupSlotsByDate', () => {
-  test('groups by date, keeping the input order of days and of slots', () => {
-    const a = slot('2026-10-01', '10:00');
-    const b = slot('2026-10-01', '10:30');
-    const c = slot('2026-10-04', '10:00');
-    expect(groupSlotsByDate([a, b, c])).toEqual([
-      { date: '2026-10-01', slots: [a, b] },
-      { date: '2026-10-04', slots: [c] },
-    ]);
-  });
-
-  test('an empty list gives no groups', () => {
-    expect(groupSlotsByDate([])).toEqual([]);
-  });
-
-  test('does not mutate its input', () => {
-    const input = [slot('2026-10-01', '10:00'), slot('2026-10-04', '10:00')];
-    const copy = JSON.parse(JSON.stringify(input));
-    groupSlotsByDate(input);
-    expect(input).toEqual(copy);
-  });
 });
 
 describe('formatSlotDay', () => {

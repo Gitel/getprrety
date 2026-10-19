@@ -27,6 +27,11 @@ const ACTIONS_THE_ROUTES_LOG = [
   'signin_link_sent',
   'invite_created',
   'booking_attention_handled',
+  'score_reading_updated',
+  'safety_updated',
+  'ai_config_published',
+  'ai_config_restored',
+  'ai_config_tested',
 ];
 
 test('the action enum accepts every action the routes log', () => {

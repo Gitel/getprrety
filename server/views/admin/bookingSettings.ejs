@@ -28,6 +28,9 @@
       <label for="bufferMinutes">Buffer between consultations (minutes)</label>
       <input type="number" id="bufferMinutes" name="bufferMinutes" min="0" max="60" value="<%= form.bufferMinutes %>">
 
+      <%# Off = nothing on today's clinic date can be booked (the earliest day is tomorrow). %>
+      <label for="allowSameDay"><input type="checkbox" id="allowSameDay" name="allowSameDay" value="1" <%= form.allowSameDay ? 'checked' : '' %>> Allow same-day booking</label>
+
       <label for="leadHours">Minimum notice (hours)</label>
       <input type="number" id="leadHours" name="leadHours" min="0" max="168" value="<%= form.leadHours %>">
 

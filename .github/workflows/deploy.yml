@@ -104,6 +104,26 @@ jobs:
               fi
             done
 
+            # Same idea for in-app booking: it only switches on when ALL of these are set
+            # (services/bookings.js isBookingEnabled), otherwise the "Book a consultation"
+            # menu item silently disappears. Names only are printed, never values, and a
+            # missing setting only warns: it must not block a code deploy.
+            # env_value NAME prints the value roughly the way dotenv reads it: the first
+            # NAME= line, without a Windows line ending, quotes or a trailing " # comment".
+            # It is only compared or tested for emptiness below, never printed.
+            env_value() {
+              grep -E "^$1=" .env | head -n 1 | cut -d= -f2- | tr -d "\r\"'" | sed -e 's/[[:space:]]#.*$//' -e 's/[[:space:]]*$//' || true
+            }
+            case "$(env_value BOOKING_ENABLED)" in
+              1|true) ;;
+              *) echo "::warning::BOOKING_ENABLED is not 1 in server/.env — in-app booking is disabled" ;;
+            esac
+            for var in GOOGLE_CALENDAR_ID GOOGLE_SERVICE_ACCOUNT_JSON_B64 SHOPIFY_STORE_URL SHOPIFY_CONSULTATION_VARIANT_ID SHOPIFY_WEBHOOK_SECRET; do
+              if [ -z "$(env_value "$var")" ]; then
+                echo "::warning::${var} is missing or empty in server/.env — in-app booking is disabled"
+              fi
+            done
+
             # Poll the app directly instead of curling the public hostname once.
             # `pm2 restart` returns before the process is listening and index.js only
             # calls app.listen() after Mongo connects, so a single immediate request

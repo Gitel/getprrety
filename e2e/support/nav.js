@@ -35,7 +35,7 @@ export async function openHome(page, t) {
 export async function openProfileFromHome(page, t) {
   await openHome(page, t);
   await page.getByText(t('home:viewAnalysis.title')).click();
-  await expect(page.getByText(t('profile:audit.title'))).toBeVisible();
+  await expect(page.getByText(t('profile:analysisTitle'))).toBeVisible();
 }
 
 // Boots on Home and opens Messages with the Home message button. Its label depends on the

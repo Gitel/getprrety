@@ -2,7 +2,7 @@
 // Every example below is worked out by hand in AI/plans/in-app-booking-contract.md section 3.
 // Reminder for the numbers: Israel is UTC+3 until 2026-10-25 02:00 local, then UTC+2 (DST ends);
 // DST starts again on Friday 2026-03-27 at 02:00 (clocks jump to 03:00).
-const { computeSlots, zonedToUtc, localParts, isDateString } = require('./slots');
+const { computeSlots, computeGrid, zonedToUtc, localParts, isDateString } = require('./slots');
 
 // Default clinic config: Sunday (0) to Thursday (4), 10:00-18:00, 30 min slots, no buffer.
 const DEFAULT_CONFIG = {
@@ -214,5 +214,158 @@ describe('localParts and isDateString', () => {
 
   test.each(['2026-13-01', '2026-02-30', '2026-1-1', 'abc', '', '2026-10-07T00:00', null, undefined, 20261007])('%p is not', s => {
     expect(isDateString(s)).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// computeGrid (free + taken) and the same-day rule
+// ---------------------------------------------------------------------------------------------
+describe('computeGrid: every offered time, with a `taken` flag', () => {
+  const grid = (over = {}) => computeGrid({
+    now: new Date('2026-10-07T06:00:00Z'),
+    fromDate: '2026-10-11',
+    toDate: '2026-10-11',
+    config: DEFAULT_CONFIG,
+    busy: [],
+    booked: [],
+    ...over,
+  });
+  const takenTimes = g => g.filter(s => s.taken).map(s => s.time);
+
+  test('with nothing blocked all 16 slots are free and carry the 5 fields', () => {
+    const g = grid();
+    expect(g).toHaveLength(16);
+    expect(g.every(s => s.taken === false)).toBe(true);
+    expect(Object.keys(g[0]).sort()).toEqual(['date', 'endsAt', 'startsAt', 'taken', 'time']);
+  });
+
+  test('a busy interval marks the overlapping slots taken (touching ones stay free)', () => {
+    const g = grid({ busy: [{ start: '2026-10-11T07:30:00Z', end: '2026-10-11T08:15:00Z' }] });
+    expect(g).toHaveLength(16); // nothing is dropped, only flagged
+    expect(takenTimes(g)).toEqual(['10:30', '11:00']);
+  });
+
+  test('a confirmed booking / live hold (the `booked` list) marks its slot taken', () => {
+    const g = grid({ booked: [{ startsAt: new Date('2026-10-11T09:00:00Z'), endsAt: new Date('2026-10-11T09:30:00Z') }] });
+    expect(takenTimes(g)).toEqual(['12:00']);
+  });
+
+  test('an expired hold is simply not passed in `booked`, so its slot is free', () => {
+    // The service filters expired holds out before calling; with an empty list nothing is taken.
+    expect(takenTimes(grid({ booked: [] }))).toEqual([]);
+  });
+
+  test('the buffer widens what counts as taken', () => {
+    const config = { ...DEFAULT_CONFIG, bufferMinutes: 15 };
+    // Busy 11:00-11:30 local with a 15 min buffer also blocks 10:30 (ends 11:00) and 11:30.
+    const g = grid({ config, busy: [{ start: '2026-10-11T08:00:00Z', end: '2026-10-11T08:30:00Z' }] });
+    expect(takenTimes(g)).toEqual(['10:30', '11:00', '11:30']);
+  });
+
+  test('times before the earliest bookable moment or on a closed day are in neither list', () => {
+    // now = Oct 11 08:00Z (11:00 local), lead 12 h: the earliest start is 23:00 local, after closing -> nothing.
+    expect(grid({ now: new Date('2026-10-11T08:00:00Z') })).toHaveLength(0);
+    // Friday (closed day) has no grid at all.
+    expect(grid({ fromDate: '2026-10-09', toDate: '2026-10-09' })).toHaveLength(0);
+  });
+
+  test('computeSlots equals the free part of computeGrid without `taken` (same inputs, same output)', () => {
+    const over = {
+      busy: [{ start: '2026-10-11T07:30:00Z', end: '2026-10-11T08:15:00Z' }],
+      booked: [{ startsAt: '2026-10-11T09:00:00Z', endsAt: '2026-10-11T09:30:00Z' }],
+    };
+    const expected = grid(over).filter(s => !s.taken).map(({ taken, ...rest }) => rest);
+    expect(run(over)).toEqual(expected);
+    expect(run(over)).toHaveLength(13);
+  });
+
+  test('every grid time appears once (a time is never both free and taken)', () => {
+    const g = grid({ busy: [{ start: '2026-10-11T07:30:00Z', end: '2026-10-11T08:15:00Z' }] });
+    expect(new Set(g.map(s => s.startsAt)).size).toBe(g.length);
+  });
+});
+
+describe('same-day rule (allowSameDay)', () => {
+  // Open every day 00:00-23:00 in 30 min slots so "which day does the first slot fall on" is
+  // decided by the rule, not by opening hours.
+  const allDay = (over = {}) => ({
+    ...DEFAULT_CONFIG,
+    weekly: [0, 1, 2, 3, 4, 5, 6].map(day => ({ day, open: '00:00', close: '23:00' })),
+    leadHours: 0,
+    ...over,
+  });
+  const from = (now, config, fromDate, toDate) => computeSlots({ now: new Date(now), fromDate, toDate, config });
+
+  test('ON (old behaviour): only the lead time applies, so later today is bookable', () => {
+    // now = Wed 2026-10-07 09:00 local (06:00Z), lead 0.
+    const slots = from('2026-10-07T06:00:00Z', allDay({ allowSameDay: true }), '2026-10-07', '2026-10-08');
+    expect(slots[0].startsAt).toBe('2026-10-07T06:00:00.000Z');
+    expect(slots.some(s => s.date === '2026-10-07')).toBe(true);
+  });
+
+  test('OFF: no slot on the clinic date of today, the first slot is tomorrow 00:00 local', () => {
+    const slots = from('2026-10-07T06:00:00Z', allDay({ allowSameDay: false }), '2026-10-07', '2026-10-08');
+    expect(slots.some(s => s.date === '2026-10-07')).toBe(false);
+    expect(slots[0]).toMatchObject({ date: '2026-10-08', time: '00:00', startsAt: '2026-10-07T21:00:00.000Z' });
+  });
+
+  test('OFF is the default when the flag is missing from the config', () => {
+    const config = allDay();
+    expect('allowSameDay' in config).toBe(false);
+    expect(from('2026-10-07T06:00:00Z', config, '2026-10-07', '2026-10-07')).toHaveLength(0);
+  });
+
+  test('OFF at 23:00 clinic time with lead 0: early slots of tomorrow are present', () => {
+    // 23:00 local on Oct 7 = 20:00Z. Plain now + 0 would start at 23:00 today; the rule jumps to tomorrow 00:00.
+    const slots = from('2026-10-07T20:00:00Z', allDay(), '2026-10-07', '2026-10-08');
+    expect(slots.some(s => s.date === '2026-10-07')).toBe(false);
+    expect(slots[0]).toMatchObject({ date: '2026-10-08', time: '00:00' });
+    expect(slots.slice(0, 3).map(s => s.time)).toEqual(['00:00', '00:30', '01:00']);
+  });
+
+  test('OFF: the lead time still applies on top (the later of the two wins)', () => {
+    // 09:00 local Oct 7 + 48 h = Oct 9 09:00 local, which is later than tomorrow 00:00.
+    const slots = from('2026-10-07T06:00:00Z', allDay({ leadHours: 48 }), '2026-10-07', '2026-10-10');
+    expect(slots[0]).toMatchObject({ date: '2026-10-09', time: '09:00' });
+  });
+
+  test('OFF also hides today in computeGrid (those times are not "taken", just not offered)', () => {
+    const g = computeGrid({ now: new Date('2026-10-07T06:00:00Z'), fromDate: '2026-10-07', toDate: '2026-10-07', config: allDay() });
+    expect(g).toHaveLength(0);
+  });
+
+  test('"today" is the CLINIC date, not the UTC date', () => {
+    // 22:30Z on Oct 7 is already 01:30 on Oct 8 in Israel, so the clinic date is Oct 8 and
+    // the first bookable slot is Oct 9 00:00 local (Oct 8 21:00Z).
+    const slots = from('2026-10-07T22:30:00Z', allDay(), '2026-10-07', '2026-10-09');
+    expect(slots[0]).toMatchObject({ date: '2026-10-09', time: '00:00', startsAt: '2026-10-08T21:00:00.000Z' });
+  });
+
+  describe('Asia/Jerusalem daylight saving days', () => {
+    test('day before spring forward: tomorrow 00:00 is Fri 2026-03-27 00:00 (+2) = 03-26T22:00Z', () => {
+      // now = Thu 2026-03-26 23:00 local (+2) = 21:00Z.
+      const slots = from('2026-03-26T21:00:00Z', allDay(), '2026-03-26', '2026-03-27');
+      expect(slots[0]).toMatchObject({ date: '2026-03-27', time: '00:00', startsAt: '2026-03-26T22:00:00.000Z' });
+    });
+
+    test('spring forward day as TODAY (23 h long): tomorrow 00:00 is 03-27T21:00Z (+3)', () => {
+      // now = Fri 2026-03-27 10:00 local (+3) = 07:00Z. Sat 03-28 00:00 local (+3) = Fri 21:00Z.
+      const slots = from('2026-03-27T07:00:00Z', allDay(), '2026-03-27', '2026-03-28');
+      expect(slots.some(s => s.date === '2026-03-27')).toBe(false);
+      expect(slots[0]).toMatchObject({ date: '2026-03-28', time: '00:00', startsAt: '2026-03-27T21:00:00.000Z' });
+    });
+
+    test('day before fall back: tomorrow 00:00 is Sun 2026-10-25 00:00 (+3) = 10-24T21:00Z', () => {
+      // now = Sat 2026-10-24 23:00 local (+3) = 20:00Z.
+      const slots = from('2026-10-24T20:00:00Z', allDay(), '2026-10-24', '2026-10-25');
+      expect(slots[0]).toMatchObject({ date: '2026-10-25', time: '00:00', startsAt: '2026-10-24T21:00:00.000Z' });
+    });
+
+    test('fall back day as TODAY (25 h long): tomorrow 00:00 is 10-25T22:00Z (+2)', () => {
+      // now = Sun 2026-10-25 10:00 local (+2) = 08:00Z. Mon 10-26 00:00 local (+2) = Sun 22:00Z.
+      const slots = from('2026-10-25T08:00:00Z', allDay(), '2026-10-25', '2026-10-26');
+      expect(slots.some(s => s.date === '2026-10-25')).toBe(false);
+      expect(slots[0]).toMatchObject({ date: '2026-10-26', time: '00:00', startsAt: '2026-10-25T22:00:00.000Z' });
+    });
   });
 });

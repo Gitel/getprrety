@@ -11,9 +11,8 @@
     "backfill:clinic": "node scripts/backfillClinicNotify.js"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "0.135.0",
     "@googleapis/calendar": "^20.1.0",
-    "@smithy/eventstream-codec": "^4.5.2",
-    "@smithy/util-utf8": "^4.5.2",
     "ajv": "8.20.0",
     "bcryptjs": "^2.4.3",
     "cookie-parser": "^1.4.7",

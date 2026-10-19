@@ -3,7 +3,7 @@
 // ONE route handler on the browser context sees every request the page makes:
 //   - the app's own origin (the vite preview server)   -> passed through untouched;
 //   - MOCK_API_ORIGIN (VITE_API_URL of the test build)  -> answered by handleApi() below;
-//   - the Bedrock analysis API route                     -> 503 (app uses its fallback plan) or held;
+//   - the Anthropic analysis API route                     -> 503 (app uses its fallback plan) or held;
 //   - Google Fonts CSS / Google Identity script         -> empty 200;
 //   - anything else                                     -> aborted and recorded as "blocked".
 //
@@ -19,6 +19,8 @@ export const MOCK_API_ORIGIN = 'http://api.e2e.test';
 const CHECKOUT_HOST = 'shop.e2e.test';
 const CHECKOUT_BASE = `https://${CHECKOUT_HOST}/cart/12345:1`;
 const HOLD_MINUTES = 15;
+// A valid 1x1 transparent PNG: what the mocked catalogue photo endpoint returns.
+const TINY_PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
 
 // Authorization must be listed by name: "*" does not cover it in a preflight.
 const CORS = {
@@ -53,7 +55,7 @@ function defaultState() {
     ticks: fx.PROGRESS_TICKS,                       // today's routine ticks; null -> nothing ticked
     user: { ...fx.USER },                           // the signed-in user (/auth/me, /profile, login)
     // In-app booking. slotTakenOnce: the NEXT POST answers 409 slot_taken (and drops that slot).
-    booking: { enabled: true, slots: fx.BOOKING_SLOTS.map(sl => ({ ...sl })), upcoming: null, past: [], slotTakenOnce: false },
+    booking: { enabled: true, slots: fx.BOOKING_SLOTS.map(sl => ({ ...sl })), taken: fx.BOOKING_TAKEN.map(sl => ({ ...sl })), upcoming: null, past: [], slotTakenOnce: false },
   };
 }
 
@@ -72,11 +74,23 @@ export function createMock({ appOrigin }) {
   const startedAt = Date.now();
   const nowIso = () => new Date(Date.parse(FIXED_ISO) + (Date.now() - startedAt)).toISOString();
 
-  // Puts the slot of a booking back into the free-slot list (kept sorted by start time).
+  // Keeps a slot list sorted by start time.
+  const byStart = (a, b) => a.startsAt.localeCompare(b.startsAt);
+  // Puts the slot of a booking back into the free-slot list (kept sorted by start time) and
+  // removes it from the "taken" list, so a time is only ever in one of the two lists.
   const releaseSlot = ({ startsAt, endsAt, date, time }) => {
+    state.booking.taken = state.booking.taken.filter(sl => sl.startsAt !== startsAt);
     if (state.booking.slots.some(sl => sl.startsAt === startsAt)) return;
-    state.booking.slots = [...state.booking.slots, { startsAt, endsAt, date, time }]
-      .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+    state.booking.slots = [...state.booking.slots, { startsAt, endsAt, date, time }].sort(byStart);
+  };
+  // The opposite move: a slot leaves the free list (held / booked by someone) and shows as taken.
+  const takeSlot = startsAt => {
+    const slot = state.booking.slots.find(sl => sl.startsAt === startsAt);
+    if (!slot) return;
+    state.booking.slots = state.booking.slots.filter(sl => sl.startsAt !== startsAt);
+    if (!state.booking.taken.some(sl => sl.startsAt === startsAt)) {
+      state.booking.taken = [...state.booking.taken, slot].sort(byStart);
+    }
   };
 
   const json = (route, status, body) => route.fulfill({
@@ -220,7 +234,7 @@ export function createMock({ appOrigin }) {
     if (key === 'GET /api/bookings/slots') {
       if (deny()) return undefined;
       if (!state.booking.enabled) return json(route, 404, { error: 'Booking is not available right now.', code: 'booking_disabled' });
-      return json(route, 200, { timeZone: 'Asia/Jerusalem', slots: state.booking.slots });
+      return json(route, 200, { timeZone: 'Asia/Jerusalem', slots: state.booking.slots, taken: state.booking.taken });
     }
     if (key === 'GET /api/bookings/mine') {
       if (deny()) return undefined;
@@ -237,7 +251,7 @@ export function createMock({ appOrigin }) {
       const slot = b.slots.find(sl => sl.startsAt === body.startsAt);
       if (b.slotTakenOnce) {
         // Someone else got there first: the slot disappears and the flag resets.
-        b.slots = b.slots.filter(sl => sl.startsAt !== body.startsAt);
+        takeSlot(body.startsAt);
         b.slotTakenOnce = false;
         return json(route, 409, { error: 'Sorry, that time was just taken. Please choose another.', code: 'slot_taken' });
       }
@@ -252,7 +266,7 @@ export function createMock({ appOrigin }) {
         checkoutUrl: `${CHECKOUT_BASE}?attributes%5Bgetpretty_booking%5D=booking-new&checkout%5Bemail%5D=${encodeURIComponent(state.user.email)}`,
       };
       b.upcoming = booking;
-      b.slots = b.slots.filter(sl => sl.startsAt !== body.startsAt);
+      takeSlot(body.startsAt);
       return json(route, 201, { booking, warning: state.analysis ? null : 'no_analysis' });
     }
 
@@ -291,6 +305,31 @@ export function createMock({ appOrigin }) {
     if (key === 'GET /api/cities/autocomplete') {
       const q = (url.searchParams.get('q') || '').toLowerCase();
       return json(route, 200, fx.CITIES.filter(c => c.city.toLowerCase().startsWith(q)));
+    }
+
+    // --- catalogue (contract section 1). Test a fetch failure with
+    //     mock.override('GET', '/api/catalogue/products', 500, { error: 'boom' }). ---
+    if (key === 'GET /api/catalogue/products') {
+      if (deny()) return undefined;
+      // 1-20 comma separated 24-hex ids, else 400 INVALID_IDS (like the real route).
+      const ids = String(url.searchParams.get('ids') || '').split(',');
+      if (ids.length < 1 || ids.length > 20 || !ids.every(id => /^[a-f0-9]{24}$/.test(id))) {
+        return json(route, 400, { error: 'INVALID_IDS' });
+      }
+      // Answer in the order of the request, drop duplicates and unknown ids.
+      const byId = new Map(fx.CATALOGUE.map(p => [p.id, p]));
+      const products = [...new Set(ids)].map(id => byId.get(id)).filter(Boolean);
+      return json(route, 200, { products });
+    }
+    // The photo route is PUBLIC (an <img> tag cannot send a Bearer token): no deny() here.
+    const photoMatch = /^GET \/api\/catalogue\/products\/([a-f0-9]{24})\/photo$/.exec(key);
+    if (photoMatch) {
+      const product = fx.CATALOGUE.find(p => p.id === photoMatch[1]);
+      if (!product || !product.hasPhoto) return json(route, 404, { error: 'Not found' });
+      return route.fulfill({
+        status: 200, headers: { ...CORS, 'Cache-Control': 'public, max-age=31536000, immutable' },
+        contentType: 'image/png', body: TINY_PNG,
+      });
     }
 
     // Unknown endpoint: answer 404 and remember it; the test fails at teardown.

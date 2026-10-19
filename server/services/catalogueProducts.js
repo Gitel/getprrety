@@ -27,7 +27,8 @@ const PREGNANCY_LABELS = { safe: 'Safe in pregnancy', avoid: 'Avoid in pregnancy
 
 // Fields edited from the form, in the order they are reported as "changed".
 const LIST_FIELDS = ['keyActives', 'strengths', 'suitableFor'];
-const FORM_FIELDS = ['name', 'category', 'use', 'pregnancy', ...LIST_FIELDS, 'ingredients'];
+const FORM_FIELDS = ['name', 'category', 'use', 'pregnancy', ...LIST_FIELDS, 'ingredients', 'price', 'shopUrl'];
+const MAX_SHOP_URL_CHARS = 500;
 
 /**
  * Turn a product name into its URL-safe identifier: lower-case, every run of characters
@@ -59,9 +60,35 @@ function oneOf(value, allowed) {
   return allowed.includes(v) ? v : '';
 }
 
+// Optional shop price. Blank -> { value: null }. Otherwise a plain number >= 0 with at most
+// 2 decimals ("129", "129.9", "129.90"); anything else (negative, 3 decimals, "1e3", "abc")
+// -> { error }. A regex is used instead of Number() so "1e3" or " 0x10" cannot sneak in.
+function parsePrice(value) {
+  const raw = value == null ? '' : String(value).trim();
+  if (!raw) return { value: null };
+  if (!/^\d+(\.\d{1,2})?$/.test(raw)) return { error: 'catalogue_invalid_price' };
+  return { value: Number(raw) };
+}
+
+// Optional shop link. Blank -> { value: null }. Otherwise it must be a valid URL that starts
+// with https:// (so javascript: / http: / bare domains are refused) and be <= 500 chars.
+function parseShopUrl(value) {
+  const raw = value == null ? '' : String(value).trim();
+  if (!raw) return { value: null };
+  if (raw.length > MAX_SHOP_URL_CHARS || !/^https:\/\//i.test(raw)) return { error: 'catalogue_invalid_shop_url' };
+  try {
+    if (!new URL(raw).hostname) return { error: 'catalogue_invalid_shop_url' };
+  } catch {
+    return { error: 'catalogue_invalid_shop_url' };
+  }
+  return { value: raw };
+}
+
 /**
  * Validate the admin form. Returns { product } (clean values for FORM_FIELDS only; unknown
- * keys such as _csrf are ignored) or { error: 'catalogue_invalid' }.
+ * keys such as _csrf are ignored) or { error: <notice code> }
+ * ('catalogue_invalid', 'catalogue_invalid_price' or 'catalogue_invalid_shop_url').
+ * The whole form is validated before anything is written.
  */
 function parseProductForm(body) {
   const src = body && typeof body === 'object' ? body : {};
@@ -71,6 +98,11 @@ function parseProductForm(body) {
   const use = oneOf(src.use, CatalogueProduct.USES);
   const pregnancy = oneOf(src.pregnancy, CatalogueProduct.PREGNANCY);
   if (!name || !category || !use || !pregnancy) return { error: 'catalogue_invalid' };
+
+  const price = parsePrice(src.price);
+  if (price.error) return { error: price.error };
+  const shopUrl = parseShopUrl(src.shopUrl);
+  if (shopUrl.error) return { error: shopUrl.error };
 
   return {
     product: {
@@ -82,6 +114,8 @@ function parseProductForm(body) {
       strengths: lines(src.strengths),
       suitableFor: lines(src.suitableFor),
       ingredients: text(src.ingredients, 5000),
+      price: price.value,
+      shopUrl: shopUrl.value,
     },
   };
 }
@@ -108,7 +142,7 @@ function sameValue(a, b) {
 
 /**
  * Create a product. The slug comes from the name (and follows it when the product is renamed).
- * Returns { ok: true, id, slug } or { ok: false, code: 'catalogue_invalid' | 'catalogue_name_taken' }.
+ * Returns { ok: true, id, slug } or { ok: false, code: 'catalogue_invalid' | 'catalogue_invalid_price' | 'catalogue_invalid_shop_url' | 'catalogue_name_taken' }.
  */
 async function createProduct(body, { productModel = CatalogueProduct } = {}) {
   const parsed = parseProductForm(body);

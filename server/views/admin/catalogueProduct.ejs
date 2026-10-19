@@ -66,6 +66,16 @@
       <textarea id="suitableFor" name="suitableFor"><%= values.suitableFor %></textarea>
       <p class="muted">One item per line.</p>
 
+      <label for="price">Price (ILS)</label>
+      <%# type="text" (not "number") so a bad value such as "abc" can be submitted and rejected by the
+          server with the price notice; inputmode gives a numeric keypad on phones. %>
+      <input type="text" inputmode="decimal" id="price" name="price" placeholder="0.00" value="<%= values.price %>">
+      <p class="muted">A number of 0 or more with up to 2 decimals; leave blank for no price.</p>
+
+      <label for="shopUrl">Shop link</label>
+      <input type="url" id="shopUrl" name="shopUrl" maxlength="500" placeholder="https://" value="<%= values.shopUrl %>">
+      <p class="muted">Shown with a Buy button in the app's My products screen; leave blank to hide the button.</p>
+
       <p><button type="submit"><%= isNew ? 'Create product' : 'Save' %></button></p>
     </form>
   </div>

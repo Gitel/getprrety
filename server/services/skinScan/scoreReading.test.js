@@ -1,13 +1,25 @@
 jest.mock('../../models/SkinScan', () => ({ findOneAndUpdate: jest.fn(), updateOne: jest.fn() }));
-jest.mock('../bedrock/client', () => ({ completeJson: jest.fn(), isConfigured: jest.fn() }));
-jest.mock('../bedrock/catalogue', () => {
-  const actual = jest.requireActual('../bedrock/catalogue');
+jest.mock('../anthropic/client', () => ({ completeJson: jest.fn(), isConfigured: jest.fn() }));
+jest.mock('../anthropic/catalogue', () => {
+  const actual = jest.requireActual('../anthropic/catalogue');
   return { ...actual, loadCatalogue: jest.fn(() => Promise.resolve(actual.loadSeedCatalogue())) };
 });
 
+jest.mock('../aiConfig/aiConfig', () => {
+  const actual = jest.requireActual('../aiConfig/aiConfig');
+  return {
+    ...actual,
+    getActiveConfig: jest.fn(async key => ({
+      guidance: actual.DEFAULTS[key].defaultGuidance, limits: { ...actual.DEFAULTS[key].defaultLimits },
+      versionId: null, source: 'default', savedBy: null, savedAt: null,
+    })),
+  };
+});
+
 const SkinScan = require('../../models/SkinScan');
-const { completeJson, isConfigured } = require('../bedrock/client');
-const { loadCatalogue } = require('../bedrock/catalogue');
+const { getActiveConfig } = require('../aiConfig/aiConfig');
+const { completeJson, isConfigured } = require('../anthropic/client');
+const { loadCatalogue } = require('../anthropic/catalogue');
 const {
   buildReadingRequest, sanitizeReading, readingStatusFor, maybeRequestReading, STALE_PENDING_MS,
 } = require('./scoreReading');
@@ -204,7 +216,7 @@ describe('maybeRequestReading', () => {
     expect(completeJson).not.toHaveBeenCalled();
   });
 
-  test('claims once, calls Bedrock once and stores the sanitized reading as ready', async () => {
+  test('claims once, calls Anthropic once and stores the sanitized reading as ready', async () => {
     const requestedAt = new Date(NOW);
     SkinScan.findOneAndUpdate.mockResolvedValue({ ...completeScan(), readingStatus: 'pending', readingRequestedAt: requestedAt });
     const providerOutput = goodBody();
@@ -226,6 +238,9 @@ describe('maybeRequestReading', () => {
       water_intake: 'less_1l', pregnancy_caution: false, allergies: ['none'], irritants: ['nothing'],
     });
     expect(request.timeoutMs).toBe(90_000);
+    expect(request.maxOutputTokens).toBe(2000);
+    expect(request.maxCostUsd).toBe(0.25);
+    expect(request.system).toContain('Write concise, supportive score-reading copy.');
 
     const [writeFilter, write] = SkinScan.updateOne.mock.calls[0];
     expect(writeFilter).toEqual({ _id: 'scan1', readingStatus: 'pending', readingRequestedAt: requestedAt });
@@ -235,6 +250,20 @@ describe('maybeRequestReading', () => {
       name: 'Herbal Cleansing Mousse', actives: expect.any(String), url: null,
     });
     expect(request.messages[0].content).toContain('eligible_catalogue');
+  });
+
+  test('saved guidance and limits reach the provider call', async () => {
+    SkinScan.findOneAndUpdate.mockResolvedValue({ ...completeScan(), readingStatus: 'pending', readingRequestedAt: new Date(NOW) });
+    completeJson.mockResolvedValue(goodBody());
+    getActiveConfig.mockResolvedValueOnce({
+      guidance: 'Use a warm tone.', limits: { timeoutSec: 45, maxOutputTokens: 900, maxCostUsd: 0.12 },
+      versionId: 'v1', source: 'saved', savedBy: 'admin@example.test', savedAt: new Date(),
+    });
+    await maybeRequestReading(completeScan(), NOW);
+    const request = completeJson.mock.calls[0][0];
+    expect(getActiveConfig).toHaveBeenCalledWith('score_reading');
+    expect(request.system).toContain('Clinic guidance:\nUse a warm tone.');
+    expect(request).toMatchObject({ timeoutMs: 45_000, maxOutputTokens: 900, maxCostUsd: 0.12 });
   });
 
   test('legacy scan without a safety marker still gets prose but no catalogue product suggestions', async () => {
@@ -280,7 +309,7 @@ describe('maybeRequestReading', () => {
 
   test.each([
     ['an empty response', () => completeJson.mockResolvedValue({ start_here: null, signals: [] })],
-    ['a network error / timeout', () => completeJson.mockRejectedValue(Object.assign(new Error('provider failure'), { code: 'BEDROCK_TIMEOUT' }))],
+    ['a network error / timeout', () => completeJson.mockRejectedValue(Object.assign(new Error('provider failure'), { code: 'ANTHROPIC_TIMEOUT' }))],
   ])('%s is stored as failed (final) without throwing', async (_, arrange) => {
     SkinScan.findOneAndUpdate.mockResolvedValue({ ...completeScan(), readingRequestedAt: new Date(NOW) });
     arrange();

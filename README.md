@@ -8,6 +8,18 @@ Get Pretty is a Vite React app packaged for iOS and Android with Capacitor.
 2. Run `npm install`.
 3. Start the web app with `npm run dev`.
 
+## AI features
+
+Skin analysis, scan score readings, product recommendations and admin AI tests use Claude
+Opus 5.5 through the official Anthropic SDK on the server. Set `ANTHROPIC_API_KEY` in `server/.env` (or the API
+host's environment) and install the dependencies in `server/`. Keep the key on the server.
+The API does not use AWS credentials for AI calls.
+
+The provider client counts tokens before generating, keeps the existing request spending
+and time limits, disables automatic SDK retries, and validates the complete JSON before
+returning a result. Existing saved Bedrock and Gemini results remain readable; new results
+are saved with `source: "anthropic"`.
+
 ## Native apps
 
 The `android/` and `ios/` folders are the checked-in Capacitor projects. After changing web code or Capacitor configuration, run:

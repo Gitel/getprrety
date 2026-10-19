@@ -1,15 +1,16 @@
 const SkinScan = require('../../models/SkinScan');
 const { computeSignals, SIGNAL_KEYS } = require('./signals');
-const { completeJson, isConfigured } = require('../bedrock/client');
-const { sanitizeQuiz, eligibleProducts } = require('../bedrock/analysisContract');
-const { loadCatalogue } = require('../bedrock/catalogue');
+const { completeJson, isConfigured } = require('../anthropic/client');
+const { sanitizeQuiz, eligibleProducts } = require('../anthropic/analysisContract');
+const { loadCatalogue } = require('../anthropic/catalogue');
+const { getActiveConfig, buildSystem } = require('../aiConfig/aiConfig');
 
 // The written half of the Profile score section ("Start here", and per signal: potential
-// score, weeks, what drags it, why, what moves it, shelf line, product). Bedrock writes it;
+// score, weeks, what drags it, why, what moves it, shelf line, product). Anthropic writes it;
 // this module asks once per complete scan and stores only the sanitized answer on the scan.
 //
 // Flow: GET /api/skin-scan/:id on a complete scan -> maybeRequestReading() claims the scan
-// (readingStatus null -> 'pending'), calls Bedrock in the background and writes 'ready' or
+// (readingStatus null -> 'pending'), calls Anthropic in the background and writes 'ready' or
 // 'failed'. Only scans somebody is looking at cost a provider call, and a claim left 'pending'
 // by a server restart is taken over by the next GET once it is STALE_PENDING_MS old.
 
@@ -174,7 +175,11 @@ const readingSchema = {
   },
 };
 
-async function callBedrock(scan) {
+// Everything the provider call needs for one scan, shared by production (callAnthropic) and the
+// admin test run (aiConfig/testRun.js) so both build exactly the same request.
+// `guidance` is the editable part of the system prompt. Returns the request, the eligible
+// catalogue (needed again to verify the answer) and the completeJson arguments.
+async function prepareReadingCall(scan, guidance, loadCatalogueImpl = loadCatalogue) {
   const request = buildReadingRequest(scan);
   const safeRequest = { ...request, quizAnswers: sanitizeQuiz(request.quizAnswers) };
   // The version marker is stored only for scans whose original quiz included the safety answers.
@@ -182,21 +187,29 @@ async function callBedrock(scan) {
     && hasCompleteSafetyAnswers(safeRequest.quizAnswers)
     && !hasReportedIngredientIrritant(safeRequest.quizAnswers);
   // Legacy snapshots may lack safety answers; still write score prose, but do not suggest products without explicit clearance.
-  const catalogue = safetyComplete ? eligibleProducts(await loadCatalogue(), safeRequest.quizAnswers) : [];
+  const catalogue = safetyComplete ? eligibleProducts(await loadCatalogueImpl(), safeRequest.quizAnswers) : [];
   safeRequest.eligible_catalogue = catalogue.map(product => ({
     name: product.name,
     keyActives: product.keyActives,
     ingredients: product.ingredients,
     pregnancy: product.pregnancy,
   }));
-  const output = await completeJson({
-    schema: readingSchema,
-    schemaName: 'skin_score_reading',
-    maxOutputTokens: 2_000,
-    system: `Write concise, supportive score-reading copy in ${request.language === 'he' ? 'Hebrew' : 'English'} using only supplied quiz and score data. Never diagnose or promise a score change. Only mention a product whose exact name and ingredients appear in eligible_catalogue; otherwise set product to null. Never invent a product URL. Return start_here and signals in the required JSON shape.`,
-    messages: [{ role: 'user', content: JSON.stringify(safeRequest) }],
-    timeoutMs: READING_TIMEOUT_MS,
-  });
+  return {
+    request,
+    catalogue,
+    call: {
+      schema: readingSchema,
+      schemaName: 'skin_score_reading',
+      // Locked rules + the admin guidance; the language line follows the scan's language.
+      system: buildSystem('score_reading', guidance, request.language),
+      messages: [{ role: 'user', content: JSON.stringify(safeRequest) }],
+    },
+  };
+}
+
+// Model JSON -> the stored reading. Only catalogue products the request offered survive
+// (matched by exact name); the product link is always dropped. Returns null when nothing is usable.
+function finishReading(output, request, catalogue) {
   const productsByName = new Map(catalogue.map(product => [product.name.trim().toLowerCase(), product]));
   const verifiedOutput = {
     ...output,
@@ -213,12 +226,25 @@ async function callBedrock(scan) {
       };
     }),
   };
-  const reading = sanitizeReading(verifiedOutput, request.scan.signals);
-  if (!reading) throw new Error('BEDROCK_READING_INVALID');
+  return sanitizeReading(verifiedOutput, request.scan.signals);
+}
+
+async function callAnthropic(scan) {
+  // Admin-tunable guidance and limits; falls back to the built-in defaults if the DB read fails.
+  const config = await getActiveConfig('score_reading');
+  const { request, catalogue, call } = await prepareReadingCall(scan, config.guidance);
+  const output = await completeJson({
+    ...call,
+    maxOutputTokens: config.limits.maxOutputTokens,
+    timeoutMs: config.limits.timeoutSec * 1000,
+    maxCostUsd: config.limits.maxCostUsd,
+  });
+  const reading = finishReading(output, request, catalogue);
+  if (!reading) throw new Error('ANTHROPIC_READING_INVALID');
   return reading;
 }
 
-// Asks Bedrock for the copy if this complete scan has none yet. Safe to call on every poll:
+// Asks Anthropic for the copy if this complete scan has none yet. Safe to call on every poll:
 // the cheap checks on the loaded doc skip the DB in the common case, and the atomic
 // findOneAndUpdate means concurrent polls can never start two paid calls for one scan.
 // Resolves true when this call made the request. Never throws for a provider failure.
@@ -245,7 +271,7 @@ async function maybeRequestReading(scan, now = Date.now()) {
 
   let reading = null;
   try {
-    reading = await callBedrock(claimed);
+    reading = await callAnthropic(claimed);
   } catch (err) {
     // Log only an error category; never include quiz answers, scores or upstream details.
     console.warn(`score-reading for scan ${claimed._id} failed: ${err.code || err.name || 'provider_error'}`);
@@ -266,7 +292,9 @@ module.exports = {
   buildReadingRequest,
   sanitizeReading,
   readingSchema,
-  callBedrock,
+  prepareReadingCall,
+  finishReading,
+  callAnthropic,
   readingStatusFor,
   maybeRequestReading,
 };

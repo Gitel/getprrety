@@ -22,14 +22,19 @@
   <% if (resent) { %>
     <div class="card" style="background: #eef4ea; color: #3f6b34;">Clinic notification re-sent.</div>
   <% } %>
+  <%# "Which reading is this" hint. Deliberately NOT class "notice": .notice is the one-off flash message after an action (the specs and the admin read it as such). %>
+  <style>
+    .scope-note { padding: 10px 14px; border-radius: 6px; margin-bottom: 18px; background: #eef4ea; color: #3f6b34; }
+    .scope-note.error { background: #fdeceb; color: #7f1d17; }
+  </style>
   <% if (locals.notice) { %>
     <div class="notice <%= notice.error ? 'error' : '' %>"><%= notice.text %></div>
   <% } %>
   <%# The app only ever reads a user's NEWEST analysis, so say which one this is. %>
   <% if (locals.isLatest) { %>
-    <div class="notice">This is the user's current skin reading: it is what the app shows. Edits reach the app the next time it refreshes.</div>
+    <div class="scope-note">This is the user's current skin reading: it is what the app shows. Edits reach the app the next time it refreshes.</div>
   <% } else if (user) { %>
-    <div class="notice error">This is an older skin reading. The app shows only the newest one, so edits here will not appear in the app.</div>
+    <div class="scope-note error">This is an older skin reading. The app shows only the newest one, so edits here will not appear in the app.</div>
   <% } %>
 
   <% if (allergies.length) { %>
@@ -67,8 +72,8 @@
       <% if (analysis.fallbackReason) { %><br><code><%= analysis.fallbackReason %></code><% } %>
     </div>
   <% } %>
-  <%# Show the provider explicitly so admins can distinguish a Bedrock result from a legacy one. %>
-  <% if (analysis.source === 'bedrock') { %><div class="ok">Analysis provider: Bedrock</div><% } %>
+  <%# Show current and legacy provider provenance so admins can distinguish saved results. %>
+  <% if (analysis.source === 'anthropic') { %><div class="ok">Analysis provider: Anthropic</div><% } else if (analysis.source === 'bedrock') { %><div class="ok">Analysis provider: Bedrock</div><% } %>
   <%- include('_edit_fields') %>
 
   <%- include('_edit_routine') %>
@@ -78,6 +83,13 @@
   <%- include('_edit_sr') %>
 
   <%- include('_edit_shelf') %>
+
+  <%# Score reading lives on the linked scan; only shown when that scan has one. %>
+  <% if (locals.reading) { %>
+    <%- include('_edit_reading') %>
+  <% } %>
+
+  <%- include('_edit_safety') %>
 
   <div class="card">
     <h2>Quiz answers</h2>

@@ -1,0 +1,22 @@
+<%#
+  Editor: safety flags and check-in prompts stored on the analysis (not shown in the app
+  yet, but kept for the clinic). One entry per line; blank lines are dropped.
+  Saves to POST /admin/customer/:id/edit/safety  (services/adminEdits.js SECTIONS.safety).
+  data-split="&#10;" makes _editor.ejs split the textarea on newlines into a list.
+%>
+<%
+  var flags = Array.isArray(analysis.safetyFlags) ? analysis.safetyFlags : [];
+  var prompts = Array.isArray(analysis.checkInPrompts) ? analysis.checkInPrompts : [];
+%>
+<div class="card" id="safety">
+  <h2>Safety flags and check-ins</h2>
+  <form data-json-editor action="/admin/customer/<%= analysis._id %>/edit/safety">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <label>Safety flags (one per line, max 20 lines of 500 characters)</label>
+    <textarea data-path="safetyFlags" data-split="&#10;" rows="4"><%= flags.join('\n') %></textarea>
+    <label>Check-in prompts (one per line, max 20 lines of 500 characters)</label>
+    <textarea data-path="checkInPrompts" data-split="&#10;" rows="4"><%= prompts.join('\n') %></textarea>
+    <p><button type="submit">Save safety</button></p>
+    <p class="editor-status muted"></p>
+  </form>
+</div>

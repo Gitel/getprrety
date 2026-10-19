@@ -9,6 +9,7 @@ const DEFAULTS = {
   slotMinutes: 30,
   bufferMinutes: 0,
   leadHours: 12,
+  allowSameDay: false,
   horizonDays: 30,
   timeZone: 'Asia/Jerusalem',
   weekly: [0, 1, 2, 3, 4].map(day => ({ day, open: '10:00', close: '18:00' })),
@@ -24,6 +25,9 @@ const bookingConfigSchema = new mongoose.Schema({
   bufferMinutes: { type: Number, min: 0, max: 60, default: DEFAULTS.bufferMinutes },
   leadHours:     { type: Number, min: 0, max: 168, default: DEFAULTS.leadHours },
   horizonDays:   { type: Number, min: 1, max: 30, default: DEFAULTS.horizonDays },
+  // false = nothing on today's clinic date is bookable (earliest is tomorrow 00:00). A stored
+  // document without this field reads as false.
+  allowSameDay:  { type: Boolean, default: DEFAULTS.allowSameDay },
   // Not editable from the admin page.
   timeZone:      { type: String, default: DEFAULTS.timeZone },
   weekly: {
