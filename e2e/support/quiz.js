@@ -17,13 +17,15 @@ const text = (page, value) => page.getByText(value, { exact: true });
 //   multi with groups, priority (top concern), hormones, slider, event, event date,
 //   photos (skipped), shelf (skipped), completion.
 // Each step first waits for its own question text, so it never clicks on the previous screen.
-export async function walkQuizToLoading(page, t, { skipHormones = false } = {}) {
+// startCta: the locale key of the button that starts the quiz (QuizIntro by default; a clinic
+// Welcome screen such as ?ref=consultation passes its own, e.g. 'onboarding:welcome.consultation.cta').
+export async function walkQuizToLoading(page, t, { skipHormones = false, startCta = 'quiz:welcome.cta' } = {}) {
   const q = id => text(page, t(`quiz:${id}.question`, nameVars));
   const opt = (id, value) => text(page, t(`quiz:${id}.options.${value}.label`));
   const cta = key => text(page, t(`quiz:ui.${key}`));
 
-  // QuizIntro -> first question
-  await text(page, t('quiz:welcome.cta')).click();
+  // QuizIntro (or a clinic Welcome) -> first question
+  await text(page, t(startCta)).click();
 
   // name: text input. Its CTA is always enabled.
   await expect(q('name')).toBeVisible();

@@ -55,7 +55,8 @@ function defaultState() {
     ticks: fx.PROGRESS_TICKS,                       // today's routine ticks; null -> nothing ticked
     user: { ...fx.USER },                           // the signed-in user (/auth/me, /profile, login)
     // In-app booking. slotTakenOnce: the NEXT POST answers 409 slot_taken (and drops that slot).
-    booking: { enabled: true, slots: fx.BOOKING_SLOTS.map(sl => ({ ...sl })), taken: fx.BOOKING_TAKEN.map(sl => ({ ...sl })), upcoming: null, past: [], slotTakenOnce: false },
+    // shopifyConsultation: a consultation bought directly in Shopify (same shape as GET /mine), or null.
+    booking: { enabled: true, slots: fx.BOOKING_SLOTS.map(sl => ({ ...sl })), taken: fx.BOOKING_TAKEN.map(sl => ({ ...sl })), upcoming: null, past: [], shopifyConsultation: null, slotTakenOnce: false },
   };
 }
 
@@ -238,7 +239,10 @@ export function createMock({ appOrigin }) {
     }
     if (key === 'GET /api/bookings/mine') {
       if (deny()) return undefined;
-      return json(route, 200, { upcoming: state.booking.upcoming, past: state.booking.past });
+      const { upcoming, past, shopifyConsultation = null } = state.booking;
+      // canBook: same rule as server/services/bookings.js listMine.
+      const canBook = !upcoming && !(shopifyConsultation && shopifyConsultation.appointment);
+      return json(route, 200, { upcoming, past, shopifyConsultation, canBook });
     }
     if (key === 'POST /api/bookings') {
       if (deny()) return undefined;
