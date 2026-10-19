@@ -388,4 +388,30 @@ test.describe('bookings', () => {
     expect(sameDay.status()).toBe(422);
     expect((await sameDay.json()).code).toBe('slot_invalid');
   });
+
+  // 16. Same-day checkbox + an invalid notice value. Nothing is saved (400), so later specs see the
+  // settings of test 15 (same-day OFF).
+  test('16. ticking "Allow same-day booking" with minimum notice 999 gives 400 and keeps the box ticked', async ({ page, context }) => {
+    await signIn(context);
+    await page.goto('/admin/booking-settings');
+    await page.getByLabel('Allow same-day booking').check();
+    await page.getByLabel('Minimum notice (hours)').fill('999');
+    // The number input has max=168, so the browser would block the submit: switch its own validation off
+    // to reach the SERVER check (the server must refuse 999 on its own).
+    await page.locator('form').evaluateAll(forms => forms.forEach(f => { f.noValidate = true; }));
+    const [response] = await Promise.all([
+      page.waitForResponse(res => res.url().endsWith('/admin/booking-settings') && res.request().method() === 'POST'),
+      page.getByRole('button', { name: 'Save settings' }).click(),
+    ]);
+    expect(response.status()).toBe(400);
+    await expect(notice(page)).toHaveText(
+      'Please check the settings: times must be HH:MM, closing after opening, and the numbers within range.'
+    );
+    // The form comes back with what was typed, including the ticked box.
+    await expect(page.getByLabel('Allow same-day booking')).toBeChecked();
+    await expect(page.getByLabel('Minimum notice (hours)')).toHaveValue('999');
+    // Nothing was saved: a fresh load still has the box unticked.
+    await page.goto('/admin/booking-settings');
+    await expect(page.getByLabel('Allow same-day booking')).not.toBeChecked();
+  });
 });

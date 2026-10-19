@@ -2,9 +2,10 @@
 // the horizontal day chips + time chips were replaced by a Month / Week / Day calendar (new cases in
 // booking-calendar.spec.js). The contract keeps testID booking-day-<date> on AVAILABLE day cells and
 // booking-slot-<HH:MM> on FREE rows, so nearly every case below is unchanged. What changed here:
-//   - the two radiogroup assertions "pick a day" / "pick a time" (the old chip groups) were removed:
-//     the new layout has no such groups; the checked-radio count (exactly one: the focus day cell)
-//     and the three free rows are still asserted.
+//   - the two radiogroup assertions "pick a day" / "pick a time" are KEPT: the Month view wraps its
+//     date cells in a radiogroup labelled "pick a day" and the day schedule is a radiogroup labelled
+//     "pick a time" (T6 fix M1), so the checked-radio count (exactly one: the focus day cell) and
+//     the three free rows are asserted as before.
 //   - test title "...and the day chips" now says "day cells".
 // Taken times now show as booking-taken-<HH:MM> rows (not booking-slot-*), so slotButtons() still
 // counts only FREE rows.
@@ -83,7 +84,9 @@ test.describe('opening and the picker (English)', () => {
     await expect(page.getByTestId('booking-day-2026-10-04')).toHaveAttribute('aria-checked', 'false');
     // The focus day cell is a radio, so a screen reader announces it as selected (free rows are unchecked radios).
     await expect(page.getByRole('radio', { checked: true })).toHaveCount(1);
-    // (2026-10-19: the old day / time radiogroups are gone with the chip layout, see the header.)
+    // N-4: the date cells and the time rows are two separate labelled radio groups.
+    await expect(page.getByRole('radiogroup', { name: t('booking:pickDay') })).toHaveCount(1);
+    await expect(page.getByRole('radiogroup', { name: t('booking:pickTime') })).toHaveCount(1);
     // Day 1 has three times (24 h, clinic time), none selected.
     await expect(slotButtons(page)).toHaveCount(3);
     for (const time of ['10:00', '10:30', '11:00']) {

@@ -104,6 +104,7 @@ test.describe('Month view (English)', () => {
     await expect(confirmBtn(page)).toHaveAttribute('aria-disabled', 'true');
   });
 
+  // (The same-day guarantee itself, i.e. why today is never offered, is covered by the server tests.)
   test('today (2026-09-29) is never an available cell; it is "off" when September is shown', async ({ page, t }) => {
     await openBooking(page, t);
     await tid(page, 'booking-month-prev').click();
@@ -147,6 +148,12 @@ test.describe('Week view (English)', () => {
     await expect(tid(page, 'booking-week-label')).toHaveText('27 Sep - 3 Oct');
     await expect(tid(page, 'booking-week-cell-2026-10-01-10:00')).toBeVisible();
     await expect(tid(page, 'booking-week-taken-2026-10-01-11:30')).toBeVisible();
+    // Cells have no text, so they carry spoken labels: free = day + time, taken = day + time + "Taken".
+    await expect(tid(page, 'booking-week-taken-2026-10-01-11:30')).toHaveAttribute('aria-label', /Taken$/);
+    await expect(tid(page, 'booking-week-cell-2026-10-01-10:00')).toHaveAttribute('aria-label', /Thu, 1 October, 10:00 AM/);
+    // Legend under the grid: free swatch + "Available", grey swatch + "Taken".
+    await expect(tid(page, 'booking-week-legend')).toContainText(EN.available);
+    await expect(tid(page, 'booking-week-legend')).toContainText(EN.taken);
     // A taken cell is not pressable: tapping it picks nothing.
     await tid(page, 'booking-week-taken-2026-10-01-11:30').click();
     await expect(tid(page, 'booking-selected')).toHaveCount(0);
@@ -261,6 +268,16 @@ test.describe('Hebrew (RTL)', () => {
     await expect(tid(page, 'booking-legend')).toContainText(HE.legendFull);
     await expect(tid(page, 'booking-month-prev')).toHaveAttribute('aria-label', HE.prevMonth);
 
+    // Mirroring: in RTL Sunday is the right-most column, so Sun 4 Oct is to the RIGHT of Mon 5 Oct,
+    // and the "previous month" arrow is to the right of the "next month" arrow.
+    const box = async id => (await tid(page, id).boundingBox());
+    const sun = await box('booking-day-2026-10-04');
+    const mon = await box('booking-day-full-2026-10-05');
+    expect(sun.x).toBeGreaterThan(mon.x);
+    const prev = await box('booking-month-prev');
+    const next = await box('booking-month-next');
+    expect(prev.x).toBeGreaterThan(next.x);
+
     // Rows: free = "פנוי", taken = "תפוס", 24 h times without AM/PM.
     await expect(tid(page, 'booking-slot-10:00')).toContainText(HE.available);
     await expect(tid(page, 'booking-slot-10:00')).toContainText('10:00');
@@ -276,8 +293,11 @@ test.describe('Hebrew (RTL)', () => {
     await openBooking(page, tHe);
     await tid(page, 'booking-view-week').click();
     await expect(tid(page, 'booking-week-cell-2026-10-01-10:00')).toBeVisible();
-    await expect(tid(page, 'booking-week-cell-2026-10-01-10:00')).not.toContainText(/AM|PM/);
+    // The spoken labels use the Hebrew texts and 24 h times.
+    await expect(tid(page, 'booking-week-cell-2026-10-01-10:00')).toHaveAttribute('aria-label', /10:00/);
+    await expect(tid(page, 'booking-week-cell-2026-10-01-10:00')).not.toHaveAttribute('aria-label', /AM|PM/);
     await expect(tid(page, 'booking-week-taken-2026-10-01-11:30')).toBeVisible();
+    await expect(tid(page, 'booking-week-taken-2026-10-01-11:30')).toHaveAttribute('aria-label', new RegExp(HE.taken + '$'));
 
     await tid(page, 'booking-view-day').click();
     await expect(tid(page, 'booking-dayview-next')).toHaveAttribute('aria-label', HE.nextDay);
