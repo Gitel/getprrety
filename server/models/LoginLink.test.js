@@ -32,10 +32,10 @@ test('invite email is lowercased and trimmed, language is en|he', () => {
   expect(new LoginLink({ ...valid(), invite: { language: 'fr' } }).validateSync()).toBeDefined();
 });
 
-test('userId references User; timestamps on; LIFETIME_HOURS is 72', () => {
+test('userId references User; timestamps on; LIFETIME_HOURS is 7 days', () => {
   expect(LoginLink.schema.path('userId').options.ref).toBe('User');
   expect(LoginLink.schema.path('createdAt')).toBeDefined();
-  expect(LoginLink.LIFETIME_HOURS).toBe(72);
+  expect(LoginLink.LIFETIME_HOURS).toBe(168);
 });
 
 describe('indexes', () => {

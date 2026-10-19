@@ -16,6 +16,8 @@ const Booking = require('../models/Booking');
 // Sign-in / invite links issued for the user.
 const LoginLink = require('../models/LoginLink');
 const { releaseUserBookings } = require('./bookings');
+// Consultations bought directly in Shopify are stored by EMAIL, not userId (see the step below).
+const { deleteForEmail: deleteShopifyOrdersOf } = require('./shopifyConsultations');
 
 // Every collection that stores a document per user, keyed by `userId`. When a new
 // per-user model is added, it must be added here too, or deleting a user leaves it behind.
@@ -27,10 +29,12 @@ const USER_DATA = { SkinAnalysis, SkinScan, Upload, CheckIn, ProductLog, Activit
 /**
  * @param {string} id               The user's id.
  * @param {string} confirmEmail     What the admin typed; must equal the account email.
- * @param {object} [deps]           { userModel, dataModels, releaseBookings } - injected for tests.
+ * @param {object} [deps]           { userModel, dataModels, releaseBookings, deleteShopifyOrders } - injected for tests.
  * @returns {{ ok: true, counts: object } | { ok: false, code: 'user_notfound' | 'delete_confirm_mismatch' }}
  */
-async function deleteUserAndData(id, confirmEmail, { userModel = User, dataModels = USER_DATA, releaseBookings = releaseUserBookings } = {}) {
+async function deleteUserAndData(id, confirmEmail, {
+  userModel = User, dataModels = USER_DATA, releaseBookings = releaseUserBookings, deleteShopifyOrders = deleteShopifyOrdersOf,
+} = {}) {
   if (!mongoose.isValidObjectId(id)) return { ok: false, code: 'user_notfound' };
   const user = await userModel.findById(id).select('email').lean();
   if (!user) return { ok: false, code: 'user_notfound' };
@@ -58,6 +62,10 @@ async function deleteUserAndData(id, confirmEmail, { userModel = User, dataModel
     const result = await model.deleteMany({ userId: user._id });
     counts[name] = (result && result.deletedCount) || 0;
   }
+  // Shopify consultation orders are keyed by the account EMAIL (user decision 2026-10-19: they go
+  // with the account, like bookings). Same gate as the release step: tests with fake models skip it.
+  // An error here is thrown like the deletes above, so the account stays and the admin can retry.
+  if (dataModels.Booking) await deleteShopifyOrders(user.email);
   await userModel.deleteOne({ _id: user._id });
   return { ok: true, counts };
 }

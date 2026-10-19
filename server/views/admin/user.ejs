@@ -113,6 +113,24 @@
     <% } %>
   </div>
 
+  <%# Consultations bought directly in the Shopify store (not through the app). The appointment
+      time is found in the clinic calendar by the order email every 5 minutes. Times are clinic-local. %>
+  <div class="card" id="shopify-consultations">
+    <h2>Shopify consultations</h2>
+    <% if (!locals.shopifyOrders || !shopifyOrders.length) { %>
+      <p class="muted">No consultation bought directly in Shopify with this email.</p>
+    <% } else { %>
+      <ul>
+        <% shopifyOrders.forEach(function (o) { %>
+          <li data-order-id="<%= o.orderId %>">Order <%= o.orderName || o.orderId %>, paid <%= o.paidAt %> -
+            <% if (o.appointment) { %>appointment <strong><%= o.appointment %></strong><% } else { %><span class="muted">appointment not found in the calendar yet</span><% } %>
+          </li>
+        <% }); %>
+      </ul>
+      <p class="muted">Matched by the order email. If the customer used another email on the appointment page, no time shows here.</p>
+    <% } %>
+  </div>
+
   <%# Two-way in-app messages. The user sees admin messages as "Your clinic" in the app's
       Messages screen; which admin wrote each one is shown only here. %>
   <div class="card" id="messages">

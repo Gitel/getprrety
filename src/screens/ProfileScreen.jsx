@@ -12,6 +12,8 @@ import FallbackBanner from '../components/FallbackBanner';
 import ScoreSection from '../components/ScoreSection';
 import { MenuButton } from '../components/SideMenu';
 import { eraText, analysisAffirmation } from '../lib/eraText';
+import { fetchBookingConfig, fetchMine } from '../lib/bookingApi';
+import { getWelcomeRef, CONSULTATION_REF } from '../lib/welcomeVariants';
 
 // U+2068 / U+2069 (first-strong isolate) around a value interpolated into a sentence, so a Latin
 // value cannot reorder the surrounding Hebrew. Invisible in English.
@@ -64,6 +66,24 @@ export default function ProfileScreen({ navigation, route }) {
     // Depends on scanSettled rather than the skinScan object, so a 'pending' result does not
     // restart this loop (and its attempt cap) on every poll.
   }, [analysis?.skinScanId, scanSettled, answers?.skinScanId, answers?.skinScanToken]);
+
+  // "Book a consultation" button under the main button: every skin analysis ends with the option
+  // to book (plan AI/plans/shopify-consultation-link.md, D2/D5). Hidden (false) until we know:
+  //  - signed out: shown, EXCEPT for the Shopify link (?ref=consultation) - those customers already
+  //    paid for a consultation. (Booking needs an account, so the tap goes through SignUp.)
+  //  - signed in: shown when booking is switched on AND the server says canBook (no upcoming in-app
+  //    booking and no Shopify appointment that has not ended yet).
+  //  - any network error: not shown (the side menu still has "Book a consultation").
+  const [showBook, setShowBook] = useState(false);
+  useEffect(() => {
+    if (!user) { setShowBook(getWelcomeRef() !== CONSULTATION_REF); return undefined; }
+    let cancelled = false;
+    Promise.all([fetchBookingConfig(), fetchMine()]).then(
+      ([config, mine]) => { if (!cancelled) setShowBook(Boolean(config?.enabled) && mine?.canBook === true); },
+      () => { if (!cancelled) setShowBook(false); },
+    );
+    return () => { cancelled = true; };
+  }, [user]);
 
   if (!analysis) return null;
 
@@ -166,6 +186,18 @@ export default function ProfileScreen({ navigation, route }) {
         </Pressable>
         <Text style={s.ctaHint}>{t('profile:ctaHint')}</Text>
 
+        {showBook && (
+          <Pressable
+            testID="profile-book-consultation"
+            accessibilityRole="button"
+            style={[s.bookBtn, { borderColor: era.color }]}
+            // Signed out: SignUp first (it saves this analysis), then the Booking screen.
+            onPress={() => (user ? navigation.navigate('Booking') : navigation.navigate('SignUp', { next: 'Booking' }))}
+          >
+            <Text style={[s.bookBtnText, { color: era.color }]}>{t('profile:bookCta')}</Text>
+          </Pressable>
+        )}
+
         <View style={{ height: 40 }} />
       </ScrollView>
     </SafeAreaView>
@@ -211,4 +243,7 @@ const s = StyleSheet.create({
   cta:      { borderRadius: 13, paddingVertical: 15, alignItems: 'center', marginBottom: 14 },
   ctaText:  { fontFamily: 'DMSans_500Medium', fontSize: 15, color: '#FFF', letterSpacing: 0.4 },
   ctaHint:  { fontFamily: 'DMSans_400Regular', fontSize: 11, color: C.muted, textAlign: 'center', fontStyle: 'italic' },
+  // Outlined (secondary) button, same shape as the "See my products" link above.
+  bookBtn:     { borderWidth: 1.5, borderRadius: 13, paddingVertical: 13, alignItems: 'center', marginTop: 18 },
+  bookBtnText: { fontFamily: 'DMSans_500Medium', fontSize: 14 },
 });

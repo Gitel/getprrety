@@ -5,6 +5,7 @@
 const express = require('express');
 const crypto = require('crypto');
 const { recordPayment, syncCalendarEvents } = require('../services/bookingPayments');
+const { recordOrder } = require('../services/shopifyConsultations');
 
 const router = express.Router();
 
@@ -45,14 +46,28 @@ async function ordersPaid(req, res) {
   // 5. Which booking is this order for? The app puts its id in the cart attribute.
   const attrs = Array.isArray(order.note_attributes) ? order.note_attributes : [];
   const attr = attrs.find(a => a && a.name === 'getpretty_booking');
-  if (!attr || !attr.value) return res.status(200).json({ ok: true, result: 'no_booking_attribute' });
 
   // 6. Is the consultation product in the order? (ids compared as strings: Shopify sends numbers)
   const variantId = process.env.SHOPIFY_CONSULTATION_VARIANT_ID || '';
   const items = Array.isArray(order.line_items) ? order.line_items : [];
-  if (!variantId || !items.some(i => i && String(i.variant_id) === variantId)) {
-    return res.status(200).json({ ok: true, result: 'wrong_product' });
+  const hasConsultation = Boolean(variantId) && items.some(i => i && String(i.variant_id) === variantId);
+
+  if (!attr || !attr.value) {
+    // Any other product bought in the store: not ours.
+    if (!hasConsultation) return res.status(200).json({ ok: true, result: 'no_booking_attribute' });
+    // A consultation bought DIRECTLY in the Shopify store (not from the app). The customer picks
+    // the time on the clinic's appointment page, so we only remember the order; the sweep in
+    // services/shopifyConsultations.js finds the appointment in the calendar later.
+    try {
+      const outcome = await recordOrder(order);
+      return res.status(200).json({ ok: true, result: outcome.result });
+    } catch (err) {
+      // 500 so Shopify retries the delivery later.
+      console.error(`POST /api/payments/shopify/orders-paid: recordOrder failed for order ${order.id} (${err && err.name})`);
+      return res.status(500).json({ code: 'order_record_failed' });
+    }
   }
+  if (!hasConsultation) return res.status(200).json({ ok: true, result: 'wrong_product' });
 
   // 7. Record the payment. A thrown error answers 500 so Shopify retries the delivery.
   let outcome;

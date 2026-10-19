@@ -114,6 +114,16 @@ test.describe('signed-out boot lands on the quiz, not on Login', () => {
     expect(mock.callsTo('GET', '/api/analysis/latest')).toHaveLength(0);
   });
 
+  // The link shown on the Shopify thank-you page / order email (plan AI/plans/shopify-consultation-link.md).
+  test('?ref=consultation: the consultation Welcome, whose start button opens the quiz', async ({ page, t }) => {
+    await page.goto('/?ref=consultation');
+    await expect(text(page, t('onboarding:welcome.consultation.title'))).toBeVisible();
+    await expect(clinicWelcome(page, t)).toHaveCount(0);
+    await expectConsentNotice(page, t);
+    await text(page, t('onboarding:welcome.consultation.cta')).click();
+    await expect(text(page, t('quiz:name.question', nameVars))).toBeVisible();
+  });
+
   test('unknown ?ref= is ignored: QuizIntro', async ({ page, t }) => {
     await page.goto('/?ref=not_a_clinic');
     await expect(quizIntro(page, t)).toBeVisible();

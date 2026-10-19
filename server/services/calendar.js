@@ -1,4 +1,5 @@
-// Google Calendar access for in-app booking: read busy times, create and delete events.
+// Google Calendar access for in-app booking: read busy times, create and delete events, and find
+// the events a customer email is invited to (Shopify consultations).
 // Env vars are read at CALL time (never at import) so tests can change them freely.
 //
 // Library choice: @googleapis/calendar (small) + the server's own google-auth-library JWT.
@@ -145,6 +146,7 @@ function mockBusy({ start, end }) {
 function createCalendarService({ client } = {}) {
   let realClient = client || null; // built lazily on first real call
   let mockEvents = [];
+  let mockExternal = []; // mock mode: events made outside the app (see __mock.addExternal)
   let mockCounter = 0;
   const cache = new Map(); // "startISO|endISO" -> { at, busy }
   const useMock = () => isMockMode() && !client;
@@ -237,12 +239,57 @@ function createCalendarService({ client } = {}) {
     }
   }
 
+  // The events in [timeMin, timeMax) that `email` is invited to (an attendee), made by someone
+  // else - in practice the clinic's Google appointment page, which adds the booker as an attendee.
+  // Used to find the time of a consultation bought directly in Shopify (services/shopifyConsultations.js).
+  // Skipped: cancelled events, all-day events (no time) and the events WE wrote (they carry
+  // getprettyBookingId). Returns [{ eventId, startsAt, endsAt }] sorted by start time.
+  async function findAttendeeEvents({ email, timeMin, timeMax }) {
+    const wanted = String(email || '').trim().toLowerCase();
+    if (!wanted) return [];
+    const inRange = ev => ev.startsAt < timeMax && ev.endsAt > timeMin;
+    if (useMock()) {
+      return mockExternal
+        .filter(ev => ev.attendees.includes(wanted) && inRange(ev))
+        .map(({ eventId, startsAt, endsAt }) => ({ eventId, startsAt, endsAt }))
+        .sort((a, b) => a.startsAt - b.startsAt);
+    }
+    const g = requireReady();
+    try {
+      // `q` is Google's free-text search; it also searches attendee emails, so Google returns only
+      // a few candidates. The exact attendee check below is what really decides.
+      const res = await withTimeout(g.events.list({
+        calendarId: process.env.GOOGLE_CALENDAR_ID,
+        q: wanted,
+        timeMin: timeMin.toISOString(),
+        timeMax: timeMax.toISOString(),
+        singleEvents: true, // a repeating event is returned as its single occurrences
+        orderBy: 'startTime',
+        maxResults: 50,
+      }));
+      const items = (res.data && res.data.items) || [];
+      return items
+        .filter(ev => ev && ev.status !== 'cancelled'
+          && ev.start && ev.start.dateTime && ev.end && ev.end.dateTime
+          && !(ev.extendedProperties && ev.extendedProperties.private && ev.extendedProperties.private.getprettyBookingId)
+          && (ev.attendees || []).some(a => a && String(a.email || '').toLowerCase() === wanted))
+        .map(ev => ({ eventId: ev.id, startsAt: new Date(ev.start.dateTime), endsAt: new Date(ev.end.dateTime) }))
+        .sort((a, b) => a.startsAt - b.startsAt);
+    } catch (e) {
+      throw wrap(e);
+    }
+  }
+
   return {
-    isConfigured, getBusy, createEvent, deleteEvent, CalendarError,
+    isConfigured, getBusy, createEvent, deleteEvent, findAttendeeEvents, CalendarError,
     // Test helpers for the in-memory mock calendar.
     __mock: {
       events: () => mockEvents.slice(),
-      reset: () => { mockEvents = []; mockCounter = 0; cache.clear(); },
+      // An event made OUTSIDE the app (e.g. on the clinic's appointment page) with these attendees.
+      addExternal: ({ eventId, startsAt, endsAt, attendees = [] }) => {
+        mockExternal.push({ eventId, startsAt: new Date(startsAt), endsAt: new Date(endsAt), attendees: attendees.map(a => String(a).toLowerCase()) });
+      },
+      reset: () => { mockEvents = []; mockExternal = []; mockCounter = 0; cache.clear(); },
       cacheSize: () => cache.size,
     },
   };

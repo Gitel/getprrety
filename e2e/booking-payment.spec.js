@@ -27,6 +27,8 @@ const waiting = page => page.getByTestId('booking-awaiting-payment');
 
 // Picks the 10:00 slot of the first day and taps "Continue to payment"; waits for the waiting panel.
 async function holdFirstSlot(page) {
+  // Month view (round 2): the day cell opens a pop-up; the time button inside it closes it again.
+  await page.getByTestId('booking-day-2026-10-01').click();
   await page.getByTestId('booking-slot-10:00').click();
   await confirmBtn(page).click();
   await expect(waiting(page)).toBeVisible();
@@ -116,6 +118,7 @@ test.describe('the payment hold (English)', () => {
     await expect(expired).toContainText(t('booking:holdExpired'));
     await expect(waiting(page)).toHaveCount(0);
     // The picker is back and the slots were reloaded (the held slot is bookable again).
+    await page.getByTestId('booking-day-2026-10-01').click();
     await expect(page.getByTestId('booking-slot-10:00')).toBeVisible();
   });
 
@@ -125,6 +128,7 @@ test.describe('the payment hold (English)', () => {
 
     await page.getByTestId('booking-choose-other').click();
     await expect(waiting(page)).toHaveCount(0);
+    await page.getByTestId('booking-day-2026-10-01').click();
     await expect(page.getByTestId('booking-slot-10:30')).toBeVisible();
     // Going back makes no server call by itself: still one POST.
     expect(mock.callsTo('POST', '/api/bookings')).toHaveLength(1);

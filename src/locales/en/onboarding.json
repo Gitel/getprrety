@@ -9,6 +9,11 @@
       "title": "Let's find your Skin Era",
       "desc": "Answer a few questions about your skin — takes about 5 minutes. We'll build your personalized routine right after.",
       "cta": "Start my Skin Reading →"
+    },
+    "consultation": {
+      "title": "Thanks for booking your consultation",
+      "desc": "Before we meet, let's get to know your skin. Takes about 5 minutes — your Skin Era and routine will be ready for your consultation.",
+      "cta": "Start my Skin Reading →"
     }
   },
   "timing": {

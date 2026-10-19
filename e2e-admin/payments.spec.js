@@ -87,10 +87,14 @@ test.describe('payments', () => {
   });
 
   // 3. Signed but not a payment we act on
-  test('3. wrong topic, no attribute, other product and unknown booking are 200 and ignored', async ({ request }) => {
+  test('3. wrong topic, no attribute, other product and unknown booking are 200 and confirm nothing', async ({ request }) => {
     const cases = [
       [buildOrder({ bookingId: s.hold.id, email: s.u1.email }), { topic: 'orders/create' }, 'ignored_topic'],
-      [buildOrder({ bookingId: s.hold.id, email: s.u1.email, noAttribute: true }), {}, 'no_booking_attribute'],
+      // No attribute + another product: not ours.
+      [buildOrder({ bookingId: s.hold.id, email: s.u1.email, noAttribute: true, variantId: 99999 }), {}, 'no_booking_attribute'],
+      // No attribute + the consultation = bought directly in the Shopify store: stored as a Shopify
+      // consultation order (plan AI/plans/shopify-consultation-link.md), never confirms a booking.
+      [buildOrder({ bookingId: s.hold.id, email: s.u1.email, noAttribute: true }), {}, 'shopify_consultation_recorded'],
       [buildOrder({ bookingId: s.hold.id, email: s.u1.email, variantId: 99999 }), {}, 'wrong_product'],
       // A well-formed ObjectId that matches no booking.
       [buildOrder({ bookingId: '64b7f0f0f0f0f0f0f0f0f0f0', email: s.u1.email }), {}, 'booking_not_found'],
@@ -102,6 +106,16 @@ test.describe('payments', () => {
     }
     // None of them confirmed anything.
     expect((await mineUpcoming(request, s.u1)).status).toBe('pending_payment');
+  });
+
+  // 3b. The consultation bought directly in Shopify (case 3) shows on the customer's admin page,
+  // matched by email; the appointment is "not found yet" (the 5-minute calendar sweep is unit-tested).
+  test('3b. the Shopify-only consultation order is listed on the user admin page', async ({ page, context }) => {
+    await signIn(context);
+    await page.goto(`/admin/users/${s.u1.id}`);
+    const card = page.locator('#shopify-consultations');
+    await expect(card.locator('li')).toHaveCount(1);
+    await expect(card).toContainText('appointment not found in the calendar yet');
   });
 
   // 4. The real payment

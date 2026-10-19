@@ -4,14 +4,16 @@ import { useTranslation, Trans } from 'react-i18next';
 import { dayNumber } from '../lib/scoreReading';
 
 // Top section of the Profile screen: Daniel's "Your skin reading" mockup
-// (AI/plans/score-page.md). Numbers come from the PerfectCorp scan (analysis.skinScan.signals,
-// RAW scores, server/services/skinScan/signals.js). The written parts - "Start here" and each
-// signal's potential / weeks / explanation / shelf / product - come from Railway
-// (analysis.skinScan.reading) and simply appear once readingStatus is 'ready'.
-// Railway text is always rendered as plain text, never as HTML.
+// (AI/plans/score-page.md; matched 1:1 in AI/plans/score-page-match.md - the mockup is the
+// authority for every look and motion detail here). Numbers come from the PerfectCorp scan
+// (analysis.skinScan.signals, RAW scores, server/services/skinScan/signals.js). The written parts -
+// "Start here" and each signal's potential / weeks / explanation / shelf / product - come from the
+// AI reading (analysis.skinScan.reading) and simply appear once readingStatus is 'ready'.
+// AI text is always rendered as plain text, never as HTML.
 
 // Mockup colors.
 const P = {
+  paper:    '#F5EFE4',
   paper2:   '#EEE5D6',
   card:     '#FBF7EF',
   cardHi:   '#FCF4E7',
@@ -28,6 +30,17 @@ const SIGNAL_COLORS = {
   barrier: '#7C9A92', clarity: '#B8734F', tone: '#C39A57', resilience: '#A5738A',
 };
 
+// Font stacks as in the mockup ('DM Sans', system-ui, sans-serif). The first name is the app's
+// font (src/fonts.css); characters that font does not have (arrows, the small symbols in the
+// labels, Hebrew) fall back to the system font like in the mockup, not to the browser's serif.
+const SANS = 'DMSans_400Regular, system-ui, sans-serif';
+const SANS_MEDIUM = 'DMSans_500Medium, system-ui, sans-serif';
+const SERIF = 'CormorantGaramond_500Medium, serif';
+
+// Profile's horizontal padding (ProfileScreen `content` style). The section's paper background
+// reaches the screen edges by pulling out by this much (mockup: the whole screen is paper).
+const PROFILE_PADDING = 24;
+
 // All visible text lives in src/locales/{en,he}/score.json (namespace "score") and is resolved
 // at render time with t() / <Trans>, so it follows the language. The static copy is verbatim from
 // the mockup (owner decision D7). No text constants here: a constant would be frozen in the
@@ -42,9 +55,9 @@ const BLOCKS = [
 ];
 
 // U+2068 / U+2069 (first-strong isolate) around a value that is interpolated into a sentence, so
-// a Latin value (e.g. the English text Railway sends) cannot reorder the surrounding Hebrew.
+// a Latin value (e.g. the English text the AI sends) cannot reorder the surrounding Hebrew.
 // Invisible in English.
-const isolate = v => '\u2068' + v + '\u2069';
+const isolate = v => '⁨' + v + '⁩';
 
 function prefersReducedMotion() {
   try {
@@ -52,6 +65,82 @@ function prefersReducedMotion() {
   } catch {
     return false;
   }
+}
+
+// Escapes a text so it can be used literally inside a RegExp.
+const escapeRegExp = v => v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// Splits plain text into pieces, marking the pieces that equal one of `words`
+// (e.g. "lifts your Tone & Radiance" -> ["lifts your ", {bold: "Tone & Radiance"}]).
+// Used to bold the signal names inside the AI's "Start here" text, as the mockup does.
+function splitOnWords(text, words) {
+  const list = words.filter(Boolean);
+  if (!list.length) return [text];
+  const re = new RegExp(`(${list.map(escapeRegExp).join('|')})`, 'g');
+  return text.split(re).filter(Boolean).map(part => (list.includes(part) ? { bold: part } : part));
+}
+
+// The mockup's shelf line has a bold start: "Missing:" before a gap, or the first clause of an
+// "already own" line ("You already own a niacinamide serum" - use it every night...).
+// Returns { lead, rest }: `lead` is bold, `rest` is normal text. For 'own' the lead is the part
+// before the first dash (" — " or " - "); without a dash nothing is bold. If the AI text already
+// starts with the "Missing:" label, that label is used as the lead instead of adding it twice.
+function shelfParts(shelf, missingLabel) {
+  if (shelf.status !== 'own') {
+    const hasLabel = shelf.text.toLowerCase().startsWith(missingLabel.toLowerCase());
+    return { lead: missingLabel, rest: hasLabel ? shelf.text.slice(missingLabel.length) : ` ${shelf.text}` };
+  }
+  const match = shelf.text.match(/^(.+?)( [—-] .*)$/);
+  return match ? { lead: match[1], rest: match[2] } : { lead: null, rest: shelf.text };
+}
+
+// Keeps a collapsible part on screen while it animates open or closed (mockup: height + fade).
+// Returns { mounted, expanded }: render the part while `mounted`, give it the open styles while
+// `expanded`. Opening mounts it closed, then switches to open on the next frames so the CSS
+// transition runs; closing switches to closed, then unmounts after `duration` ms so hidden text
+// does not stay in the page (screen readers / tests). Without motion it is instant.
+function useCollapse(open, duration, reduce) {
+  const [mounted, setMounted] = useState(open);
+  const [expanded, setExpanded] = useState(open);
+
+  useEffect(() => {
+    if (reduce) { setMounted(open); setExpanded(open); return undefined; }
+    if (open) {
+      setMounted(true);
+      let cancelled = false;
+      // Two frames: the first paints the closed state, the second starts the transition.
+      requestAnimationFrame(() => requestAnimationFrame(() => { if (!cancelled) setExpanded(true); }));
+      return () => { cancelled = true; };
+    }
+    setExpanded(false);
+    const timer = setTimeout(() => setMounted(false), duration);
+    return () => clearTimeout(timer);
+  }, [open, duration, reduce]);
+
+  return { mounted, expanded };
+}
+
+// The box that slides open. Its height animates between 0 and the content's natural height with
+// the CSS grid trick (one row going from 0fr to 1fr), so long AI text or a rotated screen is never
+// cut off and nothing has to be measured. Raw <div>s because the app only runs as a web page
+// inside Capacitor and CSS transitions are not React Native styles (same reason as the <svg> rings).
+function Collapse({ expanded, reduce, transition, openMarginTop, children }) {
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateRows: expanded ? '1fr' : '0fr',
+        opacity: expanded ? 1 : 0,
+        marginTop: expanded ? openMarginTop : 0,
+        transition: reduce ? 'none' : transition,
+      }}
+    >
+      {/* minHeight 0 lets the row shrink below the content; overflow hides what is outside.
+          The inner <View> makes the children behave as in any RN layout (a <Text> directly in a
+          plain <div> would be inline: no vertical margins, inherited alignment). */}
+      <div style={{ overflow: 'hidden', minHeight: 0 }}><View>{children}</View></div>
+    </div>
+  );
 }
 
 // A progress ring (inline SVG: the app only runs as a web page inside Capacitor, and the
@@ -126,8 +215,14 @@ function PotentialBar({ now, potential, color }) {
     <View style={s.potBar}>
       <View style={s.potTrack}>
         <View style={[s.potFill, { width: `${now}%`, backgroundColor: color }]} />
-        {/* start = left in English, right in Hebrew (RTL) */}
-        <View style={[s.potBand, { start: `${now}%`, width: `${potential - now}%` }]} />
+        {/* Striped band (CSS gradient, so a raw <div>). insetInlineStart = left in English,
+            right in Hebrew (RTL); the solid edge is on the "possible" end. */}
+        <div style={{
+          position: 'absolute', top: 0, bottom: 0, borderRadius: 8,
+          insetInlineStart: `${now}%`, width: `${potential - now}%`,
+          background: 'repeating-linear-gradient(45deg,#7C9A8055,#7C9A8055 4px,#7C9A801f 4px,#7C9A801f 8px)',
+          borderInlineEnd: `2px solid ${P.good}`, boxSizing: 'border-box',
+        }} />
         <View style={[s.potNow, { start: `${now}%` }]} />
       </View>
       <View style={s.potCaps}>
@@ -138,11 +233,12 @@ function PotentialBar({ now, potential, color }) {
   );
 }
 
-// One of the four signal cards. `copy` is Railway's entry for this signal (or undefined):
+// One of the four signal cards. `copy` is the AI's entry for this signal (or undefined):
 // without it the card shows its number only and does not open.
-function SignalCard({ signal, copy }) {
+function SignalCard({ signal, copy, reduce }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
+  const body = useCollapse(open, 450, reduce);
   const color = SIGNAL_COLORS[signal.key] || P.clay;
   const hasPotential = typeof copy?.potential === 'number';
   const expandable = Boolean(copy);
@@ -150,10 +246,12 @@ function SignalCard({ signal, copy }) {
   const productUrl = typeof copy?.product?.url === 'string' && copy.product.url.startsWith('https://')
     ? copy.product.url
     : null;
+  const shelf = copy?.shelf ? shelfParts(copy.shelf, t('score:shelfMissing')) : null;
 
   return (
     <Pressable
-      style={s.sig}
+      // Mockup: on hover the card lifts 1 px and gets a soft shadow (web, mouse only).
+      style={({ hovered }) => [s.sig, !reduce && s.sigAnimated, hovered && expandable && s.sigHover]}
       onPress={() => expandable && setOpen(o => !o)}
       disabled={!expandable}
       accessibilityRole={expandable ? 'button' : undefined}
@@ -187,8 +285,9 @@ function SignalCard({ signal, copy }) {
         {expandable && <Chevron open={open} />}
       </View>
 
-      {open && (
-        <View style={s.sigBody}>
+      {body.mounted && (
+        <Collapse expanded={body.expanded} reduce={reduce} openMarginTop={15}
+          transition="grid-template-rows .45s ease, opacity .3s, margin .3s">
           <View style={s.rule} />
           {hasPotential && <PotentialBar now={signal.score} potential={copy.potential} color={color} />}
           {copy.weeks && <Text style={s.horizon}>{t('score:horizon', { weeks: isolate(copy.weeks) })}</Text>}
@@ -200,36 +299,46 @@ function SignalCard({ signal, copy }) {
             </View>
           ))}
 
-          {copy.shelf && (
+          {shelf && (
             <View style={[s.shelf, copy.shelf.status === 'own' ? s.shelfOwn : s.shelfMiss]}>
-              <Text style={[s.shelfBadge, { color: copy.shelf.status === 'own' ? P.good : P.clayDeep }]}>
-                {copy.shelf.status === 'own' ? '✓' : '+'}
+              <Text style={s.shelfBadge}>{copy.shelf.status === 'own' ? '✓' : '+'}</Text>
+              <Text style={s.shelfText}>
+                {shelf.lead && (
+                  <Text style={[s.shelfLead, { color: copy.shelf.status === 'own' ? P.good : P.clayDeep }]}>
+                    {shelf.lead}
+                  </Text>
+                )}
+                {shelf.rest}
               </Text>
-              <Text style={s.shelfText}>{copy.shelf.text}</Text>
             </View>
           )}
 
           {copy.product && (
             <View style={s.product}>
-              <View style={s.productThumb} />
+              {/* Placeholder thumbnail: the mockup's beige gradient (CSS gradient, so a raw <div>). */}
+              <div style={{
+                width: 44, height: 52, flex: '0 0 44px', borderRadius: 9, boxSizing: 'border-box',
+                background: 'linear-gradient(160deg,#e6dcc8,#d3c3a6)', border: `1px solid ${P.line}`,
+              }} />
               <View style={s.productInfo}>
                 <Text style={s.productName}>{copy.product.name}</Text>
                 {copy.product.actives && <Text style={s.productActives}>{copy.product.actives}</Text>}
               </View>
-              {/* "+" opens the product page (owner decision); hidden without a valid link. */}
-              {productUrl && (
-                <Pressable
-                  style={s.productAdd}
-                  onPress={() => Linking.openURL(productUrl).catch(() => {})}
-                  accessibilityRole="link"
-                  accessibilityLabel={t('score:openProduct', { name: isolate(copy.product.name) })}
-                >
-                  <Text style={s.productAddText}>+</Text>
-                </Pressable>
-              )}
+              {/* "+" is always shown, as in the mockup (owner decision M4/D6). With a valid https
+                  link it opens the product page; without one it looks the same but does nothing.
+                  It stays an enabled Pressable either way: it takes the tap, so tapping "+" never
+                  closes the card (mockup). A disabled Pressable would pass the tap to the card. */}
+              <Pressable
+                style={s.productAdd}
+                onPress={() => productUrl && Linking.openURL(productUrl).catch(() => {})}
+                accessibilityRole={productUrl ? 'link' : 'button'}
+                accessibilityLabel={t('score:openProduct', { name: isolate(copy.product.name) })}
+              >
+                <Text style={s.productAddText}>+</Text>
+              </Pressable>
             </View>
           )}
-        </View>
+        </Collapse>
       )}
     </Pressable>
   );
@@ -239,7 +348,9 @@ function SignalCard({ signal, copy }) {
 // polling: ProfileScreen is still polling the scan (drives the placeholder / skeleton).
 export default function ScoreSection({ analysis, polling }) {
   const { t } = useTranslation();
+  const [reduce] = useState(prefersReducedMotion);
   const [howOpen, setHowOpen] = useState(false);
+  const how = useCollapse(howOpen, 400, reduce);
   const scan = analysis?.skinScan;
   const view = scan?.signals;
 
@@ -257,10 +368,12 @@ export default function ScoreSection({ analysis, polling }) {
 
   const reading = scan.readingStatus === 'ready' ? scan.reading : null;
   const copyByKey = Object.fromEntries((reading?.signals || []).map(c => [c.key, c]));
-  // Railway's copy is still on its way while Profile keeps polling -> skeleton for "Start here".
+  // The AI copy is still on its way while Profile keeps polling -> skeleton for "Start here".
   const copyLoading = scan.readingStatus === 'pending' && polling;
   const anyExpandable = signals.some(sig => copyByKey[sig.key]);
   const day = dayNumber(analysis.firstReadingAt, analysis.createdAt);
+  // The four signal names in the current language, bolded inside the "Start here" text.
+  const signalNames = Object.keys(SIGNAL_COLORS).map(key => t(`score:signals.${key}`));
 
   return (
     <View style={s.section}>
@@ -290,21 +403,37 @@ export default function ScoreSection({ analysis, polling }) {
         <Pressable onPress={() => setHowOpen(o => !o)} accessibilityRole="button" hitSlop={8}>
           <Text style={s.howBtn}>{howOpen ? t('score:hide') : t('score:howScored')}</Text>
         </Pressable>
-        {howOpen && (
-          <View style={s.howBody}>
-            <Text style={s.howText}>{t('score:howScoredBody')}</Text>
+        {how.mounted && (
+          <View style={s.howWrap}>
+            <Collapse expanded={how.expanded} reduce={reduce} openMarginTop={10}
+              transition="grid-template-rows .4s ease, opacity .3s, margin .3s">
+              <View style={s.howBody}>
+                <Text style={s.howText}>{t('score:howScoredBody')}</Text>
+              </View>
+            </Collapse>
           </View>
         )}
       </View>
 
       <View style={s.divider} />
 
-      {/* Start here: Railway's single highest-leverage habit */}
+      {/* Start here: the AI's single highest-leverage habit */}
       {reading?.startHere ? (
         <View style={s.startHere}>
+          {/* Mockup background: diagonal beige gradient + a soft clay glow in the top corner
+              (CSS gradients, so raw <div>s; insetInlineEnd = right in English, left in Hebrew). */}
+          <div aria-hidden="true" style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg,#EDE3D2,#E8DBC5)' }} />
+          <div aria-hidden="true" style={{
+            position: 'absolute', top: -30, insetInlineEnd: -30, width: 110, height: 110, borderRadius: '50%',
+            background: 'radial-gradient(circle,#B86B4B22,transparent 70%)',
+          }} />
           <View style={s.startTag}><Text style={s.startTagText}>{t('score:startHere')}</Text></View>
           <Text style={s.startTitle}>{reading.startHere.title}</Text>
-          <Text style={s.startBody}>{reading.startHere.body}</Text>
+          <Text style={s.startBody}>
+            {splitOnWords(reading.startHere.body, signalNames).map((part, i) => (
+              typeof part === 'string' ? part : <Text key={i} style={s.startBold}>{part.bold}</Text>
+            ))}
+          </Text>
           <Text style={s.startImpact}>{t('score:leverage')}</Text>
         </View>
       ) : copyLoading ? (
@@ -322,7 +451,7 @@ export default function ScoreSection({ analysis, polling }) {
           <Text style={s.secSub}>
             {t('score:signalsIntro')}{anyExpandable ? ` ${t('score:signalsTap')}` : ''}
           </Text>
-          {signals.map(sig => <SignalCard key={sig.key} signal={sig} copy={copyByKey[sig.key]} />)}
+          {signals.map(sig => <SignalCard key={sig.key} signal={sig} copy={copyByKey[sig.key]} reduce={reduce} />)}
         </>
       )}
 
@@ -332,86 +461,94 @@ export default function ScoreSection({ analysis, polling }) {
 }
 
 const s = StyleSheet.create({
-  section:     { marginBottom: 26 },
+  // Paper background from screen edge to screen edge (negative margin = Profile's padding),
+  // with the mockup's own 22 px side padding inside.
+  section:     { marginHorizontal: -PROFILE_PADDING, paddingHorizontal: 22, paddingTop: 6, paddingBottom: 28, backgroundColor: P.paper, marginBottom: 26 },
   placeholder: { backgroundColor: P.card, borderWidth: 1, borderColor: P.line, borderRadius: 18, paddingVertical: 22, alignItems: 'center', marginBottom: 20 },
-  placeholderText: { fontFamily: 'DMSans_400Regular', fontSize: 13, color: P.inkSoft, fontStyle: 'italic' },
+  placeholderText: { fontFamily: SANS, fontSize: 13, color: P.inkSoft, fontStyle: 'italic' },
 
   hero:      { alignItems: 'center', paddingTop: 8, paddingBottom: 6 },
-  eyebrow:   { fontFamily: 'DMSans_500Medium', fontSize: 11, letterSpacing: 2.8, textTransform: 'uppercase', color: P.clay, fontWeight: '600', marginBottom: 6, textAlign: 'center' },
-  title:     { fontFamily: 'DMSans_500Medium', fontSize: 15, color: P.inkSoft, fontWeight: '600', marginBottom: 14, textAlign: 'center' },
+  eyebrow:   { fontFamily: SANS_MEDIUM, fontSize: 11, letterSpacing: 2.86, textTransform: 'uppercase', color: P.clay, fontWeight: '600', marginBottom: 6, textAlign: 'center' },
+  title:     { fontFamily: SANS_MEDIUM, fontSize: 15, letterSpacing: 0.3, color: P.inkSoft, fontWeight: '600', marginBottom: 14, textAlign: 'center' },
 
   dial:       { width: 168, height: 168, position: 'relative' },
   dialCenter: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
-  dialNum:    { fontFamily: 'CormorantGaramond_500Medium', fontSize: 60, lineHeight: 56, fontWeight: '600', color: P.ink },
-  dialLabel:  { fontFamily: 'DMSans_400Regular', fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: P.inkFaint, marginTop: 4 },
+  dialNum:    { fontFamily: SERIF, fontSize: 60, lineHeight: 54, fontWeight: '600', color: P.ink },
+  dialLabel:  { fontFamily: SANS, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: P.inkFaint, marginTop: 4 },
 
-  ageChip:    { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 16, backgroundColor: P.card, borderWidth: 1, borderColor: P.line, borderRadius: 100, paddingVertical: 8, paddingStart: 12, paddingEnd: 16 },
+  ageChip:    { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 16, backgroundColor: P.card, borderWidth: 1, borderColor: P.line, borderRadius: 100, paddingVertical: 8, paddingStart: 12, paddingEnd: 16, boxShadow: '0 8px 20px -16px rgba(60,44,30,.5)' },
   ageIcon:    { width: 26, height: 26, borderRadius: 13, backgroundColor: P.resil + '22', alignItems: 'center', justifyContent: 'center' },
-  ageIconText:{ fontSize: 14, color: P.resil },
-  ageLabel:   { fontFamily: 'DMSans_400Regular', fontSize: 12.5, color: P.inkSoft },
-  ageValue:   { fontFamily: 'CormorantGaramond_500Medium', fontSize: 17, color: P.ink, fontWeight: '600' },
-  notFixed:   { fontFamily: 'DMSans_400Regular', fontSize: 11.5, color: P.inkFaint, marginTop: 8, fontStyle: 'italic', textAlign: 'center' },
+  ageIconText:{ fontFamily: SANS, fontSize: 14, color: P.resil },
+  ageLabel:   { fontFamily: SANS, fontSize: 12.5, color: P.inkSoft },
+  ageValue:   { fontFamily: SERIF, fontSize: 17, color: P.ink, fontWeight: '600', marginStart: 2 },
+  notFixed:   { fontFamily: SANS, fontSize: 11.5, color: P.inkFaint, marginTop: 8, fontStyle: 'italic', textAlign: 'center' },
 
-  howBtn:     { fontFamily: 'DMSans_400Regular', fontSize: 11.5, color: P.clayDeep, textDecorationLine: 'underline', marginTop: 12, marginBottom: 2 },
-  howBody:    { alignSelf: 'stretch', marginTop: 10, backgroundColor: P.card, borderWidth: 1, borderColor: P.line, borderRadius: 14, paddingVertical: 13, paddingHorizontal: 15 },
-  howText:    { fontFamily: 'DMSans_400Regular', fontSize: 11.5, color: P.inkSoft, lineHeight: 18 },
+  howBtn:     { fontFamily: SANS, fontSize: 11.5, color: P.clayDeep, textDecorationLine: 'underline', marginTop: 12, marginBottom: 2 },
+  howWrap:    { alignSelf: 'stretch' },
+  howBody:    { backgroundColor: P.card, borderWidth: 1, borderColor: P.line, borderRadius: 14, paddingVertical: 13, paddingHorizontal: 15 },
+  howText:    { fontFamily: SANS, fontSize: 11.5, color: P.inkSoft, lineHeight: 17.8 },
 
   divider:    { height: 1, backgroundColor: P.line, marginTop: 20, marginBottom: 16 },
 
-  startHere:  { backgroundColor: '#EAE0CD', borderWidth: 1.5, borderColor: P.clay + '55', borderRadius: 20, padding: 18, marginBottom: 22 },
-  startTag:   { alignSelf: 'flex-start', backgroundColor: P.clay, borderRadius: 100, paddingVertical: 4, paddingHorizontal: 11 },
-  startTagText:{ fontFamily: 'DMSans_500Medium', fontSize: 10, fontWeight: '700', letterSpacing: 1.4, textTransform: 'uppercase', color: '#FFF' },
-  startTitle: { fontFamily: 'CormorantGaramond_500Medium', fontSize: 26, fontWeight: '600', color: P.ink, marginTop: 10, marginBottom: 6 },
-  startBody:  { fontFamily: 'DMSans_400Regular', fontSize: 13, color: P.inkSoft, lineHeight: 20 },
-  startImpact:{ fontFamily: 'DMSans_500Medium', fontSize: 11.5, color: P.clayDeep, fontWeight: '600', marginTop: 12 },
+  // position + overflow: the gradient layers are absolutely positioned inside and the corner glow
+  // is clipped by the rounded border, as in the mockup.
+  startHere:  { position: 'relative', overflow: 'hidden', backgroundColor: '#EAE0CD', borderWidth: 1.5, borderColor: P.clay + '55', borderRadius: 20, padding: 18, marginBottom: 22 },
+  startTag:   { position: 'relative', alignSelf: 'flex-start', backgroundColor: P.clay, borderRadius: 100, paddingVertical: 4, paddingHorizontal: 11 },
+  startTagText:{ fontFamily: SANS_MEDIUM, fontSize: 10, fontWeight: '700', letterSpacing: 1.4, textTransform: 'uppercase', color: '#FFF' },
+  startTitle: { position: 'relative', fontFamily: SERIF, fontSize: 26, fontWeight: '600', lineHeight: 27, color: P.ink, marginTop: 10, marginBottom: 6 },
+  startBody:  { position: 'relative', fontFamily: SANS, fontSize: 13, color: P.inkSoft, lineHeight: 20 },
+  startBold:  { color: P.ink, fontWeight: '600' },
+  startImpact:{ position: 'relative', fontFamily: SANS_MEDIUM, fontSize: 11.5, color: P.clayDeep, fontWeight: '600', marginTop: 12 },
   skeletonCard:{ gap: 10 },
   skeletonLine:{ height: 9, borderRadius: 5, backgroundColor: P.line },
 
-  secTitle:   { fontFamily: 'DMSans_500Medium', fontSize: 13, color: P.inkSoft, fontWeight: '600', marginTop: 2, marginBottom: 4 },
-  secSub:     { fontFamily: 'DMSans_400Regular', fontSize: 12, color: P.inkFaint, lineHeight: 18, marginBottom: 14 },
+  secTitle:   { fontFamily: SANS_MEDIUM, fontSize: 13, letterSpacing: 0.26, color: P.inkSoft, fontWeight: '600', marginTop: 2, marginBottom: 4 },
+  secSub:     { fontFamily: SANS, fontSize: 12, color: P.inkFaint, lineHeight: 18, marginBottom: 14 },
 
   sig:        { backgroundColor: P.card, borderWidth: 1, borderColor: P.line, borderRadius: 18, paddingVertical: 15, paddingHorizontal: 16, marginBottom: 12 },
+  sigAnimated:{ transitionProperty: 'box-shadow, transform', transitionDuration: '250ms' },
+  sigHover:   { boxShadow: '0 14px 30px -22px rgba(60,44,30,.55)', transform: [{ translateY: -1 }] },
   sigTop:     { flexDirection: 'row', alignItems: 'center', gap: 13 },
   sigArc:     { width: 50, height: 50, position: 'relative' },
   sigArcCenter:{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
-  sigArcValue:{ fontFamily: 'CormorantGaramond_500Medium', fontSize: 20, fontWeight: '600' },
+  sigArcValue:{ fontFamily: SERIF, fontSize: 20, fontWeight: '600' },
   sigMid:     { flex: 1, minWidth: 0 },
   sigNameRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   sigIcon:    { width: 12, height: 12, borderRadius: 3 },
-  sigName:    { fontFamily: 'DMSans_500Medium', fontSize: 14.5, fontWeight: '600', color: P.ink },
-  sigPotLine: { fontFamily: 'DMSans_400Regular', fontSize: 11.5, color: P.inkSoft, marginTop: 3 },
+  sigName:    { fontFamily: SANS_MEDIUM, fontSize: 14.5, fontWeight: '600', color: P.ink },
+  sigPotLine: { fontFamily: SANS, fontSize: 11.5, color: P.inkSoft, marginTop: 3 },
   sigUp:      { color: P.good, fontWeight: '700' },
 
-  sigBody:    { marginTop: 15 },
   rule:       { height: 1, backgroundColor: P.line, marginBottom: 14 },
 
-  potBar:     { marginBottom: 10 },
+  potBar:     { marginBottom: 16 },
   potTrack:   { height: 8, borderRadius: 8, backgroundColor: P.paper2, position: 'relative' },
   potFill:    { position: 'absolute', start: 0, top: 0, bottom: 0, borderRadius: 8 },
-  potBand:    { position: 'absolute', top: 0, bottom: 0, borderRadius: 8, backgroundColor: P.good + '40', borderEndWidth: 2, borderEndColor: P.good }, // borderEnd = right border in English, left in Hebrew
   potNow:     { position: 'absolute', top: -2.5, width: 13, height: 13, marginStart: -6.5, borderRadius: 7, backgroundColor: '#FFF', borderWidth: 3, borderColor: P.ink, zIndex: 2 },
   potCaps:    { flexDirection: 'row', justifyContent: 'space-between', marginTop: 9 },
-  potCap:     { fontFamily: 'DMSans_400Regular', fontSize: 10.5, color: P.inkFaint },
+  potCap:     { fontFamily: SANS, fontSize: 10.5, color: P.inkFaint },
   potGoal:    { color: P.good, fontWeight: '600' },
-  horizon:    { fontFamily: 'DMSans_400Regular', fontSize: 11, color: P.inkSoft, fontStyle: 'italic', textAlign: 'center', marginBottom: 16 },
+  // As the mockup renders it: page-size text in ink, start-aligned (its smaller italic style is
+  // never applied there), pulled 6 px up under the bar.
+  horizon:    { fontFamily: SANS, fontSize: 16, lineHeight: 21, color: P.ink, marginTop: -6, marginBottom: 16 },
 
   block:      { marginBottom: 13 },
-  blockLabel: { fontFamily: 'DMSans_500Medium', fontSize: 10, letterSpacing: 1.6, textTransform: 'uppercase', fontWeight: '700', marginBottom: 5 },
-  blockText:  { fontFamily: 'DMSans_400Regular', fontSize: 12.5, color: P.inkSoft, lineHeight: 19 },
+  blockLabel: { fontFamily: SANS_MEDIUM, fontSize: 10, letterSpacing: 1.6, textTransform: 'uppercase', fontWeight: '700', marginBottom: 5 },
+  blockText:  { fontFamily: SANS, fontSize: 12.5, color: P.inkSoft, lineHeight: 18.75 },
 
-  shelf:      { flexDirection: 'row', alignItems: 'flex-start', gap: 9, borderRadius: 12, paddingVertical: 11, paddingHorizontal: 13, marginBottom: 13 },
+  shelf:      { flexDirection: 'row', alignItems: 'flex-start', gap: 9, borderRadius: 12, paddingVertical: 11, paddingHorizontal: 13, marginBottom: 13, backgroundColor: P.paper },
   shelfOwn:   { backgroundColor: P.good + '18' },
   shelfMiss:  { backgroundColor: P.clay + '15' },
-  shelfBadge: { fontSize: 15, fontWeight: '700', marginTop: 1 },
-  shelfText:  { flex: 1, fontFamily: 'DMSans_400Regular', fontSize: 12.5, lineHeight: 18, color: P.ink },
+  shelfBadge: { fontFamily: SANS, fontSize: 15, color: P.ink, marginTop: 1 },
+  shelfText:  { flex: 1, fontFamily: SANS, fontSize: 12.5, lineHeight: 18.1, color: P.ink },
+  shelfLead:  { fontWeight: '600' },
 
   product:    { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: P.cardHi, borderWidth: 1, borderColor: P.line, borderRadius: 14, paddingVertical: 11, paddingHorizontal: 13 },
-  productThumb:{ width: 44, height: 52, borderRadius: 9, backgroundColor: '#DDD0B8', borderWidth: 1, borderColor: P.line },
   productInfo:{ flex: 1, minWidth: 0 },
-  productName:{ fontFamily: 'DMSans_500Medium', fontSize: 13, fontWeight: '600', color: P.ink },
-  productActives:{ fontFamily: 'DMSans_400Regular', fontSize: 11, color: P.inkFaint, marginTop: 2 },
+  productName:{ fontFamily: SANS_MEDIUM, fontSize: 13, fontWeight: '600', color: P.ink },
+  productActives:{ fontFamily: SANS, fontSize: 11, color: P.inkFaint, marginTop: 2 },
   productAdd: { width: 30, height: 30, borderRadius: 15, backgroundColor: P.ink, alignItems: 'center', justifyContent: 'center' },
-  productAddText:{ fontSize: 18, lineHeight: 20, color: '#F5EFE4' },
+  productAddText:{ fontFamily: SANS, fontSize: 18, lineHeight: 20, color: '#F5EFE4' },
 
-  footnote:   { fontFamily: 'DMSans_400Regular', fontSize: 10.5, color: P.inkFaint, textAlign: 'center', lineHeight: 16, marginTop: 18, fontStyle: 'italic', paddingHorizontal: 6 },
+  footnote:   { fontFamily: SANS, fontSize: 10.5, color: P.inkFaint, textAlign: 'center', lineHeight: 15.75, marginTop: 18, fontStyle: 'italic', paddingHorizontal: 6 },
 });

@@ -12,6 +12,7 @@ import { storeToken } from '../lib/auth';
 import { applyAccountLanguage } from '../lib/languageSync';
 import { persistAnalysis, withSavedId } from '../lib/persistAnalysis';
 import { logActivity } from '../lib/logActivity';
+import { fetchBookingConfig } from '../lib/bookingApi';
 import { C } from '../constants';
 import { useApp } from '../context/AppContext';
 import GoogleSignInButton from '../components/GoogleSignInButton';
@@ -22,10 +23,11 @@ function isValidEmail(v) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 }
 
-// Reached ONLY from ProfileScreen's "See My Routine", after the user took the quiz signed
-// out. The just-finished analysis is therefore always in context and is saved here once
-// the account exists.
-export default function SignUpScreen({ navigation }) {
+// Reached ONLY from ProfileScreen ("See My Routine" or "Book a consultation"), after the user
+// took the quiz signed out. The just-finished analysis is therefore always in context and is
+// saved here once the account exists. route.params.next === 'Booking' when the user tapped
+// "Book a consultation": after sign-up they go to the Booking screen instead of onboarding.
+export default function SignUpScreen({ navigation, route }) {
   const { analysis, setAnalysis, answers, setUser, setAnalysisSaveFailed } = useApp();
   // All visible text comes from src/locales/<lang>/auth.json.
   const { t, i18n } = useTranslation();
@@ -67,6 +69,16 @@ export default function SignUpScreen({ navigation }) {
         setAnalysisSaveFailed(true);
       },
     );
+    // "Book a consultation" path (plan AI/plans/shopify-consultation-link.md, D5): the Booking
+    // screen when booking is switched on; otherwise (or offline) the normal onboarding. The
+    // onboarding (SkinTiming...) still runs later from Profile's "See My Routine".
+    if (route?.params?.next === 'Booking') {
+      fetchBookingConfig().then(
+        config => navigation.navigate(config?.enabled ? 'Booking' : 'SkinTiming'),
+        () => navigation.navigate('SkinTiming'),
+      );
+      return;
+    }
     navigation.navigate('SkinTiming');
   }
 

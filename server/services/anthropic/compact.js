@@ -1,6 +1,6 @@
 'use strict';
 
-const COMPACT_CONTRACT_VERSION = 'opus46-compact-v2';
+const COMPACT_CONTRACT_VERSION = 'anthropic-compact-v3';
 
 // This prompt extension applies only to the compact wire contract; canonical output
 // requirements remain enforced after server-owned fields are restored.
@@ -8,7 +8,8 @@ const COMPACT_SYSTEM_INSTRUCTIONS = [
   `Compact response contract (${COMPACT_CONTRACT_VERSION}): these compact-field rules override canonical prompt field-name and numbering instructions only; preserve all canonical safety and routine semantics.`,
   'Use only the fields in the supplied compact schema. Do not return suggested_replacement, sr_product_name, sr_substitute_name, first_sr_purchase, or the numeric step field; the server restores them from validated catalogue IDs or array position.',
   'SR step order is its array position; the server supplies the numeric step. For each SR routine step, put one concise explanation in explanation. A matched ID needs its catalogue match reason. For every unmatched step, including cleanse and protect, give specific no-match guidance in explanation. Do not return match_reason or no_match_note.',
-  'For all product IDs, use only exact IDs from the supplied eligible catalogue. Use null for an unmatched product ID; never invent, copy, or return an ID outside that catalogue.',
+  'For all product IDs, use only exact IDs from the supplied eligible catalogue. Use an empty string for an unmatched product ID; never invent, copy, or return an ID outside that catalogue. Use an empty string for most_urgent_gap when there is no missing need. The server restores these empty values to canonical null.',
+  'For srProducts, shelfAnalysis and event_prep, return null only when the supplied schema requires null. Otherwise return the full section object. To represent an absent section, fill every required string with an empty string and every array with an empty array, including nested objects; the server restores only a wholly empty section to null. Keep all useful explanations and uncertainty notes. Never invent content to fill an absent section.',
   'When the supplied eligible catalogue is empty, return srProducts as null.',
   'Generic category and SR routine_category labels are restored from category_id in the requested language; do not add either display label to the compact response.',
 ].join('\n');
@@ -33,6 +34,17 @@ function omitProperty(schema, key) {
   if (!isObject || !schema.properties?.[key]) return;
   delete schema.properties[key];
   removeRequired(schema.required || [], key);
+}
+
+// Nullable branches multiply the provider's compiled grammar, especially inside
+// these nested sections. Keep the same fields and enums, but let empty strings
+// and wholly empty section objects represent absence on the provider wire only.
+function simplifyNullableTypes(schema) {
+  if (!schema || typeof schema !== 'object') return;
+  if (Array.isArray(schema.type) && schema.type.length === 2 && schema.type.includes('null')) {
+    schema.type = schema.type.find(type => type !== 'null');
+  }
+  for (const value of Object.values(schema)) simplifyNullableTypes(value);
 }
 
 // Build a compact provider schema while leaving the canonical schema untouched.
@@ -72,7 +84,16 @@ function makeCompactWireSchema(baseWireSchema, { hasEligibleProducts = true } = 
     srStep.properties.explanation = { type: 'string' };
     srStep.required.push('explanation');
   }
+  simplifyNullableTypes(schema);
   return schema;
+}
+
+// Only a wholly empty section means "absent". A nonempty array or even one
+// uncertainty note is real content and must survive for canonical validation.
+function isEmptySection(value) {
+  if (value === null || value === '') return true;
+  if (Array.isArray(value)) return value.length === 0;
+  return Boolean(value && typeof value === 'object' && Object.values(value).every(isEmptySection));
 }
 
 function makeEligibleProductMap(eligibleProducts = []) {
@@ -107,6 +128,12 @@ function hydrateCompactOutput(wireOutput, { eligibleProducts = [], language = 'e
   const output = clone(wireOutput);
   const byId = makeEligibleProductMap(eligibleProducts);
 
+  for (const key of ['srProducts', 'shelfAnalysis']) {
+    if (isEmptySection(output[key])) output[key] = null;
+  }
+  if (isEmptySection(output.era.event_prep)) output.era.event_prep = null;
+  if (output.era.product_audit.most_urgent_gap === '') output.era.product_audit.most_urgent_gap = null;
+
   // Rebuild canonical generic labels from stable IDs so provider text cannot vary them.
   const labels = ROUTINE_CATEGORY_LABELS[language];
   for (const period of ['am', 'pm']) {
@@ -116,6 +143,7 @@ function hydrateCompactOutput(wireOutput, { eligibleProducts = [], language = 'e
   }
 
   for (const item of output.era.product_audit.current_products_assessment) {
+    if (item.suggested_replacement_product_id === '') item.suggested_replacement_product_id = null;
     const id = item.suggested_replacement_product_id;
     validateCatalogueId(id, byId);
     item.suggested_replacement = item.verdict === 'replace' && id !== null ? restoreCatalogueName(id, byId) : null;
@@ -123,11 +151,13 @@ function hydrateCompactOutput(wireOutput, { eligibleProducts = [], language = 'e
 
   if (output.srProducts) {
     const hero = output.srProducts.era_hero_product;
+    if (hero.sr_product_id === '') hero.sr_product_id = null;
     validateCatalogueId(hero.sr_product_id, byId);
     hero.sr_product_name = restoreCatalogueName(hero.sr_product_id, byId);
 
     for (const period of ['am', 'pm']) {
       for (const [index, step] of output.srProducts[period].entries()) {
+        if (step.sr_product_id === '') step.sr_product_id = null;
         validateCatalogueId(step.sr_product_id, byId);
         step.step = index + 1;
         step.routine_category = labels[step.category_id];
@@ -142,10 +172,12 @@ function hydrateCompactOutput(wireOutput, { eligibleProducts = [], language = 'e
 
   if (output.shelfAnalysis) {
     for (const product of output.shelfAnalysis.identified_products) {
+      if (product.sr_substitute_product_id === '') product.sr_substitute_product_id = null;
       validateCatalogueId(product.sr_substitute_product_id, byId);
       product.sr_substitute_name = restoreCatalogueName(product.sr_substitute_product_id, byId);
     }
     const transition = output.shelfAnalysis.transition_plan;
+    if (transition.first_sr_purchase_product_id === '') transition.first_sr_purchase_product_id = null;
     validateCatalogueId(transition.first_sr_purchase_product_id, byId);
     transition.first_sr_purchase = restoreCatalogueName(transition.first_sr_purchase_product_id, byId);
   }

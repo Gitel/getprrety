@@ -5,7 +5,14 @@
 export const WELCOME_VARIANTS = {
   lu_clinic: { emoji: '🌿' },
   website:   { emoji: '🌿' },
+  // The link the clinic shows on the Shopify thank-you page and in the Shopify order email, AFTER
+  // the customer paid for a consultation: https://getpretty.app/?ref=consultation
+  // (plan AI/plans/shopify-consultation-link.md). This flow does NOT end with "Book a consultation".
+  consultation: { emoji: '🌿' },
 };
+
+// The ref of the Shopify consultation link above.
+export const CONSULTATION_REF = 'consultation';
 
 // Read and validate the ?ref= param from the current URL. Web-only — returns null on
 // native (no URL) or when the value isn't a known variant.

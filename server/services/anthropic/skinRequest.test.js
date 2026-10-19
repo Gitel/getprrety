@@ -36,3 +36,20 @@ test('empty guidance leaves out the heading entirely', () => {
   expect(request.system).not.toContain('Clinic guidance:');
   expect(request.system).toContain('Compact response contract');
 });
+
+test.each([
+  [false, false, false], [false, false, true], [false, true, false], [false, true, true],
+  [true, false, false], [true, false, true], [true, true, false], [true, true, true],
+])('keeps evidence pruning with shelf=%s, event=%s, catalogue=%s', (shelf, event, catalogue) => {
+  const request = prepareSkinRequest({
+    quiz: { allergies: ['none'], irritants: ['none'], pregnant_or_ttc: 'no', event_type: event ? 'wedding' : 'none' },
+    images: shelf ? [{ angle: 'shelf', mediaType: 'image/png', base64: 'encoded' }] : [],
+    catalogue: catalogue ? [product] : [],
+  });
+  expect(request.wireSchema.properties.shelfAnalysis.type).toBe(shelf ? 'object' : 'null');
+  expect(request.wireSchema.properties.era.properties.event_prep.type).toBe(event ? 'object' : 'null');
+  expect(request.wireSchema.properties.srProducts.type).toBe(catalogue ? 'object' : 'null');
+  expect(request.wireSchema.properties.era.properties.product_audit.properties.most_urgent_gap.type).toBe('string');
+  // This is a wire-only simplification: saved/API null semantics remain unchanged.
+  expect(request.schema.properties.srProducts.anyOf).toBeDefined();
+});

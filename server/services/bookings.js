@@ -9,6 +9,8 @@ const User = require('../models/User');
 const SkinAnalysis = require('../models/SkinAnalysis');
 const realCalendar = require('./calendar');
 const realSlots = require('./slots');
+// Consultations bought directly in the Shopify store (listMine shows them).
+const realConsultations = require('./shopifyConsultations');
 const { isDuplicateStartsAt } = require('./duplicateKey');
 
 // Log-safe text of a calendar error: only Google's reason and the HTTP status, e.g.
@@ -27,6 +29,7 @@ const HOLD_MINUTES = 15;
 function withDefaults(deps = {}) {
   return {
     Booking, BookingConfig, User, SkinAnalysis, calendar: realCalendar, slots: realSlots,
+    consultations: realConsultations,
     now: () => new Date(),
     ...deps,
   };
@@ -179,6 +182,9 @@ async function expireHolds(deps) {
 
 // Free slots for a range of clinic-local dates. from/to optional (default: today .. the last day
 // the booking window reaches, i.e. the clinic-local date of now + horizonDays).
+// Longest calendar free/busy query we send in one go (see listSlots).
+const BUSY_PIECE_DAYS = 31;
+
 async function listSlots({ from, to } = {}, deps) {
   const d = withDefaults(deps);
   if (!(await isBookingEnabled(d))) return { ok: false, code: 'booking_disabled' };
@@ -196,16 +202,25 @@ async function listSlots({ from, to } = {}, deps) {
   if (!d.slots.isDateString(fromDate) || !d.slots.isDateString(toDate) || fromDate > toDate) {
     return { ok: false, code: 'invalid_range' };
   }
-  if ((Date.parse(toDate) - Date.parse(fromDate)) / DAY > 31) return { ok: false, code: 'invalid_range' };
+  if ((Date.parse(toDate) - Date.parse(fromDate)) / DAY > 181) return { ok: false, code: 'invalid_range' }; // up to the 180 day horizon plus today
 
   // The whole range as instants: local midnight of `from` up to local midnight after `to`.
   const rangeStart = d.slots.zonedToUtc(fromDate, '00:00', config.timeZone);
   const rangeEnd = d.slots.zonedToUtc(addDays(toDate, 1), '00:00', config.timeZone);
 
+  // Google documents no maximum range for a free/busy query, so we never rely on one long query.
+  // Instead the range is cut into consecutive pieces of at most BUSY_PIECE_DAYS days (no gaps, no
+  // overlaps), each piece is asked in parallel, and the answers are joined into one list.
+  const pieces = [];
+  for (let start = rangeStart; start < rangeEnd; ) {
+    const end = new Date(Math.min(start.getTime() + BUSY_PIECE_DAYS * DAY, rangeEnd.getTime()));
+    pieces.push({ start, end });
+    start = end;
+  }
   let busy;
   try {
-    busy = await d.calendar.getBusy({ start: rangeStart, end: rangeEnd });
-  } catch (err) {
+    busy = (await Promise.all(pieces.map(piece => d.calendar.getBusy(piece)))).flat();
+  } catch (err) { // one failing piece fails the whole list
     console.error(`booking: calendar_unavailable while listing slots ${calendarDetail(err)}`);
     return { ok: false, code: 'calendar_unavailable' }; // any calendar failure
   }
@@ -348,9 +363,27 @@ async function listMine(userId, deps) {
     .sort({ startsAt: 1 }).limit(1).lean();
   const past = await d.Booking.find({ userId, status: 'confirmed', startsAt: { $lte: now } })
     .sort({ startsAt: -1 }).limit(20).lean();
+  // A consultation bought directly in the Shopify store, found by the account email
+  // (plan AI/plans/shopify-consultation-link.md). null when there is none.
+  const order = await d.consultations.activeForEmail(user && user.email, { now: d.now });
+  const appointment = order && order.appointment;
   return {
     upcoming: next ? publicBooking(next, config.timeZone, d.slots, user, now) : null,
     past: past.map(b => publicBooking(b, config.timeZone, d.slots, user, now)),
+    shopifyConsultation: order ? {
+      orderName: order.orderName || '',
+      paidAt: new Date(order.paidAt).toISOString(),
+      // The time the customer picked on the clinic's appointment page, once the sweep found it.
+      appointment: appointment ? {
+        startsAt: new Date(appointment.startsAt).toISOString(),
+        endsAt: new Date(appointment.endsAt).toISOString(),
+        ...d.slots.localParts(new Date(appointment.startsAt), config.timeZone), // { date, time } clinic-local
+      } : null,
+    } : null,
+    // Whether the app offers "Book a consultation" at the end of a skin analysis (Profile screen).
+    // Not when the user already has an in-app hold/upcoming booking, or a Shopify appointment that
+    // has not ended. A Shopify order WITHOUT a found appointment never blocks booking (user decision).
+    canBook: !next && !appointment,
   };
 }
 
@@ -502,7 +535,7 @@ async function markAttentionHandled(id, adminEmail, deps) {
 const NUMBER_FIELDS = [
   ['bufferMinutes', 0, 60],
   ['leadHours', 0, 168],
-  ['horizonDays', 1, 30],
+  ['horizonDays', 1, 180],
 ];
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 

@@ -3,6 +3,7 @@ const path = require('path');
 // The real ./bookings is replaced by an automock so we can see whether the PRODUCTION default
 // of deleteUserAndData calls it (no calendar, no database involved).
 jest.mock('./bookings');
+jest.mock('./shopifyConsultations'); // automock: the default delete step must not touch a database
 const { releaseUserBookings } = require('./bookings');
 const { deleteUserAndData, USER_DATA } = require('./deleteUser');
 
@@ -101,4 +102,22 @@ test('without an injected release, the real releaseUserBookings from ./bookings 
   expect(result.ok).toBe(true);
   expect(releaseUserBookings).toHaveBeenCalledWith(ID);
   expect(f.order[0]).toBe('release');
+});
+
+// Plan AI/plans/shopify-consultation-link.md D6: Shopify consultation orders (stored by email) go too.
+test('deletes the Shopify consultation orders of the account email, before the account itself', async () => {
+  const f = fakes({ _id: ID, email: 'ada@example.com' });
+  f.dataModels.Booking = { deleteMany: jest.fn(async () => ({ deletedCount: 0 })) };
+  const deleteShopifyOrders = jest.fn(async () => { f.order.push('ShopifyOrders'); });
+  await deleteUserAndData(ID, 'ada@example.com', { ...f, releaseBookings: jest.fn(), deleteShopifyOrders });
+  expect(deleteShopifyOrders).toHaveBeenCalledWith('ada@example.com');
+  expect(f.order.indexOf('ShopifyOrders')).toBeLessThan(f.order.indexOf('User'));
+});
+
+test('a failing Shopify-order delete keeps the account so the admin can retry', async () => {
+  const f = fakes({ _id: ID, email: 'ada@example.com' });
+  f.dataModels.Booking = { deleteMany: jest.fn(async () => ({ deletedCount: 0 })) };
+  const deleteShopifyOrders = jest.fn(async () => { throw new Error('mongo down'); });
+  await expect(deleteUserAndData(ID, 'ada@example.com', { ...f, releaseBookings: jest.fn(), deleteShopifyOrders })).rejects.toThrow('mongo down');
+  expect(f.userModel.deleteOne).not.toHaveBeenCalled();
 });

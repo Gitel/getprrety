@@ -220,7 +220,7 @@ test.describe('bookings', () => {
     await expect(page.getByLabel('Slot length (minutes)')).toHaveValue('30');
     await expect(page.getByLabel('Buffer between consultations (minutes)')).toHaveValue('0');
     await expect(page.getByLabel('Minimum notice (hours)')).toHaveValue('12');
-    await expect(page.getByLabel('Booking window (days)')).toHaveValue('30');
+    await expect(page.getByLabel('Booking window (days)')).toHaveValue('90');
     // Sunday-Thursday open 10:00-18:00; Friday and Saturday closed.
     const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     for (const [d, name] of days.entries()) {

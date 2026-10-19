@@ -20,6 +20,8 @@ import ViewSwitcher from '../components/booking/ViewSwitcher';
 import MonthView from '../components/booking/MonthView';
 import WeekView from '../components/booking/WeekView';
 import DayView from '../components/booking/DayView';
+import DayTimesModal from '../components/booking/DayTimesModal';
+import { COLUMN_MAX } from '../components/booking/calendarTheme';
 
 // How often the waiting-for-payment panel re-checks the server (ms).
 const PAYMENT_POLL_MS = 5000;
@@ -33,6 +35,8 @@ const PAYMENT_POLL_MS = 5000;
 //    the server holds the time for a few minutes (status pending_payment) and we show a
 //    waiting panel with a Pay now button; while it is shown we poll until the booking is
 //    confirmed (paid) or the hold runs out.
+//  - a consultation bought directly in the Shopify store is shown in a card ABOVE all of this
+//    (renderShopify), with a "Something wrong?" link to Messages; it never hides the picker.
 // All times shown are CLINIC time, taken from the server's date/time fields.
 export default function BookingScreen({ navigation }) {
   const { t, i18n } = useTranslation();
@@ -46,6 +50,7 @@ export default function BookingScreen({ navigation }) {
   const [index, setIndex] = useState(() => new Map()); // Map<date, [{ ...slot, taken }]> (free + taken times)
   const [view, setView] = useState('month');          // 'month' | 'week' | 'day' (not saved between visits)
   const [focusDate, setFocusDate] = useState(null);   // the date the calendar shows / selected day
+  const [popupDate, setPopupDate] = useState(null);   // date whose times pop-up is open (Month view), null = closed
   const [slot, setSlot] = useState(null);             // selected slot object
   const [note, setNote] = useState('');
   const [sending, setSending] = useState(false);
@@ -53,6 +58,10 @@ export default function BookingScreen({ navigation }) {
   const [confirmed, setConfirmed] = useState(null);   // { booking, warning } once paid
   const [pending, setPending] = useState(null);       // { booking, warning } while waiting for payment
   const [holdExpired, setHoldExpired] = useState(false); // show the 'time ran out' notice above the picker
+  // A consultation bought directly in the clinic's Shopify store ({ orderName, paidAt, appointment }),
+  // or null. Shown ABOVE the normal screen; it never blocks booking another one
+  // (plan AI/plans/shopify-consultation-link.md, D2/D7).
+  const [shopify, setShopify] = useState(null);
 
   // Put the server's "upcoming" booking in the right place. The server only returns a hold that
   // is still live, so we trust its status and never compare holdExpiresAt with the phone clock
@@ -61,6 +70,7 @@ export default function BookingScreen({ navigation }) {
   //  - a pending row is NEVER shown as the confirmed "upcoming" card;
   //  - anything else (confirmed) -> the normal upcoming card.
   function applyMine(mine) {
+    setShopify(mine.shopifyConsultation || null);
     const up = mine.upcoming || null;
     if (up && up.status === 'pending_payment') {
       if (up.checkoutUrl) {
@@ -177,10 +187,19 @@ export default function BookingScreen({ navigation }) {
     setSubmitError(null);
   }
   // Choosing a time in ANY view: remember it and focus its day so every view agrees.
+  // The Month pop-up is always closed afterwards (in Week / Day it is not open, so this is a no-op).
   function pickSlot(sl) {
     setSlot(sl);
     setFocusDate(sl.date);
     setSubmitError(null);
+    setPopupDate(null);
+  }
+  // Month view: pressing a day focuses it and opens its times pop-up. The chosen time is kept
+  // (the user may only be looking), so unlike pickDay this does NOT clear `slot`.
+  function openDay(date) {
+    setFocusDate(date);
+    setSubmitError(null);
+    setPopupDate(date);
   }
   const viewProps = {
     index, today, range, focusDate, onFocusDate: pickDay, selectedSlot: slot, onSelectSlot: pickSlot, accent, lang,
@@ -190,6 +209,34 @@ export default function BookingScreen({ navigation }) {
   // In Hebrew, isolate marks keep digits/punctuation of a date from reordering the sentence.
   const iso = text => (isRTL(lang) ? `\u2068${text}\u2069` : text);
   const align = isRTL(lang) ? { textAlign: 'right' } : null;
+
+  // The consultation bought in the Shopify store: its appointment (once the server found it in the
+  // clinic calendar) or "we received your payment", plus a "Something wrong?" section that opens
+  // Messages - a message there reaches the admin inbox and emails the clinic.
+  function renderShopify() {
+    if (!shopify || loading || loadError) return null;
+    const { appointment } = shopify;
+    return (
+      <View testID="booking-shopify" style={[s.card, s.shopifyCard]}>
+        <Text style={[s.cardTitle, align]}>{t('booking:shopifyTitle')}</Text>
+        {appointment && (
+          <Text testID="booking-shopify-when" style={[s.when, align]}>{iso(formatBookingWhen(appointment, lang))}</Text>
+        )}
+        <Text style={[s.body, align]}>{t(appointment ? 'booking:shopifyBooked' : 'booking:shopifyNoTime')}</Text>
+        <View testID="booking-shopify-help" style={s.helpBox}>
+          <Text style={[s.helpTitle, align]}>{t('booking:shopifyHelpTitle')}</Text>
+          <Text style={[s.body, align]}>{t('booking:shopifyHelpBody')}</Text>
+          <Pressable
+            testID="booking-shopify-message"
+            onPress={() => navigation.navigate('Messages')}
+            style={[s.button, s.buttonGhost]}
+          >
+            <Text style={[s.buttonText, { color: accent }]}>{t('booking:messageClinic')}</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
 
   function renderBody() {
     if (loading) {
@@ -278,6 +325,8 @@ export default function BookingScreen({ navigation }) {
     }
     return (
       <View>
+        {/* Under the Shopify card the picker is for an EXTRA consultation, so say so. */}
+        {shopify && <Text testID="booking-book-another" style={[s.label, align]}>{t('booking:bookAnother')}</Text>}
         {holdExpired && (
           <Text testID="booking-hold-expired" style={[s.warning, align]}>{t('booking:holdExpired')}</Text>
         )}
@@ -291,9 +340,22 @@ export default function BookingScreen({ navigation }) {
         <View style={s.calendar}>
           <ViewSwitcher view={view} onChange={setView} accent={accent} />
         </View>
-        {view === 'month' && <MonthView {...viewProps} />}
+        {view === 'month' && <MonthView {...viewProps} onOpenDay={openDay} />}
         {view === 'week' && <WeekView {...viewProps} />}
         {view === 'day' && <DayView {...viewProps} />}
+
+        {/* Month pop-up: the times of the pressed day (closed by x, overlay, Escape or by picking a time). */}
+        {popupDate && (
+          <DayTimesModal
+            date={popupDate}
+            rows={index.get(popupDate) || []}
+            selectedSlot={slot}
+            onSelectSlot={pickSlot}
+            onClose={() => setPopupDate(null)}
+            accent={accent}
+            lang={lang}
+          />
+        )}
 
         {slot && (
           <Text testID="booking-selected" style={[s.selected, align]}>
@@ -339,6 +401,7 @@ export default function BookingScreen({ navigation }) {
         <Text style={[s.subtitle, align]}>{t('booking:subtitle')}</Text>
       </View>
       <ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled">
+        {renderShopify()}
         {renderBody()}
       </ScrollView>
     </SafeAreaView>
@@ -347,15 +410,16 @@ export default function BookingScreen({ navigation }) {
 
 const s = StyleSheet.create({
   safe:        { flex: 1, backgroundColor: C.bg },
-  header:      { paddingHorizontal: 24, paddingTop: 18, paddingBottom: 8 },
+  // The whole screen is a centered column on wide screens (phones: full width, column cap not reached).
+  header:      { width: '100%', maxWidth: COLUMN_MAX, alignSelf: 'center', paddingHorizontal: 24, paddingTop: 18, paddingBottom: 8 },
   topRow:      { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 16 },
   pageTitle:   { fontFamily: 'CormorantGaramond_500Medium', fontSize: 26, color: C.text, marginBottom: 4 },
   subtitle:    { fontFamily: 'DMSans_400Regular', fontSize: 12, color: C.muted },
-  content:     { paddingHorizontal: 24, paddingVertical: 12, paddingBottom: 40 },
+  content:     { width: '100%', maxWidth: COLUMN_MAX, alignSelf: 'center', paddingHorizontal: 24, paddingVertical: 12, paddingBottom: 40 },
   center:      { alignItems: 'center', gap: 14, marginTop: 24 },
   muted:       { fontFamily: 'DMSans_400Regular', fontSize: 13, color: C.muted, textAlign: 'center', marginTop: 24 },
   label:       { fontFamily: 'DMSans_500Medium', fontSize: 13, color: C.text, marginTop: 16, marginBottom: 8 },
-  calendar:    { marginTop: 16, marginBottom: 12 },
+  calendar:    { marginTop: 8 },
   selected:    { fontFamily: 'DMSans_500Medium', fontSize: 14, color: C.text, marginTop: 16 },
   input:       { minHeight: 70, backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: '#E8DDD8', borderRadius: 12, paddingVertical: 10, paddingHorizontal: 12, fontFamily: 'DMSans_400Regular', fontSize: 14, color: '#2C2C2C' },
   error:       { fontFamily: 'DMSans_400Regular', fontSize: 12, color: '#C44B4B', marginTop: 10 },
@@ -367,4 +431,8 @@ const s = StyleSheet.create({
   cardTitle:   { fontFamily: 'CormorantGaramond_500Medium', fontSize: 20, color: C.text, marginBottom: 6 },
   when:        { fontFamily: 'DMSans_500Medium', fontSize: 15, color: C.text, marginBottom: 10 },
   body:        { fontFamily: 'DMSans_400Regular', fontSize: 13, color: C.muted, lineHeight: 20 },
+  // Shopify consultation card: spaced from what follows; the help part is set off by a top line.
+  shopifyCard: { marginBottom: 16 },
+  helpBox:     { borderTopWidth: 1, borderTopColor: C.border, marginTop: 14, paddingTop: 12 },
+  helpTitle:   { fontFamily: 'DMSans_500Medium', fontSize: 13, color: C.text, marginBottom: 4 },
 });
