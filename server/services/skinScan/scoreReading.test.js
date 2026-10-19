@@ -22,6 +22,7 @@ const { completeJson, isConfigured } = require('../anthropic/client');
 const { loadCatalogue } = require('../anthropic/catalogue');
 const {
   buildReadingRequest, sanitizeReading, readingStatusFor, maybeRequestReading, STALE_PENDING_MS,
+  prepareReadingCall, finishReading,
 } = require('./scoreReading');
 const { scanView } = require('./scanView');
 
@@ -50,6 +51,64 @@ const goodBody = () => ({
     product: { name: 'SR Barrier Repair Cream', actives: 'Ceramides', url: 'https://shop.example/cream' },
     extra: 'ignored',
   }],
+});
+
+describe('catalogue-first score recommendations', () => {
+  const quizSnapshot = { safetyContextVersion: 1, allergies: ['none'], irritants: ['none'], pregnant_or_ttc: 'no' };
+  const cream = { _id: 'cream-id', name: 'Catalogue Cream', category: 'face_creams', use: 'home',
+    archived: false, pregnancy: 'safe', keyActives: ['Glycerin'], strengths: [],
+    suitableFor: ['Dry skin'], ingredients: 'Water, Glycerin' };
+
+  test('provides suitability facts and requires checking the catalogue before a generic fallback', async () => {
+    const prepared = await prepareReadingCall({ merged, quizSnapshot }, '', async () => [cream]);
+    const input = JSON.parse(prepared.call.messages[0].content);
+    expect(input.eligible_catalogue).toEqual([expect.objectContaining({
+      name: cream.name, category: 'face_creams', suitableFor: ['Dry skin'],
+    })]);
+    expect(input.generic_product_types).toContain('Moisturizer');
+    expect(prepared.call.system).toContain('first assess eligible_catalogue');
+    expect(prepared.call.system).toContain('Only when no suitable catalogue product fits');
+
+    const body = goodBody();
+    body.signals[0].product = { name: cream.name, actives: 'Invented active', url: 'https://invented.example' };
+    expect(finishReading(body, prepared.request, prepared.catalogue).signals[0].product).toEqual({
+      name: cream.name, actives: 'Glycerin', url: null,
+    });
+  });
+
+  test.each([
+    ['en', false], ['he', false], ['en', true], ['he', true],
+  ])('allows only supplied generic types when no catalogue product fits (%s, catalogue=%s)', async (language, hasCatalogue) => {
+    const prepared = await prepareReadingCall({ merged, quizSnapshot, language }, '', async () => hasCatalogue ? [cream] : []);
+    const types = JSON.parse(prepared.call.messages[0].content).generic_product_types;
+    expect(types.length).toBeGreaterThan(0);
+    const body = goodBody();
+    body.signals[0].product = { name: types[0], actives: 'Invented active', url: 'https://invented.example' };
+    expect(finishReading(body, prepared.request, prepared.catalogue).signals[0].product).toEqual({
+      name: types[0], actives: null, url: null,
+    });
+    body.signals[0].product.name = 'Outside Brand Cream';
+    expect(finishReading(body, prepared.request, prepared.catalogue).signals[0].product).toBeNull();
+  });
+
+  test.each([
+    [{ ...quizSnapshot, pregnant_or_ttc: 'yes' }, { ...cream, pregnancy: 'avoid' }],
+    [{ ...quizSnapshot, allergies: ['fragrance'] }, { ...cream, ingredients: 'Water, Parfum' }],
+  ])('a generic fallback does not allow an excluded catalogue product back in', async (answers, excluded) => {
+    const prepared = await prepareReadingCall({ merged, quizSnapshot: answers }, '', async () => [excluded]);
+    expect(prepared.catalogue).toEqual([]);
+    const body = goodBody();
+    body.signals[0].product.name = excluded.name;
+    expect(finishReading(body, prepared.request, prepared.catalogue).signals[0].product).toBeNull();
+  });
+
+  test('generic types cannot bypass incomplete safety answers', async () => {
+    const prepared = await prepareReadingCall({ merged, quizSnapshot: {} }, '', async () => [cream]);
+    expect(JSON.parse(prepared.call.messages[0].content).generic_product_types).toEqual([]);
+    const body = goodBody();
+    body.signals[0].product.name = 'Moisturizer';
+    expect(finishReading(body, prepared.request, prepared.catalogue).signals[0].product).toBeNull();
+  });
 });
 
 describe('sanitizeReading', () => {

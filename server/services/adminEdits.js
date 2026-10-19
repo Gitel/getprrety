@@ -363,8 +363,8 @@ async function updateReading(body, current, { scanModel }) {
  * POSITION ({ index: i } -> productAudit[bucket][i]). The pairing is therefore done here,
  * AFTER empty rows are dropped, so every index points at the item it was typed next to.
  *
- * productRecs is null when no pick has any content: that hands picks back to the AI
- * (the Profile screen asks Claude whenever productRecs is null).
+ * productRecs is null when no pick has any content: My products then shows only
+ * the catalogue routine and generic guidance, without generating market picks.
  */
 function buildAuditAndPicks(rawAudit) {
   const src = rawAudit && typeof rawAudit === 'object' ? rawAudit : {};

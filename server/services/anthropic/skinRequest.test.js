@@ -5,6 +5,19 @@ const { prepareSkinRequest } = require('./skinRequest');
 const product = { _id: '507f1f77bcf86cd799439011', name: 'Calm Cream', category: 'face_creams', use: 'home',
   pregnancy: 'not_stated', archived: false, keyActives: [], strengths: [], suitableFor: [], ingredients: '' };
 
+test('requires catalogue-first selection and generic-only guidance when no suitable product fits', () => {
+  const request = prepareSkinRequest({
+    quiz: { allergies: ['none'], irritants: ['none'], pregnant_or_ttc: 'no' },
+    catalogue: [product], guidance: 'Keep it concise.',
+  });
+  expect(request.system).toContain('For every product need, first assess the supplied eligible catalogue');
+  expect(request.system).toContain('Only when no suitable eligible catalogue product fits');
+  expect(request.system).toContain('Do not recommend outside brands or market products');
+  expect(request.system).toContain('Do not leave srProducts wholly empty');
+  expect(request.system).toContain('no verified numeric SPF field');
+  expect(request.messages[0].content[0].text).toContain(product._id);
+});
+
 test('uses compact schema and requires null evidence fields when their context is absent', () => {
   const request = prepareSkinRequest({ quiz: {}, language: 'en', images: [], catalogue: [product] });
 
