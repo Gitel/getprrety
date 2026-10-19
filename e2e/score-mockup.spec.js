@@ -29,16 +29,20 @@ const collapseOf = locator => locator.evaluate(el => {
 
 test('the app fonts load under the names the styles use', async ({ page, mock, t }) => {
   await openMockupProfile(page, mock, t);
-  const loaded = await page.evaluate(async () => {
-    await document.fonts.ready;
-    return [...document.fonts].filter(f => f.status === 'loaded').map(f => f.family);
+  // document.fonts.load() resolves with the faces it loaded for that name; an empty list means no
+  // @font-face has that name (the bug S1 fixed). Explicit loads, so the test does not depend on timing.
+  const faces = await page.evaluate(async () => {
+    const names = ['400 16px DMSans_400Regular', '16px DMSans_500Medium', '600 16px CormorantGaramond_500Medium'];
+    return Promise.all(names.map(async n => (await document.fonts.load(n)).length));
   });
-  expect(loaded).toEqual(expect.arrayContaining(['DMSans_400Regular', 'DMSans_500Medium', 'CormorantGaramond_500Medium']));
+  expect(faces.every(count => count > 0)).toBe(true);
 });
 
 test('"Start here" shows the signal names in bold', async ({ page, mock, t }) => {
   await openMockupProfile(page, mock, t);
-  const name = page.getByText(t('score:signals.tone'), { exact: true }).first();
+  // The name inside the "Start here" body text (not a signal card's title).
+  const body = page.getByText(/One habit moves the most at once/).last();
+  const name = body.getByText(t('score:signals.tone'), { exact: true });
   await expect(name).toBeVisible();
   expect(Number(await fontWeight(name))).toBeGreaterThanOrEqual(600);
 });
