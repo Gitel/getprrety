@@ -1,3 +1,14 @@
+// 2026-10-19 INTENDED BEHAVIOUR CHANGE (calendar view, plan AI/plans/booking-calendar-and-fix.md):
+// the horizontal day chips + time chips were replaced by a Month / Week / Day calendar (new cases in
+// booking-calendar.spec.js). The contract keeps testID booking-day-<date> on AVAILABLE day cells and
+// booking-slot-<HH:MM> on FREE rows, so nearly every case below is unchanged. What changed here:
+//   - the two radiogroup assertions "pick a day" / "pick a time" (the old chip groups) were removed:
+//     the new layout has no such groups; the checked-radio count (exactly one: the focus day cell)
+//     and the three free rows are still asserted.
+//   - test title "...and the day chips" now says "day cells".
+// Taken times now show as booking-taken-<HH:MM> rows (not booking-slot-*), so slotButtons() still
+// counts only FREE rows.
+//
 // 2026-10-12 INTENDED BEHAVIOUR CHANGE (paid booking, plan AI/plans/paid-booking-and-signin-link.md):
 // booking is no longer confirmed at once. The confirm button now reads "Continue to payment" and
 // POST /api/bookings answers a 15 minute HOLD (status pending_payment), so the screen shows the
@@ -50,12 +61,12 @@ const slotButtons = page => page.locator('[data-testid^="booking-slot-"]');
 const confirmBtn = page => page.getByTestId('booking-confirm');
 
 test.describe('opening and the picker (English)', () => {
-  test('the menu item opens the screen with the title, subtitle and the day chips', async ({ page, mock, t }) => {
+  test('the menu item opens the screen with the title, subtitle and the day cells', async ({ page, mock, t }) => {
     await openBooking(page, t);
     const screen = page.getByTestId('booking-screen');
     await expect(screen).toContainText(EN.title);
     await expect(screen).toContainText(EN.subtitle);
-    // Loaded: one chip per day that has slots, and the screen asked for both lists once.
+    // Loaded: one cell per day that has free slots, and the screen asked for both lists once.
     await expect(page.getByTestId('booking-loading')).toHaveCount(0);
     await expect(page.getByTestId('booking-day-2026-10-01')).toBeVisible();
     await expect(page.getByTestId('booking-day-2026-10-04')).toBeVisible();
@@ -70,11 +81,9 @@ test.describe('opening and the picker (English)', () => {
     await openBooking(page, t);
     await expect(page.getByTestId('booking-day-2026-10-01')).toHaveAttribute('aria-checked', 'true');
     await expect(page.getByTestId('booking-day-2026-10-04')).toHaveAttribute('aria-checked', 'false');
-    // The chips are radios, so a screen reader announces the checked one as selected.
+    // The focus day cell is a radio, so a screen reader announces it as selected (free rows are unchecked radios).
     await expect(page.getByRole('radio', { checked: true })).toHaveCount(1);
-    // N-4: the day chips and the time chips are two separate labelled radio groups.
-    await expect(page.getByRole('radiogroup', { name: t('booking:pickDay') })).toHaveCount(1);
-    await expect(page.getByRole('radiogroup', { name: t('booking:pickTime') })).toHaveCount(1);
+    // (2026-10-19: the old day / time radiogroups are gone with the chip layout, see the header.)
     // Day 1 has three times (24 h, clinic time), none selected.
     await expect(slotButtons(page)).toHaveCount(3);
     for (const time of ['10:00', '10:30', '11:00']) {

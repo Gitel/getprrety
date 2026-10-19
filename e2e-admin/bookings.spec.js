@@ -304,4 +304,88 @@ test.describe('bookings', () => {
     // The cancel entry links to the client (user target).
     await expect(page.locator(`a[href="/admin/users/${state.userA.id}"]`).first()).toBeVisible();
   });
+
+  // ---- Same-day booking setting (2026-10-19, plan AI/plans/booking-calendar-and-fix.md) ----
+  // New setting "Allow same-day booking", OFF by default. With it off the server offers no time on
+  // today's clinic date (earliest bookable = 00:00 of the next clinic day) and refuses a same-day
+  // POST with 422 slot_invalid. These cases run LAST because they change the shared settings.
+
+  // 13. Default + persistence
+  test('13. "Allow same-day booking" is unticked by default; ticking and saving persists it', async ({ page, context }) => {
+    await signIn(context);
+    await page.goto('/admin/booking-settings');
+    const box = page.getByLabel('Allow same-day booking');
+    await expect(box).not.toBeChecked();
+
+    // Minimum notice is set to 0 as well, so the notice (24 h since test 10) cannot hide today's
+    // times: later checks then depend only on this checkbox.
+    await page.getByLabel('Minimum notice (hours)').fill('0');
+    await box.check();
+    await page.getByRole('button', { name: 'Save settings' }).click();
+    await expect(page).toHaveURL(/\/admin\/booking-settings/);
+    await expect(notice(page)).toHaveText('Booking settings saved.');
+    await page.reload();
+    await expect(page.getByLabel('Allow same-day booking')).toBeChecked();
+    // Saving again without changes says nothing changed (the checkbox keeps its value).
+    await page.getByRole('button', { name: 'Save settings' }).click();
+    await expect(notice(page)).toHaveText('Nothing changed.');
+  });
+
+  // 14. Audit
+  test('14. the audit log lists the booking settings change', async ({ page, context }) => {
+    await signIn(context);
+    await page.goto('/admin/audit');
+    // Tests 10 and 13 both wrote "booking settings updated"; test 13's entry names the new field.
+    await expect(page.getByText('booking settings updated').first()).toBeVisible();
+    await expect(page.getByText('allowSameDay').first()).toBeVisible();
+  });
+
+  // 15. The rule itself, through the real API
+  test('15. with the setting off, no same-day time is offered and a same-day POST is 422 slot_invalid', async ({ page, context, request }) => {
+    // Today's date and time in the clinic's time zone (Asia/Jerusalem), from the real clock.
+    const zone = 'Asia/Jerusalem';
+    const clinicParts = ms => Object.fromEntries(
+      new Intl.DateTimeFormat('en-GB', {
+        timeZone: zone, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', weekday: 'short',
+      }).formatToParts(ms).map(p => [p.type, p.value]),
+    );
+    const now = Date.now();
+    const today = (() => { const p = clinicParts(now); return `${p.year}-${p.month}-${p.day}`; })();
+
+    // A candidate same-day start: the next 30 minute boundary at least 60 minutes from now (the
+    // clinic zone has whole-hour offsets, so UTC half hours are clinic half hours). It is only a
+    // valid booking IF the setting were on when it is on today's date, Sunday-Thursday, inside the
+    // 10:00-18:00 opening hours (last start 17:30) and outside the fake calendar's 12:00-13:00 busy time.
+    const HALF_HOUR = 30 * 60_000;
+    const candidateMs = Math.ceil((now + 60 * 60_000) / HALF_HOUR) * HALF_HOUR;
+    const c = clinicParts(candidateMs);
+    const hhmm = `${c.hour}:${c.minute}`;
+    const usable = `${c.year}-${c.month}-${c.day}` === today
+      && ['Sun', 'Mon', 'Tue', 'Wed', 'Thu'].includes(c.weekday)
+      && hhmm >= '10:00' && hhmm <= '17:30' && !(hhmm >= '12:00' && hhmm < '13:00');
+
+    // Part A (always runs): switch the setting OFF through the form, then check the slot list.
+    await signIn(context);
+    await page.goto('/admin/booking-settings');
+    await page.getByLabel('Allow same-day booking').uncheck();
+    await page.getByRole('button', { name: 'Save settings' }).click();
+    await expect(notice(page)).toHaveText('Booking settings saved.');
+
+    const res = await request.get('/api/bookings/slots', { headers: bearer(state.userB) });
+    expect(res.status()).toBe(200);
+    const { slots, taken } = await res.json();
+    expect(slots.some(sl => sl.date === today)).toBe(false);
+    // Today's times are not in the "taken" list either: they are simply not offered.
+    expect(taken.some(sl => sl.date === today)).toBe(false);
+
+    // Part B: a same-day POST. It can only be built when today still has opening hours left in clinic
+    // time. Otherwise (late evening, Friday/Saturday, lunch break) the sub-check is skipped on purpose:
+    // a time outside the opening hours is refused with slot_invalid whatever the setting is, which
+    // would prove nothing about the new rule.
+    test.skip(!usable, `no same-day opening time left in clinic time right now (${today} ${hhmm}); POST sub-check skipped`);
+    const sameDay = await book(request, state.userB, new Date(candidateMs).toISOString());
+    expect(sameDay.status()).toBe(422);
+    expect((await sameDay.json()).code).toBe('slot_invalid');
+  });
 });
