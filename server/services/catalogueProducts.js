@@ -21,6 +21,11 @@ const CATEGORY_LABELS = {
   eye: 'Eye',
   face_creams: 'Face creams',
   masks: 'Masks',
+  // Added with the ONmacabim catalogue (see CatalogueProduct.CATEGORIES).
+  ampoules_boosters: 'Ampoules, boosters & actives',
+  body: 'Body care',
+  hands_feet: 'Hands & feet',
+  hair_lashes: 'Hair, lashes & brows',
 };
 const USE_LABELS = { home: 'Home use', guided: 'Home use with guidance', professional: 'Professional only' };
 const PREGNANCY_LABELS = { safe: 'Safe in pregnancy', avoid: 'Avoid in pregnancy', not_stated: 'Not stated' };

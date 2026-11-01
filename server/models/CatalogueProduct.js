@@ -2,7 +2,13 @@ const mongoose = require('mongoose');
 
 // Allowed values, exported on the model so the admin form, the service validation and the
 // tests all read ONE list. The order of CATEGORIES is also the display order of the catalogue.
-const CATEGORIES = ['cleansers_peelings', 'face_serums', 'eye', 'face_creams', 'masks'];
+// The last four were added for the ONmacabim catalogue, whose products are not all face
+// products: professional ampoules / boosters / additives, body care, hands & feet, and hair /
+// lashes / brows. They are appended so the display order of the original five is unchanged.
+const CATEGORIES = [
+  'cleansers_peelings', 'face_serums', 'eye', 'face_creams', 'masks',
+  'ampoules_boosters', 'body', 'hands_feet', 'hair_lashes',
+];
 const USES = ['home', 'guided', 'professional'];
 const PREGNANCY = ['safe', 'avoid', 'not_stated'];
 

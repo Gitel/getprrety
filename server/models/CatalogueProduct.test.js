@@ -46,7 +46,10 @@ test.each([['category', 'soap'], ['use', 'spa'], ['pregnancy', 'maybe']])('rejec
 });
 
 test('exports the enum lists the contract names', () => {
-  expect(CatalogueProduct.CATEGORIES).toEqual(['cleansers_peelings', 'face_serums', 'eye', 'face_creams', 'masks']);
+  expect(CatalogueProduct.CATEGORIES).toEqual([
+    'cleansers_peelings', 'face_serums', 'eye', 'face_creams', 'masks',
+    'ampoules_boosters', 'body', 'hands_feet', 'hair_lashes',
+  ]);
   expect(CatalogueProduct.USES).toEqual(['home', 'guided', 'professional']);
   expect(CatalogueProduct.PREGNANCY).toEqual(['safe', 'avoid', 'not_stated']);
 });

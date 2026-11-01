@@ -10,33 +10,55 @@ const { loadSeed } = require('../scripts/seedCatalogue');
 
 const { products, problems } = loadSeed();
 const bySlug = Object.fromEntries(products.map(p => [p.slug, p]));
+// The file holds two catalogues, in this order: the 34 SR Cosmetics products, then the 123
+// ONmacabim products (catalog HE 30.01.18_FAINAL.pdf, ingredients translated from Hebrew).
+const sr = products.slice(0, 34);
+const onmacabim = products.slice(34);
 
 test('the seed data passes every check of the seed script', () => {
   expect(problems).toEqual([]);
 });
 
-test('it holds the 34 catalogue products, each with a photo', () => {
-  expect(products).toHaveLength(34);
+test('it holds the 34 SR products (each with a photo) and the 123 ONmacabim products', () => {
+  expect(products).toHaveLength(157);
   // loadSeed() only attaches a photo after checking the file exists, is <= 2 MB and is a
   // real JPEG / PNG, so a photo here means a valid one.
-  expect(products.filter(p => !p.photo).map(p => p.slug)).toEqual([]);
+  expect(sr.filter(p => !p.photo).map(p => p.slug)).toEqual([]);
+  // The ONmacabim products were added without photos (the admin can upload them later).
+  expect(onmacabim.filter(p => p.photo).map(p => p.slug)).toEqual([]);
+  // PDF order: first and last product of the ONmacabim catalogue.
+  expect(onmacabim[0].slug).toBe('dm-cleansing-gel-oily-and-problematic-skin');
+  expect(onmacabim[onmacabim.length - 1].slug).toBe('ps-med-treatment-cream-forte');
 });
 
-test('per-section counts match the PDF', () => {
-  const count = {};
-  products.forEach(p => { count[p.category] = (count[p.category] || 0) + 1; });
-  expect(count).toEqual({ cleansers_peelings: 7, face_serums: 12, eye: 2, face_creams: 10, masks: 3 });
+test('per-section counts match the PDFs', () => {
+  const countOf = list => {
+    const count = {};
+    list.forEach(p => { count[p.category] = (count[p.category] || 0) + 1; });
+    return count;
+  };
+  expect(countOf(sr)).toEqual({ cleansers_peelings: 7, face_serums: 12, eye: 2, face_creams: 10, masks: 3 });
+  expect(countOf(onmacabim)).toEqual({
+    cleansers_peelings: 21, face_serums: 18, eye: 6, face_creams: 22, masks: 13,
+    ampoules_boosters: 28, body: 9, hands_feet: 3, hair_lashes: 3,
+  });
 });
 
 test('only the products the catalogue marks are clinic-only / guided', () => {
   // "Professional only!" in the PDF -> professional; Peel Young -> home use only with the
   // beautician's guidance. Recommendations will later be limited to `home` products.
-  const notHome = products.filter(p => p.use !== 'home').map(p => [p.slug, p.use]);
+  const notHome = sr.filter(p => p.use !== 'home').map(p => [p.slug, p.use]);
   expect(notHome).toEqual([
     ['caliente-peeling-mask', 'professional'],
     ['light-tomato-peel', 'professional'],
     ['peel-young', 'guided'],
   ]);
+  // ONmacabim: "professional use only" / institute-only items -> professional; Neutrazen L / G
+  // ("continue per specialist instructions") -> guided; the rest -> home.
+  const count = { home: 0, guided: 0, professional: 0 };
+  onmacabim.forEach(p => { count[p.use] += 1; });
+  expect(count).toEqual({ home: 65, guided: 2, professional: 56 });
+  expect(onmacabim.filter(p => p.use === 'guided').map(p => p.slug)).toEqual(['neutrazen-l', 'neutrazen-g']);
 });
 
 test('pregnancy is set only where the catalogue says so explicitly', () => {
@@ -47,6 +69,8 @@ test('pregnancy is set only where the catalogue says so explicitly', () => {
     ['grand-active-serum', 'avoid'],
     ['blue-light-night-cream', 'safe'],
     ['white-bright-cream', 'safe'],
+    // ONmacabim: only the lash / brow serum is stated safe in pregnancy / breastfeeding.
+    ['ps-med-risim-gabot-serum', 'safe'],
   ]);
 });
 

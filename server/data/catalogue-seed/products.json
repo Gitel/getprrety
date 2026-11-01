@@ -1,5 +1,5 @@
 {
-  "source": "All products and Ingrediants SR COSMETICS New.pdf (client, received 2026-10-05)",
+  "source": "All products and Ingrediants SR COSMETICS New.pdf (client, received 2026-10-05); ONmacabim (Judean Desert Herbs) products from \"catalog HE 30.01.18_FAINAL.pdf\" (client, received 2026-11-01), ingredients translated from Hebrew",
   "products": [
     {
       "seedKey": "herbal-cleansing-mousse",
@@ -41,7 +41,7 @@
       ],
       "ingredients": "Water, SD Alcohol 40-B, Glycolic Acid, Lactic Acid, Propylene Glycol, Triethanolamine, AlphaArbutin, Polysorbate 20, Phenoxyethanol, Caprylyl Glycol, Chlorphensin, Salycilic Acid, Allantoin, Fragrance, Limonene, Citral, Benzyl Salicylate",
       "strengths": [
-        "Helps break down and inhibit the tyrosinase enzyme \u2013 preventing an increase of pigmentation",
+        "Helps break down and inhibit the tyrosinase enzyme – preventing an increase of pigmentation",
         "brightens the skin"
       ],
       "suitableFor": [
@@ -543,7 +543,7 @@
         "Squalene",
         "Niaziamide 5B"
       ],
-      "ingredients": "Water, Caffeine, Coffea Arabica (Coffee) Seed Extract, Lecithin, Niacinamide, Squalane, Glycerin, Isononyl Isononanoate, Cetyl Alcohol, C12-15 Alkyl Benzoate, Steareth-2, Simmondsia Chinensis (Jojoba) Seed Oil, Sodium Hyaluronate, Phenoxyethanol, Caprylyl Glycol, Chlorphenesin, Steareth \u2013 21, Dimethicone, Fragrance. Allantoin,Tocopheryl Acetate, BHT, Menthyl Lactate, EDTA",
+      "ingredients": "Water, Caffeine, Coffea Arabica (Coffee) Seed Extract, Lecithin, Niacinamide, Squalane, Glycerin, Isononyl Isononanoate, Cetyl Alcohol, C12-15 Alkyl Benzoate, Steareth-2, Simmondsia Chinensis (Jojoba) Seed Oil, Sodium Hyaluronate, Phenoxyethanol, Caprylyl Glycol, Chlorphenesin, Steareth – 21, Dimethicone, Fragrance. Allantoin,Tocopheryl Acetate, BHT, Menthyl Lactate, EDTA",
       "strengths": [
         "Brightens pigmentation",
         "Detox"
@@ -892,6 +892,2975 @@
         "Irritated skin"
       ],
       "photo": "calm-forte-cream-mask.png"
+    },
+    {
+      "seedKey": "dm-cleansing-gel-oily-and-problematic-skin",
+      "slug": "dm-cleansing-gel-oily-and-problematic-skin",
+      "name": "DM Cleansing Gel - Oily and Problematic Skin",
+      "category": "cleansers_peelings",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Soapwort (saponins)",
+        "Red Everlasting (Helichrysum sanguineum)",
+        "Eucalyptus",
+        "Juniper"
+      ],
+      "ingredients": "Soapwort (Saponaria officinalis), Urea, Allantoin, Citric Acid, Marjoram Oil, Eucalyptus, Red Everlasting (Helichrysum sanguineum), Juniper",
+      "strengths": [
+        "Gentle, easy-foaming anti-inflammatory cleansing gel",
+        "Removes make-up without changing skin pH or drying",
+        "Anti-bacterial actives",
+        "Helps normalise sebaceous glands"
+      ],
+      "suitableFor": [
+        "Oily skin",
+        "Problematic skin",
+        "Seborrheic skin"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "dm-lotion-toner",
+      "slug": "dm-lotion-toner",
+      "name": "DM Lotion Toner",
+      "category": "cleansers_peelings",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Salicylic Acid",
+        "Citron (Etrog) Extract",
+        "Camphor",
+        "Juniper Berry Oil"
+      ],
+      "ingredients": "Ethyl Alcohol, Soapwort Extract, Citron (Etrog) Extract, Salicylic Acid, Camphor, Citric Acid, Allantoin, Eucalyptus Oil, Juniper Berry Oil, Mint, Lavender",
+      "strengths": [
+        "Soothing toner that restores natural skin pH",
+        "Disinfecting, helps prevent inflammation",
+        "Helps normalise pore size and remove excess sebum"
+      ],
+      "suitableFor": [
+        "Oily skin",
+        "Problematic / acne-prone skin"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "dm-tohar-hamidbar-1",
+      "slug": "dm-tohar-hamidbar-1",
+      "name": "DM Tohar Hamidbar 1",
+      "category": "face_serums",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Red Everlasting (Helichrysum sanguineum)",
+        "Tea Tree Extract",
+        "Thyme Oil",
+        "Sage"
+      ],
+      "ingredients": "Chamomile Extract, Sage, Red Everlasting (Helichrysum sanguineum), Thyme Oil, Lavender, Thymol, Tea Tree Extract, Lemon Extract, Magnolia Extract, Grapefruit Seed",
+      "strengths": [
+        "Anti-seborrheic leave-on treatment",
+        "Inhibits comedone (blackhead) formation",
+        "Intensive cleansing effect"
+      ],
+      "suitableFor": [
+        "Excess sebum",
+        "Acne grade I-II",
+        "Seborrheic dermatitis"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "dm-tohar-hamidbar-2",
+      "slug": "dm-tohar-hamidbar-2",
+      "name": "DM Tohar Hamidbar 2",
+      "category": "face_serums",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Salicylic Acid",
+        "Lactic Acid",
+        "Tea Tree",
+        "Vitamin C"
+      ],
+      "ingredients": "Chamomile Extract, Sage, Banana, Calendula, Olive Leaf, Rosemary, Walnut, Sage Oil, Lavender, Thymol, Vitamin C, Aloe Vera Gel, Olive Oil, Jojoba, Sweet Almond Oil, Wheat Germ, Rosemary, Tea Tree, Salicylic Acid, Lactic Acid, Evening Primrose Oil, Lemon, Magnolia Extract, Grapefruit Seed, Vitamin E, Myrtle Oil, Vitamin B5",
+      "strengths": [
+        "Highly concentrated disinfecting, anti-inflammatory treatment",
+        "Mattifies and tightens pores",
+        "Mild keratolytic effect, helps post-acne marks and scars",
+        "Use SPF 15+ during sun exposure"
+      ],
+      "suitableFor": [
+        "Acne including grades III-IV",
+        "Post-acne",
+        "Oily, porous, rough skin"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "dm-hydration-gel",
+      "slug": "dm-hydration-gel",
+      "name": "DM Hydration Gel",
+      "category": "cleansers_peelings",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Salicylic Acid",
+        "Lactic Acid",
+        "Dead Sea Minerals"
+      ],
+      "ingredients": "Netofit Refuit (Hebrew plant name - botanical name to confirm), Rosemary Extract, Olive Oil, Lactic Acid, Salicylic Acid, Dead Sea Minerals, Menthol, Camphor Oil, Lavender Oil, Tea Tree Oil, Rosemary Oil",
+      "strengths": [
+        "Softening gel used before professional facial cleansing",
+        "Softens comedones and reduces sebum secretion",
+        "Improves penetration of active ingredients"
+      ],
+      "suitableFor": [
+        "Oily skin",
+        "Problematic skin",
+        "Closed comedones"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "dm-treatment-mask-for-problematic-skin",
+      "slug": "dm-treatment-mask-for-problematic-skin",
+      "name": "DM Treatment Mask for Problematic Skin",
+      "category": "masks",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Green Clay",
+        "Sulfur",
+        "Zinc Oxide"
+      ],
+      "ingredients": "Green Clay, Sulfur, Zinc Oxide, Soapwort Extract, Sage, Geranium Oil",
+      "strengths": [
+        "Anti-seborrheic, anti-bacterial clay mask",
+        "Helps prevent scarring and pigmentation after acne",
+        "Soothes inflamed areas and reduces comedones"
+      ],
+      "suitableFor": [
+        "Oily skin",
+        "Problematic / acne-prone skin"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "dm-drying-lotion-with-without-make-up",
+      "slug": "dm-drying-lotion-with-without-make-up",
+      "name": "DM Drying Lotion With / Without Make Up",
+      "category": "face_serums",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Zinc Oxide",
+        "Sulfur",
+        "Salicylic Acid",
+        "Tea Tree Oil"
+      ],
+      "ingredients": "Zinc Oxide, Sulfur, Camphor, Soapwort Extract, Immortelle Oil, Salicylic Acid, Tea Tree Oil, Boric Acid",
+      "strengths": [
+        "Antiseptic spot treatment for inflamed areas",
+        "Soothing and astringent, mattifies shine",
+        "Available white or tinted (make-up)"
+      ],
+      "suitableFor": [
+        "Acne spots",
+        "Pustular breakouts"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "dm-propolis-gel",
+      "slug": "dm-propolis-gel",
+      "name": "DM Propolis Gel",
+      "category": "face_serums",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Propolis",
+        "Aloe Vera Gel",
+        "Tea Tree Oil"
+      ],
+      "ingredients": "Rosemary Extract, Mallow, Sage, Propolis, Aloe Vera Gel, Urea, Tea Tree Oil, Magnolia Extract, Vitamin B5, Grapefruit Seed, Citric Acid, Vitamin E, Anisic Acid",
+      "strengths": [
+        "Refreshing, cooling and moisturising gel",
+        "Regulates sebaceous and sweat glands",
+        "Calms irritation from sun, insect bites, epilation or shaving"
+      ],
+      "suitableFor": [
+        "Oily skin",
+        "Sensitive or irritated skin",
+        "Seborrheic skin"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "dm-moisturizing-cream-oil-free-spf-15",
+      "slug": "dm-moisturizing-cream-oil-free-spf-15",
+      "name": "DM Moisturizing Cream Oil Free SPF-15",
+      "category": "face_creams",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Hyaluronic Acid",
+        "Ginkgo Biloba Extract",
+        "Red Everlasting Extract"
+      ],
+      "ingredients": "Hydrogenated Castor Oil, Hyaluronic Acid, Ginkgo Biloba Extract, Grape Seed Oil, Sweet Almond Oil, Allantoin, Red Everlasting (Helichrysum sanguineum) Extract, Calendula Oil",
+      "strengths": [
+        "Light, oil-free moisturiser with sun protection",
+        "Relieves tightness and dryness",
+        "Disinfecting, mattifies oily shine"
+      ],
+      "suitableFor": [
+        "Oily skin",
+        "Problematic skin"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "nr-cleansing-gel-normal-and-dry-skin",
+      "slug": "nr-cleansing-gel-normal-and-dry-skin",
+      "name": "NR Cleansing Gel - Normal and Dry Skin",
+      "category": "cleansers_peelings",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Saponins",
+        "Flavonoids",
+        "Evening Primrose"
+      ],
+      "ingredients": "Soapwort Extract, Allantoin, Calendula Extract, Chamomile Extract, Evening Primrose",
+      "strengths": [
+        "Soft foam that gently removes make-up",
+        "Soothes and moisturises the epidermis",
+        "Restores skin balance after cleansing"
+      ],
+      "suitableFor": [
+        "Normal skin",
+        "Dry skin",
+        "Sensitive skin"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "nr-lotion-toner",
+      "slug": "nr-lotion-toner",
+      "name": "NR Lotion Toner",
+      "category": "cleansers_peelings",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Evening Primrose Oil",
+        "Ginkgo Biloba Extract",
+        "Chamomile"
+      ],
+      "ingredients": "Sorbitol, Ginkgo Biloba Extract, Chamomile, Soapwort, Allantoin, Evening Primrose Oil, Geranium, Lavender",
+      "strengths": [
+        "Rich in plant extracts, helps remove make-up",
+        "Keeps tissue moisturised and balances skin tone",
+        "For daily use"
+      ],
+      "suitableFor": [
+        "Dry skin",
+        "Normal skin"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "nr-eye-cream",
+      "slug": "nr-eye-cream",
+      "name": "NR Eye Cream",
+      "category": "eye",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Borage Oil (gamma-linolenic acid)",
+        "Hyaluronic Acid",
+        "Collagen"
+      ],
+      "ingredients": "Avocado Oil, Jojoba, Vitamin E, Hyaluronic Acid, Ginkgo Biloba Extract, Shea Butter, Wheat Germ Oil, Collagen, Borage Oil, Calendula Flower Oil",
+      "strengths": [
+        "Light eye cream against dark circles and puffiness",
+        "Reduces visible signs of tired eyes",
+        "Supports the epidermal barrier"
+      ],
+      "suitableFor": [
+        "Dry skin around the eyes",
+        "Sensitive, allergy-prone skin"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "nr-makeup-remover",
+      "slug": "nr-makeup-remover",
+      "name": "NR Makeup Remover",
+      "category": "cleansers_peelings",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Sodium Hyaluronate",
+        "Sage Extract",
+        "Allantoin"
+      ],
+      "ingredients": "Sage Extract, Soapwort Extract, Sodium Hyaluronate, Allantoin, Sodium Phytate",
+      "strengths": [
+        "Silky cleansing milk that removes make-up and excess sebum",
+        "Keeps natural skin balance without dryness"
+      ],
+      "suitableFor": [
+        "All sensitive skin types",
+        "Face, neck and eye area"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "nr-massage-cream",
+      "slug": "nr-massage-cream",
+      "name": "NR Massage Cream",
+      "category": "face_creams",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Shea Butter",
+        "Cocoa Butter",
+        "Wheat Germ Oil"
+      ],
+      "ingredients": "Cocoa Butter, Shea Butter, Castor Oil, Ginkgo Biloba, Almond Oil, Allantoin, Marjoram, Rosemary, Wheat Germ Oil",
+      "strengths": [
+        "Gentle firming shea-butter cream for cosmetic massage",
+        "Can be combined with cosmetic oils"
+      ],
+      "suitableFor": [
+        "All skin types"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "nr-lifting-cream-omega-3-6",
+      "slug": "nr-lifting-cream-omega-3-6",
+      "name": "NR Lifting Cream Omega 3+6",
+      "category": "face_creams",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Omega 3 & 6",
+        "Hyaluronic Acid",
+        "Collagen",
+        "Vitamin C"
+      ],
+      "ingredients": "Shea Butter, Sweet Almond Oil, Hyaluronic Acid, Jojoba Oil, Vitamin E, Ginkgo Biloba Extract, Collagen, Aloe Vera, Allantoin, Chitosan, Vitamin C, Chamomile, Evening Primrose, Borage",
+      "strengths": [
+        "Rich in polyunsaturated fatty acids that support the skin barrier",
+        "Anti-ageing, helps stimulate collagen synthesis",
+        "Improves elasticity and skin tone"
+      ],
+      "suitableFor": [
+        "Dry skin",
+        "Sensitive skin",
+        "Mature skin"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "nr-nourishing-skin-mask",
+      "slug": "nr-nourishing-skin-mask",
+      "name": "NR Nourishing Skin Mask",
+      "category": "masks",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Kaolin",
+        "Butcher's Broom Root Extract",
+        "Bearberry Extract (arbutin)",
+        "Licorice Extract"
+      ],
+      "ingredients": "Kaolin (White Clay), Magnesium Sulfate, Green Clay, Glycerin, Zinc Oxide, Butcher's Broom (Ruscus) Root Extract, Witch Hazel Extract, Bearberry Extract (20% arbutin), Licorice Extract, Citric Acid",
+      "strengths": [
+        "Firming, anti-bacterial mask",
+        "Strengthens capillaries and tightens pores",
+        "Reduces redness, puffiness and dark circles"
+      ],
+      "suitableFor": [
+        "Normal to dry skin",
+        "Skin with redness"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "nr-beauty-mask",
+      "slug": "nr-beauty-mask",
+      "name": "NR Beauty Mask",
+      "category": "masks",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Neutrazen Peptide",
+        "Witch Hazel",
+        "Licorice"
+      ],
+      "ingredients": "Witch Hazel Extract, Licorice, Zinc Oxide, Neutrazen Peptide, Allantoin",
+      "strengths": [
+        "Quick \"before an event\" mask",
+        "Strengthens the skin lipid barrier against moisture loss",
+        "Smooths fine lines, anti-ageing"
+      ],
+      "suitableFor": [
+        "All sensitive skin types"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "nr-moisturizing-cream-combination-skin-spf-15",
+      "slug": "nr-moisturizing-cream-combination-skin-spf-15",
+      "name": "NR Moisturizing Cream Combination Skin SPF-15",
+      "category": "face_creams",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Omega 3 & 6",
+        "Evening Primrose",
+        "Vitamin A"
+      ],
+      "ingredients": "Hazelnut Oil, Grape Seed Oil, Almond Oil, Shea Oil, Calendula Oil, Omega 3, Omega 6, Evening Primrose, Chamomile, Ginkgo Biloba, Vitamin A, Lemongrass, Allantoin",
+      "strengths": [
+        "Light moisturiser with SPF 15, no greasy shine",
+        "Protects against environmental damage",
+        "Good make-up base"
+      ],
+      "suitableFor": [
+        "Combination skin"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "nr-serum-lily-omega-3-6",
+      "slug": "nr-serum-lily-omega-3-6",
+      "name": "NR Serum Lily Omega 3+6",
+      "category": "face_serums",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Omega 3 & 6",
+        "Vitamins A and E",
+        "Sesamol (natural antioxidant)"
+      ],
+      "ingredients": "Olive Oil, Jojoba, Sweet Almond, Sesame, Wheat Germ, Lecithin, Avocado Oil, Grape Seed, Evening Primrose, Borage, Lavender, Vitamin E, Sea Buckthorn Oil, Orange, Grapefruit Seed Extract, Lemon",
+      "strengths": [
+        "Nourishing oil serum, absorbs quickly",
+        "Anti-ageing, intense immediate moisture",
+        "Helps regulate sebaceous secretion"
+      ],
+      "suitableFor": [
+        "Very dry skin",
+        "Mature skin",
+        "Tired skin"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "nr-moisturizing-cream-dry-skin-spf-15",
+      "slug": "nr-moisturizing-cream-dry-skin-spf-15",
+      "name": "NR Moisturizing Cream Dry Skin SPF-15",
+      "category": "face_creams",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Essential fatty acids",
+        "Shea Butter",
+        "Evening Primrose",
+        "Borage"
+      ],
+      "ingredients": "Shea Butter, Aloe Vera, Camellia Leaf Extract, Jojoba Oil, Avocado Oil, Ginkgo Biloba Extract, Vitamin E, Allantoin, Sweet Almond Oil, Wheat Germ, Evening Primrose, Borage",
+      "strengths": [
+        "Restores the epidermal lipid balance",
+        "Antioxidant, slows signs of ageing",
+        "Non-greasy, good make-up base"
+      ],
+      "suitableFor": [
+        "Normal skin",
+        "Dry skin"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "nr-b-c-t-serum",
+      "slug": "nr-b-c-t-serum",
+      "name": "NR B.C.T. Serum",
+      "category": "face_serums",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Palmitoyl Tetrapeptide-7",
+        "Hyaluronic Acid",
+        "Coffee Extract"
+      ],
+      "ingredients": "Peptides (Palmitoyl Tetrapeptide-7), Hyaluronic Acid, Sodium Lactate, Coffee Extract",
+      "strengths": [
+        "Intensive peptide serum against wrinkles",
+        "Firms and improves elasticity and moisture",
+        "Helps reduce puffiness; usable around the eyes"
+      ],
+      "suitableFor": [
+        "Ageing skin",
+        "Loss of firmness"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "vc-moisturizing-cream-vitamin-c-spf-15",
+      "slug": "vc-moisturizing-cream-vitamin-c-spf-15",
+      "name": "VC Moisturizing Cream Vitamin C SPF-15",
+      "category": "face_creams",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Citron (Etrog) Extract",
+        "Hyaluronic Acid",
+        "Vitamins A and E"
+      ],
+      "ingredients": "Citron (Etrog) Extract, German Chamomile, Castor Oil, Hyaluronic Acid, Ginkgo Biloba Extract, Allantoin, Vitamin E, Vitamin A, Calendula Flower Oil",
+      "strengths": [
+        "Antioxidant day moisturiser with SPF 15",
+        "Strengthens blood vessels, gives a soft glow",
+        "Non-greasy, good make-up base"
+      ],
+      "suitableFor": [
+        "Normal skin",
+        "Dry skin"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "vc-serum-vitamin-c",
+      "slug": "vc-serum-vitamin-c",
+      "name": "VC Serum Vitamin C",
+      "category": "face_serums",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Vitamin C (oil-soluble)",
+        "Vitamins A and E",
+        "Borage Oil"
+      ],
+      "ingredients": "Grape Seed Oil, Borage Oil, Calendula Oil, Vitamin E, Vitamin A, Vitamin C (oil-soluble form)",
+      "strengths": [
+        "Antioxidant, anti-inflammatory and firming serum",
+        "Strengthens capillary walls",
+        "Brightens and supports collagen synthesis"
+      ],
+      "suitableFor": [
+        "Normal skin",
+        "Dry skin",
+        "Ageing skin"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "vc-moisturizing-gel-multi-vitamin-spf-12",
+      "slug": "vc-moisturizing-gel-multi-vitamin-spf-12",
+      "name": "VC Moisturizing Gel Multi Vitamin SPF-12",
+      "category": "face_creams",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Encapsulated Vitamins C and E",
+        "Hyaluronic Acid",
+        "Panthenol"
+      ],
+      "ingredients": "Sorbitol, Algae Extract, Cornflower Extract, Ginkgo Biloba Extract, Vitamin C, Vitamin E, Hyaluronic Acid, Aloe Vera, Panthenol, Neutrazen, Allantoin",
+      "strengths": [
+        "Multi-vitamin moisturising gel with SPF 12",
+        "Vitamins kept in agar-agar capsules",
+        "Slows ageing while moisturising"
+      ],
+      "suitableFor": [
+        "Dry skin",
+        "Young, delicate skin"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "vc-lifting-cream-vitamin-c",
+      "slug": "vc-lifting-cream-vitamin-c",
+      "name": "VC Lifting Cream Vitamin C",
+      "category": "face_creams",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Ascorbic Acid",
+        "Collagen",
+        "Hyaluronic Acid"
+      ],
+      "ingredients": "Shea Butter, Almond Extract, Jojoba Oil, Hyaluronic Acid, Ginkgo Biloba Extract, Vitamin E, Collagen, Ascorbic Acid, Allantoin, Aloe Vera Gel, Chitosan, Citron (Etrog) Extract, Lemongrass",
+      "strengths": [
+        "Rich anti-ageing lifting cream",
+        "Improves elasticity and firmness, keeps the facial contour",
+        "For face, neck and décolleté"
+      ],
+      "suitableFor": [
+        "Ageing skin",
+        "Dry skin"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "vc-nourishing-skin-mask-vitamin-c",
+      "slug": "vc-nourishing-skin-mask-vitamin-c",
+      "name": "VC Nourishing Skin Mask Vitamin C",
+      "category": "masks",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Ascorbic Acid",
+        "Kojic Acid",
+        "Salicylic and Lactic Acid"
+      ],
+      "ingredients": "Olive Leaf Extract, Rosemary, Witch Hazel, Chamomile, Calendula, Zinc Oxide, Olive Oil, Lavender, Sweet Almond, Frankincense, Wheat Germ, Vitamin E, Vitamin B5, Aloe Vera Gel, Citric Acid, Salicylic Acid, Ascorbic Acid, Orange Butter, Kojic Acid, Citron (Etrog) Oil, Myrrh, Evening Primrose, Jojoba, Tea Tree, Allantoin, Lactic Acid, Magnolia Extract, Grapefruit Seed, Anisic Acid",
+      "strengths": [
+        "Soft brightening, nourishing mask",
+        "Helps reduce pigmentation and uneven tone",
+        "Protects against free radicals"
+      ],
+      "suitableFor": [
+        "Dry skin",
+        "Normal skin",
+        "Sun-related signs of ageing"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "pr-reform-peeling-parsley",
+      "slug": "pr-reform-peeling-parsley",
+      "name": "PR Reform Peeling Parsley",
+      "category": "cleansers_peelings",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Glycolic Acid",
+        "Lactic Acid",
+        "Salicylic Acid",
+        "Parsley Extract"
+      ],
+      "ingredients": "Glycolic Acid, Parsley Extract, Lactic Acid, Salicylic Acid",
+      "strengths": [
+        "Gentle 3-acid peeling cream (12%), pH 3.5",
+        "Brightens and evens skin texture",
+        "No neutraliser needed; use SPF 15+"
+      ],
+      "suitableFor": [
+        "Acne and post-acne",
+        "Hyperpigmentation",
+        "Oily skin with enlarged pores",
+        "Dull or thickened skin"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "pr-brightening-gel",
+      "slug": "pr-brightening-gel",
+      "name": "PR Brightening Gel",
+      "category": "face_serums",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Bearberry Extract",
+        "Licorice Extract",
+        "Kojic Acid",
+        "Glycolic Acid"
+      ],
+      "ingredients": "Bearberry Extract, Licorice Extract, Cucumber Extract, Mulberry Leaf Extract, Glycolic Acid, Kojic Acid, Lactic Acid",
+      "strengths": [
+        "Spot treatment for age spots",
+        "Reduces melanin, anti-inflammatory and antioxidant",
+        "Results after about 4 weeks; use SPF 15+"
+      ],
+      "suitableFor": [
+        "Age spots",
+        "Uneven skin tone"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "pr-brightening-cream-parsley",
+      "slug": "pr-brightening-cream-parsley",
+      "name": "PR Brightening Cream Parsley",
+      "category": "face_creams",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Bearberry Extract",
+        "Parsley Extract",
+        "Kojic Acid"
+      ],
+      "ingredients": "Bearberry Extract, Parsley Extract, Licorice Extract, Kojic Acid, Glycolic Acid, Shea Butter",
+      "strengths": [
+        "Night cream that regulates melanin production",
+        "Evens tone, nourishes and moisturises",
+        "Can be used as a brightening mask in clinic"
+      ],
+      "suitableFor": [
+        "Age spots",
+        "Uneven skin tone"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "pr-brightening-parsley-solution",
+      "slug": "pr-brightening-parsley-solution",
+      "name": "PR Brightening Parsley Solution",
+      "category": "face_serums",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Kojic Acid",
+        "Lactic Acid",
+        "Parsley Extract"
+      ],
+      "ingredients": "Lactic Acid, Kojic Acid, Mulberry Extract, Bearberry Extract, Licorice Extract, Parsley Extract, Glycolic Acid, Salicylic Acid, Citric Acid, Ascorbic Acid, Allantoin",
+      "strengths": [
+        "Brightening, disinfecting and anti-inflammatory solution",
+        "Reduces melanin production",
+        "Use after cleansing, before serums and creams"
+      ],
+      "suitableFor": [
+        "Pigmentation",
+        "Uneven skin texture"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "pr-cream-spf-30-white-with-make-up",
+      "slug": "pr-cream-spf-30-white-with-make-up",
+      "name": "PR Cream SPF-30 White / with Make Up",
+      "category": "face_creams",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "UVA and UVB filters (encapsulated)",
+        "Shea Butter",
+        "Aloe Vera"
+      ],
+      "ingredients": "UVA and UVB filters, Shea Butter, Ginkgo Biloba Extract, Aloe Vera, Vitamin B5, Calendula Oil",
+      "strengths": [
+        "SPF 30 protection against UVA and UVB",
+        "Helps prevent sun-induced pigmentation",
+        "Light, hypoallergenic, non-comedogenic; white or tinted"
+      ],
+      "suitableFor": [
+        "All skin types"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "pr-eye-cream-parsley",
+      "slug": "pr-eye-cream-parsley",
+      "name": "PR Eye Cream Parsley",
+      "category": "eye",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Parsley Extract",
+        "Low molecular weight Hyaluronic Acid",
+        "Collagen"
+      ],
+      "ingredients": "Sorbitol, Shea Butter, Parsley Extract, Avocado Oil, Jojoba Oil, Sodium Hyaluronate (low molecular weight), Vitamin E, Ginkgo Biloba Extract, Allantoin, Collagen, Borage Extract, Omega 3+6",
+      "strengths": [
+        "Light restorative eye cream",
+        "Reduces puffiness and brightens",
+        "Firms eyelid skin, works on superficial lines"
+      ],
+      "suitableFor": [
+        "Skin around the eyes"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "pr-eye-gel-parsley",
+      "slug": "pr-eye-gel-parsley",
+      "name": "PR Eye Gel Parsley",
+      "category": "eye",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Parsley Extract",
+        "Sodium Hyaluronate",
+        "Neutrazen Peptide"
+      ],
+      "ingredients": "Parsley Extract, Sodium Hyaluronate, Vitamin B5, Allantoin, Neutrazen Peptide",
+      "strengths": [
+        "Deeply moisturising morning eye gel",
+        "Reduces fatigue signs and dark circles",
+        "Helps with eyelid puffiness"
+      ],
+      "suitableFor": [
+        "Skin around the eyes",
+        "Eyelid puffiness"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "oxygen-cleanser-gel",
+      "slug": "oxygen-cleanser-gel",
+      "name": "Oxygen Cleanser Gel",
+      "category": "cleansers_peelings",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Glycolic Acid",
+        "Chamomile",
+        "Allantoin"
+      ],
+      "ingredients": "Glycolic Acid, Soapwort Extract, Chamomile, Allantoin",
+      "strengths": [
+        "Cleansing gel that clears sebaceous blockages",
+        "Normalises pH, antioxidant",
+        "Light, fresh feeling"
+      ],
+      "suitableFor": [
+        "All skin types"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "oxygen-hyaluronate-collector-mask",
+      "slug": "oxygen-hyaluronate-collector-mask",
+      "name": "Oxygen Hyaluronate Collector Mask",
+      "category": "masks",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Hyaluronic Acid",
+        "Panthenol",
+        "Neutrazen Peptide"
+      ],
+      "ingredients": "Hyaluronic Acid, Aloe Vera, Allantoin, Panthenol, Neutrazen Peptide",
+      "strengths": [
+        "Soothing intensive moisture mask, no rinsing needed",
+        "Smooths lines on face, neck and décolleté",
+        "Helps reduce inflammation"
+      ],
+      "suitableFor": [
+        "All skin types",
+        "Very dry skin",
+        "After chemical peels"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "oxygen-vitality-moisturizing-lotion-spf-15",
+      "slug": "oxygen-vitality-moisturizing-lotion-spf-15",
+      "name": "Oxygen Vitality Moisturizing Lotion SPF-15",
+      "category": "face_creams",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Sodium Hyaluronate",
+        "Shea Butter",
+        "Calendula Flower Oil"
+      ],
+      "ingredients": "Shea Butter, Grape Seed Oil, Sweet Almond Oil, Sodium Hyaluronate, Calendula Flower Oil, Allantoin",
+      "strengths": [
+        "Very light, fast-absorbing emulsion with SPF 15",
+        "Long-lasting moisture, improves elasticity",
+        "Make-up base or serum"
+      ],
+      "suitableFor": [
+        "All skin types"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "oxygen-peeling-gel-aha",
+      "slug": "oxygen-peeling-gel-aha",
+      "name": "Oxygen Peeling Gel AHA",
+      "category": "cleansers_peelings",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Glycolic Acid",
+        "Mandelic Acid",
+        "Lactic Acid",
+        "Salicylic Acid"
+      ],
+      "ingredients": "Glycolic Acid, Mulberry Extract, Bearberry Extract, Mandelic Acid, Lactic Acid, Salicylic Acid",
+      "strengths": [
+        "Keratolytic AHA gel peel",
+        "Lifting and firming, smooths superficial lines",
+        "Reduces comedones, brightens"
+      ],
+      "suitableFor": [
+        "All skin types",
+        "Inflamed acne with comedones"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "bio-lift-serum",
+      "slug": "bio-lift-serum",
+      "name": "Bio-Lift Serum",
+      "category": "face_serums",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Multi-vitamin oil blend",
+        "Sea Buckthorn",
+        "Frankincense",
+        "Immortelle"
+      ],
+      "ingredients": "Olive Oil, Grape Seed, Sesame, Sweet Almond, Avocado, Rosemary, Wheat Germ, Jojoba, Evening Primrose, Sea Buckthorn, Frankincense, Immortelle, Lavender, Carrot Seed Oil, Castor Oil, Orange, Myrtle, Eucalyptus, Grapefruit Seed Extract, Vitamin E, Lecithin",
+      "strengths": [
+        "Instant lifting effect",
+        "Improves blood flow and lymph drainage",
+        "Reduces wrinkle depth; base under cream"
+      ],
+      "suitableFor": [
+        "Skin losing firmness",
+        "Mature skin"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "bio-lift-eye-cream",
+      "slug": "bio-lift-eye-cream",
+      "name": "Bio-Lift Eye Cream",
+      "category": "eye",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Immortelle",
+        "Sea Buckthorn",
+        "Ascorbic Acid"
+      ],
+      "ingredients": "Chamomile Extract, Aloe Vera Gel, Calendula Extract, Olive Leaf Extract, Olive Oil, Jojoba, Urea, Ascorbic Acid, Avocado Oil, Evening Primrose, Lactic Acid, Sweet Almond Oil, Immortelle, Carrot Seed, Sea Buckthorn, Frankincense, Wheat Germ, Walnut, Lecithin, Magnolia Extract, Vitamin E, Grapefruit Seed Extract, Orange Oil, Vitamin B5, Anisic Acid",
+      "strengths": [
+        "Restores lost elasticity around the eyes",
+        "Reduces puffiness and dark circles",
+        "Long-lasting lifting effect"
+      ],
+      "suitableFor": [
+        "Skin around the eyes",
+        "Mature skin"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "bio-lift-moisturizing-cream-spf-15",
+      "slug": "bio-lift-moisturizing-cream-spf-15",
+      "name": "Bio-Lift Moisturizing Cream SPF-15",
+      "category": "face_creams",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Amino acids",
+        "Polyunsaturated fatty acids",
+        "Immortelle",
+        "Frankincense"
+      ],
+      "ingredients": "Olive Leaf Extract, Aloe Vera Gel, Calendula Extract, Chamomile, Grape Seed, Sesame Oil, Olive, Wheat Germ, Walnut, Sweet Almond, Avocado, Castor Oil, Lecithin, Immortelle Oil, Carrot Seed, Sea Buckthorn, Frankincense, Lavender, Citric Acid, Evening Primrose, Ascorbic Acid, Lactic Acid, Orange Oil, Myrtle, Tea Tree, Jojoba, Citron (Etrog), Vitamin E, Allantoin, Vitamin B5, Magnolia Extract, Grapefruit Seed, Anisic Acid",
+      "strengths": [
+        "Lifting moisturiser with SPF 15",
+        "Restores mature skin and helps neutralise wrinkles",
+        "Balances oil in mature, oily skin"
+      ],
+      "suitableFor": [
+        "Mature skin",
+        "Age-related skin changes"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "neutrazen-moisturizing-for-oily-skin-tricolas-spf-15",
+      "slug": "neutrazen-moisturizing-for-oily-skin-tricolas-spf-15",
+      "name": "Neutrazen Moisturizing for Oily Skin Tricolas SPF-15",
+      "category": "face_creams",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Squalane",
+        "Vitamin B3",
+        "Bisabolol"
+      ],
+      "ingredients": "Squalane, Vitamin A, Vitamin B3, Ascorbic Acid, Allantoin, Bisabolol",
+      "strengths": [
+        "Light moisturiser with SPF 15",
+        "Anti-bacterial and soothing",
+        "Neutralises free radicals; make-up base"
+      ],
+      "suitableFor": [
+        "Oily skin",
+        "Problematic skin"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "neutrazen-mask",
+      "slug": "neutrazen-mask",
+      "name": "Neutrazen Mask",
+      "category": "masks",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Neutrazen® Peptide",
+        "Aloe Vera Gel",
+        "Chamomile Extract"
+      ],
+      "ingredients": "Neutrazen® Peptide, Allantoin, Aloe Vera Gel, Chamomile Extract",
+      "strengths": [
+        "Very gentle healing, anti-inflammatory mask",
+        "Calms skin after peels, diamond or laser treatments",
+        "Restores elasticity"
+      ],
+      "suitableFor": [
+        "Rosacea",
+        "Seborrhea",
+        "Post-treatment skin"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "neutrazen-caffebeen-eye-cream",
+      "slug": "neutrazen-caffebeen-eye-cream",
+      "name": "Neutrazen Caffebeen Eye Cream",
+      "category": "eye",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Nano Caffeine",
+        "Green Tea Leaf Extract",
+        "Sodium Hyaluronate"
+      ],
+      "ingredients": "Shea Butter, Avocado Oil, Jojoba, Sodium Hyaluronate, Vitamin E, Vitamin B5, Caffeine (nano form), Green Tea Leaf Extract, Allantoin, Vitamin A",
+      "strengths": [
+        "Restorative eye cream with nano caffeine",
+        "Helps prevent dark circles and bags",
+        "Apply 1.5-2 hours before sleep"
+      ],
+      "suitableFor": [
+        "Skin around the eyes",
+        "Tired eyes"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "neutrazen-l",
+      "slug": "neutrazen-l",
+      "name": "Neutrazen L",
+      "category": "face_creams",
+      "use": "guided",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Lactic Acid",
+        "Glycolic Acid",
+        "Retinyl Palmitate",
+        "Neutrazen Peptide"
+      ],
+      "ingredients": "Collagen, Lactic Acid, Glycolic Acid, Aloe Vera Extract, Urea, Neutrazen, Retinyl Palmitate, Vitamin E",
+      "strengths": [
+        "Active night peeling cream",
+        "Brightens, firms and strengthens the lipid barrier",
+        "Start twice a week, then per specialist instructions; use SPF 15+"
+      ],
+      "suitableFor": [
+        "Ageing skin",
+        "Dull skin"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "neutrazen-g",
+      "slug": "neutrazen-g",
+      "name": "Neutrazen G",
+      "category": "face_creams",
+      "use": "guided",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Glycolic Acid (10%)",
+        "Neutrazen Peptide",
+        "Collagen"
+      ],
+      "ingredients": "Collagen, Glycolic Acid (10%), Aloe Vera, Neutrazen Peptide, Avocado Oil, Vitamin A, Vitamin E",
+      "strengths": [
+        "Active night peeling cream",
+        "Normalises pH and reduces inflammation",
+        "Start twice a week, then per specialist instructions"
+      ],
+      "suitableFor": [
+        "Oily skin",
+        "Problematic skin"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "neutrazen-serum-gel-s-a-b-oily-seborrhea-skin",
+      "slug": "neutrazen-serum-gel-s-a-b-oily-seborrhea-skin",
+      "name": "Neutrazen Serum Gel S.A.B. - Oily, Seborrhea Skin",
+      "category": "face_serums",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Low molecular weight Hyaluronic Acid",
+        "Marine Microflora Enzymes",
+        "Caffeine"
+      ],
+      "ingredients": "Sodium Hyaluronate (low molecular weight Hyaluronic Acid), Marine Microflora Enzymes, Vitamin B5, Glycosaminoglycans, Caffeine, Neutrazen Peptide",
+      "strengths": [
+        "Intensive moisture gel serum",
+        "Anti-inflammatory, healing and soothing",
+        "For use with professional mechanical treatments"
+      ],
+      "suitableFor": [
+        "Oily skin",
+        "Problematic skin",
+        "Seborrhea / seborrheic dermatitis"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "neutrazen-serum-gel-coffeebean-for-ageing-skin",
+      "slug": "neutrazen-serum-gel-coffeebean-for-ageing-skin",
+      "name": "Neutrazen Serum Gel Coffeebean for Ageing Skin",
+      "category": "face_serums",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Coffee Extract",
+        "Ginseng",
+        "Caffeine"
+      ],
+      "ingredients": "Sodium Hyaluronate (low molecular weight Hyaluronic Acid), Coffee Extract, Ginseng, Marine Enzymes, Vitamin B5, Glycosaminoglycans, Caffeine, Neutrazen Peptide",
+      "strengths": [
+        "Powerful antioxidant gel serum",
+        "Firms, smooths wrinkles, improves facial contour",
+        "For use with professional mechanical treatments"
+      ],
+      "suitableFor": [
+        "Ageing skin"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "neutrazen-serum-gel-tricolas-acne-skin",
+      "slug": "neutrazen-serum-gel-tricolas-acne-skin",
+      "name": "Neutrazen Serum Gel Tricolas - Acne Skin",
+      "category": "face_serums",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Niacinamide (Vitamin B3)",
+        "Low molecular weight Hyaluronic Acid",
+        "Caffeine"
+      ],
+      "ingredients": "Sodium Hyaluronate (low molecular weight Hyaluronic Acid), Niacinamide (Vitamin B3), Vitamin B5, Glycosaminoglycans, Caffeine, Neutrazen Peptide",
+      "strengths": [
+        "Intensive moisture gel serum",
+        "Anti-inflammatory, reduces sebum production",
+        "For use with professional mechanical treatments"
+      ],
+      "suitableFor": [
+        "Oily skin",
+        "Acne-prone skin"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "neutrazen-serum-gel-c-p-r-rosacea",
+      "slug": "neutrazen-serum-gel-c-p-r-rosacea",
+      "name": "Neutrazen Serum Gel C.P.R (Rosacea)",
+      "category": "face_serums",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Rutin (high concentration)",
+        "Low molecular weight Hyaluronic Acid"
+      ],
+      "ingredients": "Sodium Hyaluronate (low molecular weight Hyaluronic Acid), Rutin, Vitamin B5, Glycosaminoglycans, Caffeine, Neutrazen Peptide",
+      "strengths": [
+        "Moisturising gel serum that strengthens capillaries",
+        "Helps prevent dilation of blood vessels",
+        "For use with professional mechanical treatments"
+      ],
+      "suitableFor": [
+        "Rosacea",
+        "Fragile capillaries"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "neutrazen-serum-gel-o-d-a-pigmentated-skin",
+      "slug": "neutrazen-serum-gel-o-d-a-pigmentated-skin",
+      "name": "Neutrazen Serum Gel O.D.A. - Pigmentated Skin",
+      "category": "face_serums",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Rutin",
+        "Low molecular weight Hyaluronic Acid"
+      ],
+      "ingredients": "Sodium Hyaluronate (low molecular weight Hyaluronic Acid), Rutin, Vitamin B5, Glycosaminoglycans, Caffeine, Neutrazen Peptide",
+      "strengths": [
+        "Moisturising, mildly whitening gel serum",
+        "Slows melanin synthesis, reduces age spots",
+        "For use with professional mechanical treatments"
+      ],
+      "suitableFor": [
+        "Pigmented skin",
+        "Age spots"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "neutrazen-r-serum-retinol",
+      "slug": "neutrazen-r-serum-retinol",
+      "name": "Neutrazen R - Serum Retinol",
+      "category": "face_serums",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Retinyl Palmitate (Vitamin A)",
+        "Neutrazen Peptide",
+        "Glycolic Acid"
+      ],
+      "ingredients": "Retinyl Palmitate (Vitamin A), Neutrazen Peptide, Sea Buckthorn Oil, Vitamin E, Glycosaminoglycans, Glycolic Acid, Sodium Hyaluronate",
+      "strengths": [
+        "Concentrated retinol night serum",
+        "Smooths fine lines and evens tone",
+        "Use before Neutrazen L or G; use SPF 15+"
+      ],
+      "suitableFor": [
+        "Ageing skin",
+        "Sun-damaged skin"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "neutrazen-moisturizing-for-dry-skin-carnosilan-spf-15",
+      "slug": "neutrazen-moisturizing-for-dry-skin-carnosilan-spf-15",
+      "name": "Neutrazen Moisturizing for Dry Skin Carnosilan SPF-15",
+      "category": "face_creams",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Carnosine",
+        "Retinol",
+        "Neutrazen Peptide"
+      ],
+      "ingredients": "Shea Butter, Aloe Vera Extract, Green Tea, Jojoba Oil, Avocado, Allantoin, Vitamin A, Vitamin E, Vitamin B5, Retinol, Neutrazen Peptide, Carnosine",
+      "strengths": [
+        "Silky moisturiser with SPF 15",
+        "Carnosine helps reduce collagen glycation",
+        "Speeds skin healing; make-up base"
+      ],
+      "suitableFor": [
+        "Normal skin",
+        "Dry skin",
+        "After traumatic procedures"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "neutrazen-serum-recover-gel",
+      "slug": "neutrazen-serum-recover-gel",
+      "name": "Neutrazen Serum - Recover Gel",
+      "category": "face_serums",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Neutrazen Peptide",
+        "Arnica Extract",
+        "Comfrey Extract"
+      ],
+      "ingredients": "Neutrazen, Aloe Vera, Arnica Extract, Comfrey Extract, Chitosan, Allantoin, Chamomile Essential Oil",
+      "strengths": [
+        "Restorative peptide gel serum",
+        "Helps heal skin after plastic surgery and medium/deep peels",
+        "Base for moisturiser on oily skin"
+      ],
+      "suitableFor": [
+        "Dry skin",
+        "Normal skin",
+        "Post-procedure skin"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "mf-black-cream-active-cream-for-acne",
+      "slug": "mf-black-cream-active-cream-for-acne",
+      "name": "MF Black Cream - Active Cream for Acne",
+      "category": "face_creams",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Azelaic Acid",
+        "Salicylic Acid",
+        "Volcanic Charcoal"
+      ],
+      "ingredients": "Plant Extracts, Ascorbic Acid, Salicylic Acid, Lactic Acid, Glycolic Acid, Azelaic Acid, Volcanic Minerals, Marine Microflora Enzyme, Volcanic Charcoal",
+      "strengths": [
+        "Home evening treatment cream for acne",
+        "Active acids working in synergy",
+        "For all forms of acne"
+      ],
+      "suitableFor": [
+        "Acne",
+        "Oily seborrhea",
+        "Inflamed skin"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "mf-white-cream",
+      "slug": "mf-white-cream",
+      "name": "MF White Cream",
+      "category": "face_creams",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Arbutin",
+        "Kojic Acid",
+        "Hexylresorcinol",
+        "Pristine Bright™"
+      ],
+      "ingredients": "Mulberry Extract, Rosemary, Ascorbic Acid, Chamomile Extract, Calendula, Olive Oil, Sweet Almond, Jojoba, Arbutin, Kojic Acid, Lactic Acid, Glycolic Acid, Wheat Germ Oil, Vitamin E, Emblica Extract, Pristine Bright™, Vitamin B5, Aloe Vera, Hexylresorcinol, Evening Primrose Oil, Lavender Oil, Allantoin",
+      "strengths": [
+        "Light brightening night cream",
+        "Fades and prevents pigment spots",
+        "Antioxidant, anti-glycation; use SPF 30+ in the sun"
+      ],
+      "suitableFor": [
+        "Pigmentation",
+        "Age spots"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "cell-therapy-aa2g-vitamin-c",
+      "slug": "cell-therapy-aa2g-vitamin-c",
+      "name": "Cell Therapy AA2G - Vitamin C",
+      "category": "ampoules_boosters",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Ascorbyl Glucoside (stable Vitamin C)",
+        "Hyaluronic Acid"
+      ],
+      "ingredients": "Vitamin C, Glucoside (sugars), Hyaluronic Acid",
+      "strengths": [
+        "Slow-release vitamin C ampoule",
+        "For tissue repair, anti-ageing, oily skin and brightening",
+        "For micro-needling, electroporation or as an additive"
+      ],
+      "suitableFor": [
+        "Ageing skin",
+        "Oily skin",
+        "Pigmentation"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "cell-therapy-delivery-system-booster",
+      "slug": "cell-therapy-delivery-system-booster",
+      "name": "Cell Therapy Delivery System Booster",
+      "category": "ampoules_boosters",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Pepper Extract (piperine)"
+      ],
+      "ingredients": "Pepper Extract",
+      "strengths": [
+        "Penetration enhancer for active ingredients",
+        "Add 0.1-0.5 ml to any preparation",
+        "May cause a burning sensation"
+      ],
+      "suitableFor": [
+        "All skin types"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "cell-therapy-amino-acids-booster",
+      "slug": "cell-therapy-amino-acids-booster",
+      "name": "Cell Therapy Amino Acids Booster",
+      "category": "ampoules_boosters",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Non-animal amino acids (NMF-like)"
+      ],
+      "ingredients": "Sorbitol, Glycine, Alanine, Proline, Serine, Threonine, Lysine, Glutamic Acid",
+      "strengths": [
+        "Antioxidant, supports collagen synthesis",
+        "Shortens healing after peels or laser",
+        "Additive for anti-ageing / micro-needling or night cream"
+      ],
+      "suitableFor": [
+        "Damaged skin",
+        "Post-procedure skin"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "cell-therapy-restor-booster",
+      "slug": "cell-therapy-restor-booster",
+      "name": "Cell Therapy Restor Booster",
+      "category": "ampoules_boosters",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Poria Mushroom Extract",
+        "Turkey Tail Mushroom Extract",
+        "Plantain Extract"
+      ],
+      "ingredients": "Poria Mushroom Extract, Turkey Tail (Trametes versicolor) Extract, Plantain (Plantago) Extract",
+      "strengths": [
+        "Boosts regeneration and healing effects of treatments",
+        "Retinoid-like action, reduces water loss",
+        "Soothing; smooths fine and deeper wrinkles"
+      ],
+      "suitableFor": [
+        "Sensitive skin",
+        "Damaged skin",
+        "Ageing skin"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "cell-therapy-peptide-complex-booster",
+      "slug": "cell-therapy-peptide-complex-booster",
+      "name": "Cell Therapy Peptide Complex Booster",
+      "category": "ampoules_boosters",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Biomimetic peptides",
+        "Muscle-relaxing peptides"
+      ],
+      "ingredients": "Trifluoroacetyl Tripeptide-2, Caprooyl Tetrapeptide-3, Palmitoyl Hexapeptide-52, Palmitoyl Hexapeptide-18",
+      "strengths": [
+        "Fights expression lines",
+        "Stimulates collagen VII, fibronectin and laminin",
+        "Additive for anti-ageing / micro-needling or night cream"
+      ],
+      "suitableFor": [
+        "Expression lines",
+        "Ageing skin"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "s-c-p-l-r-n-hyaluronic-acid",
+      "slug": "s-c-p-l-r-n-hyaluronic-acid",
+      "name": "S.C.P L.R.N. - Hyaluronic Acid",
+      "category": "ampoules_boosters",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Hyaluronic Acid",
+        "Chitosan"
+      ],
+      "ingredients": "Hyaluronic Acid, Chitosan",
+      "strengths": [
+        "Forms a thin breathable moisture film",
+        "Non-irritating; boosts other products",
+        "Professional additive and home use after moisturiser"
+      ],
+      "suitableFor": [
+        "All skin types"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "s-c-p-nr-3-extract",
+      "slug": "s-c-p-nr-3-extract",
+      "name": "S.C.P NR-3 Extract",
+      "category": "ampoules_boosters",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Gamma-linolenic acid (GLA)",
+        "Evening Primrose Oil",
+        "Passion Flower Oil"
+      ],
+      "ingredients": "Grape Seed Oil, Passion Flower Oil, Evening Primrose Oil, Avocado Oil, Jojoba Oil, Olive Oil",
+      "strengths": [
+        "Regenerating oil blend, rich in GLA",
+        "Calms inflammation, dryness and flaking",
+        "Add 4-10 drops to massage cream or mask"
+      ],
+      "suitableFor": [
+        "All skin types",
+        "Sensitive skin"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "s-c-p-vitamin-e-pure-jojoba-oil",
+      "slug": "s-c-p-vitamin-e-pure-jojoba-oil",
+      "name": "S.C.P Vitamin E + Pure Jojoba Oil",
+      "category": "ampoules_boosters",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Vitamin E (tocopherol)",
+        "Jojoba Oil"
+      ],
+      "ingredients": "Jojoba Oil, Olive Oil, Almond Oil, Vitamin E",
+      "strengths": [
+        "Antioxidant vitamin E serum",
+        "Strengthens capillaries, reduces sensitivity",
+        "Add 5-15 drops to massage or masks"
+      ],
+      "suitableFor": [
+        "Sensitive skin",
+        "Mature skin"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "s-c-p-omega-3-6-9-extract-anti-aging",
+      "slug": "s-c-p-omega-3-6-9-extract-anti-aging",
+      "name": "S.C.P Omega 3+6+9 Extract Anti-Aging",
+      "category": "ampoules_boosters",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Omega 3, 6 & 9",
+        "Flaxseed Oil",
+        "Borage Oil"
+      ],
+      "ingredients": "Olive Oil, Sweet Almond, Jojoba, Wheat Germ, Sesame, Evening Primrose, Flaxseed, Borage, Vitamin E, Grapefruit Seed Extract",
+      "strengths": [
+        "Nearly odourless anti-ageing oil concentrate",
+        "Strengthens the epidermis and smooths wrinkles",
+        "Add 5-15 drops to massage or masks"
+      ],
+      "suitableFor": [
+        "Dry or very dry skin",
+        "Irritated skin",
+        "Ageing skin"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "s-c-p-pure-vitamin-c",
+      "slug": "s-c-p-pure-vitamin-c",
+      "name": "S.C.P Pure Vitamin C",
+      "category": "ampoules_boosters",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Ascorbic Acid"
+      ],
+      "ingredients": "Ascorbic Acid, Citron (Etrog) Extract, Citric Acid",
+      "strengths": [
+        "Highly active vitamin C powder",
+        "Antioxidant, boosts collagen, fades pigmentation",
+        "Mix into masks, serums, creams or peels just before use"
+      ],
+      "suitableFor": [
+        "Ageing skin",
+        "Pigmentation"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "s-c-p-propolis-water",
+      "slug": "s-c-p-propolis-water",
+      "name": "S.C.P Propolis Water",
+      "category": "ampoules_boosters",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Propolis"
+      ],
+      "ingredients": "Ethyl Alcohol, Propolis, Vitamin E, Grapefruit Seed Extract, Magnolia, Anisic Acid",
+      "strengths": [
+        "Healing, disinfecting propolis water",
+        "Calms redness and itching, mildly drying",
+        "Add 5-15 drops to masks or cream"
+      ],
+      "suitableFor": [
+        "Acne",
+        "Inflamed skin"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "s-c-p-propolis-oil",
+      "slug": "s-c-p-propolis-oil",
+      "name": "S.C.P Propolis Oil",
+      "category": "ampoules_boosters",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Propolis",
+        "Vitamin E"
+      ],
+      "ingredients": "Olive Oil, Jojoba Oil, Almond Oil, Sesame Oil, Wheat Germ Oil, Propolis, Vitamin E",
+      "strengths": [
+        "Strong healing, anti-bacterial propolis oil",
+        "Supports tissue regeneration",
+        "Add 5-15 drops to masks, creams or toners"
+      ],
+      "suitableFor": [
+        "Inflamed skin",
+        "Sensitive skin"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "s-c-p-s-t-b-solution",
+      "slug": "s-c-p-s-t-b-solution",
+      "name": "S.C.P S.T.B. Solution",
+      "category": "ampoules_boosters",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Glycolic Acid",
+        "Salicylic Acid"
+      ],
+      "ingredients": "Glycolic Acid, Salicylic Acid",
+      "strengths": [
+        "Booster for peels, creams and masks, pH 1.9",
+        "Smooths wrinkles, boosts type I collagen",
+        "Professional use after training only"
+      ],
+      "suitableFor": [
+        "Ageing skin",
+        "Wrinkles"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "s-c-p-dm2-extract",
+      "slug": "s-c-p-dm2-extract",
+      "name": "S.C.P DM2 Extract",
+      "category": "ampoules_boosters",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Immortelle Oil",
+        "Tea Tree Oil",
+        "Cedar Oil"
+      ],
+      "ingredients": "Special Immortelle Oil Extract, Walnut Oil, Jojoba Oil, Cedar Oil, Geranium Oil, Tea Tree Oil",
+      "strengths": [
+        "Healing, soothing antiseptic oil extract",
+        "Anti-bacterial and anti-fungal",
+        "Add 4-10 drops to mask or cream"
+      ],
+      "suitableFor": [
+        "Dry, damaged or sensitive skin",
+        "Dry seborrhea",
+        "Oily / problematic skin (with professional advice)"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "s-c-p-dm3-extract",
+      "slug": "s-c-p-dm3-extract",
+      "name": "S.C.P DM3 Extract",
+      "category": "ampoules_boosters",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Red Everlasting Oil (high concentration)",
+        "Myrtle"
+      ],
+      "ingredients": "Olive Oil, Red Everlasting (Helichrysum sanguineum), Myrtle, Vitamin E, Grapefruit Seed Extract",
+      "strengths": [
+        "Anti-inflammatory, anti-allergic oil extract",
+        "Non-comedogenic; helps with comedones and acne",
+        "Add 5-15 drops to mask, cream or toner"
+      ],
+      "suitableFor": [
+        "Problematic skin",
+        "Ageing skin",
+        "Couperose",
+        "Eczema / dermatitis"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "s-c-p-l-s-solution-lactic-acid-solution",
+      "slug": "s-c-p-l-s-solution-lactic-acid-solution",
+      "name": "S.C.P L.S. Solution - Lactic Acid Solution",
+      "category": "ampoules_boosters",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Lactic Acid 45%"
+      ],
+      "ingredients": "45% Lactic Acid",
+      "strengths": [
+        "Booster for peels, masks and creams, pH 1.9",
+        "Strong hydrating and lifting effect",
+        "Requires special training"
+      ],
+      "suitableFor": [
+        "Sensitive skin",
+        "Dry skin"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "s-c-p-cl-1-solution",
+      "slug": "s-c-p-cl-1-solution",
+      "name": "S.C.P CL-1 Solution",
+      "category": "ampoules_boosters",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Salicylic Acid",
+        "Lactic Acid"
+      ],
+      "ingredients": "Salicylic Acid, Lactic Acid",
+      "strengths": [
+        "Active additive for specialists",
+        "For acne, blackheads, enlarged pores and oiliness",
+        "Also pigmentation, first wrinkles, scars and hyperkeratosis"
+      ],
+      "suitableFor": [
+        "Acne",
+        "Oily skin",
+        "Hyperpigmentation"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "s-c-p-brightening-extract",
+      "slug": "s-c-p-brightening-extract",
+      "name": "S.C.P Brightening Extract",
+      "category": "ampoules_boosters",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Bearberry Extract",
+        "Kojic Acid",
+        "Ascorbic Acid"
+      ],
+      "ingredients": "Bearberry Extract, Mulberry, Ascorbic Acid, Citric Acid, Kojic Acid, Magnolia Extract, Anisic Acid",
+      "strengths": [
+        "Reduces tyrosinase and melanin formation",
+        "Apply on age spots before massage",
+        "Add 4-15 drops to creams, masks or peels"
+      ],
+      "suitableFor": [
+        "Pigmentation",
+        "Age spots"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "s-c-p-r-s-solution",
+      "slug": "s-c-p-r-s-solution",
+      "name": "S.C.P R.S. Solution",
+      "category": "ampoules_boosters",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Retinyl Palmitate",
+        "Retinol",
+        "Ubiquinol (Q10)"
+      ],
+      "ingredients": "Squalane, Retinyl Palmitate, Vitamin A (Retinol), Vitamin E, Ubiquinol (Q10)",
+      "strengths": [
+        "Retinoid concentrate, antioxidant",
+        "Boosts masks and peels for acne and pigmentation",
+        "Helps prevent hyperkeratosis and post-acne damage"
+      ],
+      "suitableFor": [
+        "Acne",
+        "Hyperpigmentation",
+        "Ageing skin"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "s-c-p-alginate-mask-for-cellulite-and-body",
+      "slug": "s-c-p-alginate-mask-for-cellulite-and-body",
+      "name": "S.C.P Alginate Mask for Cellulite and Body",
+      "category": "body",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Sodium Alginate",
+        "Hops Extract"
+      ],
+      "ingredients": "Sodium Alginate, Magnesium Aluminum Silicate, Tetrasodium Pyrophosphate, Polysaccharide (Mannan), Zinc Oxide, Plant Extracts Solution, Hops Extract",
+      "strengths": [
+        "Peel-off alginate mask that boosts absorption of serums",
+        "Drainage effect, reduces swelling"
+      ],
+      "suitableFor": [
+        "Cellulite",
+        "Body treatments"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "s-c-p-alginate-mask-for-problematic-skin",
+      "slug": "s-c-p-alginate-mask-for-problematic-skin",
+      "name": "S.C.P Alginate Mask for Problematic Skin",
+      "category": "masks",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Sodium Alginate",
+        "Sage Extract"
+      ],
+      "ingredients": "Sodium Alginate, Magnesium Aluminum Silicate, Tetrasodium Pyrophosphate, Polysaccharide (Mannan), Zinc Oxide, Plant Extracts Solution, Sage Extract",
+      "strengths": [
+        "Peel-off alginate mask that boosts absorption of serums",
+        "Reduces inflammation and tightens pores"
+      ],
+      "suitableFor": [
+        "Acne",
+        "Problematic skin"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "s-c-p-alginate-mask-for-couperose",
+      "slug": "s-c-p-alginate-mask-for-couperose",
+      "name": "S.C.P Alginate Mask for Couperose",
+      "category": "masks",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Sodium Alginate",
+        "Sage Extract"
+      ],
+      "ingredients": "Sodium Alginate, Magnesium Aluminum Silicate, Tetrasodium Pyrophosphate, Polysaccharide (Mannan), Zinc Oxide, Plant Extracts Solution, Sage Extract",
+      "strengths": [
+        "Peel-off alginate mask that boosts absorption of serums",
+        "Cooling, improves circulation"
+      ],
+      "suitableFor": [
+        "Couperose"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "s-c-p-anti-aging-alginate-mask",
+      "slug": "s-c-p-anti-aging-alginate-mask",
+      "name": "S.C.P Anti-Aging Alginate Mask",
+      "category": "masks",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Sodium Alginate",
+        "Licorice Extract"
+      ],
+      "ingredients": "Sodium Alginate, Magnesium Aluminum Silicate, Tetrasodium Pyrophosphate, Polysaccharide (Mannan), Zinc Oxide, Plant Extracts Solution, Licorice Extract",
+      "strengths": [
+        "Peel-off alginate mask that boosts absorption of serums",
+        "Lifting, smooths wrinkles"
+      ],
+      "suitableFor": [
+        "Ageing skin"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "s-c-p-moisturising-alginate-mask",
+      "slug": "s-c-p-moisturising-alginate-mask",
+      "name": "S.C.P Moisturising Alginate Mask",
+      "category": "masks",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Sodium Alginate",
+        "Chamomile Extract"
+      ],
+      "ingredients": "Sodium Alginate, Magnesium Aluminum Silicate, Tetrasodium Pyrophosphate, Polysaccharide (Mannan), Zinc Oxide, Plant Extracts Solution, Chamomile Extract",
+      "strengths": [
+        "Peel-off alginate mask that boosts absorption of serums",
+        "Moisturising and refreshing"
+      ],
+      "suitableFor": [
+        "Dry skin",
+        "Dehydrated skin"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "s-c-p-whitening-alginate-mask",
+      "slug": "s-c-p-whitening-alginate-mask",
+      "name": "S.C.P Whitening Alginate Mask",
+      "category": "masks",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Sodium Alginate",
+        "Bearberry Leaf Extract"
+      ],
+      "ingredients": "Sodium Alginate, Magnesium Aluminum Silicate, Tetrasodium Pyrophosphate, Polysaccharide (Mannan), Zinc Oxide, Plant Extracts Solution, Bearberry Leaf Extract",
+      "strengths": [
+        "Peel-off alginate mask that boosts absorption of serums",
+        "Brightening"
+      ],
+      "suitableFor": [
+        "Pigmentation",
+        "Dull skin"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "s-c-p-p-m-t-peeling-whitening",
+      "slug": "s-c-p-p-m-t-peeling-whitening",
+      "name": "S.C.P P.M.T Peeling Whitening",
+      "category": "cleansers_peelings",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Phytic Acid 50%",
+        "Mandelic Acid 2%",
+        "Kojic Acid 1%"
+      ],
+      "ingredients": "Phytic Acid 50%, Mandelic Acid 2%, Kojic Acid 1%",
+      "strengths": [
+        "Phytic acid peel (pH 4.5), low irritation",
+        "Inhibits tyrosinase, antioxidant",
+        "No recovery period"
+      ],
+      "suitableFor": [
+        "Hyperpigmentation",
+        "Post-acne",
+        "Thin, sensitive skin incl. rosacea",
+        "Skin after long sun exposure"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "s-c-p-p-m-t-peeling-problematic-oily-skin",
+      "slug": "s-c-p-p-m-t-peeling-problematic-oily-skin",
+      "name": "S.C.P P.M.T Peeling Problematic & Oily Skin",
+      "category": "cleansers_peelings",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Phytic Acid 30%",
+        "Kojic Acid 2%",
+        "Salicylic Acid 1%"
+      ],
+      "ingredients": "Phytic Acid 30%, Kojic Acid 2%, Salicylic Acid 1%",
+      "strengths": [
+        "Phytic acid peel (pH 4.5), low irritation",
+        "Helps normalise sebaceous glands",
+        "No recovery period"
+      ],
+      "suitableFor": [
+        "Acne and post-acne",
+        "Oily, combination and porous skin",
+        "Thin, sensitive skin incl. rosacea"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "s-c-p-p-m-t-peeling-anti-ageing",
+      "slug": "s-c-p-p-m-t-peeling-anti-ageing",
+      "name": "S.C.P P.M.T Peeling Anti-Ageing",
+      "category": "cleansers_peelings",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Phytic Acid 20%",
+        "Glycolic Acid 10%",
+        "Kojic Acid 2%"
+      ],
+      "ingredients": "Phytic Acid 20%, Glycolic Acid 10%, Salicylic Acid 1%, Mandelic Acid 1%, Kojic Acid 2%",
+      "strengths": [
+        "Gentle anti-ageing phytic acid peel (pH 4.5)",
+        "Antioxidant and lifting, without strong keratolysis",
+        "No recovery period"
+      ],
+      "suitableFor": [
+        "Age-related changes, especially fine lines",
+        "Thin, sensitive skin incl. rosacea"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "s-c-p-c-l-r-peeling",
+      "slug": "s-c-p-c-l-r-peeling",
+      "name": "S.C.P C.L.R Peeling",
+      "category": "cleansers_peelings",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Salicylic Acid",
+        "Lactic Acid"
+      ],
+      "ingredients": "Salicylic Acid, Lactic Acid, and others",
+      "strengths": [
+        "Strong keratolytic peel (pH 1.9), superficial to deep",
+        "Controllable depth, rarely causes allergic reactions",
+        "Professional use per protocol only"
+      ],
+      "suitableFor": [
+        "Acne and post-acne",
+        "Hyperpigmentation",
+        "Comedones and enlarged pores",
+        "Seborrheic dermatitis",
+        "Hyperkeratosis"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "s-c-p-s-t-b-2-peeling",
+      "slug": "s-c-p-s-t-b-2-peeling",
+      "name": "S.C.P S.T.B.-2 Peeling",
+      "category": "cleansers_peelings",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Glycolic Acid 35%",
+        "Salicylic Acid"
+      ],
+      "ingredients": "35% Glycolic Acid, Salicylic Acid",
+      "strengths": [
+        "Glycolic peel (pH 1.9), minimal discomfort",
+        "No massive peeling",
+        "Professional use per protocol only"
+      ],
+      "suitableFor": [
+        "Pigmentation incl. post-acne",
+        "Age spots",
+        "Ageing skin"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "fc-karnit-nail-oil-anti-fungal-oil-for-nails",
+      "slug": "fc-karnit-nail-oil-anti-fungal-oil-for-nails",
+      "name": "FC Karnit Nail Oil - Anti-Fungal Oil for Nails",
+      "category": "hands_feet",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Tea Tree Oil",
+        "Thyme Oil",
+        "Rosemary Oil",
+        "Propolis"
+      ],
+      "ingredients": "Olive Oil, Sweet Almond, Sesame, Jojoba, Propolis, Tea Tree, Thyme, Lavender, Myrtle, Lemon, Rosemary Extract, Eucalyptus, Pine, Chamomile, Grapefruit Seed, Vitamin E",
+      "strengths": [
+        "Natural anti-fungal nail oil",
+        "Prevents and treats fungal nail infections",
+        "Preventive use at pools, saunas and with sports shoes"
+      ],
+      "suitableFor": [
+        "Nails",
+        "Fungal nail infections"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "fc-p-t-s-treatment-cream",
+      "slug": "fc-p-t-s-treatment-cream",
+      "name": "FC P.T.S. Treatment Cream",
+      "category": "hands_feet",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Tea Tree Oil",
+        "Sage Extract",
+        "Eucalyptus"
+      ],
+      "ingredients": "Chamomile Extract, Olive Leaf, Sweet Almond, Jojoba, Avocado, Avocado, Tea Tree, Wheat Germ, Rosemary, Lavender, Eucalyptus, Sage, Pine, Rosemary Extract, Sage, Grapefruit Seed, Anisic Acid",
+      "strengths": [
+        "Antiseptic cream for fungal skin lesions",
+        "Soothes itching and burning",
+        "Heals cracks between toes"
+      ],
+      "suitableFor": [
+        "Feet",
+        "Fungal skin infections",
+        "Dry, flaking skin"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "fc-macabim-treatment-cream-vc-hand-and-foot-cream",
+      "slug": "fc-macabim-treatment-cream-vc-hand-and-foot-cream",
+      "name": "FC Macabim Treatment Cream VC - Hand and Foot Cream",
+      "category": "hands_feet",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Shea Butter",
+        "Immortelle",
+        "Tea Tree Oil"
+      ],
+      "ingredients": "Sorbitol, Shea Butter, Sweet Almond, Cocoa, Immortelle, Marjoram Extract, Allantoin, Tea Tree Oil, Eucalyptus",
+      "strengths": [
+        "Nourishing cream that heals cracks",
+        "Anti-fungal and disinfecting, mildly brightening",
+        "For hands, feet, elbows and lips"
+      ],
+      "suitableFor": [
+        "Dry hands and feet",
+        "Suitable for diabetics"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "fc-shampoo-roots",
+      "slug": "fc-shampoo-roots",
+      "name": "FC Shampoo Roots",
+      "category": "hair_lashes",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "50% plant extracts",
+        "Nettle Extract",
+        "Rosemary"
+      ],
+      "ingredients": "Olive Oil, Chamomile Extract, Rosemary, Witch Hazel, Evening Primrose Oil, Aloe Vera Gel, Jojoba Oil, Lactic Acid, Rosemary Oil, Plantain Extract, Wheat Germ Oil, Mallow Extract, Vitamin E, Vitamin B5, Nettle Extract, Sage, Grapefruit Seed, Magnolia, Anisic Acid, Myrrh, Tea Tree, Orange",
+      "strengths": [
+        "Concentrated herbal shampoo",
+        "Strengthens follicles and stimulates growth",
+        "Removes and prevents dandruff"
+      ],
+      "suitableFor": [
+        "Seborrhea",
+        "Irritated scalp",
+        "Psoriasis / dermatitis",
+        "Chemically treated hair"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "bodyfit-cellu-fix-ampoule",
+      "slug": "bodyfit-cellu-fix-ampoule",
+      "name": "BodyFit Cellu Fix Ampoule",
+      "category": "body",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Caffeine (vector)",
+        "Algae Extracts",
+        "Horse Chestnut"
+      ],
+      "ingredients": "Polymers, Amino Acids (Methylsilanol Hydroxyproline Aspartate), Algae Extract (Canadian brown algae, Spirulina, Laminaria, Fucus, Nori), Caffeine (vector), Horse Chestnut (Aesculus hippocastanum)",
+      "strengths": [
+        "Vasotonic anti-cellulite cocktail",
+        "Drains excess fluid and boosts fat burning",
+        "For mesotherapy, electroporation and mechanical treatments"
+      ],
+      "suitableFor": [
+        "Cellulite"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "bodyfit-cellu-fix-oil-oil-for-body-massage-with-heat-effect",
+      "slug": "bodyfit-cellu-fix-oil-oil-for-body-massage-with-heat-effect",
+      "name": "BodyFit Cellu Fix Oil - Oil for Body Massage with Heat Effect",
+      "category": "body",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Camphor Oil",
+        "Citronella Oil",
+        "Rosemary Oil"
+      ],
+      "ingredients": "Grape Seed Oil, Camphor Oil, Citronella Oil, Rosemary Oil, Burdock Oil, Lavender Oil",
+      "strengths": [
+        "Warming professional massage oil",
+        "Helps reduce cellulite and firm body contours",
+        "May cause skin redness"
+      ],
+      "suitableFor": [
+        "Cellulite",
+        "Body contouring"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "bodyfit-cellu-fix-gel-heating-gel-for-body-wraps",
+      "slug": "bodyfit-cellu-fix-gel-heating-gel-for-body-wraps",
+      "name": "BodyFit Cellu Fix Gel - Heating Gel for Body Wraps",
+      "category": "body",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Algae Extracts",
+        "Caffeine (vector)",
+        "Nicotinic Acid"
+      ],
+      "ingredients": "Algae Extract: Fucus, Laminaria, Spirulina, Nori, Brown Algae, Caffeine (vector), Nicotinic Acid",
+      "strengths": [
+        "Warming gel for body wraps",
+        "Reduces water retention and visible cellulite",
+        "Wrap 15-20 minutes"
+      ],
+      "suitableFor": [
+        "Cellulite"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "bodyfit-cellu-fix-cream",
+      "slug": "bodyfit-cellu-fix-cream",
+      "name": "BodyFit Cellu Fix Cream",
+      "category": "body",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Coffee Extract",
+        "Vanillyl Butyl Ether",
+        "Menthol"
+      ],
+      "ingredients": "Grape Seed Oil, Coffee Extracts, Vanillyl Butyl Ether, Menthyl Lactate, Menthol",
+      "strengths": [
+        "Nourishing, gently warming body cream",
+        "Supports fat breakdown and firms skin",
+        "Use after massage, bath or sauna"
+      ],
+      "suitableFor": [
+        "Cellulite",
+        "Loose skin"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "bodyfit-stretch-fix-ampoule",
+      "slug": "bodyfit-stretch-fix-ampoule",
+      "name": "BodyFit Stretch Fix Ampoule",
+      "category": "body",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Plant meristem stem cells",
+        "Polymers",
+        "Amino acids"
+      ],
+      "ingredients": "Plant Stem Cells (meristem cells; Hebrew plant name \"Sfalila\" - botanical name to confirm), Polymers, Amino Acids (Methylsilanol Hydroxyproline Aspartate)",
+      "strengths": [
+        "Helps rebuild skin layers and turgor",
+        "Supports healing of scars and stretch marks",
+        "For mesotherapy, electroporation and mechanical treatments"
+      ],
+      "suitableFor": [
+        "Stretch marks",
+        "Scars"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "bodyfit-stretch-fix-cream-for-stretch-marks",
+      "slug": "bodyfit-stretch-fix-cream-for-stretch-marks",
+      "name": "BodyFit Stretch Fix Cream for Stretch Marks",
+      "category": "body",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Asiatic Acid",
+        "Peptides",
+        "Plant meristem stem cells"
+      ],
+      "ingredients": "Horsetail Extract (Equisetum arvense), Rutin, Peptides (Palmitoyl Tetrapeptide-7, Palmitoyl Tripeptide-1), Lima Bean Extract (Phaseolus lunatus), Rose Hip Oil (Rosa canina), Asiatic Citronella (likely Centella asiatica - to confirm), Meristem Stem Cells, Bentonite Clay, Shea Butter, Avocado Oil (Persea americana), Urea, Vitamin E",
+      "strengths": [
+        "Helps prevent new stretch marks and reduce existing ones",
+        "Stimulates collagen and fibronectin",
+        "Especially for chest, thighs and belly"
+      ],
+      "suitableFor": [
+        "Stretch marks"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "meso-prof-herba-fill-ampoule",
+      "slug": "meso-prof-herba-fill-ampoule",
+      "name": "Meso Prof Herba Fill Ampoule",
+      "category": "ampoules_boosters",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Gum Arabic",
+        "Plant Biopolymer"
+      ],
+      "ingredients": "Gum Arabic, Plant Biopolymer, Polymers, Mannuronic Acid compound",
+      "strengths": [
+        "Filling meso cocktail with immediate smoothing",
+        "Tightens elastic fibres, moisturises",
+        "For micro-needling, electroporation or mechanical treatments"
+      ],
+      "suitableFor": [
+        "Wrinkles",
+        "Ageing skin"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "meso-prof-age-less-ampoule",
+      "slug": "meso-prof-age-less-ampoule",
+      "name": "Meso Prof Age Less Ampoule",
+      "category": "ampoules_boosters",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "DMAE",
+        "Biomimetic peptides",
+        "Low molecular weight Hyaluronic Acid"
+      ],
+      "ingredients": "Lactic Acid, Polymers, Ascorbic Acid, Dimethylaminoethanol (DMAE), Palmitoyl Hexapeptide-52, Palmitoyl Heptapeptide-18, Hyaluronic Acid (low molecular weight), Collagen, Elastin",
+      "strengths": [
+        "Anti-ageing meso cocktail",
+        "Boosts collagen and elastin, reduces wrinkles",
+        "For micro-needling, electroporation or mechanical treatments"
+      ],
+      "suitableFor": [
+        "Ageing skin",
+        "Expression lines"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "meso-prof-fusion-light-ampoule",
+      "slug": "meso-prof-fusion-light-ampoule",
+      "name": "Meso Prof Fusion Light Ampoule",
+      "category": "ampoules_boosters",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Azeloglycine",
+        "Kojic Acid",
+        "Tyrostat"
+      ],
+      "ingredients": "Azeloglycine, Mulberry, Bearberry Extract, Kojic Acid, Lactic Acid, Punarnava Extract, Tyrostat (melanin production inhibitor)",
+      "strengths": [
+        "Gentle meso cocktail for all pigmentation types",
+        "Inhibits tyrosinase and melanin formation",
+        "Usable all year round"
+      ],
+      "suitableFor": [
+        "Pigmentation",
+        "All skin types"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "meso-prof-vascu-ampoule",
+      "slug": "meso-prof-vascu-ampoule",
+      "name": "Meso Prof Vascu Ampoule",
+      "category": "ampoules_boosters",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Rutin",
+        "Arnica",
+        "Ascorbic Acid"
+      ],
+      "ingredients": "Arnica, Tomato Extract, Ascorbic Acid, Vitamin B5, Aloe Vera, Rutin",
+      "strengths": [
+        "Capillary-protecting meso cocktail",
+        "Reduces redness, mild anti-oedema effect",
+        "For micro-needling, electroporation or mechanical treatments"
+      ],
+      "suitableFor": [
+        "Couperose",
+        "Redness",
+        "Temperature-sensitive skin"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "meso-prof-boto-tech-ampoule",
+      "slug": "meso-prof-boto-tech-ampoule",
+      "name": "Meso Prof Boto Tech. Ampoule",
+      "category": "ampoules_boosters",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Muscle-relaxing biomimetic peptides",
+        "Colloidal Gold",
+        "Colloidal Platinum"
+      ],
+      "ingredients": "Palmitoyl Hexapeptide-19, Palmitoyl Tripeptide-28, Acetyl Tetrapeptide-17, Silicon Acetyl Heptapeptide-9, Colloidal Gold, Palmitoyl Heptapeptide-18, Palmitoyl Hexapeptide-52, Colloidal Platinum",
+      "strengths": [
+        "Peptide meso preparation against expression lines",
+        "Boosts collagen, inhibits collagen-degrading enzymes",
+        "For micro-needling, electroporation or mechanical treatments"
+      ],
+      "suitableFor": [
+        "Expression lines",
+        "Fine wrinkles"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "meso-prof-double-chin-ampoule",
+      "slug": "meso-prof-double-chin-ampoule",
+      "name": "Meso Prof Double Chin Ampoule",
+      "category": "ampoules_boosters",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Biomimetic peptides",
+        "Glaucine",
+        "Edelweiss Extract"
+      ],
+      "ingredients": "Cetyl Ester of Acetyl Dipeptide-1, Trifluoroacetyl Tripeptide-2, Glaucine, Edelweiss Extract, Maral Root, Jujube Extract",
+      "strengths": [
+        "Meso cocktail against sagging and double chin",
+        "Stimulates lipolysis under the chin",
+        "Redefines the facial contour"
+      ],
+      "suitableFor": [
+        "Sagging skin",
+        "Double chin"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "meso-prof-scalp-fix-ampoule",
+      "slug": "meso-prof-scalp-fix-ampoule",
+      "name": "Meso Prof Scalp Fix Ampoule",
+      "category": "hair_lashes",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Pea Peptide",
+        "Chinese Skullcap Root Extract",
+        "Arginine"
+      ],
+      "ingredients": "Sodium Metabisulfite, Salicin, Bark Extract (Hebrew \"Arzit\" - botanical name to confirm), Zinc Chloride, Camellia Leaf Extract, Pea Peptide, Horsetail Extract, Arginine, Lactic Acid, Soy, Wheat Germ Extract, Chinese Skullcap (Scutellaria) Root Extract, Nettle Extract",
+      "strengths": [
+        "Natural, steroid-free hair-growth cocktail",
+        "Supports hair follicle stem cells and the growth phase",
+        "For alopecia stages III-IV"
+      ],
+      "suitableFor": [
+        "Hair loss / alopecia",
+        "Scalp"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "meso-prof-micro-aqua-ampoule",
+      "slug": "meso-prof-micro-aqua-ampoule",
+      "name": "Meso Prof Micro Aqua Ampoule",
+      "category": "ampoules_boosters",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Encapsulated low molecular weight Hyaluronic Acid"
+      ],
+      "ingredients": "Low Molecular Weight Hyaluronic Acid, Lecithin, Kelp Extract, Diatomite",
+      "strengths": [
+        "Hypoallergenic anti-ageing moisture cocktail",
+        "Controlled nano-release of hyaluronic acid",
+        "Alone or combined with other cocktails"
+      ],
+      "suitableFor": [
+        "Dehydrated skin",
+        "Ageing skin"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "magic-gel",
+      "slug": "magic-gel",
+      "name": "Magic Gel",
+      "category": "ampoules_boosters",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Red algae (Gracilaria)"
+      ],
+      "ingredients": "Moisturizing gel made of Gracilaria algae",
+      "strengths": [
+        "Universal base gel for mechanical / device treatments",
+        "Softens, firms and soothes; anti-inflammatory",
+        "Base for custom serums or massage (with R.S.)"
+      ],
+      "suitableFor": [
+        "All skin types"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "st-cells-lifting-ampoule",
+      "slug": "st-cells-lifting-ampoule",
+      "name": "ST cells Lifting Ampoule",
+      "category": "ampoules_boosters",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Plant meristem stem cells",
+        "Sea Buckthorn Oil",
+        "Ascorbic Acid"
+      ],
+      "ingredients": "Olive Leaf Extract, Aloe Vera Gel, Chamomile Extract, Calendula Leaf Extract, Walnut Extract, Plant Stem Cells (\"Sfalila\" plant), Sorbitol, Lecithin, Sea Buckthorn Oil, Lavender Oil, Citron (Etrog) Oil, Grape Seed Oil, Allantoin, Citric Acid, Ascorbic Acid, Vitamin E, Vitamin B5",
+      "strengths": [
+        "Restorative lifting ampoule with plant stem cells",
+        "Stimulates facial circulation, stabilises cell metabolism",
+        "Also for scars, stretch marks and cellulite on the body"
+      ],
+      "suitableFor": [
+        "Rosacea",
+        "Problematic skin",
+        "Loss of firmness"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "st-cells-nourishing-mask",
+      "slug": "st-cells-nourishing-mask",
+      "name": "ST cells Nourishing Mask",
+      "category": "masks",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Plant stem cells",
+        "Phospholipids",
+        "Triglycerides"
+      ],
+      "ingredients": "Olive Leaf Extract, Rosemary Extract, Witch Hazel Extract, Chamomile Extract, Calendula Extract, Olive Oil, Almond Oil, Jojoba Oil, Plant Stem Cells (\"Sfalila\" plant), Wheat Germ Oil, Vitamin E, Vitamin B5, Aloe Vera Gel, Lactic Acid, Tea Tree Oil, Lavender Oil, Evening Primrose Oil, Citron (Etrog) Oil, Ascorbic Acid, Allantoin",
+      "strengths": [
+        "Leave-on nourishing mask, no rinsing needed",
+        "Restores hydro-lipid balance",
+        "Intensive renewal of upper epidermis"
+      ],
+      "suitableFor": [
+        "Sensitive skin",
+        "Dry, sagging skin",
+        "Weak skin barrier"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "st-cells-moisturizer-for-normal-to-dry-skin",
+      "slug": "st-cells-moisturizer-for-normal-to-dry-skin",
+      "name": "ST cells Moisturizer for Normal to Dry Skin",
+      "category": "face_creams",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Grape stem cells",
+        "Plant stem cells",
+        "Vitamin C"
+      ],
+      "ingredients": "Olive Leaf Extract, Aloe Vera Gel, Chamomile Extract, Olive Oil, Sweet Almond Oil, Witch Hazel Extract, Wheat Germ Extract, Grape Seed Oil, Sesame Seed Oil, Grape Stem Cells, Avocado Oil, Frankincense Oil, Lavender Oil, Vitamin C, Lactic Acid, Citron (Etrog) Oil, Myrrh Oil, Plant Stem Cells (\"Sfalila\" plant), Vitamin B5, Allantoin",
+      "strengths": [
+        "Morning moisturiser that boosts collagen and hyaluronic acid reserves",
+        "Strong antioxidant effect",
+        "Helps skin resist UV and cold"
+      ],
+      "suitableFor": [
+        "Normal skin",
+        "Dry skin",
+        "Tired or sagging skin"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "st-cells-nourishing-night-cream",
+      "slug": "st-cells-nourishing-night-cream",
+      "name": "ST cells Nourishing Night Cream",
+      "category": "face_creams",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Plant stem cells",
+        "Phospholipids",
+        "Triterpenes"
+      ],
+      "ingredients": "Olive Leaf Extract, Rosemary Extract, Witch Hazel Extract, Chamomile Extract, Calendula Extract, Wheat Germ Extract, Vitamin E, Sorbitol, Jojoba Oil, Panthenol, Plant Stem Cells (\"Sfalila\" plant), Sweet Almond Oil, Aloe Vera Gel, Citron (Etrog) Oil, Ascorbic Acid, Evening Primrose Oil, Tea Tree Oil, Lavender Oil",
+      "strengths": [
+        "Rich, velvety lifting night cream",
+        "Speeds regeneration and builds a protective layer",
+        "Ideal in cold, harsh weather"
+      ],
+      "suitableFor": [
+        "Dry skin",
+        "Skin needing extra protection"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "st-cells-vitamin-c-stem-cells-serum",
+      "slug": "st-cells-vitamin-c-stem-cells-serum",
+      "name": "ST cells Vitamin C + Stem Cells Serum",
+      "category": "face_serums",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Stable Vitamin C",
+        "Omega 3, 6 & 9",
+        "Plant stem cells"
+      ],
+      "ingredients": "Aloe Vera Gel, Shea Butter, Flaxseed Oil, Evening Primrose Oil, Calendula Flower Extract, Olive Oil, Sorbitol, Jojoba Oil, Walnut Oil, Chamomile Extract, Plant Stem Cells (\"Sfalila\" plant), Tea Tree Leaf Extract, Urea, Olive Leaf Extract, Lemon Oil, Lavender Oil, Ascorbic Acid, Allantoin, Salicylic Acid, Vitamin E, Lecithin",
+      "strengths": [
+        "Intensive anti-ageing vitamin C serum",
+        "Strengthens blood vessel walls",
+        "Reduces rosacea flare-ups"
+      ],
+      "suitableFor": [
+        "All skin types",
+        "Mature skin",
+        "Rosacea"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "st-cells-lacto-peeling-gommage",
+      "slug": "st-cells-lacto-peeling-gommage",
+      "name": "ST cells Lacto Peeling Gommage",
+      "category": "cleansers_peelings",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Lactic Acid",
+        "Lactic Enzymes",
+        "Grape stem cells"
+      ],
+      "ingredients": "Lactic Enzymes, Lactic Acid, Albumin, Phytic Acid, Grape Stem Cells",
+      "strengths": [
+        "Lactic acid and enzyme gommage",
+        "Reduces redness and inflammation, moisturises",
+        "May cause erythema; use SPF 15+"
+      ],
+      "suitableFor": [
+        "Dull skin",
+        "Pigmentation-prone skin"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "st-cells-lacto-nourishing-mask",
+      "slug": "st-cells-lacto-nourishing-mask",
+      "name": "ST cells Lacto Nourishing Mask",
+      "category": "masks",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Goat-cheese lactic enzymes",
+        "Goldenrod Extract",
+        "Oligopeptide-68"
+      ],
+      "ingredients": "Lactic (Milk) Enzymes, Albumin, Goldenrod (Solidago) Extract, Peptides (Oligopeptide-68), Amino Acids, Grape Stem Cells",
+      "strengths": [
+        "Mineral-rich renewing mask",
+        "Lifting and firming effect",
+        "Reduces tyrosinase activity, evens tone"
+      ],
+      "suitableFor": [
+        "Dull or pale skin",
+        "Pigmentation",
+        "Ageing skin"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "st-cells-eye-cream",
+      "slug": "st-cells-eye-cream",
+      "name": "ST cells Eye Cream",
+      "category": "eye",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Grape stem cells",
+        "Resveratrol",
+        "Ascorbic Acid"
+      ],
+      "ingredients": "Chamomile Extract, Aloe Vera Gel, Calendula Extract, Sesame Oil, Rosemary Extract, Olive Oil, Jojoba, Urea, Ascorbic Acid, Avocado Oil, Wheat Germ Oil, Sweet Almond Oil, Evening Primrose Oil, Grape Stem Cells, Sorbitol, Red Everlasting (Helichrysum sanguineum) Oil, Walnut Oil, Lecithin, Vitamin E, Citric Acid, Vitamin B5",
+      "strengths": [
+        "Light, non-sticky eye cream",
+        "Antioxidant, keeps hydro-lipid balance",
+        "Smooths crow's feet"
+      ],
+      "suitableFor": [
+        "Skin around the eyes",
+        "Crow's feet"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "cla-white-peeling-365",
+      "slug": "cla-white-peeling-365",
+      "name": "CLA White Peeling 365",
+      "category": "cleansers_peelings",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Azelaic Acid",
+        "Arbutin",
+        "Kojic Acid",
+        "Caviar Lime Extract"
+      ],
+      "ingredients": "Azelaic Acid, Lactic Acid, Phytic Acid, Glycolic Acid, Arbutin, Kojic Acid, Lime Extract",
+      "strengths": [
+        "Pigmentation peel, 22%, pH 3.5",
+        "Inhibits tyrosinase without lightening unaffected skin",
+        "Non-irritating, usable all year"
+      ],
+      "suitableFor": [
+        "Melasma",
+        "Post-acne marks",
+        "Post-traumatic pigmentation"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "cla-balance-peeling-365",
+      "slug": "cla-balance-peeling-365",
+      "name": "CLA Balance Peeling 365",
+      "category": "cleansers_peelings",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Azeloglycine",
+        "Salicylic Acid",
+        "Glycolic Acid"
+      ],
+      "ingredients": "Glycolic Acid, Azeloglycine, Salicylic Acid, Benzoic Acid, Caviar Lime Extract",
+      "strengths": [
+        "Peel for oily skin, 13%, pH 3.5",
+        "Anti-bacterial, normalises sebum",
+        "Minimal irritation, usable all year"
+      ],
+      "suitableFor": [
+        "Oily skin",
+        "Seborrhea",
+        "Acne and post-acne"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "cla-exfo-peeling-365",
+      "slug": "cla-exfo-peeling-365",
+      "name": "CLA Exfo Peeling 365",
+      "category": "cleansers_peelings",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Salicylic Acid",
+        "Lactic Acid",
+        "Caviar Lime Extract"
+      ],
+      "ingredients": "Alcohol, Salicylic Acid, Lactic Acid, Benzoic Acid, Citric Acid, Lime Extract",
+      "strengths": [
+        "Anti-inflammatory peel, 30%, pH 1.5",
+        "Superficial, medium or deep",
+        "Stimulates collagen, elastin and hyaluronic acid"
+      ],
+      "suitableFor": [
+        "Anti-ageing",
+        "Acne and post-acne",
+        "Hyperpigmentation",
+        "Hyperkeratosis"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "cla-liquid-complex-keratopeel-powder",
+      "slug": "cla-liquid-complex-keratopeel-powder",
+      "name": "CLA Liquid Complex & Keratopeel Powder",
+      "category": "cleansers_peelings",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Papain",
+        "Bromelain",
+        "Keratinase",
+        "Salicylic Acid"
+      ],
+      "ingredients": "Salicylic Acid, Lactic Acid, Urea, Papain, Bromelain, Lime Extract, Keratinase",
+      "strengths": [
+        "Enzymatic-acid peel, 40%, pH 1.4",
+        "Strong lifting effect, reduces wrinkles and pigmentation",
+        "Reduces oiliness and hyperkeratosis"
+      ],
+      "suitableFor": [
+        "Age-related changes",
+        "Melasma and freckles",
+        "Oily / acne skin",
+        "Photo-ageing"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "cla-neutralizer",
+      "slug": "cla-neutralizer",
+      "name": "CLA Neutralizer",
+      "category": "cleansers_peelings",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Green Tea",
+        "Vitamin B5",
+        "Caviar Lime Extract"
+      ],
+      "ingredients": "Green Tea, Vitamin B5, Caviar Lime Extract, Triethanolamine",
+      "strengths": [
+        "Neutralises acids after professional peels, pH 9.2",
+        "Soothing, antioxidant and anti-inflammatory"
+      ],
+      "suitableFor": [
+        "After professional peels"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "cla-retinol-peeling",
+      "slug": "cla-retinol-peeling",
+      "name": "CLA Retinol Peeling",
+      "category": "cleansers_peelings",
+      "use": "professional",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Retinol 4%",
+        "Lactic Acid",
+        "Glycolic Acid"
+      ],
+      "ingredients": "Lactic Acid, Glycolic Acid, Retinol 4%, Lime Extract",
+      "strengths": [
+        "Retinol peel, pH 3.5",
+        "Fast brightening of hyperpigmentation",
+        "Do not use during active sun exposure"
+      ],
+      "suitableFor": [
+        "Hyperpigmentation",
+        "Fine and medium wrinkles",
+        "Dry skin",
+        "Acne"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "cla-r720-cream-retinoic-concentrate-cream",
+      "slug": "cla-r720-cream-retinoic-concentrate-cream",
+      "name": "CLA R720 Cream - Retinoic Concentrate Cream",
+      "category": "face_creams",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Retinol",
+        "Retinyl Acetate",
+        "Blue Retinol (blue algae)",
+        "Cyclopeptide-5"
+      ],
+      "ingredients": "Retinol, Retinyl Acetate, Blue Retinol, Q10, Cyclopeptide-5, Lime Extract",
+      "strengths": [
+        "Concentrated retinoid cream",
+        "Reduces wrinkles, improves firmness and elasticity",
+        "Start 1-2 times a week; avoid active sun exposure"
+      ],
+      "suitableFor": [
+        "Ageing skin",
+        "Wrinkles"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "ps-med-c-p-r-treatment-cream",
+      "slug": "ps-med-c-p-r-treatment-cream",
+      "name": "PS med C.P.R. Treatment Cream",
+      "category": "face_creams",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Tiliroside",
+        "Troxerutin",
+        "Horse Chestnut",
+        "Cypress Oil"
+      ],
+      "ingredients": "Witch Hazel (Hamamelis), Chamomile (Matricaria chamomilla), Mallow, Psyllium (Plantago ovata), Chinese Camellia, Calendula, Horse Chestnut (Aesculus hippocastanum). Oils: Olive (Olea europaea), Sweet Almond, Sesame (Sesamum indicum), Jojoba (Simmondsia chinensis), Borage (Borago officinalis), Grape Seed, Flax (Linum usitatissimum), Shea, Eucalyptus, Lavender, Cypress (Cupressus sempervirens), Sea Buckthorn (Hippophae), Vitamin E, Immortelle (Helichrysum sanguineum), Chamomile (Matricaria chamomilla), Urea, Aloe Vera Gel, Tiliroside, Lecithin, Glycerin, Troxerutin, Sorbitol, Vitamin C, Citric Acid, UV filters",
+      "strengths": [
+        "Gentle cream for rosacea, reduces swelling",
+        "Reduces redness and visible capillaries",
+        "Soothes itching, sunburn and post-injection bruising"
+      ],
+      "suitableFor": [
+        "Rosacea",
+        "Very sensitive skin",
+        "All ages"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "ps-med-risim-gabot-serum",
+      "slug": "ps-med-risim-gabot-serum",
+      "name": "PS med Risim / Gabot Serum",
+      "category": "hair_lashes",
+      "use": "home",
+      "pregnancy": "safe",
+      "keyActives": [
+        "Plant extracts",
+        "Algae Extract",
+        "Hydrolysed Keratin"
+      ],
+      "ingredients": "Extracts: Chamomile (Matricaria chamomilla), Mallow (Malva sylvestris), Rosemary (Rosmarinus officinalis), Plantain (Plantago ovata), Olive Leaf (Olea europaea), Laminaria, Pelvetia canaliculata, Millet (Panicum miliaceum), Aloe Vera Gel. Oils: Olive, Sweet Almond, Evening Primrose (Oenothera biennis), Jojoba (Simmondsia chinensis), Rosemary (Rosmarinus officinalis), Glycerin, Keratin, Panthenol, Sorbitol, Lecithin, Vitamin E",
+      "strengths": [
+        "Natural lash / brow serum without hormones",
+        "Strengthens and stimulates lash and brow growth",
+        "Restores lashes and brows after tinting; brow version is more concentrated"
+      ],
+      "suitableFor": [
+        "Eyelashes",
+        "Eyebrows",
+        "Safe during pregnancy and breastfeeding (per catalogue)"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "ps-med-treatment-cream-regular",
+      "slug": "ps-med-treatment-cream-regular",
+      "name": "PS med Treatment Cream Regular",
+      "category": "body",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Dead Sea Salts",
+        "Salicylic Acid",
+        "Propolis"
+      ],
+      "ingredients": "Extracts: Chamomile (Matricaria chamomilla), Mallow, Olive Leaf (Olea europaea), Rosemary (Rosmarinus officinalis), Aloe Vera, Garlic (Allium sativum), Wheat Germ, Prickly Pear, Sage (Salvia officinalis), Calendula, Propolis. Oils: Olive, Sesame (Sesamum indicum), Grape Seed, Jojoba (Simmondsia chinensis), Wheat Germ, Sweet Almond, Shea, Evening Primrose (Oenothera biennis), Castor, Lemon, Tea Tree (Melaleuca alternifolia), Lavender, Rosemary, Pine, Eucalyptus, Peppermint (Mentha piperita), Camphor, Sea Buckthorn (Hippophae rhamnoides), Chamomile (Matricaria chamomilla), Dead Sea Water, Lecithin, Honey, Salicylic Acid, Citric Acid, Menthol, Vitamin E, Dead Sea Salts, Urea",
+      "strengths": [
+        "Relieves symptoms of psoriasis and atopic dermatitis",
+        "Softens, moisturises and restores skin",
+        "Use at least twice daily for at least two weeks"
+      ],
+      "suitableFor": [
+        "Psoriasis",
+        "Atopic dermatitis",
+        "Chronic skin inflammation"
+      ],
+      "photo": null
+    },
+    {
+      "seedKey": "ps-med-treatment-cream-forte",
+      "slug": "ps-med-treatment-cream-forte",
+      "name": "PS med Treatment Cream Forte",
+      "category": "body",
+      "use": "home",
+      "pregnancy": "not_stated",
+      "keyActives": [
+        "Dead Sea Salts",
+        "Salicylic Acid",
+        "Propolis"
+      ],
+      "ingredients": "Extracts: Chamomile (Matricaria chamomilla), Mallow, Olive Leaf (Olea europaea), Rosemary (Rosmarinus officinalis), Aloe Vera, Garlic (Allium sativum), Wheat Germ, Prickly Pear, Sage (Salvia officinalis), Calendula, Propolis. Oils: Olive, Sesame (Sesamum indicum), Grape Seed, Jojoba (Simmondsia chinensis), Wheat Germ, Sweet Almond, Shea, Evening Primrose (Oenothera biennis), Castor, Lemon, Tea Tree (Melaleuca alternifolia), Lavender, Rosemary, Pine, Eucalyptus, Peppermint (Mentha piperita), Camphor, Sea Buckthorn (Hippophae rhamnoides), Chamomile (Matricaria chamomilla), Dead Sea Water, Lecithin, Honey, Salicylic Acid, Citric Acid, Menthol, Vitamin E, Dead Sea Salts, Urea",
+      "strengths": [
+        "Stronger version for more severe chronic skin inflammation",
+        "Higher concentration of active ingredients",
+        "Use at least twice daily for at least two weeks"
+      ],
+      "suitableFor": [
+        "Severe psoriasis",
+        "Atopic dermatitis",
+        "Chronic skin inflammation"
+      ],
+      "photo": null
     }
   ]
 }
