@@ -119,6 +119,7 @@ mongoose
   .connect(process.env.MONGODB_URI)
   .then(() => {
     console.log('✅ MongoDB connected');
+  if (process.env.DISABLE_BACKGROUND_JOBS !== '1') {
     skinScanPoller.recoverPendingScans().catch(err => console.error('Skin scan recovery error:', err));
     setInterval(() => {
       skinScanPoller.recoverPendingScans().catch(err => console.error('Skin scan recovery error:', err));
@@ -147,6 +148,8 @@ mongoose
         console.error(`Shopify consultation sweep error (${err && err.name})`);
       }
     }, 5 * 60 * 1000).unref();
+
+  }
     app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
   })
   .catch(err => {

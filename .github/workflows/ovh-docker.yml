@@ -1,0 +1,62 @@
+name: verify and deploy OVH Docker
+on:
+  push:
+    branches: [migration/ovh-docker]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ovh-getpretty
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Validate API
+        run: |
+          npm ci --ignore-scripts --prefix server
+          npm test --prefix server -- --runInBand
+      - name: Build exact commit
+        run: docker build --build-arg SOURCE_COMMIT=${{ github.sha }} -f deploy/ovh/Dockerfile -t botech/getpretty:${{ github.sha }} .
+      - name: Package release
+        run: |
+          mkdir release
+          git branch ovh-release "${{ github.sha }}"
+          git bundle create release/repository.bundle ovh-release
+          docker save botech/getpretty:${{ github.sha }} | gzip -1 > release/image.tar.gz
+          printf '%s\n' "${{ github.sha }}" > release/commit
+          tar -czf release.tar.gz -C release .
+          openssl cms -encrypt -binary -aes-256-cbc -in release.tar.gz -outform DER -out release.cms deploy/ovh/recipient.pem
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ovh-release
+          path: release.cms
+          retention-days: 3
+  deploy:
+    if: vars.OVH_DEPLOY_ENABLED == 'true'
+    needs: build
+    runs-on: ubuntu-latest
+    environment: ovh
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ovh-release
+      - uses: actions/checkout@v4
+      - name: Install deployment key
+        env:
+          KEY: ${{ secrets.OVH_DEPLOY_KEY }}
+        run: |
+          test -n "$KEY"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/ovh
+          chmod 600 ~/.ssh/ovh
+          cp .github/ovh_known_hosts ~/.ssh/known_hosts
+      - name: Deploy and verify target
+        run: ssh -T -o BatchMode=yes -o StrictHostKeyChecking=yes -i ~/.ssh/ovh ubuntu@57.129.195.190 "deploy ${{ github.sha }}" < release.cms
