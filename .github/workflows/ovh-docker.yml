@@ -23,11 +23,23 @@ jobs:
         run: |
           npm ci --ignore-scripts --prefix server
           npm test --prefix server -- --runInBand
+      - name: Build web application
+        env:
+          VITE_API_URL: ${{ secrets.EXPO_PUBLIC_API_URL }}
+          VITE_CONSENT_VERSION: ${{ secrets.EXPO_PUBLIC_CONSENT_VERSION }}
+          VITE_TERMS_URL: ${{ secrets.EXPO_PUBLIC_TERMS_URL }}
+          VITE_PRIVACY_URL: ${{ secrets.EXPO_PUBLIC_PRIVACY_URL }}
+          VITE_GOOGLE_WEB_CLIENT_ID: ${{ secrets.VITE_GOOGLE_WEB_CLIENT_ID }}
+        run: |
+          npm ci --legacy-peer-deps
+          npm test -- --runInBand
+          npm run build
       - name: Build exact commit
         run: docker build --build-arg SOURCE_COMMIT=${{ github.sha }} -f deploy/ovh/Dockerfile -t botech/getpretty:${{ github.sha }} .
       - name: Package release
         run: |
           mkdir release
+          tar -czf release/web.tar.gz -C dist .
           git branch ovh-release "${{ github.sha }}"
           git bundle create release/repository.bundle ovh-release
           docker save botech/getpretty:${{ github.sha }} | gzip -1 > release/image.tar.gz
