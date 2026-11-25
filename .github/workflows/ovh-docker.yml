@@ -1,7 +1,7 @@
 name: verify and deploy OVH Docker
 on:
   push:
-    branches: [migration/ovh-docker]
+    branches: [main, migration/ovh-docker]
   workflow_dispatch:
 permissions:
   contents: read
@@ -25,7 +25,7 @@ jobs:
           npm test --prefix server -- --runInBand
       - name: Build web application
         env:
-          VITE_API_URL: ${{ secrets.EXPO_PUBLIC_API_URL }}
+          VITE_API_URL: https://getpretty.app
           VITE_CONSENT_VERSION: ${{ secrets.EXPO_PUBLIC_CONSENT_VERSION }}
           VITE_TERMS_URL: ${{ secrets.EXPO_PUBLIC_TERMS_URL }}
           VITE_PRIVACY_URL: ${{ secrets.EXPO_PUBLIC_PRIVACY_URL }}
@@ -52,7 +52,7 @@ jobs:
           path: release.cms
           retention-days: 3
   deploy:
-    if: vars.OVH_DEPLOY_ENABLED == 'true'
+    if: vars.OVH_DEPLOY_ENABLED == 'true' && github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
     environment: ovh

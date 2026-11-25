@@ -7,6 +7,7 @@ on:
 
 jobs:
   build-and-deploy:
+    if: vars.OVH_DEPLOY_ENABLED != 'true'
     runs-on: ubuntu-latest
 
     steps:
