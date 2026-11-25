@@ -7,7 +7,9 @@ on:
 
 jobs:
   build-and-deploy:
-    if: vars.OVH_DEPLOY_ENABLED != 'true'
+    # Production deployment moved to ovh-docker.yml. Keep this definition for
+    # reference; source files, its running service and its database are retained.
+    if: ${{ false }}
     runs-on: ubuntu-latest
 
     steps:
