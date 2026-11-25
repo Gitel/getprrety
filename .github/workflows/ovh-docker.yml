@@ -72,10 +72,10 @@ jobs:
     runs-on: ubuntu-latest
     environment: ovh
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           name: ovh-release
-      - uses: actions/checkout@v4
       - name: Install deployment key
         env:
           KEY: ${{ secrets.OVH_DEPLOY_KEY || secrets.DO_SSH_KEY }}
