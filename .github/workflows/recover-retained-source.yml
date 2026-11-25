@@ -1,0 +1,21 @@
+name: recover retained GetPretty source
+on:
+  push:
+    branches: [ops/getpretty-source-recovery]
+permissions:
+  contents: read
+jobs:
+  resume-source-before-target-writes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install existing source deployment key
+        env:
+          KEY: ${{ secrets.DO_SSH_KEY }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/source
+          chmod 600 ~/.ssh/source
+          cp .github/source_known_hosts ~/.ssh/known_hosts
+      - name: Restore retained source before OVH production writes
+        run: ssh -T -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15 -i ~/.ssh/source root@157.230.100.9 'python3 -' < deploy/ovh/recover-retained-source.py
